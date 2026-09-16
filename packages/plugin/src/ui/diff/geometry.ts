@@ -14,6 +14,21 @@ export interface Bounds {
 	bottom: number;
 }
 
+export function updatePaneViewportWidth(view: EditorView): void {
+	const gutters = view.dom.querySelector<HTMLElement>(".cm-gutters");
+	const gutterWidth = gutters?.getBoundingClientRect().width ?? 0;
+	const width = Math.max(0, view.scrollDOM.clientWidth - gutterWidth);
+	for (const [name, size] of [
+		["--obsync-pane-width", width],
+		["--obsync-gutter-width", gutterWidth],
+	] as const) {
+		const value = `${size}px`;
+		if (view.dom.style.getPropertyValue(name) !== value) {
+			view.dom.style.setProperty(name, value);
+		}
+	}
+}
+
 /** Character span of a 0-based, half-open line range. */
 export function sideSpan(doc: Text, [start, end]: LineRange): Span {
 	return { from: lineStart(doc, start), to: lineStart(doc, end) };

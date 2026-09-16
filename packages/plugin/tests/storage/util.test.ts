@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	assertOk,
 	isRetryableStatus,
@@ -41,6 +41,45 @@ describe("storage error semantics", () => {
 });
 
 describe("withRetry", () => {
+	afterEach(() => vi.useRealTimers());
+
+	it("retries an Android closed stream", async () => {
+		vi.useFakeTimers();
+		const request = vi
+			.fn()
+			.mockRejectedValueOnce(
+				new Error("Request Failed. IOException Stream closed"),
+			)
+			.mockResolvedValue("ok");
+		const pending = expect(withRetry(request)).resolves.toBe("ok");
+		await vi.runAllTimersAsync();
+		await pending;
+		expect(request).toHaveBeenCalledTimes(2);
+	});
+
+	it("stops after the bounded retries and preserves the last stream error", async () => {
+		vi.useFakeTimers();
+		const error = new Error("Request Failed. IOException Stream closed");
+		const request = vi.fn().mockRejectedValue(error);
+		const pending = expect(withRetry(request)).rejects.toBe(error);
+		await vi.runAllTimersAsync();
+		await pending;
+		expect(request).toHaveBeenCalledTimes(4);
+	});
+
+	it.each([
+		Object.assign(new Error("Stream closed"), { name: "AbortError" }),
+		new StorageHttpError(403, "Stream closed"),
+		new Error("Request Failed. IOException Permission denied"),
+	])(
+		"does not retry cancellation or a definitive failure: %s",
+		async (error) => {
+			const request = vi.fn().mockRejectedValue(error);
+			await expect(withRetry(request)).rejects.toBe(error);
+			expect(request).toHaveBeenCalledTimes(1);
+		},
+	);
+
 	it("retries a retryable failure and returns the eventual success", async () => {
 		let attempts = 0;
 		const value = await withRetry(async () => {

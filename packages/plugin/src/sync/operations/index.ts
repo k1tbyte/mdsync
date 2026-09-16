@@ -17,4 +17,5 @@ export type {
 	Operation,
 	OperationContext,
 	OperationOutcome,
+	SyncOperationResult,
 } from "./types";

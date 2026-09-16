@@ -318,13 +318,6 @@ export class ChangesTab {
 				);
 				return;
 			}
-			// Most errors here are transient - a dropped connection, a locked file.
-			const retryBtn = line.createEl("button", { text: "Retry" });
-			retryBtn.disabled = snapshot.busy;
-			retryBtn.addEventListener(
-				"click",
-				() => void this.plugin.controller.refresh(),
-			);
 			return;
 		}
 		if (snapshot.busy) {

@@ -88,12 +88,16 @@ export function renderFileRow(
 		ctx.openFileDiff(item, row.path),
 	);
 
-	const checkbox = item.createEl("input", {
+	const selection = item.createEl("label", {
+		cls: "obsync-file-selection",
+	});
+	selection.addEventListener("click", (event) => event.stopPropagation());
+	const checkbox = selection.createEl("input", {
 		type: "checkbox",
 		cls: "obsync-file-checkbox",
 	});
+	checkbox.setAttr("aria-label", `Select ${row.path}`);
 	checkbox.checked = ctx.isSelected(row.path);
-	checkbox.addEventListener("click", (e) => e.stopPropagation());
 	checkbox.addEventListener("change", () => {
 		ctx.setSelected(row.path, checkbox.checked);
 	});
@@ -134,9 +138,9 @@ export function renderFileRow(
 		text: row.statusLetter,
 	});
 
-	item.addEventListener("contextmenu", (e) => {
-		e.preventDefault();
-		ctx.actions.showContextMenu(e, row.path, ctx.section);
+	item.addEventListener("contextmenu", (event) => {
+		event.preventDefault();
+		showFileMenu(event, row, ctx);
 	});
 	return item;
 }
@@ -148,34 +152,40 @@ function renderConflictRowControls(
 	ctx: RowContext,
 ): void {
 	const controls = item.createDiv({ cls: "obsync-conflict-controls" });
-
-	appendIconButton(controls, "arrow-up", "Keep local version", (e) => {
-		e.stopPropagation();
-		void ctx.actions.resolveKeepLocal(row.path);
-	});
-
-	appendIconButton(controls, "arrow-down", "Accept remote version", (e) => {
-		e.stopPropagation();
-		void ctx.actions.resolveAcceptRemote(row.path);
-	});
-
 	const expanded = ctx.previews.isExpanded(row.path);
-	const expandBtn = appendIconButton(
+	const menuButton = appendIconButton(
 		controls,
-		expanded ? "chevron-down" : "chevron-right",
-		expanded ? "Collapse conflict preview" : "Expand conflict preview",
-		(e) => {
-			e.stopPropagation();
-			ctx.previews.toggle(row.path);
-			ctx.rerender();
+		"ellipsis",
+		"Conflict actions",
+		(event) => {
+			event.stopPropagation();
+			showFileMenu(event, row, ctx);
 		},
 	);
-	expandBtn.addClass("obsync-expand-btn");
-	expandBtn.setAttr("aria-expanded", String(expanded));
+	menuButton.addClass("obsync-conflict-menu-button");
+	menuButton.setAttr("aria-expanded", String(expanded));
 
 	if (expanded) {
-		ctx.previews.render(parent, row.path, ctx.actions);
+		ctx.previews.render(parent, row.path);
 	}
+}
+
+function showFileMenu(event: MouseEvent, row: FileRow, ctx: RowContext): void {
+	const menu = ctx.actions.createContextMenu(row.path, ctx.section);
+	if (row.isConflict) {
+		const expanded = ctx.previews.isExpanded(row.path);
+		menu.addSeparator();
+		menu.addItem((item) =>
+			item
+				.setTitle(expanded ? "Hide inline preview" : "Show inline preview")
+				.setIcon(expanded ? "eye-off" : "eye")
+				.onClick(() => {
+					ctx.previews.toggle(row.path);
+					ctx.rerender();
+				}),
+		);
+	}
+	menu.showAtMouseEvent(event);
 }
 
 function sizeDeltaParts(delta: number): { sign: string; cls: string } {

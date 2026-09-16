@@ -1,6 +1,7 @@
 import {
 	debounce,
 	ItemView,
+	Platform,
 	type ViewStateResult,
 	type WorkspaceLeaf,
 } from "obsidian";
@@ -47,6 +48,7 @@ export class DiffView extends ItemView {
 	private readonly mergePanel = new MergeEditorPanel();
 	private comparePanel: ComparePanel | null = null;
 	private forceText = false;
+	private lineWrapping = true;
 	private headerEl: HTMLElement | null = null;
 	private bodyEl: HTMLElement | null = null;
 	private rendering = false;
@@ -127,6 +129,7 @@ export class DiffView extends ItemView {
 	async onOpen(): Promise<void> {
 		this.contentEl.empty();
 		this.contentEl.addClass("obsync-diff-view");
+		this.contentEl.toggleClass("obsync-is-phone", Platform.isPhone);
 		this.headerEl = this.contentEl.createDiv({ cls: "obsync-diff-header" });
 		this.bodyEl = this.contentEl.createDiv({ cls: "obsync-diff-body" });
 		const handleStatus = debounce(
@@ -234,13 +237,14 @@ export class DiffView extends ItemView {
 	}
 
 	private renderShell(): void {
-		this.renderHeader();
+		const fileActions = this.renderHeader();
 		this.renderBody();
+		if (fileActions) this.comparePanel?.mountFileActions(fileActions);
 	}
 
-	private renderHeader(): void {
+	private renderHeader(): HTMLElement | null {
 		const header = this.headerEl;
-		if (!header) return;
+		if (!header) return null;
 		const path = this.path ?? "";
 		const model = this.model;
 		const paths = this.getOrderedPaths();
@@ -261,8 +265,9 @@ export class DiffView extends ItemView {
 				void this.mergePanel.enter(this.plugin, path, () => this.renderShell()),
 			goPrevFile: () => void this.navigateFile(-1),
 			goNextFile: () => void this.navigateFile(1),
+			goBack: () => void this.returnToSourceControl(),
 		};
-		renderDiffHeader(
+		return renderDiffHeader(
 			header,
 			{
 				path,
@@ -271,6 +276,7 @@ export class DiffView extends ItemView {
 				isEditing: this.mergePanel.isEditing,
 				canGoPrevFile: this.getAdjacentPath(paths, -1) !== null,
 				canGoNextFile: this.getAdjacentPath(paths, 1) !== null,
+				showBack: Platform.isPhone,
 				restoreLabel: this.against
 					? `Restore ${this.historyLabel}`
 					: "Restore this version",
@@ -308,7 +314,13 @@ export class DiffView extends ItemView {
 			return;
 		}
 		if (this.mergePanel.isEditing) {
-			this.mergePanel.render(body);
+			this.mergePanel.render(body, {
+				lineWrapping: this.lineWrapping,
+				showLineWrappingToggle: Platform.isPhone,
+				onLineWrappingChange: (enabled) => {
+					this.lineWrapping = enabled;
+				},
+			});
 			return;
 		}
 		this.renderTextDiff(body, model);
@@ -326,6 +338,11 @@ export class DiffView extends ItemView {
 		this.comparePanel = new ComparePanel({
 			direction: model.direction,
 			actionable,
+			lineWrapping: this.lineWrapping,
+			showLineWrappingToggle: Platform.isPhone,
+			onLineWrappingChange: (enabled) => {
+				this.lineWrapping = enabled;
+			},
 			onApply: (choices) => void this.operations.applyChoices(choices),
 		});
 		this.comparePanel.render(parent, model);
@@ -373,6 +390,10 @@ export class DiffView extends ItemView {
 			await this.refreshModel();
 			return;
 		}
+		await this.returnToSourceControl();
+	}
+
+	private async returnToSourceControl(): Promise<void> {
 		await openSourceControlView(this.app, SOURCE_CONTROL_VIEW_TYPE);
 		this.leaf.detach();
 	}

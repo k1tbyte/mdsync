@@ -76,7 +76,7 @@
 	container-type: inline-size;
 }
 
-.obsync-source-tabs {
+.obsync-source-tabs-row {
 	position: sticky;
 	top: 0;
 	z-index: 5;
@@ -84,10 +84,27 @@
 	flex: 0 0 auto;
 	gap: 2px;
 	margin-bottom: var(--size-4-2);
+}
+
+.obsync-source-tabs {
+	display: flex;
+	flex: 1 1 auto;
+	gap: 2px;
+	margin-bottom: 0;
 	padding: 3px;
 	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-m);
+	border-radius: calc(var(--button-radius, var(--radius-m)) + 3px);
 	background: var(--background-primary);
+}
+
+.obsync-mobile-back {
+	display: inline-flex;
+	flex: 0 0 44px;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	padding: 0;
 }
 
 .obsync-source-tabs .obsync-settings-tab-button {
@@ -352,6 +369,11 @@
 	padding: 0;
 }
 
+.obsync-selection-controls {
+	display: inline-flex;
+	gap: var(--size-2-2);
+}
+
 .obsync-section-icon-action svg {
 	width: 14px;
 	height: 14px;
@@ -481,16 +503,28 @@
 	white-space: nowrap;
 }
 
+.obsync-file-selection {
+	display: inline-flex;
+	flex: 0 0 20px;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	margin-right: var(--size-2-2);
+	cursor: pointer;
+}
+
 .obsync-file-checkbox {
 	flex: 0 0 auto;
-	width: 14px;
-	height: 14px;
-	margin: 0 var(--size-2-2) 0 0;
+	width: var(--checkbox-size, 14px);
+	height: var(--checkbox-size, 14px);
+	margin: 0;
 	opacity: 0.55;
 }
 
 .obsync-file-row:hover .obsync-file-checkbox,
 .obsync-file-row:focus-within .obsync-file-checkbox,
+.obsync-file-selection:hover .obsync-file-checkbox,
 .obsync-file-checkbox:checked {
 	opacity: 1;
 }
@@ -644,6 +678,22 @@
 	white-space: nowrap;
 }
 
+.obsync-diff-file-actions,
+.obsync-compare-file-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.obsync-diff-file-actions {
+	flex: 1 1 100%;
+	flex-wrap: wrap;
+}
+
+.obsync-compare-file-actions {
+	margin-left: auto;
+}
+
 .obsync-diff-body {
 	display: flex;
 	flex-direction: column;
@@ -673,6 +723,11 @@
 
 .obsync-icon-btn:hover {
 	background-color: var(--interactive-hover);
+}
+
+.obsync-icon-btn.is-active {
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
 }
 
 /* Obsidian styles buttons as inline-flex, which would beat the hidden attribute. */
@@ -950,9 +1005,24 @@
 	color: var(--text-faint);
 }
 
+.obsync-diff-view.obsync-is-phone .cm-gutters {
+	background: color-mix(in srgb, var(--background-primary) 94%, transparent);
+	box-shadow: 1px 0 var(--background-modifier-border);
+}
+
+/* CodeMirror retains a measured line width after its text is folded away. */
+.obsync-diff-view.obsync-is-phone .is-fully-folded .cm-content {
+	flex-basis: auto !important;
+}
+
 .obsync-merge-editor-host .cm-content,
 .obsync-compare-host .cm-content {
 	padding-bottom: 0;
+}
+
+.obsync-diff-view.obsync-is-phone .obsync-merge-editor-host .cm-content,
+.obsync-diff-view.obsync-is-phone .obsync-compare-host .cm-content {
+	padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
 }
 
 .obsync-merge-editor-host.is-local .cm-content,
@@ -1024,11 +1094,15 @@
 	height: 22px;
 	padding: 0;
 	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-s);
+	border-radius: var(--button-radius, var(--radius-s));
 	background: var(--background-primary);
 	color: var(--text-muted);
 	box-shadow: none;
 	cursor: pointer;
+}
+
+.obsync-rail-label {
+	display: none;
 }
 
 .obsync-rail-btn svg {
@@ -1219,6 +1293,19 @@
 	font-weight: 600;
 }
 
+.obsync-diff-view.obsync-is-phone
+	.obsync-compare-panel.is-combined
+	.obsync-source-head,
+.obsync-diff-view.obsync-is-phone
+	.obsync-merge-panel.is-combined
+	.obsync-source-head {
+	position: sticky;
+	left: calc(var(--obsync-gutter-width, 0px) + 1px);
+	z-index: 1;
+	box-sizing: border-box;
+	width: calc(var(--obsync-pane-width, 100%) - 2px);
+}
+
 .obsync-source.is-chosen > .obsync-source-head:first-of-type {
 	box-shadow: inset 3px 0 0 var(--interactive-accent);
 }
@@ -1308,7 +1395,6 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: var(--size-4-1);
 	width: 100%;
 	margin: 0;
 	padding: 1px var(--size-4-3);
@@ -1325,6 +1411,19 @@
 	font-size: var(--font-ui-smallest);
 	text-align: center;
 	cursor: pointer;
+}
+
+.obsync-diff-view.obsync-is-phone .obsync-gap {
+	position: sticky;
+	left: var(--obsync-gutter-width, 0px);
+	box-sizing: border-box;
+	width: var(--obsync-pane-width, 100%);
+}
+
+.obsync-gap-content {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-4-1);
 }
 
 .obsync-gap:hover {
@@ -1699,19 +1798,6 @@
 	margin-top: var(--size-4-3);
 }
 
-@media (max-width: 600px) {
-	.obsync-file-row {
-		padding: var(--size-4-1) var(--size-4-2);
-	}
-
-	.obsync-conflict-controls .obsync-icon-btn,
-	.obsync-conflict-preview-actions .obsync-icon-btn {
-		width: 32px;
-		min-width: 32px;
-		height: 32px;
-	}
-}
-
 .obsync-adopt-new-vault-btn {
 	margin-left: var(--size-4-2);
 }
@@ -1907,6 +1993,23 @@
 	background: var(--background-secondary);
 }
 
+.obsync-hunk-popup-controls {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.obsync-hunk-popup-wrap {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-2-2);
+}
+
+.obsync-hunk-popup-wrap[aria-pressed="true"] {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
 .obsync-hunk-popup-title {
 	font-weight: 600;
 }
@@ -1926,6 +2029,7 @@
 }
 
 .obsync-hunk-popup-body {
+	min-height: 0;
 	overflow: auto;
 	padding: var(--size-4-2) var(--size-4-3);
 	font-family: var(--font-monospace);
@@ -1933,11 +2037,21 @@
 	line-height: 1.4;
 }
 
+.obsync-hunk-popup-body.is-wrapped {
+	white-space: pre-wrap;
+}
+
 .obsync-hunk-popup-line-removed,
 .obsync-hunk-popup-line-added {
 	display: flex;
 	align-items: flex-start;
 	gap: var(--size-2-2);
+	min-width: max-content;
+}
+
+.obsync-hunk-popup-body.is-wrapped .obsync-hunk-popup-line-removed,
+.obsync-hunk-popup-body.is-wrapped .obsync-hunk-popup-line-added {
+	min-width: 0;
 }
 
 .obsync-hunk-popup-line-removed {
@@ -1970,6 +2084,10 @@
 	min-width: 0;
 }
 
+.obsync-hunk-popup-body.is-wrapped .obsync-hunk-popup-text {
+	overflow-wrap: anywhere;
+}
+
 .obsync-hunk-popup-truncated {
 	color: var(--text-muted);
 	font-style: italic;
@@ -1985,12 +2103,52 @@
 	background: var(--background-secondary);
 }
 
-.obsync-hunk-popup-revert {
+.obsync-hunk-popup-revert,
+.obsync-hunk-popup-push {
+	border-radius: var(--button-radius, var(--radius-s));
 	cursor: pointer;
 }
 
-.obsync-hunk-popup-push {
-	cursor: pointer;
+.obsync-hunk-drawer-container {
+	align-items: flex-end;
+	padding: 0;
+}
+
+.obsync-hunk-drawer-container .obsync-hunk-drawer {
+	width: 100%;
+	max-width: none;
+	max-height: 80dvh;
+	margin: 0;
+	padding: 0;
+	border-radius: var(--radius-l) var(--radius-l) 0 0;
+}
+
+.obsync-hunk-drawer .modal-title,
+.obsync-hunk-drawer .modal-close-button {
+	display: none;
+}
+
+.obsync-hunk-drawer-content {
+	display: flex;
+	min-height: 0;
+	padding: 0;
+	overflow: hidden;
+}
+
+.obsync-hunk-drawer .obsync-hunk-popup {
+	width: 100%;
+	min-width: 0;
+	max-width: none;
+	max-height: 80dvh;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+	padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.obsync-hunk-drawer .obsync-hunk-popup-header,
+.obsync-hunk-drawer .obsync-hunk-popup-footer {
+	flex: 0 0 auto;
 }
 
 /* Shared folders */
@@ -2134,4 +2292,128 @@
 
 .obsync-status-bar.is-offline {
 	color: var(--text-muted);
+}
+
+.obsync-source-control.obsync-is-phone button,
+.obsync-diff-view.obsync-is-phone button {
+	min-height: 44px;
+	padding-inline: var(--size-4-3);
+}
+
+.obsync-source-control.obsync-is-phone .obsync-source-tab-icon svg {
+	width: 18px;
+	height: 18px;
+}
+
+.obsync-source-control.obsync-is-phone .obsync-toolbar-icon {
+	flex-basis: 44px;
+	width: 44px;
+	height: 44px;
+}
+
+.obsync-source-control.obsync-is-phone
+	.obsync-section-actions
+	.obsync-section-icon-action {
+	width: 44px;
+	min-width: 44px;
+	padding: 0;
+}
+
+.obsync-source-control.obsync-is-phone .obsync-file-row {
+	min-height: 44px;
+	padding-top: 0;
+	padding-right: var(--size-4-2);
+	padding-bottom: 0;
+}
+
+.obsync-source-control.obsync-is-phone .obsync-section-header,
+.obsync-source-control.obsync-is-phone .obsync-history-search {
+	min-height: 44px;
+}
+
+.obsync-source-control.obsync-is-phone .obsync-tree-folder {
+	min-height: 44px;
+	padding-top: var(--size-4-2);
+	padding-right: var(--size-4-2);
+	padding-bottom: var(--size-4-2);
+}
+
+.obsync-source-control.obsync-is-phone .obsync-file-selection {
+	flex-basis: 44px;
+	width: 44px;
+	height: 44px;
+	margin-left: calc(-1 * var(--size-4-1));
+}
+
+.obsync-source-control.obsync-is-phone .obsync-file-checkbox {
+	--checkbox-size: 20px;
+}
+
+.obsync-source-control.obsync-is-phone .obsync-tree-folder-toggle svg,
+.obsync-source-control.obsync-is-phone .obsync-tree-folder-icon svg {
+	width: 18px;
+	height: 18px;
+}
+
+.obsync-source-control.obsync-is-phone
+	.obsync-conflict-controls
+	.obsync-icon-btn {
+	width: 44px;
+	min-width: 44px;
+	height: 44px;
+	padding: 0;
+}
+
+.obsync-diff-view.obsync-is-phone .obsync-diff-title {
+	display: flex;
+	flex: 1 1 100%;
+	align-items: center;
+	gap: var(--size-4-2);
+	min-width: 0;
+}
+
+.obsync-diff-view.obsync-is-phone .obsync-diff-title .obsync-diff-path {
+	flex-basis: 100%;
+}
+
+.obsync-diff-view.obsync-is-phone
+	.obsync-diff-file-actions:not(:has(> button)):not(
+		:has(.obsync-pending:not(:empty))
+	) {
+	display: none;
+}
+
+.obsync-diff-view.obsync-is-phone .obsync-icon-btn {
+	min-width: 44px;
+}
+
+.obsync-diff-view.obsync-is-phone .obsync-merge-toolbar select {
+	min-height: 44px;
+}
+
+.obsync-diff-view.obsync-is-phone .obsync-merge-pane-head,
+.obsync-diff-view.obsync-is-phone .obsync-compare-head,
+.obsync-diff-view.obsync-is-phone .obsync-source-head {
+	display: flex;
+	align-items: center;
+	min-height: 44px;
+	box-sizing: border-box;
+	font-size: var(--font-ui-small);
+}
+
+.obsync-diff-view.obsync-is-phone .obsync-rail-btn {
+	width: 44px;
+	min-width: 44px;
+	height: 44px;
+	padding: 0;
+}
+
+.obsync-diff-view.obsync-is-phone .obsync-rail-btn.has-label {
+	width: auto;
+	padding-inline: var(--size-4-2);
+	gap: var(--size-4-1);
+}
+
+.obsync-diff-view.obsync-is-phone .obsync-rail-label {
+	display: inline;
 }

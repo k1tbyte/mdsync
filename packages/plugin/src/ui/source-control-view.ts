@@ -72,7 +72,7 @@ export async function openSourceControlView(
 		return;
 	}
 	const leaf = Platform.isMobile
-		? app.workspace.getLeaf(false)
+		? app.workspace.getLeaf("tab")
 		: (app.workspace.getRightLeaf(false) ?? app.workspace.getLeaf(true));
 	if (!leaf) return;
 	await leaf.setViewState({ type: viewType, active: true });
@@ -152,6 +152,7 @@ export class SourceControlView extends ItemView {
 		this.root = this.contentEl;
 		this.root.empty();
 		this.root.addClass("obsync-source-control");
+		this.root.toggleClass("obsync-is-phone", Platform.isPhone);
 		this.render(this.plugin.controller.getSnapshot(), true);
 		this.unsubscribe = this.plugin.controller.subscribe((snapshot) =>
 			this.render(snapshot),
@@ -245,7 +246,15 @@ export class SourceControlView extends ItemView {
 	}
 
 	private renderTabBar(parent: HTMLElement): void {
-		const bar = parent.createDiv({
+		const row = parent.createDiv({ cls: "obsync-source-tabs-row" });
+		if (Platform.isPhone) {
+			const back = row.createEl("button", { cls: "obsync-mobile-back" });
+			back.type = "button";
+			back.setAttr("aria-label", "Close source control");
+			setIcon(back, "arrow-left");
+			back.addEventListener("click", () => this.leaf.detach());
+		}
+		const bar = row.createDiv({
 			cls: "obsync-settings-tabs obsync-source-tabs",
 		});
 		bar.setAttr("role", "tablist");

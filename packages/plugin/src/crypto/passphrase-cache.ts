@@ -27,7 +27,7 @@ export async function loadCachedPassphrase(
 ): Promise<string | null> {
 	const path = cachePath(configDir);
 	if (!(await adapter.exists(path))) return null;
-	const key = await loadDeviceKey(adapter, configDir, false);
+	const key = await loadDeviceKey(adapter, configDir);
 	if (!key) return null;
 	try {
 		const blob = await readBinary(adapter, path);
@@ -46,8 +46,13 @@ export async function saveCachedPassphrase(
 	passphrase: string,
 	binding: string,
 ): Promise<void> {
-	const key = await loadDeviceKey(adapter, configDir, true);
-	if (!key) throw new Error("Failed to obtain device key for passphrase cache");
+	let key = await loadDeviceKey(adapter, configDir);
+	if (!key) {
+		// An available passphrase lets us rebuild the cache without the old key.
+		const fresh = randomBytes(DEVICE_KEY_BYTES);
+		key = await importAesKey(fresh);
+		await writeBinary(adapter, deviceKeyPath(configDir), fresh);
+	}
 	const payload: CachedPayload = { version: 1, passphrase, binding };
 	const blob = await encryptJson(key, payload);
 	await writeBinary(adapter, cachePath(configDir), blob);
@@ -63,25 +68,16 @@ export async function clearCachedPassphrase(
 async function loadDeviceKey(
 	adapter: DataAdapter,
 	configDir: string,
-	createIfMissing: boolean,
 ): Promise<EncryptionKey | null> {
 	const path = deviceKeyPath(configDir);
-	if (await adapter.exists(path)) {
-		try {
-			const bytes = await readBinary(adapter, path);
-			if (bytes.length !== DEVICE_KEY_BYTES) return null;
-			return importAesKey(bytes);
-		} catch {
-			// The key file exists but is unreadable. Regenerating it here would
-			// overwrite a possibly-recoverable key and permanently destroy the
-			// encrypted passphrase cache. Treat as "no usable key" instead.
-			return null;
-		}
+	if (!(await adapter.exists(path))) return null;
+	try {
+		const bytes = await readBinary(adapter, path);
+		if (bytes.length !== DEVICE_KEY_BYTES) return null;
+		return await importAesKey(bytes);
+	} catch {
+		return null;
 	}
-	if (!createIfMissing) return null;
-	const fresh = randomBytes(DEVICE_KEY_BYTES);
-	await writeBinary(adapter, path, fresh);
-	return importAesKey(fresh);
 }
 
 function pluginFolder(configDir: string): string {

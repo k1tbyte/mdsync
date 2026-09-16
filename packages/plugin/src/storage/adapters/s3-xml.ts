@@ -27,7 +27,8 @@ export function parseListObjects(xml: string): ListPage {
 	for (const match of xml.matchAll(CONTENTS)) {
 		// A key may legitimately begin or end with a space, so it is never trimmed.
 		const key = tagValue(match[1] ?? "", "Key");
-		if (key) keys.push(key);
+		if (!key) throw new Error("S3 listing contained an object without a key.");
+		keys.push(key);
 	}
 	const nextToken = tagValue(xml, "NextContinuationToken")?.trim();
 	// S3 always names the token alongside a truncated listing. A backend that
@@ -46,7 +47,8 @@ export function parseErrorCode(xml: string): string | null {
 }
 
 /** Namespace prefixes and attributes are tolerated; S3 itself uses neither. */
-const LIST_ROOT = /<(?:\w+:)?ListBucketResult[\s>]/;
+const LIST_ROOT =
+	/<(?:\w+:)?ListBucketResult[\s>][\s\S]*<\/(?:\w+:)?ListBucketResult\s*>/;
 const CONTENTS =
 	/<(?:\w+:)?Contents(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?Contents>/g;
 

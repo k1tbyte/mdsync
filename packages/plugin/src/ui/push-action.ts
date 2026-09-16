@@ -60,7 +60,7 @@ async function pushScope(
 	}
 	const snapshot = plugin.controller.getSnapshot();
 	const diff = snapshot.result?.diff;
-	if (!diff) {
+	if (snapshot.error || !diff) {
 		notifyError(
 			`Could not push ${target}`,
 			new Error(snapshot.error ?? "No comparison result."),

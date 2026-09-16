@@ -2,6 +2,8 @@ import type { ESyncLogOperation } from "@/logs/store";
 import type { CompareResult, EngineDependencies } from "@/sync/engine";
 import type { Manifest, ManifestEntry, SessionState } from "@/sync/types";
 
+export type SyncOperationResult = { ok: true } | { ok: false; error?: string };
+
 export interface OperationOutcome {
 	newRemote: Manifest | null;
 	touchedPaths: ReadonlySet<string>;

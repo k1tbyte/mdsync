@@ -14,8 +14,12 @@ import {
 	segmentsChanged,
 } from "./compare-decorations";
 import { Divider, type DividerItem } from "./divider";
-import { sideSpan, spanBounds } from "./geometry";
+import { sideSpan, spanBounds, updatePaneViewportWidth } from "./geometry";
 import { LayoutMode } from "./layout-mode";
+import {
+	LineWrappingControl,
+	type LineWrappingOptions,
+} from "./line-wrapping-control";
 import { setCombinedMode } from "./merge-decorations";
 import { changeNavigation, type RailAction } from "./rail";
 import {
@@ -26,7 +30,7 @@ import {
 } from "./scroll-sync";
 import { renderCounters } from "./source-widget";
 
-export interface ComparePanelOptions {
+export interface ComparePanelOptions extends LineWrappingOptions {
 	direction: EDiffDirection;
 	actionable: boolean;
 	onApply(choices: HunkChoices): void;
@@ -53,12 +57,20 @@ export class ComparePanel {
 	private summaryEl: HTMLElement | null = null;
 	private navButtons: HTMLButtonElement[] = [];
 	private pendingEl: HTMLElement | null = null;
+	private fileActionsEl: HTMLElement | null = null;
 	private applyButton: HTMLButtonElement | null = null;
 	private discardButton: HTMLButtonElement | null = null;
 	private layoutFrame: number | null = null;
+	private readonly wrapping: LineWrappingControl;
 	private current = -1;
 
-	constructor(private readonly options: ComparePanelOptions) {}
+	constructor(private readonly options: ComparePanelOptions) {
+		this.wrapping = new LineWrappingControl(
+			options,
+			() => [this.leftView, this.rightView],
+			() => this.scheduleLayout(),
+		);
+	}
 
 	render(parent: HTMLElement, model: FileDiffModel): void {
 		this.model = model;
@@ -151,11 +163,17 @@ export class ComparePanel {
 		this.summaryEl = null;
 		this.navButtons = [];
 		this.pendingEl = null;
+		this.fileActionsEl = null;
 		this.applyButton = null;
 		this.discardButton = null;
 		this.current = -1;
 		this.choices.clear();
 		this.folded.clear();
+	}
+
+	mountFileActions(host: HTMLElement): void {
+		if (!this.fileActionsEl) return;
+		host.appendChild(this.fileActionsEl);
 	}
 
 	/** The pane the rail buttons belong to: the side a decision takes from. */
@@ -218,7 +236,7 @@ export class ComparePanel {
 						},
 					}),
 					lineNumbers(),
-					EditorView.lineWrapping,
+					this.wrapping.extension(),
 					EditorView.updateListener.of((update) => {
 						if (update.geometryChanged || update.viewportChanged) {
 							this.scheduleLayout();
@@ -239,24 +257,35 @@ export class ComparePanel {
 	private segmentActions(segment: CompareSegment): RailAction[] {
 		if (!this.options.actionable) return [];
 		const ref = { hunk: segment.hunk, segment: segment.segment };
-		const action = (kind: EChoiceKind, label: string): RailAction => ({
+		const action = (
+			kind: EChoiceKind,
+			label: string,
+			shortLabel: string,
+		): RailAction => ({
 			icon: CHOICE_ICON[kind],
 			label,
+			shortLabel,
 			active: this.choices.kindOf(ref) === kind,
 			run: () => this.toggleChoice(ref, kind),
 		});
 		switch (this.options.direction) {
 			case EDiffDirection.Local:
 				return [
-					action(EChoiceKind.Push, "Push this change to the remote"),
-					action(EChoiceKind.Revert, "Revert this change to the baseline"),
+					action(EChoiceKind.Push, "Push this change to the remote", "Push"),
+					action(
+						EChoiceKind.Revert,
+						"Revert this change to the baseline",
+						"Revert",
+					),
 				];
 			case EDiffDirection.Remote:
-				return [action(EChoiceKind.Pull, "Pull this change from the remote")];
+				return [
+					action(EChoiceKind.Pull, "Pull this change from the remote", "Pull"),
+				];
 			case EDiffDirection.Conflict:
-				return [action(EChoiceKind.Pull, "Accept the remote change")];
+				return [action(EChoiceKind.Pull, "Accept the remote change", "Accept")];
 			default:
-				return [action(EChoiceKind.Restore, "Restore this change")];
+				return [action(EChoiceKind.Restore, "Restore this change", "Restore")];
 		}
 	}
 
@@ -276,6 +305,10 @@ export class ComparePanel {
 
 	/** Choices and folds live outside the editors: both panes redraw, then the strip. */
 	private redrawSegments(): void {
+		this.rootEl?.toggleClass(
+			"is-fully-folded",
+			this.folded.size === this.segments.length,
+		);
 		for (const view of [this.leftView, this.rightView]) {
 			view?.dispatch({ effects: segmentsChanged.of() });
 		}
@@ -339,18 +372,23 @@ export class ComparePanel {
 			}
 			this.scheduleLayout();
 		});
+		this.wrapping.mount(toolbar);
 		toolbar.createSpan({ cls: "obsync-compare-spacer" });
+		const fileActions = toolbar.createDiv({
+			cls: "obsync-compare-file-actions",
+		});
+		this.fileActionsEl = fileActions;
 		this.discardButton = appendIconButton(
-			toolbar,
+			fileActions,
 			"x",
 			"Discard the pending choices",
 			() => this.discardChoices(),
 		);
-		this.applyButton = appendIconButton(toolbar, "check", "Apply", () => {
+		this.applyButton = appendIconButton(fileActions, "check", "Apply", () => {
 			if (this.choices.size > 0) this.options.onApply(this.choices);
 		});
 		this.applyButton.addClass("mod-cta");
-		this.pendingEl = toolbar.createSpan({ cls: "obsync-pending" });
+		this.pendingEl = fileActions.createSpan({ cls: "obsync-pending" });
 	}
 
 	private updateToolbar(): void {
@@ -446,6 +484,9 @@ export class ComparePanel {
 		if (this.layoutFrame !== null) return;
 		this.layoutFrame = window.requestAnimationFrame(() => {
 			this.layoutFrame = null;
+			for (const view of [this.leftView, this.rightView]) {
+				if (view) updatePaneViewportWidth(view);
+			}
 			this.divider?.layout();
 			for (const overlay of this.overlays) {
 				overlay.layout(this.segments, this.folded);

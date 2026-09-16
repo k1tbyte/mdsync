@@ -54,7 +54,7 @@ export function registerEditorSigns(plugin: Plugin & PluginHost): SignsHandle {
 }
 
 function createActiveRuntime(plugin: Plugin & PluginHost): ActiveSignsRuntime {
-	const provider = new SignsProvider(plugin.controller);
+	const provider = new SignsProvider(plugin.controller, plugin.app);
 	// Progress broadcasts arrive once a frame while an operation runs, and
 	// invalidating on each one re-downloads every open file's baseline dozens of
 	// times per refresh. Only a new compare result can have moved the baseline -

@@ -1,6 +1,7 @@
 import type { Chunk } from "@codemirror/merge";
 import type { Text } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
+import { type App, Modal, Platform, setIcon } from "obsidian";
 
 import type { SyncHunk } from "@/sync/hunks";
 
@@ -13,6 +14,7 @@ const POPUP_MAX_LINES = 30;
 
 let activePopup: HTMLElement | null = null;
 let activeCleanup: (() => void) | null = null;
+let activeDrawer: HunkDrawer | null = null;
 
 export function showHunkPopupAt(
 	view: EditorView,
@@ -38,6 +40,19 @@ export function showHunkPopupAt(
 			: findSyncHunkForLine(lineNumber, baseline, view.state.doc);
 
 	dismissPopup();
+	if (Platform.isPhone) {
+		activeDrawer = new HunkDrawer(
+			provider.app,
+			view,
+			chunk,
+			baseline,
+			provider,
+			path,
+			syncHunk,
+		);
+		activeDrawer.open();
+		return true;
+	}
 	const popup = buildPopup(view, chunk, baseline, provider, path, syncHunk);
 	document.body.appendChild(popup);
 	positionPopup(popup, event);
@@ -47,10 +62,49 @@ export function showHunkPopupAt(
 }
 
 export function dismissPopup(): void {
+	const drawer = activeDrawer;
+	activeDrawer = null;
+	drawer?.close();
 	if (activeCleanup) activeCleanup();
 	activeCleanup = null;
 	if (activePopup?.parentElement) activePopup.remove();
 	activePopup = null;
+}
+
+class HunkDrawer extends Modal {
+	constructor(
+		app: App,
+		private readonly view: EditorView,
+		private readonly chunk: Chunk,
+		private readonly baseline: Text,
+		private readonly provider: SignsProvider,
+		private readonly path: string | null,
+		private readonly syncHunk: SyncHunk | null,
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		this.containerEl.addClass("obsync-hunk-drawer-container");
+		this.modalEl.addClass("obsync-hunk-drawer");
+		this.contentEl.addClass("obsync-hunk-drawer-content");
+		this.contentEl.empty();
+		this.contentEl.appendChild(
+			buildPopup(
+				this.view,
+				this.chunk,
+				this.baseline,
+				this.provider,
+				this.path,
+				this.syncHunk,
+			),
+		);
+	}
+
+	onClose(): void {
+		if (activeDrawer === this) activeDrawer = null;
+		this.contentEl.empty();
+	}
 }
 
 function findChunkForLine(
@@ -97,14 +151,37 @@ function buildPopup(
 			presentation.addedLines.length,
 		),
 	});
-	const closeBtn = header.createEl("button", {
-		cls: "obsync-hunk-popup-close",
-		text: "×",
+	const controls = header.createDiv({ cls: "obsync-hunk-popup-controls" });
+	const wrapBtn = controls.createEl("button", {
+		cls: "obsync-hunk-popup-wrap",
 	});
-	closeBtn.type = "button";
-	closeBtn.addEventListener("click", () => dismissPopup());
+	wrapBtn.type = "button";
+	setIcon(wrapBtn, "wrap-text");
+	wrapBtn.createSpan({ text: "Wrap" });
+	if (!Platform.isPhone) {
+		const closeBtn = controls.createEl("button", {
+			cls: "obsync-hunk-popup-close",
+			text: "×",
+		});
+		closeBtn.type = "button";
+		closeBtn.addEventListener("click", () => dismissPopup());
+	}
 
 	const body = popup.createDiv({ cls: "obsync-hunk-popup-body" });
+	let wrapped = Platform.isPhone;
+	const renderWrap = () => {
+		body.toggleClass("is-wrapped", wrapped);
+		wrapBtn.setAttr("aria-pressed", String(wrapped));
+		wrapBtn.setAttr(
+			"aria-label",
+			wrapped ? "Disable line wrapping" : "Enable line wrapping",
+		);
+	};
+	wrapBtn.addEventListener("click", () => {
+		wrapped = !wrapped;
+		renderWrap();
+	});
+	renderWrap();
 	if (presentation.removedLines.length > 0) {
 		renderLines(
 			body,

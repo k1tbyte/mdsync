@@ -8,6 +8,7 @@ export interface DiffHeaderState {
 	isEditing: boolean;
 	canGoPrevFile: boolean;
 	canGoNextFile: boolean;
+	showBack: boolean;
 	/** Names the side a history restore would take, when that is ambiguous. */
 	restoreLabel?: string;
 }
@@ -23,6 +24,7 @@ export interface DiffHeaderActions {
 	startMerge: () => void;
 	goPrevFile: () => void;
 	goNextFile: () => void;
+	goBack: () => void;
 }
 
 /**
@@ -33,41 +35,64 @@ export function renderDiffHeader(
 	parent: HTMLElement,
 	state: DiffHeaderState,
 	actions: DiffHeaderActions,
-): void {
+): HTMLElement | null {
 	parent.empty();
-	parent.createSpan({ cls: "obsync-diff-path", text: state.path });
+	let pathParent = parent;
+	if (state.showBack) {
+		pathParent = parent.createDiv({ cls: "obsync-diff-title" });
+		appendIconButton(
+			pathParent,
+			"arrow-left",
+			"Back to source control",
+			actions.goBack,
+		);
+	}
+	pathParent.createSpan({ cls: "obsync-diff-path", text: state.path });
+	const actionParent = state.showBack
+		? parent.createDiv({ cls: "obsync-diff-file-actions" })
+		: parent;
 
-	if (state.direction === null) return;
+	if (state.direction === null) return state.showBack ? actionParent : null;
 	if (state.isEditing) {
 		appendIconButton(
-			parent,
+			actionParent,
 			"check",
 			"Save and push",
 			actions.saveResolution,
 		).addClass("mod-cta");
-		appendIconButton(parent, "x", "Cancel merge", actions.cancelResolution);
-		return;
+		appendIconButton(
+			actionParent,
+			"x",
+			"Cancel merge",
+			actions.cancelResolution,
+		);
+		return state.showBack ? actionParent : null;
 	}
 
 	if (state.direction === EDiffDirection.History) {
 		appendButton(
-			parent,
+			actionParent,
 			state.restoreLabel ?? "Restore this version",
 			actions.restoreVersion,
 		);
-		return;
+		return state.showBack ? actionParent : null;
 	}
 
 	if (state.direction === EDiffDirection.Conflict) {
-		appendButton(parent, "Keep local", actions.keepLocal);
-		appendButton(parent, "Accept remote", actions.acceptRemote);
+		appendButton(actionParent, "Keep local", actions.keepLocal);
+		appendButton(actionParent, "Accept remote", actions.acceptRemote);
 		if (!state.isBinary) {
-			appendButton(parent, "Keep both versions", actions.keepBothVersions);
-			appendButton(parent, "Merge…", actions.startMerge);
+			appendButton(
+				actionParent,
+				"Keep both versions",
+				actions.keepBothVersions,
+			);
+			appendButton(actionParent, "Merge…", actions.startMerge);
 		}
 	}
 
-	appendFileNavigation(parent, state, actions);
+	appendFileNavigation(actionParent, state, actions);
+	return state.showBack ? actionParent : null;
 }
 
 function appendFileNavigation(
@@ -75,20 +100,12 @@ function appendFileNavigation(
 	state: DiffHeaderState,
 	actions: DiffHeaderActions,
 ): void {
-	appendButton(
-		parent,
-		"◀",
-		actions.goPrevFile,
-		"Previous file",
-		!state.canGoPrevFile,
-	);
-	appendButton(
-		parent,
-		"▶",
-		actions.goNextFile,
-		"Next file",
-		!state.canGoNextFile,
-	);
+	if (state.canGoPrevFile) {
+		appendButton(parent, "◀", actions.goPrevFile, "Previous file");
+	}
+	if (state.canGoNextFile) {
+		appendButton(parent, "▶", actions.goNextFile, "Next file");
+	}
 }
 
 function appendButton(
@@ -96,14 +113,13 @@ function appendButton(
 	text: string,
 	onClick: () => void,
 	ariaLabel?: string,
-	disabled = false,
 ): HTMLButtonElement {
 	const button = parent.createEl("button", {
 		cls: "obsync-icon-btn",
 		text,
 	});
+	button.type = "button";
 	if (ariaLabel) button.setAttr("aria-label", ariaLabel);
-	button.disabled = disabled;
 	button.addEventListener("click", onClick);
 	return button;
 }

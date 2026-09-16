@@ -1,8 +1,5 @@
 import type { FileDiffModel } from "@/sync/projection";
-import {
-	type ConflictPreviewHandlers,
-	renderConflictPreview,
-} from "./conflict-preview";
+import { renderConflictPreview } from "./conflict-preview";
 
 interface ConflictPreviewManagerDeps {
 	loadPreview: (path: string) => Promise<FileDiffModel | null>;
@@ -12,10 +9,7 @@ export class ConflictPreviewManager {
 	private readonly loadPreview: (path: string) => Promise<FileDiffModel | null>;
 	private readonly previewCache = new Map<string, FileDiffModel | null>();
 	private readonly loadingPreviews = new Set<string>();
-	private readonly pendingTargets = new Map<
-		string,
-		{ previewEl: HTMLElement; handlers: ConflictPreviewHandlers }
-	>();
+	private readonly pendingTargets = new Map<string, HTMLElement>();
 	private readonly expandedPreviews = new Set<string>();
 
 	constructor(deps: ConflictPreviewManagerDeps) {
@@ -46,20 +40,16 @@ export class ConflictPreviewManager {
 		else this.expandedPreviews.add(path);
 	}
 
-	render(
-		parent: HTMLElement,
-		path: string,
-		handlers: ConflictPreviewHandlers,
-	): void {
+	render(parent: HTMLElement, path: string): void {
 		const previewEl = parent.createDiv({ cls: "obsync-conflict-preview" });
 		const cached = this.previewCache.get(path);
 		if (cached !== undefined) {
-			this.renderInto(previewEl, cached, path, handlers);
+			this.renderInto(previewEl, cached);
 			return;
 		}
 		previewEl.setText("Loading diff…");
 		// The element may be detached by a re-render, so remember and fill the newest one.
-		this.pendingTargets.set(path, { previewEl, handlers });
+		this.pendingTargets.set(path, previewEl);
 		if (this.loadingPreviews.has(path)) return;
 		this.loadingPreviews.add(path);
 		void this.loadPreview(path)
@@ -78,15 +68,13 @@ export class ConflictPreviewManager {
 		const target = this.pendingTargets.get(path);
 		this.pendingTargets.delete(path);
 		if (target) {
-			this.renderInto(target.previewEl, model, path, target.handlers);
+			this.renderInto(target, model);
 		}
 	}
 
 	private renderInto(
 		previewEl: HTMLElement,
 		model: FileDiffModel | null,
-		path: string,
-		handlers: ConflictPreviewHandlers,
 	): void {
 		if (!previewEl.isConnected) return;
 		previewEl.empty();
@@ -98,6 +86,6 @@ export class ConflictPreviewManager {
 			previewEl.setText("Binary file — cannot preview diff.");
 			return;
 		}
-		renderConflictPreview(previewEl, model, path, handlers);
+		renderConflictPreview(previewEl, model);
 	}
 }

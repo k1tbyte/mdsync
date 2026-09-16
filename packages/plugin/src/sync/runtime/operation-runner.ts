@@ -1,5 +1,6 @@
 import { ESyncLogOperation } from "@/logs/store";
 import { errorMessage } from "@/shared/errors";
+import { StorageRequestError } from "@/storage";
 import { advanceBaselineForPaths } from "@/sync/baseline";
 import { isCancellation } from "@/sync/cancel";
 import { reconcileBaselineResetGenerations } from "@/sync/config-reset";
@@ -10,7 +11,11 @@ import {
 	type EngineDependencies,
 } from "@/sync/engine";
 import { ConcurrentPushError } from "@/sync/manifest";
-import type { OperationContext, OperationOutcome } from "@/sync/operations";
+import type {
+	OperationContext,
+	OperationOutcome,
+	SyncOperationResult,
+} from "@/sync/operations";
 import {
 	mergeSessionIntoLocal,
 	projectSession,
@@ -90,9 +95,7 @@ export class OperationRunner {
 			);
 			this.applyResult(result);
 		} catch (err) {
-			const message = errorMessage(err);
-			this.deps.runtimeState.setError(message);
-			await this.deps.host.logError(ESyncLogOperation.Compare, message);
+			await this.reportError(ESyncLogOperation.Compare, err);
 		} finally {
 			this.deps.runtimeState.setProgressText(null);
 		}
@@ -116,9 +119,7 @@ export class OperationRunner {
 				this.applyResult(compareResult);
 				return true;
 			} catch (err) {
-				const message = errorMessage(err);
-				this.deps.runtimeState.setError(message);
-				await this.deps.host.logError(operation, message);
+				await this.reportError(operation, err);
 				return false;
 			} finally {
 				this.deps.runtimeState.setProgressText(null);
@@ -135,13 +136,13 @@ export class OperationRunner {
 		) => Promise<OperationOutcome>,
 		/** Only for operations that read `deps.signal`; see `sync/cancel.ts`. */
 		cancellable = false,
-	): Promise<void> {
+	): Promise<SyncOperationResult> {
 		return this.deps.runtimeState.enqueue(async () => {
 			this.deps.runtimeState.clearError();
 			let scope: { signal: AbortSignal; end: () => void } | null = null;
 			try {
 				let session = await this.deps.host.openSession();
-				if (!session) return;
+				if (!session) return { ok: false };
 				// Scope and remote resets may have changed since the user opened the diff.
 				const result = await compare(session);
 				if (result.remote) {
@@ -180,11 +181,12 @@ export class OperationRunner {
 							? "Stopped before anything changed."
 							: `Stopped after ${outcome.touchedPaths.size} file(s). Compare again to see where things stand.`,
 					);
-					return;
+					return { ok: false };
 				}
 				if (operation === ESyncLogOperation.Push) {
 					this.deps.host.onPushComplete?.();
 				}
+				return { ok: true };
 			} catch (err) {
 				if (isCancellation(err)) {
 					// Not a failure: nothing was published, and saying so beats a red error.
@@ -193,7 +195,7 @@ export class OperationRunner {
 						"Stopped before publishing. Nothing on the remote changed.",
 					);
 					await this.deps.host.logWarn(operation, "Cancelled by the user.");
-					return;
+					return { ok: false };
 				}
 				if (err instanceof ConcurrentPushError) {
 					this.deps.runtimeState.setError(null);
@@ -205,11 +207,10 @@ export class OperationRunner {
 					this.deps.runtimeState.broadcast();
 					await this.refreshNow();
 					await this.deps.host.logWarn(operation, err.message);
-					return;
+					return { ok: false, error: err.message };
 				}
-				const message = errorMessage(err);
-				this.deps.runtimeState.setError(message);
-				await this.deps.host.logError(operation, message);
+				const message = await this.reportError(operation, err);
+				return { ok: false, error: message };
 			} finally {
 				scope?.end();
 				// Broadcast, not just set: a queued operation keeps pendingOps above
@@ -217,6 +218,18 @@ export class OperationRunner {
 				this.deps.runtimeState.publishProgress(null);
 			}
 		});
+	}
+
+	private async reportError(
+		operation: ESyncLogOperation,
+		err: unknown,
+	): Promise<string> {
+		const detail = errorMessage(err);
+		const message =
+			err instanceof StorageRequestError ? err.userMessage : detail;
+		this.deps.runtimeState.setError(message);
+		await this.deps.host.logError(operation, detail);
+		return message;
 	}
 
 	private buildContext(deps: EngineDependencies): OperationContext {

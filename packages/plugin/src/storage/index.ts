@@ -35,3 +35,4 @@ export type {
 	StorageAdapter,
 	StorageAuthOutcome,
 } from "./types";
+export { StorageRequestError } from "./types";

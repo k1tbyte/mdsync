@@ -47,7 +47,7 @@ export function isRetryableStatus(status: number): boolean {
 
 /** Platform transport failures. */
 const NETWORK_FAILURE =
-	/network|failed to fetch|load failed|socket hang up|ECONNRESET|ECONNREFUSED|ECONNABORTED|ETIMEDOUT|EPIPE|ENOTFOUND|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|ENETRESET|ERR_(?:NETWORK|CONNECTION|INTERNET|NAME_NOT_RESOLVED)/i;
+	/network|failed to fetch|load failed|stream closed|socket hang up|ECONNRESET|ECONNREFUSED|ECONNABORTED|ETIMEDOUT|EPIPE|ENOTFOUND|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|ENETRESET|ERR_(?:NETWORK|CONNECTION|INTERNET|NAME_NOT_RESOLVED)/i;
 
 function isRetryableError(err: unknown): boolean {
 	if (err instanceof StorageTimeoutError) return true;

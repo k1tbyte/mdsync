@@ -33,6 +33,10 @@ export class SourceControlActions {
 	}
 
 	showContextMenu(event: MouseEvent, path: string, section: ESection): void {
+		this.createContextMenu(path, section).showAtMouseEvent(event);
+	}
+
+	createContextMenu(path: string, section: ESection): Menu {
 		const menu = new Menu();
 		menu.addItem((item) =>
 			item
@@ -101,7 +105,7 @@ export class SourceControlActions {
 					.onClick(() => void this.resolveAcceptRemote(path)),
 			);
 		}
-		menu.showAtMouseEvent(event);
+		return menu;
 	}
 
 	showFolderContextMenu(event: MouseEvent, path: string): void {

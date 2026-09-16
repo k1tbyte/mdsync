@@ -181,7 +181,10 @@ export class TrashTab {
 	private renderRow(body: HTMLElement, row: TrashRow): void {
 		const item = body.createDiv({ cls: "obsync-history-row" });
 		const head = item.createDiv({ cls: "obsync-history-row-head" });
-		const checkbox = head.createEl("input", {
+		const selection = head.createEl("label", {
+			cls: "obsync-file-selection",
+		});
+		const checkbox = selection.createEl("input", {
 			type: "checkbox",
 			cls: "obsync-file-checkbox",
 		});

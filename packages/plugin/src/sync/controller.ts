@@ -21,6 +21,7 @@ import {
 	revertPathsOp,
 	runAdoptNewVaultFlow,
 	runResetRemoteStorageFlow,
+	type SyncOperationResult,
 } from "./operations";
 import { runCategoryResetFlow } from "./operations/config-reset";
 import {
@@ -63,7 +64,7 @@ export interface SyncControllerHost {
 	): Promise<void>;
 }
 
-export type { SyncStatusListener, SyncStatusSnapshot };
+export type { SyncOperationResult, SyncStatusListener, SyncStatusSnapshot };
 
 const CONFLICT_STRATEGY_OPS: Record<
 	EConflictStrategy,
@@ -222,18 +223,18 @@ export class SyncController {
 		this.runtimeState.cancel();
 	}
 
-	async pushPaths(paths: ReadonlyArray<string>): Promise<void> {
-		if (paths.length === 0) return;
-		await this.operations.runOperation(
+	async pushPaths(paths: ReadonlyArray<string>): Promise<SyncOperationResult> {
+		if (paths.length === 0) return { ok: false };
+		return this.operations.runOperation(
 			ESyncLogOperation.Push,
 			(deps, result, ctx) => pushPathsOp(deps, result, paths, ctx),
 			true,
 		);
 	}
 
-	async pullPaths(paths: ReadonlyArray<string>): Promise<void> {
-		if (paths.length === 0) return;
-		await this.operations.runOperation(
+	async pullPaths(paths: ReadonlyArray<string>): Promise<SyncOperationResult> {
+		if (paths.length === 0) return { ok: false };
+		return this.operations.runOperation(
 			ESyncLogOperation.Pull,
 			(deps, result, ctx) => pullPathsOp(deps, result, paths, ctx),
 			true,
@@ -241,9 +242,9 @@ export class SyncController {
 	}
 
 	/** Pushes and reverts segments of one local-change diff in a single operation. */
-	async applyLocalHunks(args: LocalHunksArgs): Promise<void> {
-		if (args.push.size === 0 && args.revert.size === 0) return;
-		await this.operations.runOperation(
+	async applyLocalHunks(args: LocalHunksArgs): Promise<SyncOperationResult> {
+		if (args.push.size === 0 && args.revert.size === 0) return { ok: false };
+		return this.operations.runOperation(
 			args.push.size > 0 ? ESyncLogOperation.Push : ESyncLogOperation.Compare,
 			(deps, result, ctx) => localHunksOp(deps, result, args, ctx),
 		);
@@ -253,8 +254,8 @@ export class SyncController {
 		path: string,
 		selected: HunkSelection,
 		expected?: HunkSidesHash,
-	): Promise<void> {
-		await this.applyLocalHunks({
+	): Promise<SyncOperationResult> {
+		return this.applyLocalHunks({
 			path,
 			push: selected,
 			revert: new Map(),
@@ -266,18 +267,20 @@ export class SyncController {
 		path: string,
 		selected: HunkSelection,
 		expected?: HunkSidesHash,
-	): Promise<void> {
-		if (selected.size === 0) return;
-		await this.operations.runOperation(
+	): Promise<SyncOperationResult> {
+		if (selected.size === 0) return { ok: false };
+		return this.operations.runOperation(
 			ESyncLogOperation.Pull,
 			(deps, result, ctx) =>
 				pullHunksOp(deps, result, { path, selected, expected }, ctx),
 		);
 	}
 
-	async revertPaths(paths: ReadonlyArray<string>): Promise<void> {
-		if (paths.length === 0) return;
-		await this.operations.runOperation(
+	async revertPaths(
+		paths: ReadonlyArray<string>,
+	): Promise<SyncOperationResult> {
+		if (paths.length === 0) return { ok: false };
+		return this.operations.runOperation(
 			ESyncLogOperation.Compare,
 			(deps, result, ctx) => revertPathsOp(deps, result, paths, ctx),
 		);
@@ -287,8 +290,8 @@ export class SyncController {
 	 * Resolves a conflict by keeping the local file and parking the remote
 	 * version beside it as a conflict copy, which publishes with the next push.
 	 */
-	async resolveConflictKeepBoth(path: string): Promise<void> {
-		await this.operations.runOperation(
+	async resolveConflictKeepBoth(path: string): Promise<SyncOperationResult> {
+		return this.operations.runOperation(
 			ESyncLogOperation.Push,
 			(deps, res, ctx) => keepBothConflictOp(deps, res, path, ctx),
 		);
@@ -297,11 +300,11 @@ export class SyncController {
 	async resolveConflicts(
 		paths: ReadonlyArray<string>,
 		strategy: EConflictStrategy,
-	): Promise<void> {
+	): Promise<SyncOperationResult> {
 		const set = new Set(paths);
-		if (set.size === 0) return;
+		if (set.size === 0) return { ok: false };
 		const { op, logOp } = CONFLICT_STRATEGY_OPS[strategy];
-		await this.operations.runOperation(logOp, (deps, result, ctx) =>
+		return this.operations.runOperation(logOp, (deps, result, ctx) =>
 			op(deps, result, set, ctx),
 		);
 	}
@@ -311,8 +314,11 @@ export class SyncController {
 	 * local side - uploading the file and publishing a manifest.
 	 * Unlike auto-merge, this pushes immediately.
 	 */
-	async resolveConflictMerged(path: string, content: string): Promise<void> {
-		await this.operations.runOperation(
+	async resolveConflictMerged(
+		path: string,
+		content: string,
+	): Promise<SyncOperationResult> {
+		return this.operations.runOperation(
 			ESyncLogOperation.Push,
 			async (deps, res, ctx) => {
 				await writeBinary(deps.adapter, path, textToBytes(content));

@@ -1,12 +1,13 @@
 import type { Text } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
+import type { App } from "obsidian";
 
 import { sha256Hex } from "@/crypto";
 import { reportWarning } from "@/shared/diagnostics";
 import { textToBytes } from "@/sync/content";
 import type { SyncController } from "@/sync/controller";
 import { type SyncHunk, wholeHunks } from "@/sync/hunks";
-import { notifyError, notifyInfo } from "@/ui";
+import { notifyError, runWithNotice } from "@/ui";
 
 import { toCmText } from "./helpers";
 import { pathFromState, setCompareTextEffect } from "./state";
@@ -29,7 +30,10 @@ export class SignsProvider {
 	/** Bumped on invalidation to discard stale loads. */
 	private generation = 0;
 
-	constructor(private readonly controller: SyncController) {}
+	constructor(
+		private readonly controller: SyncController,
+		readonly app: App,
+	) {}
 
 	registerView(view: EditorView, path: string): void {
 		this.viewToPath.set(view, path);
@@ -93,15 +97,15 @@ export class SignsProvider {
 			notifyError("Push hunk failed", new Error("Baseline is not loaded yet"));
 			return;
 		}
-		try {
-			await this.controller.pushHunks(path, wholeHunks([hunk]), {
-				left: baseline.hash,
-				right: await sha256Hex(textToBytes(currentText)),
-			});
-			notifyInfo("Pushed the hunk.");
-		} catch (err) {
-			notifyError("Push hunk failed", err);
-		}
+		await runWithNotice(
+			async () =>
+				this.controller.pushHunks(path, wholeHunks([hunk]), {
+					left: baseline.hash,
+					right: await sha256Hex(textToBytes(currentText)),
+				}),
+			"Pushed the hunk.",
+			"Push hunk failed",
+		);
 	}
 
 	handleFileRename(oldPath: string, newPath: string): void {

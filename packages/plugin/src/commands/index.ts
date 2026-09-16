@@ -11,6 +11,7 @@ import {
 	openSourceControlHistory,
 	openSourceControlView,
 	resetRemoteStorage,
+	runWithNotice,
 	verifyRemoteIntegrity,
 } from "@/ui";
 
@@ -165,22 +166,20 @@ async function runPushAll(plugin: Plugin & PluginHost): Promise<void> {
 		// Always re-compare first: acting on a stale diff can push a file another
 		// device has since changed, and can miss conflicts entirely.
 		await plugin.controller.refresh();
-		const diff = plugin.controller.getSnapshot().result?.diff;
+		const snapshot = plugin.controller.getSnapshot();
+		if (snapshot.error) throw new Error(snapshot.error);
+		const diff = snapshot.result?.diff;
 		if (await announceConflicts(plugin, diff?.conflicts.length ?? 0)) return;
 		const paths = diff?.localChanges.map((c) => c.path) ?? [];
 		if (paths.length === 0) {
 			notifyInfo("Nothing to push.");
 			return;
 		}
-		await plugin.controller.pushPaths(paths);
-		// runOperation records the failure on the snapshot instead of throwing,
-		// so reporting success without looking would be a lie.
-		const error = plugin.controller.getSnapshot().error;
-		if (error) {
-			notifyError("Push all failed", new Error(error));
-			return;
-		}
-		notifyInfo(`Pushed ${paths.length} file(s).`);
+		await runWithNotice(
+			() => plugin.controller.pushPaths(paths),
+			`Pushed ${paths.length} file(s).`,
+			"Push all failed",
+		);
 	} catch (err) {
 		notifyError("Push all failed", err);
 	}
@@ -189,22 +188,20 @@ async function runPushAll(plugin: Plugin & PluginHost): Promise<void> {
 async function runPullAll(plugin: Plugin & PluginHost): Promise<void> {
 	try {
 		await plugin.controller.refresh();
-		const diff = plugin.controller.getSnapshot().result?.diff;
+		const snapshot = plugin.controller.getSnapshot();
+		if (snapshot.error) throw new Error(snapshot.error);
+		const diff = snapshot.result?.diff;
 		if (await announceConflicts(plugin, diff?.conflicts.length ?? 0)) return;
 		const paths = diff?.remoteChanges.map((c) => c.path) ?? [];
 		if (paths.length === 0) {
 			notifyInfo("Nothing to pull.");
 			return;
 		}
-		await plugin.controller.pullPaths(paths);
-		// runOperation records the failure on the snapshot instead of throwing,
-		// so reporting success without looking would be a lie.
-		const error = plugin.controller.getSnapshot().error;
-		if (error) {
-			notifyError("Pull all failed", new Error(error));
-			return;
-		}
-		notifyInfo(`Pulled ${paths.length} file(s).`);
+		await runWithNotice(
+			() => plugin.controller.pullPaths(paths),
+			`Pulled ${paths.length} file(s).`,
+			"Pull all failed",
+		);
 	} catch (err) {
 		notifyError("Pull all failed", err);
 	}

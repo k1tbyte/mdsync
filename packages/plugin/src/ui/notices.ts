@@ -1,6 +1,7 @@
 import { Notice } from "obsidian";
 
 import { errorMessage } from "@/shared/errors";
+import type { SyncOperationResult } from "@/sync/controller";
 
 const NOTICE_DURATION_MS = 8000;
 
@@ -22,12 +23,17 @@ export function reportError(err: unknown): void {
 
 /** Runs an action and announces success or failure. */
 export async function runWithNotice(
-	action: () => Promise<unknown>,
+	action: () => Promise<void> | Promise<boolean | SyncOperationResult>,
 	successMessage: string,
 	failureLabel = "Operation failed",
 ): Promise<boolean> {
 	try {
-		await action();
+		const result = await action();
+		if (result === false) return false;
+		if (result && typeof result === "object" && !result.ok) {
+			if (result.error) notifyError(failureLabel, new Error(result.error));
+			return false;
+		}
 		notifyInfo(successMessage);
 		return true;
 	} catch (err) {

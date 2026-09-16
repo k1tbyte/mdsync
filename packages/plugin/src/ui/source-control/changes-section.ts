@@ -184,7 +184,12 @@ export class ChangesSection {
 			);
 		}
 
-		const selectAll = bar.createEl("button", {
+		const selectionControls = bar.createDiv({
+			cls: "obsync-selection-controls",
+		});
+		selectionControls.setAttr("role", "group");
+		selectionControls.setAttr("aria-label", "Selection");
+		const selectAll = selectionControls.createEl("button", {
 			cls: "obsync-section-icon-action",
 		});
 		setIcon(selectAll, "list-checks");
@@ -193,7 +198,7 @@ export class ChangesSection {
 			for (const row of rows) this.selected.add(row.path);
 			this.deps.rerender();
 		});
-		const selectNone = bar.createEl("button", {
+		const selectNone = selectionControls.createEl("button", {
 			cls: "obsync-section-icon-action",
 		});
 		setIcon(selectNone, "x");

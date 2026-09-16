@@ -8,7 +8,11 @@ import {
 	EFieldKind,
 	type SettingsFieldSpec,
 } from "@/storage/field-spec";
-import type { ConditionalRead, StorageAdapter } from "@/storage/types";
+import {
+	type ConditionalRead,
+	type StorageAdapter,
+	StorageRequestError,
+} from "@/storage/types";
 import { toArrayBuffer } from "@/utils/bytes";
 import {
 	createS3Signer,
@@ -138,10 +142,23 @@ export function createS3Adapter(config: S3StorageConfig): StorageAdapter {
 			return s3Identity(config);
 		},
 		async exists(key) {
-			const res = await send({ method: "HEAD", key: fullKey(key) });
-			if (isAbsent(res)) return false;
+			const requested = fullKey(key);
+			const res = await send({
+				method: "GET",
+				key: "",
+				query: { "list-type": "2", prefix: requested, "max-keys": "1" },
+			});
+			if (
+				res.status === 403 &&
+				parseErrorCode(res.text) === "SignatureDoesNotMatch"
+			) {
+				throw new StorageRequestError(
+					`S3 existence check for "${key}" failed: SignatureDoesNotMatch (HTTP 403)`,
+					"S3 rejected the request signature. Check the secret access key or re-import the storage settings.",
+				);
+			}
 			assertOk(res, "check", key);
-			return true;
+			return parseListObjects(res.text).keys.includes(requested);
 		},
 		async get(key) {
 			const read = await readObject(key, null);
@@ -212,27 +229,58 @@ type Send = (input: S3RequestInput, body?: Uint8Array) => Promise<S3Response>;
  * made and a request replayed after a backoff would be refused for skew.
  */
 function createSender(sign: S3Signer): Send {
-	return (input, body) =>
-		withRetry(async () => {
-			const signed = await sign({ ...input, body });
-			const res = await withTimeout(
-				requestUrl({
-					url: signed.url,
-					method: input.method,
-					headers: signed.headers,
-					...(body ? { body: toArrayBuffer(body) } : {}),
-					throw: false,
-				}),
-				STORAGE_TIMEOUT_MS,
-			);
-			if (isRetryableStatus(res.status)) {
-				throw new StorageHttpError(
-					res.status,
-					`S3 request failed (HTTP ${res.status})`,
+	return async (input, body) => {
+		try {
+			return await withRetry(async () => {
+				const signed = await sign({ ...input, body });
+				const res = await withTimeout(
+					requestUrl({
+						url: signed.url,
+						method: input.method,
+						headers: signed.headers,
+						...(body ? { body: toArrayBuffer(body) } : {}),
+						throw: false,
+					}),
+					STORAGE_TIMEOUT_MS,
 				);
-			}
-			return res;
-		});
+				if (isRetryableStatus(res.status)) {
+					throw new StorageHttpError(
+						res.status,
+						`S3 request failed (HTTP ${res.status})`,
+					);
+				}
+				return res;
+			});
+		} catch (error) {
+			throw contextualRequestError(error, input);
+		}
+	};
+}
+
+function contextualRequestError(
+	error: unknown,
+	input: S3RequestInput,
+): unknown {
+	if (!(error instanceof Error)) return error;
+	const target = input.key ? `"${input.key}"` : "listing";
+	const message = `S3 ${input.method} to ${target} failed: ${error.message}`;
+	if (/stream closed|unknown\s*host(?:exception)?/i.test(error.message)) {
+		return new StorageRequestError(
+			message,
+			"S3 request failed on this device. Check the connection and try again. See Obsync logs for details.",
+		);
+	}
+	if (error instanceof StorageHttpError) {
+		return new StorageHttpError(error.status, message);
+	}
+	if (typeof DOMException !== "undefined" && error instanceof DOMException) {
+		return new DOMException(message, error.name);
+	}
+	const contextual = new Error(message);
+	contextual.name = error.name;
+	Object.setPrototypeOf(contextual, Object.getPrototypeOf(error));
+	Object.assign(contextual, error);
+	return contextual;
 }
 
 function sendPut(
@@ -264,8 +312,8 @@ function sendPut(
  *
  * A body that is not an S3 error document is something between the plugin and
  * the bucket answering: a proxy or a captive portal, not the bucket saying the
- * object is gone. Only a HEAD is allowed to be silent, because a HEAD carries
- * no body to say which - and neither did the SDK.
+ * object is gone. Some backends omit the body on an object 404, so a silent
+ * 404 remains ambiguous.
  */
 function isAbsent(res: S3Response): boolean {
 	if (res.status !== HTTP_NOT_FOUND) return false;

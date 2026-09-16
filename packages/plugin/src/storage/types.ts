@@ -4,6 +4,16 @@ export type ConditionalRead =
 	| { status: "found"; body: Uint8Array; etag: string | null }
 	| { status: "absent" };
 
+export class StorageRequestError extends Error {
+	constructor(
+		message: string,
+		readonly userMessage: string,
+	) {
+		super(message);
+		this.name = "StorageRequestError";
+	}
+}
+
 export interface ObjectStorage {
 	exists(key: string): Promise<boolean>;
 	/** Bytes, or null only when genuinely absent. Any other failure throws, preventing mistaking outage for empty remote. */

@@ -25,14 +25,19 @@ import {
 	type StatusPatch,
 	snapToLines,
 } from "@/sync/merge-model";
-import { notifyError, notifyInfo } from "@/ui/notices";
+import { notifyError, notifyInfo, runWithNotice } from "@/ui/notices";
 import { appendIconButton } from "../icon-button";
 import { Divider } from "./divider";
-import { sideSpan, spanBounds } from "./geometry";
+import { sideSpan, spanBounds, updatePaneViewportWidth } from "./geometry";
 import { LayoutMode } from "./layout-mode";
+import {
+	LineWrappingControl,
+	type LineWrappingOptions,
+} from "./line-wrapping-control";
 import {
 	dividerItems,
 	type MergeActions,
+	PANE_LABEL,
 	renderMergeLegend,
 } from "./merge-controls";
 import {
@@ -56,11 +61,6 @@ import {
 	spanAnchors,
 } from "./scroll-sync";
 
-const PANE_LABEL: Record<EMergeSide, string> = {
-	local: "Local (yours)",
-	remote: "Remote (theirs)",
-};
-
 export class MergeEditorPanel {
 	private text = "";
 	private changes: readonly MergeChange[] = [];
@@ -80,6 +80,7 @@ export class MergeEditorPanel {
 	private onlyUnresolved = true;
 	private layoutFrame: number | null = null;
 	private layoutMode: LayoutMode | null = null;
+	private wrapping: LineWrappingControl | null = null;
 	private active = false;
 
 	private readonly dividerActions: MergeActions = {
@@ -135,8 +136,13 @@ export class MergeEditorPanel {
 		}
 	}
 
-	render(parent: HTMLElement): void {
+	render(parent: HTMLElement, options: LineWrappingOptions): void {
 		this.destroy();
+		this.wrapping = new LineWrappingControl(
+			options,
+			() => [...Object.values(this.sideViews), this.resultView],
+			() => this.scheduleLayout(),
+		);
 		const root = parent.createDiv({ cls: "obsync-merge-panel" });
 		this.renderToolbar(root);
 		renderMergeLegend(root);
@@ -148,12 +154,12 @@ export class MergeEditorPanel {
 	private renderToolbar(root: HTMLElement): void {
 		const toolbar = root.createDiv({ cls: "obsync-merge-toolbar" });
 		this.counterEl = toolbar.createSpan({ cls: "obsync-merge-counter" });
-		this.undoButton = appendIconButton(toolbar, "undo-2", "Undo", () =>
-			this.runHistory(undo),
-		);
-		this.redoButton = appendIconButton(toolbar, "redo-2", "Redo", () =>
-			this.runHistory(redo),
-		);
+		this.undoButton = appendIconButton(toolbar, "undo-2", "Undo", () => {
+			if (this.resultView) undo(this.resultView);
+		});
+		this.redoButton = appendIconButton(toolbar, "redo-2", "Redo", () => {
+			if (this.resultView) redo(this.resultView);
+		});
 		new DropdownComponent(toolbar)
 			.addOption("unresolved", "Unresolved conflicts")
 			.addOption("all", "All changes")
@@ -178,17 +184,16 @@ export class MergeEditorPanel {
 			}
 			this.scheduleLayout();
 		});
+		this.wrapping!.mount(toolbar);
 	}
 
 	private renderDesktop(root: HTMLElement): void {
 		const heads = root.createDiv({ cls: "obsync-merge-pane-heads" });
 		const body = root.createDiv({ cls: "obsync-merge-body" });
-
 		const col = (headCls: string, bodyCls: string, text?: string) => {
 			heads.createDiv({ cls: headCls, text });
 			return body.createDiv({ cls: bodyCls });
 		};
-
 		const localHost = col(
 			"obsync-merge-pane-head is-local",
 			"obsync-merge-editor-host is-local",
@@ -258,7 +263,7 @@ export class MergeEditorPanel {
 					EditorState.readOnly.of(true),
 					changeNavigation((delta) => this.jumpUnresolved(delta)),
 					lineNumbers(),
-					EditorView.lineWrapping,
+					this.wrapping!.extension(),
 					sideDecorations(side, marks),
 					EditorView.updateListener.of((update) => {
 						if (update.geometryChanged || update.viewportChanged) {
@@ -288,7 +293,7 @@ export class MergeEditorPanel {
 					changeNavigation((delta) => this.jumpUnresolved(delta)),
 					keymap.of(historyKeymap),
 					lineNumbers(),
-					EditorView.lineWrapping,
+					this.wrapping!.extension(),
 					EditorView.updateListener.of((update) => {
 						const modelChanged =
 							update.startState.field(mergeChangesField) !==
@@ -335,6 +340,9 @@ export class MergeEditorPanel {
 		if (this.layoutFrame !== null) return;
 		this.layoutFrame = window.requestAnimationFrame(() => {
 			this.layoutFrame = null;
+			for (const view of [...Object.values(this.sideViews), this.resultView]) {
+				if (view) updatePaneViewportWidth(view);
+			}
 			for (const side of MERGE_SIDES) this.dividers[side]?.layout();
 		});
 	}
@@ -381,10 +389,6 @@ export class MergeEditorPanel {
 			}),
 			annotations: isolateHistory.of("full"),
 		});
-	}
-
-	private runHistory(command: (view: EditorView) => boolean): void {
-		if (this.resultView) command(this.resultView);
 	}
 
 	private updateStatus(): void {
@@ -457,9 +461,13 @@ export class MergeEditorPanel {
 		}
 		const text = view.state.doc.toString().replace(/\n/g, this.eol);
 		try {
-			await plugin.controller.resolveConflictMerged(path, text);
+			const saved = await runWithNotice(
+				() => plugin.controller.resolveConflictMerged(path, text),
+				"Conflict resolved with merged content.",
+				"Save resolution failed",
+			);
+			if (!saved) return;
 			this.active = false;
-			notifyInfo("Conflict resolved with merged content.");
 			await onSaved(path);
 		} catch (err) {
 			notifyError("Save resolution failed", err);
@@ -485,6 +493,7 @@ export class MergeEditorPanel {
 		this.navButtons = [];
 		this.undoButton = null;
 		this.redoButton = null;
+		this.wrapping = null;
 		this.lastConflict = -1;
 	}
 }

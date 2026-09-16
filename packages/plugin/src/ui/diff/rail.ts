@@ -17,6 +17,7 @@ export function changeNavigation(jump: (delta: number) => void) {
 export interface RailAction {
 	icon: string;
 	label: string;
+	shortLabel?: string;
 	run(): void;
 	/** A pending choice that Apply will carry out. */
 	active?: boolean;
@@ -34,6 +35,10 @@ export function renderRailButton(
 	}
 	button.toggleClass("is-active", action.active === true);
 	setIcon(button, action.icon);
+	if (action.shortLabel) {
+		button.addClass("has-label");
+		button.createSpan({ cls: "obsync-rail-label", text: action.shortLabel });
+	}
 	// Inside CodeMirror a mousedown would move the caret and steal focus.
 	button.addEventListener("mousedown", (event) => event.preventDefault());
 	button.addEventListener("click", (event) => {

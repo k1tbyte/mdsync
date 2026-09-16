@@ -1,7 +1,7 @@
 import type { PluginHost } from "@/plugin/host";
-import { EConflictStrategy } from "@/sync/controller";
+import { EConflictStrategy, type SyncOperationResult } from "@/sync/controller";
 import { EDiffDirection, type FileDiffModel } from "@/sync/projection";
-import { notifyError, notifyInfo } from "@/ui/notices";
+import { notifyError, runWithNotice } from "@/ui/notices";
 import { EChoiceKind, type HunkChoices } from "./choices";
 
 export interface DiffOperationState {
@@ -124,7 +124,7 @@ export class DiffOperations {
 	}
 
 	private async resolve(
-		action: (path: string) => Promise<void>,
+		action: (path: string) => Promise<SyncOperationResult>,
 		okMessage: string,
 		failureLabel: string,
 	): Promise<void> {
@@ -139,14 +139,13 @@ export class DiffOperations {
 	}
 
 	private async runOnFile(
-		action: () => Promise<void>,
+		action: () => Promise<void> | Promise<SyncOperationResult>,
 		okMessage: string,
 		failureLabel: string,
 		then: () => Promise<void> = () => this.callbacks.refresh(),
 	): Promise<void> {
 		try {
-			await action();
-			notifyInfo(okMessage);
+			if (!(await runWithNotice(action, okMessage, failureLabel))) return;
 			await then();
 		} catch (error) {
 			notifyError(failureLabel, error);

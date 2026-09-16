@@ -14,6 +14,7 @@ interface Reply {
 	text?: string;
 	arrayBuffer?: ArrayBuffer;
 	headers?: Record<string, string>;
+	error?: Error;
 }
 
 const requests: Recorded[] = [];
@@ -24,6 +25,7 @@ vi.mock("obsidian", async (importOriginal) => ({
 	requestUrl: (params: Recorded) => {
 		requests.push(params);
 		const reply = replies.shift() ?? { status: 200 };
+		if (reply.error) return Promise.reject(reply.error);
 		return Promise.resolve({
 			status: reply.status,
 			text: reply.text ?? "",
@@ -92,11 +94,32 @@ describe("S3 adapter over requestUrl", () => {
 
 	it("probes existence without downloading the object", async () => {
 		const adapter = createS3Adapter(config());
-		replies = [{ status: 200 }, { status: 404 }];
+		replies = [
+			{ status: 200, text: listing(["a.bin"]) },
+			{ status: 200, text: listing(["b.bin.suffix"]) },
+		];
 
 		expect(await adapter.exists("a.bin")).toBe(true);
 		expect(await adapter.exists("b.bin")).toBe(false);
-		expect(requests.map((r) => r.method)).toEqual(["HEAD", "HEAD"]);
+		expect(requests.map((r) => r.method)).toEqual(["GET", "GET"]);
+		expect(requests[0]?.url).toContain("max-keys=1");
+		expect(requests[0]?.url).toContain("prefix=a.bin");
+	});
+
+	it("shows a signature error instead of treating it as absence", async () => {
+		const adapter = createS3Adapter(config());
+		replies = [
+			{
+				status: 403,
+				text: "<Error><Code>SignatureDoesNotMatch</Code></Error>",
+			},
+		];
+
+		await expect(adapter.exists("objects/abc")).rejects.toMatchObject({
+			name: "StorageRequestError",
+			userMessage:
+				"S3 rejected the request signature. Check the secret access key or re-import the storage settings.",
+		});
 	});
 
 	it("reports a conditional write that lost the race", async () => {
@@ -181,7 +204,7 @@ describe("S3 adapter over requestUrl", () => {
 		vi.setSystemTime(new Date("2026-09-07T10:00:00Z"));
 		try {
 			const adapter = createS3Adapter(config());
-			replies = [{ status: 503 }, { status: 200 }];
+			replies = [{ status: 503 }, { status: 200, text: listing(["k"]) }];
 
 			const pending = adapter.exists("k");
 			await until(() => requests.length === 1);
@@ -198,6 +221,84 @@ describe("S3 adapter over requestUrl", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it("retries a closed stream PUT preserving bytes and eventual success", async () => {
+		const adapter = createS3Adapter(config());
+		replies = [
+			{
+				status: 0,
+				error: new Error("Request Failed. IOException Stream closed"),
+			},
+			{ status: 200 },
+		];
+		const body = new Uint8Array([8, 9, 10]);
+
+		await adapter.put("k", body);
+
+		expect(requests.length).toBe(2);
+		expect(new Uint8Array(requests[0]?.body as ArrayBuffer)).toEqual(body);
+		expect(new Uint8Array(requests[1]?.body as ArrayBuffer)).toEqual(body);
+	});
+
+	it("exhausted closed stream includes S3 method/key context with bounded retries", async () => {
+		const adapter = createS3Adapter(config());
+		replies = Array.from({ length: 4 }, () => ({
+			status: 0,
+			error: new Error("Request Failed. IOException Stream closed"),
+		}));
+
+		await expect(adapter.put("k", new Uint8Array([1]))).rejects.toMatchObject({
+			name: "StorageRequestError",
+			message:
+				'S3 PUT to "k" failed: Request Failed. IOException Stream closed',
+			userMessage:
+				"S3 request failed on this device. Check the connection and try again. See Obsync logs for details.",
+		});
+		expect(requests.length).toBe(4);
+	}, 10_000);
+
+	it.each([
+		Object.assign(new Error("aborted"), { name: "AbortError" }),
+		new DOMException("aborted", "AbortError"),
+	])("preserves cancellation type and adds context: %s", async (abort) => {
+		const adapter = createS3Adapter(config());
+		replies = [{ status: 0, error: abort }];
+
+		const pending = adapter.get("k");
+		await expect(pending).rejects.toThrow('S3 GET to "k" failed: aborted');
+		await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+		await expect(pending).rejects.not.toBe(abort);
+		expect(abort.message).toBe("aborted");
+		expect(requests.length).toBe(1);
+	});
+
+	it("does not stack request context when the host reuses an error", async () => {
+		const adapter = createS3Adapter(config());
+		const shared = new DOMException("aborted", "AbortError");
+		replies = [
+			{ status: 0, error: shared },
+			{ status: 0, error: shared },
+		];
+
+		await expect(adapter.get("first")).rejects.toThrow(
+			'S3 GET to "first" failed: aborted',
+		);
+		await expect(adapter.get("second")).rejects.toThrow(
+			'S3 GET to "second" failed: aborted',
+		);
+		expect(shared.message).toBe("aborted");
+	});
+
+	it("adds listing context to exhausted listing failures", async () => {
+		const adapter = createS3Adapter(config());
+		const abort = new Error("aborted");
+		abort.name = "AbortError"; // non-retryable for quick failure
+		replies = [{ status: 0, error: abort }];
+
+		const pending = adapter.list("objects/");
+		await expect(pending).rejects.toThrow("S3 GET to listing failed: aborted");
+		expect(requests.length).toBe(1);
 	});
 });
 

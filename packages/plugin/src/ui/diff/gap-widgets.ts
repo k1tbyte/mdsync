@@ -119,9 +119,10 @@ export function gapRow(
 	button.type = "button";
 	button.className = "obsync-gap";
 	button.setAttribute("aria-label", label);
-	const glyph = button.createSpan({ cls: "obsync-gap-icon" });
+	const content = button.createSpan({ cls: "obsync-gap-content" });
+	const glyph = content.createSpan({ cls: "obsync-gap-icon" });
 	setIcon(glyph, icon);
-	button.createSpan({ text });
+	content.createSpan({ text });
 	button.addEventListener("mousedown", (event) => event.preventDefault());
 	button.addEventListener("click", onClick);
 	return button;

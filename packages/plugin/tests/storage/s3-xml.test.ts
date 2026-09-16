@@ -78,6 +78,18 @@ describe("S3 listing responses", () => {
 		).toThrow(/ListBucketResult/);
 	});
 
+	it("refuses an incomplete listing instead of reporting missing objects", () => {
+		expect(() =>
+			parseListObjects("<ListBucketResult><KeyCount>0</KeyCount>"),
+		).toThrow(/ListBucketResult/);
+	});
+
+	it("refuses a listing entry without a key", () => {
+		expect(() =>
+			parseListObjects(listing("<Contents><Size>1</Size></Contents>")),
+		).toThrow(/without a key/);
+	});
+
 	it("reads a listing a backend qualified with a namespace prefix", () => {
 		const xml =
 			`<s3:ListBucketResult xmlns:s3="http://s3.amazonaws.com/doc/2006-03-01/">` +

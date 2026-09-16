@@ -16,6 +16,11 @@ export interface MergeActions {
 
 export type MergeTone = "conflict" | EMergeSide | "base" | "shared";
 
+export const PANE_LABEL: Record<EMergeSide, string> = {
+	local: "Local (yours)",
+	remote: "Remote (theirs)",
+};
+
 const TONE_LABEL: Record<MergeTone, string> = {
 	local: "Local",
 	remote: "Remote",
@@ -48,6 +53,7 @@ export function renderMergeLegend(parent: HTMLElement): void {
 interface SideAction {
 	icon: string;
 	label: string;
+	shortLabel: string;
 	run: () => void;
 }
 
@@ -68,11 +74,13 @@ export function sideActions(
 	const accept = {
 		icon: acceptIcon,
 		label: `Accept ${kind}`,
+		shortLabel: "Accept",
 		run: () => handlers.apply(change.index, side),
 	};
 	const reject = {
 		icon: "x",
 		label: `Reject ${kind}`,
+		shortLabel: "Reject",
 		run: () =>
 			status === "applied"
 				? handlers.revert(change.index, side)
