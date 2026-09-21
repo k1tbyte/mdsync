@@ -1,5 +1,6 @@
 import { diffArrays } from "diff";
-import { commonEnds, MAX_EDIT_LENGTH } from "./hunks";
+import { anchoredHunks, hunksFromChanges } from "./anchored-hunks";
+import { MAX_EDIT_LENGTH } from "./hunks";
 
 /** 0-based, half-open line range in one of the original sides. */
 export type LineRange = readonly [number, number];
@@ -417,36 +418,10 @@ function sideHunks(
 ): SideHunk[] {
 	// Myers with a budget: diff3's own LCS goes quadratic on repeated lines like blanks.
 	const changes = diffArrays(base, lines, { maxEditLength: MAX_EDIT_LENGTH });
-	if (!changes) {
-		const { head, tail } = commonEnds(base, lines);
-		return [
-			{
-				side,
-				base: [head, base.length - tail],
-				lines: [head, lines.length - tail],
-			},
-		];
-	}
-	const hunks: SideHunk[] = [];
-	let baseAt = 0;
-	let lineAt = 0;
-	for (const change of changes) {
-		const baseTo = change.added ? baseAt : baseAt + change.count;
-		const lineTo = change.removed ? lineAt : lineAt + change.count;
-		if (change.added || change.removed) {
-			const last = hunks[hunks.length - 1];
-			// A removal and the insertion right after it form one hunk.
-			if (last?.base[1] === baseAt && last.lines[1] === lineAt) {
-				last.base = [last.base[0], baseTo];
-				last.lines = [last.lines[0], lineTo];
-			} else {
-				hunks.push({ side, base: [baseAt, baseTo], lines: [lineAt, lineTo] });
-			}
-		}
-		baseAt = baseTo;
-		lineAt = lineTo;
-	}
-	return hunks;
+	const hunks = changes
+		? hunksFromChanges(changes)
+		: anchoredHunks(base, lines);
+	return hunks.map((hunk) => ({ side, ...hunk }));
 }
 
 export function sameLines(a: readonly string[], b: readonly string[]): boolean {
