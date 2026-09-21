@@ -12,6 +12,9 @@ node_modules
 # It is uploaded to GitHub releases instead.
 main.js
 
+# Bundled from src/styles/, same as main.js.
+packages/plugin/styles.css
+
 # Exclude sourcemaps
 *.map
 

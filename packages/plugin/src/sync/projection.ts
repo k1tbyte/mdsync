@@ -276,10 +276,11 @@ export interface HistoryVersionRef {
 	size?: number;
 }
 
-/** Either a stored version or the file as it stands in the vault right now. */
+/** Either a stored version, the file as it stands in the vault, or explicitly absent. */
 export type HistoryDiffSide =
 	| { version: HistoryVersionRef }
-	| { current: true; label?: string };
+	| { current: true; label?: string }
+	| { absent: true; label: string };
 
 export interface HistoryDiffRequest {
 	path: string;
@@ -316,6 +317,7 @@ export async function buildHistoryDiff(
 
 function sideLabel(side: HistoryDiffSide): string {
 	if ("version" in side) return side.version.label;
+	if ("absent" in side) return side.label;
 	return side.label ?? "Current";
 }
 
@@ -324,13 +326,20 @@ async function historySource(
 	path: string,
 	side: HistoryDiffSide,
 ): Promise<SideSource> {
-	if (!("version" in side)) return statLocalSource(deps.adapter, path);
-	const { hash, size } = side.version;
-	return {
-		path,
-		size,
-		load: () => loadRemoteBytes({ storage: deps.storage, key: deps.key }, hash),
-	};
+	if ("absent" in side) return { path, size: null, load: async () => null };
+	if ("version" in side) {
+		const { hash, size } = side.version;
+		return {
+			path,
+			size,
+			load: async () => {
+				const bytes = await loadRemoteBytes(deps, hash);
+				if (!bytes) throw new Error("This version is no longer available.");
+				return bytes;
+			},
+		};
+	}
+	return statLocalSource(deps.adapter, path);
 }
 
 export async function buildConflictDiff(

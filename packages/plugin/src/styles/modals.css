@@ -1,0 +1,16 @@
+.obsync-modal-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: var(--size-4-2);
+	margin-top: var(--size-4-3);
+}
+
+.obsync-adopt-new-vault-btn {
+	margin-left: var(--size-4-2);
+}
+
+.obsync-sub-setting {
+	margin-left: var(--size-4-3);
+	border-left: 1px solid var(--background-modifier-border);
+	padding-left: var(--size-4-2);
+}

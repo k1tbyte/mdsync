@@ -1,0 +1,33 @@
+/*
+ * Obsync's own design tokens.
+ *
+ * Spacing is NOT here: Obsidian publishes a 4px grid (--size-4-1 = 4px ...
+ * --size-4-18, plus --size-2-* for 2px steps). Use those directly; a parallel
+ * --obsync-space-* scale would duplicate a source of truth we do not own.
+ *
+ * Only values Obsidian has no variable for belong here.
+ */
+
+body {
+	/* Inline icon in a row, toolbar or button. */
+	--obsync-icon: 14px;
+	/* Phone icon: legible at arm's length. */
+	--obsync-icon-lg: 18px;
+	/* Minimum touch target on phones. */
+	--obsync-touch: 44px;
+
+	/* Change bar down the side of a line or block, in a tone colour. */
+	--obsync-bar: 2px;
+	/* The same bar for a chosen side, in the accent colour: heavier on purpose. */
+	--obsync-bar-strong: 3px;
+
+	--obsync-radius-pill: 999px;
+}
+
+/*
+ * Set from TypeScript, listed so a reader knows the contract exists:
+ *   --obsync-depth       tree indent level        source-control/change-rows.ts
+ *   --obsync-row-height  measured windowed pitch  source-control/virtual-list.ts
+ *   --obsync-pane-width  measured pane width      diff/geometry.ts
+ * Changing the row metrics they feed means changing that TypeScript too.
+ */

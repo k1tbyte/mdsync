@@ -266,8 +266,6 @@ export async function listSnapshots(
 	if (!head) return { snapshots: [], lagging: false };
 
 	const chain = walkableChain(log, head);
-	// Only the contiguous run replays. A pin needs no replay: its full manifest
-	// is stored, which is the whole reason pins outlive their chain.
 	const replayable = new Set(
 		chain.slice(0, chainDepth(log, chain)).map((meta) => meta.id),
 	);
@@ -281,15 +279,10 @@ export async function listSnapshots(
 			deviceName: meta.deviceName,
 			pinned: meta.pinned === true,
 			label: meta.label,
-			files: changes
-				? {
-						added: Object.keys(changes.added),
-						modified: Object.keys(changes.modified),
-						deleted: Object.keys(changes.deleted),
-					}
-				: null,
+			files: changes ?? null,
 			rank: meta.pinned ? null : rank,
 			restorable: replayable.has(meta.id) || meta.pinned === true,
+			isHead: meta.id === head.snapshotId,
 		};
 		if (!meta.pinned) rank++;
 		return summary;

@@ -16,12 +16,19 @@ import {
 } from "@/sync/projection";
 import {
 	ComparePanel,
-	type DiffHeaderActions,
 	MergeEditorPanel,
 	renderBinaryDiff,
 	renderDiffHeader,
 } from "./diff";
+import {
+	buildHistoryRequest,
+	changesDiffer,
+	type HistoryChange,
+	hunkHintText,
+	selectHistoryMode,
+} from "./diff/history-state";
 import { DiffOperations } from "./diff/operations";
+import { PreviewPanel } from "./diff/preview-panel";
 import { notifyError } from "./notices";
 import { openSourceControlView } from "./source-control-view";
 
@@ -34,6 +41,10 @@ interface DiffViewState {
 	againstHash?: string;
 	againstLabel?: string;
 	againstSize?: number;
+	/** Before/after refs for a historical change diff (timeline file click). */
+	historyChange?: HistoryChange;
+	/** When true and local file is missing, show read-only preview instead of deletion diff. */
+	historyPreviewIfMissing?: boolean;
 }
 
 export class DiffView extends ItemView {
@@ -44,15 +55,20 @@ export class DiffView extends ItemView {
 	private historyLabel = "Version";
 	private historySize: number | undefined;
 	private against: HistoryVersionRef | null = null;
+	private historyChange: HistoryChange | null = null;
+	private historyPreviewIfMissing = false;
 	private model: FileDiffModel | null = null;
 	private readonly mergePanel = new MergeEditorPanel();
 	private comparePanel: ComparePanel | null = null;
+	private previewPanel: PreviewPanel | null = null;
 	private forceText = false;
 	private lineWrapping = true;
 	private headerEl: HTMLElement | null = null;
 	private bodyEl: HTMLElement | null = null;
 	private rendering = false;
 	private refreshPending = false;
+	/** Monotonic generation counter; async loads discard results from older generations. */
+	private loadGeneration = 0;
 
 	constructor(leaf: WorkspaceLeaf, plugin: PluginHost) {
 		super(leaf);
@@ -61,6 +77,7 @@ export class DiffView extends ItemView {
 			state: () => ({
 				path: this.path,
 				historyHash: this.historyHash,
+				historyChange: this.historyChange,
 				model: this.model,
 			}),
 			refresh: () => this.refreshModel(),
@@ -91,6 +108,8 @@ export class DiffView extends ItemView {
 			againstHash: this.against?.hash,
 			againstLabel: this.against?.label,
 			againstSize: this.against?.size,
+			historyChange: this.historyChange ?? undefined,
+			historyPreviewIfMissing: this.historyPreviewIfMissing || undefined,
 		};
 	}
 
@@ -101,7 +120,9 @@ export class DiffView extends ItemView {
 			(state.againstHash ?? null) !== (this.against?.hash ?? null) ||
 			// A pin rename changes the label alone, and the header reads it.
 			(state.historyHash !== undefined &&
-				(state.historyLabel ?? "Version") !== this.historyLabel);
+				(state.historyLabel ?? "Version") !== this.historyLabel) ||
+			changesDiffer(state.historyChange ?? null, this.historyChange) ||
+			(state.historyPreviewIfMissing ?? false) !== this.historyPreviewIfMissing;
 		if (changed) {
 			this.path = state.path ?? this.path;
 			this.historyHash = state.historyHash ?? null;
@@ -114,9 +135,12 @@ export class DiffView extends ItemView {
 						size: state.againstSize,
 					}
 				: null;
+			this.historyChange = state.historyChange ?? null;
+			this.historyPreviewIfMissing = state.historyPreviewIfMissing ?? false;
 			this.model = null;
 			this.mergePanel.reset();
 			this.forceText = false;
+			this.loadGeneration++;
 			this.destroyViews();
 			await this.refreshModel();
 		}
@@ -151,14 +175,12 @@ export class DiffView extends ItemView {
 			this.unsubStatus();
 			this.unsubStatus = null;
 		}
-		// The debounce holds a timer that would refresh a closed view.
 		this.cancelStatusDebounce?.();
 		this.cancelStatusDebounce = null;
+		this.loadGeneration++;
+		this.refreshPending = false;
 		this.destroyViews();
 		this.contentEl.empty();
-		// A refreshModel still in flight resumes after this; the null elements
-		// stop it mounting a MergeView, or header listeners, that nothing will
-		// ever destroy.
 		this.bodyEl = null;
 		this.headerEl = null;
 	}
@@ -166,28 +188,27 @@ export class DiffView extends ItemView {
 	private async refreshModel(): Promise<void> {
 		if (!this.path) return;
 		if (this.rendering) {
-			// Queue request: the state that triggered it is newer than the in-flight render.
 			this.refreshPending = true;
 			return;
 		}
 		this.rendering = true;
+		const gen = this.loadGeneration;
 		try {
-			// With content already on screen, keep it: a flash of "Loading…" would
-			// destroy the compare panel and its pending choices.
 			if (!this.model) this.renderLoading();
 			if (this.historyHash) {
-				this.model = await this.plugin.controller.history.getHistoryDiff({
+				const request = buildHistoryRequest({
 					path: this.path,
-					left: {
-						version: {
-							hash: this.historyHash,
-							label: this.historyLabel,
-							size: this.historySize,
-						},
-					},
-					right: this.against ? { version: this.against } : { current: true },
+					historyHash: this.historyHash,
+					historyLabel: this.historyLabel,
+					historySize: this.historySize,
+					historyChange: this.historyChange,
+					against: this.against,
 					forceText: this.forceText,
 				});
+				const model =
+					await this.plugin.controller.history.getHistoryDiff(request);
+				if (gen !== this.loadGeneration) return;
+				this.model = model;
 				if (!this.model) {
 					this.renderError("This version is no longer available.");
 					return;
@@ -195,9 +216,11 @@ export class DiffView extends ItemView {
 				this.renderShell();
 				return;
 			}
-			this.model = this.forceText
+			const model = this.forceText
 				? await this.plugin.controller.fileDiffs.getForcedFileDiff(this.path)
 				: await this.plugin.controller.fileDiffs.getFileDiff(this.path);
+			if (gen !== this.loadGeneration) return;
+			this.model = model;
 
 			if (!this.model) {
 				// No differences remaining; auto-close.
@@ -207,7 +230,7 @@ export class DiffView extends ItemView {
 
 			this.renderShell();
 		} catch (err) {
-			// A failed refresh must not wipe a diff the user is making choices on.
+			if (gen !== this.loadGeneration) return;
 			if (this.model) notifyError("Refresh failed", err);
 			else this.renderError(errorMessage(err));
 		} finally {
@@ -220,20 +243,19 @@ export class DiffView extends ItemView {
 	}
 
 	private renderLoading(): void {
-		if (!this.bodyEl) return;
-		this.destroyViews();
-		this.bodyEl.empty();
-		this.bodyEl.createDiv({ cls: "obsync-diff-empty", text: "Loading…" });
+		this.renderHeader();
+		this.renderMessage("Loading...");
 	}
 
 	private renderError(message: string): void {
+		this.renderMessage(`Error: ${message}`);
+	}
+
+	private renderMessage(text: string): void {
 		if (!this.bodyEl) return;
 		this.destroyViews();
 		this.bodyEl.empty();
-		this.bodyEl.createDiv({
-			cls: "obsync-diff-empty",
-			text: `Error: ${message}`,
-		});
+		this.bodyEl.createDiv({ cls: "obsync-diff-empty", text });
 	}
 
 	private renderShell(): void {
@@ -246,33 +268,13 @@ export class DiffView extends ItemView {
 		const header = this.headerEl;
 		if (!header) return null;
 		const path = this.path ?? "";
-		const model = this.model;
 		const paths = this.getOrderedPaths();
-		const actions: DiffHeaderActions = {
-			saveResolution: () =>
-				void this.mergePanel.save(this.plugin, path, (resolved) =>
-					this.advanceAfterResolve(resolved),
-				),
-			cancelResolution: () => {
-				this.mergePanel.reset();
-				this.renderShell();
-			},
-			restoreVersion: () => void this.operations.restoreVersion(),
-			keepLocal: () => void this.operations.keepLocal(),
-			acceptRemote: () => void this.operations.acceptRemote(),
-			keepBothVersions: () => void this.operations.keepBoth(),
-			startMerge: () =>
-				void this.mergePanel.enter(this.plugin, path, () => this.renderShell()),
-			goPrevFile: () => void this.navigateFile(-1),
-			goNextFile: () => void this.navigateFile(1),
-			goBack: () => void this.returnToSourceControl(),
-		};
 		return renderDiffHeader(
 			header,
 			{
 				path,
-				direction: model?.direction ?? null,
-				isBinary: model?.isBinary ?? false,
+				direction: this.model?.direction ?? null,
+				isBinary: this.model?.isBinary ?? false,
 				isEditing: this.mergePanel.isEditing,
 				canGoPrevFile: this.getAdjacentPath(paths, -1) !== null,
 				canGoNextFile: this.getAdjacentPath(paths, 1) !== null,
@@ -281,7 +283,27 @@ export class DiffView extends ItemView {
 					? `Restore ${this.historyLabel}`
 					: "Restore this version",
 			},
-			actions,
+			{
+				saveResolution: () =>
+					void this.mergePanel.save(this.plugin, path, (resolved) =>
+						this.advanceAfterResolve(resolved),
+					),
+				cancelResolution: () => {
+					this.mergePanel.reset();
+					this.renderShell();
+				},
+				restoreVersion: () => void this.operations.restoreVersion(),
+				keepLocal: () => void this.operations.keepLocal(),
+				acceptRemote: () => void this.operations.acceptRemote(),
+				keepBothVersions: () => void this.operations.keepBoth(),
+				startMerge: () =>
+					void this.mergePanel.enter(this.plugin, path, () =>
+						this.renderShell(),
+					),
+				goPrevFile: () => void this.navigateFile(-1),
+				goNextFile: () => void this.navigateFile(1),
+				goBack: () => void this.returnToSourceControl(),
+			},
 		);
 	}
 
@@ -289,17 +311,25 @@ export class DiffView extends ItemView {
 		const body = this.bodyEl;
 		if (!body) return;
 		const model = this.model;
-		// A live compare panel updates in place so pending choices survive refreshes.
+		const preview =
+			model &&
+			selectHistoryMode({
+				historyHash: this.historyHash,
+				historyChange: this.historyChange,
+				historyPreviewIfMissing: this.historyPreviewIfMissing,
+				against: this.against,
+				localExists: model.rightPresent,
+			}) === "preview";
 		if (
 			model &&
+			!preview &&
 			!model.isBinary &&
 			!this.mergePanel.isEditing &&
 			this.comparePanel &&
 			model.hunks.hunks.length > 0 &&
 			this.comparePanel.update(model, this.compareActionable(model))
-		) {
+		)
 			return;
-		}
 		body.empty();
 		this.destroyViews();
 		if (!model) {
@@ -321,6 +351,11 @@ export class DiffView extends ItemView {
 					this.lineWrapping = enabled;
 				},
 			});
+			return;
+		}
+		if (preview) {
+			this.previewPanel = new PreviewPanel();
+			this.previewPanel.render(body, model.leftText, this.historyLabel);
 			return;
 		}
 		this.renderTextDiff(body, model);
@@ -355,32 +390,23 @@ export class DiffView extends ItemView {
 	}
 
 	private compareActionable(model: FileDiffModel): boolean {
-		// Disable hunk ops above HUNK_TEXT_MAX_BYTES to prevent guaranteed failures.
 		const tooLarge =
 			model.leftSize > HUNK_TEXT_MAX_BYTES ||
 			model.rightSize > HUNK_TEXT_MAX_BYTES;
-		// Per-segment restore rebuilds the patch against the file on disk, which is
-		// not one of the sides here, so its indices would not be the ones on screen.
-		const comparingVersions = this.against !== null;
-		// The working copy is what a restore edits; there is nothing to edit when
-		// the file is gone, which is exactly the case for a deleted file.
-		const missingWorkingCopy =
-			model.direction === EDiffDirection.History && !model.rightPresent;
-		return !tooLarge && !comparingVersions && !missingWorkingCopy;
+		return (
+			!tooLarge &&
+			this.against === null &&
+			this.historyChange === null &&
+			!(model.direction === EDiffDirection.History && !model.rightPresent)
+		);
 	}
 
-	/** Says why segment actions are off, since the buttons simply vanish otherwise. */
 	private hunkHintText(model: FileDiffModel): string {
-		if (
-			model.leftSize > HUNK_TEXT_MAX_BYTES ||
-			model.rightSize > HUNK_TEXT_MAX_BYTES
-		) {
-			return "This file is too large for per-change actions; use the whole-file buttons above.";
-		}
-		if (this.against !== null) {
-			return "Comparing two stored versions. Use the restore button above to bring the left side back.";
-		}
-		return "This file is not in the vault, so there is nothing to merge into. Restore the whole version instead.";
+		return hunkHintText({
+			model,
+			historyChange: this.historyChange,
+			against: this.against,
+		});
 	}
 
 	private async advanceAfterResolve(resolvedPath: string): Promise<void> {
@@ -419,11 +445,8 @@ export class DiffView extends ItemView {
 		delta: number,
 	): string | null {
 		if (!this.path) return null;
-		const idx = paths.indexOf(this.path);
-		if (idx < 0) return null;
-		const next = idx + delta;
-		if (next < 0 || next >= paths.length) return null;
-		return paths[next] ?? null;
+		const next = paths.indexOf(this.path) + delta;
+		return next >= 0 && next < paths.length ? (paths[next] ?? null) : null;
 	}
 
 	private async navigateFile(delta: number): Promise<void> {
@@ -434,28 +457,27 @@ export class DiffView extends ItemView {
 		await this.refreshModel();
 	}
 
-	/** Moves the view to another file, resetting previous state.
-	 * Resetting forceText is load-bearing: diff-view must never load binary content. */
 	private showFile(path: string): void {
 		this.path = path;
-		// A version hash belongs to one file; carrying it over would diff the new
-		// path against the old file's stored content.
 		this.historyHash = null;
 		this.historyLabel = "Version";
 		this.historySize = undefined;
 		this.against = null;
+		this.historyChange = null;
+		this.historyPreviewIfMissing = false;
 		this.model = null;
 		this.forceText = false;
+		this.loadGeneration++;
 		this.mergePanel.reset();
 		this.destroyViews();
-		// updateHeader prevents the tab from keeping the previous file's name.
-		const leaf = this.leaf as Partial<{ updateHeader: () => void }>;
-		leaf.updateHeader?.();
+		(this.leaf as Partial<{ updateHeader: () => void }>).updateHeader?.();
 	}
 
 	private destroyViews(): void {
 		this.mergePanel.destroy();
 		this.comparePanel?.destroy();
 		this.comparePanel = null;
+		this.previewPanel?.destroy();
+		this.previewPanel = null;
 	}
 }

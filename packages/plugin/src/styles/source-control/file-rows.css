@@ -1,0 +1,174 @@
+.obsync-file-row {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-2);
+	min-height: 27px;
+	padding: var(--size-2-1) var(--size-4-1);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+}
+
+.obsync-file-row:hover {
+	background-color: color-mix(
+		in srgb,
+		var(--background-modifier-hover) 65%,
+		transparent
+	);
+}
+
+.obsync-file-row:focus-visible {
+	outline: 1px solid var(--interactive-accent);
+	outline-offset: -1px;
+}
+
+.obsync-file-row.is-active {
+	background: var(--background-modifier-hover);
+}
+
+.obsync-file-row.is-active:hover {
+	background: var(--background-modifier-hover);
+}
+
+.obsync-file-row.is-opening {
+	background: var(--background-primary-alt);
+}
+
+.obsync-file-row.is-opening::after {
+	content: "";
+	flex: 0 0 auto;
+}
+
+.obsync-file-row.is-conflict {
+	color: var(--color-red);
+}
+
+.obsync-file-status {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-self: stretch;
+	align-items: center;
+	justify-content: flex-end;
+	min-width: 0.6rem;
+	margin-left: auto;
+	font-weight: 700;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	line-height: 1;
+}
+
+.obsync-file-size {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-self: stretch;
+	align-items: center;
+	justify-content: center;
+	font-size: calc(var(--font-ui-smaller) - 2px);
+	font-variant-numeric: tabular-nums;
+	line-height: 0.9;
+	white-space: nowrap;
+}
+
+.obsync-file-size.has-delta {
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 1px;
+}
+
+.obsync-file-size-current {
+	color: var(--text-faint);
+}
+
+.obsync-file-size-delta {
+	font-weight: var(--font-semibold);
+}
+
+.obsync-file-size-delta.is-positive {
+	color: var(--color-green);
+}
+
+.obsync-file-size-delta.is-negative {
+	color: var(--color-red);
+}
+
+.obsync-file-size-delta.is-neutral {
+	color: var(--text-muted);
+}
+
+.obsync-file-row.is-opening .obsync-file-status {
+	display: none;
+}
+
+.obsync-status-add {
+	color: var(--color-green);
+}
+
+.obsync-status-modify {
+	color: var(--color-orange);
+}
+
+.obsync-status-delete {
+	color: var(--color-red);
+}
+
+.obsync-status-conflict {
+	color: var(--color-red);
+}
+
+.obsync-file-name {
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.obsync-file-selection {
+	display: inline-flex;
+	flex: 0 0 20px;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	margin-right: var(--size-2-2);
+	cursor: pointer;
+}
+
+.obsync-file-checkbox {
+	flex: 0 0 auto;
+	width: var(--checkbox-size, 14px);
+	height: var(--checkbox-size, 14px);
+	margin: 0;
+	opacity: 0.55;
+}
+
+.obsync-file-row:hover .obsync-file-checkbox,
+.obsync-file-row:focus-within .obsync-file-checkbox,
+.obsync-file-selection:hover .obsync-file-checkbox,
+.obsync-file-checkbox:checked {
+	opacity: 1;
+}
+
+.obsync-file-copy {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: baseline;
+	gap: var(--size-2-2);
+	min-width: 0;
+	overflow: hidden;
+}
+
+.obsync-file-row .obsync-file-name {
+	flex: 0 1 auto;
+	min-width: 3ch;
+	font-size: var(--font-ui-small);
+}
+
+.obsync-file-parent {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

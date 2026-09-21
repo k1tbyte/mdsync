@@ -1,0 +1,195 @@
+.obsync-timeline-files {
+	display: flex;
+	flex-direction: column;
+	margin: 0 var(--size-4-1) var(--size-4-1) 10px;
+	padding-left: var(--size-4-1);
+	border-left: 1px solid var(--background-modifier-border);
+}
+
+/* Not sticky: this view also opens in the main area, where no one background
+   colour would sit flush behind it. */
+.obsync-timeline-day {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-2-1) var(--size-4-1) 0;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.obsync-timeline-day::after {
+	content: "";
+	flex: 1 1 auto;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.obsync-timeline-day:not(:first-child) {
+	margin-top: var(--size-4-2);
+}
+
+.obsync-timeline-list {
+	gap: var(--size-2-1);
+}
+
+.obsync-timeline-card {
+	flex: 0 0 auto;
+	min-width: 0;
+	border-radius: var(--radius-s);
+	background: var(--background-primary-alt);
+}
+
+.obsync-timeline-head {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-2);
+	padding: var(--size-4-2) var(--size-4-1);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+}
+
+.obsync-timeline-head:hover {
+	background: var(--background-modifier-hover);
+}
+
+.obsync-timeline-head:focus-visible {
+	outline: 1px solid var(--interactive-accent);
+	outline-offset: -1px;
+}
+
+.obsync-timeline-copy {
+	flex: 1;
+	min-width: 0;
+}
+
+.obsync-timeline-title {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-2);
+}
+
+.obsync-timeline-title .obsync-history-row-title {
+	font-size: var(--font-ui-small);
+}
+
+.obsync-timeline-icon {
+	display: inline-flex;
+	flex: 0 0 auto;
+	color: var(--text-muted);
+}
+
+.obsync-timeline-icon svg {
+	width: var(--obsync-icon);
+	height: var(--obsync-icon);
+}
+
+.obsync-timeline-current {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-accent);
+}
+
+.obsync-timeline-file {
+	font-size: var(--font-ui-smaller);
+}
+
+/* Cards hover as one, so a row inside one uses the same tint as its head. */
+.obsync-timeline-file:hover {
+	background: var(--background-modifier-hover);
+}
+
+/* A card keeps its menu in the layout, so it is reachable without hovering. */
+.obsync-timeline-actions {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: var(--size-2-1);
+}
+
+.obsync-timeline-actions .obsync-icon-btn {
+	min-width: 0;
+	border-radius: var(--radius-s);
+	color: var(--text-muted);
+	background: transparent;
+	box-shadow: none;
+}
+
+.obsync-timeline-actions .obsync-icon-btn:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+
+/*
+ * A file row is too tight to spare a column, so its menu floats over the right
+ * edge on hover. It spans the row exactly and the button itself paints the
+ * background, so the whole block is clickable rather than a button sat on a
+ * larger backdrop. Touch reaches the same menu by holding the row.
+ */
+.obsync-timeline-file .obsync-timeline-actions {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	align-items: stretch;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.obsync-timeline-file:hover .obsync-timeline-actions,
+.obsync-timeline-file:focus-within .obsync-timeline-actions {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+/* Base card colour plus the row's hover tint: opaque, so it masks cleanly. */
+.obsync-timeline-file .obsync-timeline-actions .obsync-icon-btn {
+	/* Clamped, so the wide hit area never grows the row it floats over. */
+	padding: var(--size-4-3);
+	max-height: 100%;
+	background-color: var(--background-primary-alt);
+	background-image: linear-gradient(
+		var(--background-modifier-hover),
+		var(--background-modifier-hover)
+	);
+}
+
+/* Its own hover stacks a second tint over the row's. */
+.obsync-timeline-file .obsync-timeline-actions .obsync-icon-btn:hover {
+	background-color: var(--background-primary-alt);
+	background-image:
+		linear-gradient(
+			var(--background-modifier-hover),
+			var(--background-modifier-hover)
+		),
+		linear-gradient(
+			var(--background-modifier-hover),
+			var(--background-modifier-hover)
+		);
+}
+
+.obsync-timeline-actions svg {
+	width: var(--obsync-icon);
+	height: var(--obsync-icon);
+}
+
+.obsync-diff-preview-header {
+	padding: var(--size-4-2);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.obsync-diff-preview-body {
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.obsync-diff-preview-body .cm-editor {
+	height: 100%;
+}
+
+.obsync-diff-preview-body .cm-scroller {
+	overflow: auto;
+}

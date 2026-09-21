@@ -1,0 +1,45 @@
+/*
+ * Bundled to packages/plugin/styles.css by esbuild.config.mjs.
+ *
+ * Import order is the cascade: rules of equal specificity are resolved by it,
+ * so append within a slice rather than reordering this list.
+ */
+
+@import "./tokens.css";
+
+@import "./settings/tabs-and-logs.css";
+
+@import "./source-control/shell.css";
+@import "./source-control/toolbar.css";
+@import "./source-control/sections.css";
+@import "./source-control/file-rows.css";
+@import "./source-control/tree.css";
+
+@import "./diff/view.css";
+@import "./base/icon-button.css";
+@import "./diff/tones.css";
+@import "./diff/toolbars.css";
+@import "./diff/pane-grid.css";
+@import "./diff/divider.css";
+@import "./diff/rail.css";
+@import "./diff/cm-lines.css";
+@import "./diff/source-blocks.css";
+@import "./diff/code-lines.css";
+@import "./diff/gaps.css";
+@import "./diff/hunk-preview.css";
+
+@import "./settings/transfer.css";
+@import "./explorer.css";
+@import "./status-bar.css";
+@import "./ribbon.css";
+@import "./modals.css";
+
+@import "./source-control/history.css";
+@import "./editor/signs.css";
+@import "./editor/hunk-popup.css";
+@import "./shares.css";
+@import "./source-control/restore.css";
+@import "./source-control/timeline.css";
+
+/* Last: phone overrides win on specificity, but stay last as documented. */
+@import "./mobile.css";

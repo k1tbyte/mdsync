@@ -1,0 +1,102 @@
+/* Source control view */
+.workspace-leaf-content[data-type="obsync-source-control"]
+.view-content.obsync-source-control {
+	display: flex;
+	flex-direction: column;
+	padding: var(--size-4-3);
+	padding-bottom: 0;
+	height: 100%;
+	overflow: hidden;
+	container-type: inline-size;
+}
+
+.obsync-source-tabs-row {
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	display: flex;
+	flex: 0 0 auto;
+	gap: var(--size-2-1);
+	margin-bottom: var(--size-4-2);
+}
+
+.obsync-source-tabs {
+	display: flex;
+	flex: 1 1 auto;
+	gap: var(--size-2-1);
+	margin-bottom: 0;
+	padding: 3px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: calc(var(--button-radius, var(--radius-m)) + 3px);
+	background: var(--background-primary);
+}
+
+.obsync-mobile-back {
+	display: inline-flex;
+	flex: 0 0 var(--obsync-touch);
+	align-items: center;
+	justify-content: center;
+	width: var(--obsync-touch);
+	height: var(--obsync-touch);
+	padding: 0;
+}
+
+.obsync-source-tabs .obsync-settings-tab-button {
+	display: flex;
+	flex: 1 1 0;
+	align-items: center;
+	justify-content: center;
+	gap: var(--size-2-2);
+	min-width: 0;
+	height: 30px;
+	padding: 0 var(--size-4-2);
+	border: 0;
+	box-shadow: none;
+	background: transparent;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.obsync-source-tabs .obsync-settings-tab-button:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.obsync-source-tabs .obsync-settings-tab-button.is-active {
+	flex-grow: 1.65;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.obsync-source-tab-icon {
+	display: inline-flex;
+	flex: 0 0 auto;
+}
+
+.obsync-source-tab-icon svg {
+	width: var(--obsync-icon);
+	height: var(--obsync-icon);
+}
+
+.obsync-source-tab-label {
+	display: none;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.obsync-source-tabs
+	.obsync-settings-tab-button.is-active
+	.obsync-source-tab-label {
+	display: inline;
+}
+
+.obsync-source-tab-panel {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	min-height: 0;
+	overflow: auto;
+}

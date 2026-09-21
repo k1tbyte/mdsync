@@ -1,0 +1,58 @@
+/* Shared folders */
+
+.obsync-share-list {
+	display: grid;
+	gap: var(--size-4-2);
+	margin-block: var(--size-4-2) var(--size-4-4);
+}
+
+.obsync-share-row {
+	padding: var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-left: 3px solid var(--interactive-accent);
+	border-radius: var(--radius-s);
+	background: var(--background-primary-alt);
+}
+
+.obsync-share-row.obsync-share-syncing {
+	border-left-color: var(--interactive-accent);
+}
+
+.obsync-share-row.obsync-share-error {
+	border-left-color: var(--color-red);
+}
+
+.obsync-share-row.obsync-share-paused,
+.obsync-share-row.obsync-share-offline {
+	border-left-color: var(--text-faint);
+}
+
+.obsync-share-row .setting-item-name {
+	word-break: break-word;
+}
+
+.obsync-share-path {
+	overflow: hidden;
+	color: var(--text-muted);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.obsync-share-status {
+	margin-top: var(--size-4-1);
+}
+
+.obsync-share-remove {
+	color: var(--color-red);
+}
+
+.obsync-share-invite-link {
+	width: 100%;
+	resize: vertical;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	word-break: break-all;
+	margin-top: var(--size-4-2);
+}

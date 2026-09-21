@@ -1,0 +1,55 @@
+/* Read-only hunk preview (restore confirmations). */
+.obsync-hunk-preview {
+	margin-bottom: var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	overflow: hidden;
+	background: var(--background-primary);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+}
+
+@media (max-width: 700px) {
+	.obsync-layout-btn {
+		display: none;
+	}
+
+	.obsync-merge-toolbar,
+	.obsync-merge-legend,
+	.obsync-compare-toolbar {
+		padding-inline: var(--size-4-2);
+	}
+
+	.obsync-merge-legend {
+		gap: var(--size-4-2);
+	}
+}
+.obsync-unified-line {
+	display: block;
+}
+
+.obsync-line-prefix {
+	display: inline-block;
+	width: 1.5em;
+	text-align: center;
+	user-select: none;
+	opacity: 0.6;
+}
+
+.obsync-line-content {
+	white-space: pre;
+}
+
+/*
+ * Tint from the theme's own hue, never `--background-modifier-error/success`:
+ * those are solid danger/confirm fills, and same-hue text on them is invisible.
+ */
+.obsync-unified-line.is-add {
+	background-color: rgba(var(--color-green-rgb), 0.15);
+	color: var(--text-normal);
+}
+
+.obsync-unified-line.is-del {
+	background-color: rgba(var(--color-red-rgb), 0.15);
+	color: var(--text-normal);
+}

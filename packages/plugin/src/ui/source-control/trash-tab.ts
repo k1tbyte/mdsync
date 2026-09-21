@@ -50,7 +50,8 @@ export class TrashTab {
 			return;
 		}
 		const head = pane.createDiv({ cls: "obsync-history-versions-head" });
-		const refresh = head.createEl("button", {
+		const bar = head.createDiv({ cls: "obsync-history-head-actions" });
+		const refresh = bar.createEl("button", {
 			text: "⟳ Refresh",
 			cls: "obsync-history-refresh",
 		});
@@ -59,7 +60,7 @@ export class TrashTab {
 			this.clear();
 			this.onRerender();
 		});
-		this.renderBulkActions(head);
+		this.renderBulkActions(bar);
 		this.renderBody(pane.createDiv({ cls: "obsync-history-list" }));
 	}
 

@@ -1,0 +1,30 @@
+/* Ribbon badge */
+.obsync-ribbon-icon {
+	position: relative;
+}
+
+.obsync-ribbon-icon.is-pending::after {
+	content: "";
+	position: absolute;
+	top: 4px;
+	right: 4px;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background-color: var(--interactive-accent);
+}
+
+.obsync-ribbon-icon.is-conflict::after {
+	background-color: var(--color-red);
+}
+
+.obsync-ribbon-icon.is-relay-connected::before {
+	content: "";
+	position: absolute;
+	bottom: 2px;
+	right: 2px;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--color-green);
+}

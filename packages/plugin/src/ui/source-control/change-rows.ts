@@ -1,8 +1,8 @@
 import { setIcon } from "obsidian";
-import { formatBytes } from "@/shared/format";
 import { appendIconButton } from "../icon-button";
 import type { SourceControlActions } from "./actions";
 import type { ConflictPreviewManager } from "./conflict-preview-manager";
+import { renderPath, renderSize } from "./row-parts";
 import type { ESection, FileRow, VisualRow } from "./types";
 
 /** What a row reads from, and reports back to, the section drawing it. */
@@ -102,37 +102,11 @@ export function renderFileRow(
 		ctx.setSelected(row.path, checkbox.checked);
 	});
 
-	const display = splitDisplayPath(row.path);
-	const copy = item.createSpan({ cls: "obsync-file-copy" });
-	copy.createSpan({ cls: "obsync-file-name", text: display.name });
-	if (ctx.layout === "flat" && display.parent) {
-		copy.createSpan({
-			cls: "obsync-file-parent",
-			text: display.parent,
-		});
-	}
+	renderPath(item, row.path, ctx.layout === "flat");
 
 	if (row.isConflict) renderConflictRowControls(parent, item, row, ctx);
 
-	if (row.size !== undefined) {
-		const size = item.createSpan({
-			cls: [
-				"obsync-file-size",
-				...(row.sizeDelta === undefined ? [] : ["has-delta"]),
-			],
-		});
-		if (row.sizeDelta !== undefined) {
-			const delta = sizeDeltaParts(row.sizeDelta);
-			size.createSpan({
-				cls: `obsync-file-size-delta ${delta.cls}`,
-				text: `${delta.sign}${formatBytes(Math.abs(row.sizeDelta))}`,
-			});
-		}
-		size.createSpan({
-			cls: "obsync-file-size-current",
-			text: formatBytes(row.size),
-		});
-	}
+	if (row.size !== undefined) renderSize(item, row.size, row.sizeDelta);
 	item.createSpan({
 		cls: `obsync-file-status ${row.statusClass}`,
 		text: row.statusLetter,
@@ -186,21 +160,6 @@ function showFileMenu(event: MouseEvent, row: FileRow, ctx: RowContext): void {
 		);
 	}
 	menu.showAtMouseEvent(event);
-}
-
-function sizeDeltaParts(delta: number): { sign: string; cls: string } {
-	if (delta > 0) return { sign: "+", cls: "is-positive" };
-	if (delta < 0) return { sign: "−", cls: "is-negative" };
-	return { sign: "±", cls: "is-neutral" };
-}
-
-function splitDisplayPath(path: string): { name: string; parent: string } {
-	const separator = path.lastIndexOf("/");
-	if (separator < 0) return { name: path, parent: "" };
-	return {
-		name: path.slice(separator + 1),
-		parent: path.slice(0, separator),
-	};
 }
 
 /** Indentation the flattened tree no longer gets from nested containers. */

@@ -1,0 +1,86 @@
+.obsync-rail-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--button-radius, var(--radius-s));
+	background: var(--background-primary);
+	color: var(--text-muted);
+	box-shadow: none;
+	cursor: pointer;
+}
+
+.obsync-rail-label {
+	display: none;
+}
+
+.obsync-rail-btn svg {
+	width: var(--obsync-icon);
+	height: var(--obsync-icon);
+}
+
+.obsync-divider-action .obsync-rail-btn {
+	color: rgb(var(--obsync-tone));
+}
+
+.obsync-rail-btn:hover,
+.obsync-divider-action:hover .obsync-rail-btn {
+	background: var(--interactive-hover);
+	color: var(--text-normal);
+	opacity: 1;
+}
+
+.obsync-rail-btn.is-active,
+.obsync-rail-btn.is-active:hover {
+	background: var(--interactive-accent);
+	border-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+	opacity: 1;
+}
+
+.obsync-rail-btn:focus-visible {
+	opacity: 1;
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: -2px;
+}
+
+/* Floats over a pane's changes: fold buttons clear of its scrollbar and the navigation ring. */
+.obsync-change-layer {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.obsync-change-ring {
+	position: absolute;
+	top: 0;
+	left: var(--size-2-1);
+	right: var(--size-4-3);
+	box-sizing: border-box;
+	border: 2px solid var(--interactive-accent);
+	border-radius: var(--radius-s);
+	animation: obsync-ring-fade 1.4s ease-out forwards;
+}
+
+/* A fade, not a motion, so it also plays with reduced motion: its end removes the ring. */
+@keyframes obsync-ring-fade {
+	60% {
+		opacity: 1;
+	}
+
+	100% {
+		opacity: 0;
+	}
+}
+
+.obsync-change-layer .obsync-rail-btn {
+	position: absolute;
+	top: var(--size-4-1);
+	right: var(--size-4-5);
+	box-shadow: var(--shadow-s);
+	pointer-events: auto;
+}

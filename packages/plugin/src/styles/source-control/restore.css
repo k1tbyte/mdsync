@@ -1,0 +1,42 @@
+.obsync-prompt-input {
+	width: 100%;
+	margin-bottom: var(--size-4-2);
+}
+
+.obsync-history-row-head {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	min-width: 0;
+}
+
+.obsync-history-row-head .obsync-history-row-title {
+	flex: 1 1 auto;
+}
+
+.obsync-restore-summary {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.obsync-restore-diff {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	max-height: 50vh;
+	overflow-y: auto;
+	margin-bottom: var(--size-4-3);
+}
+
+.obsync-bulk-restore-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-1);
+	max-height: 40vh;
+	overflow-y: auto;
+	margin-bottom: var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	padding: var(--size-4-2);
+	font-size: var(--font-ui-smaller);
+}

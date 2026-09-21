@@ -1,0 +1,79 @@
+/* Status bar */
+.obsync-status-bar {
+	cursor: pointer;
+	display: inline-flex;
+	gap: var(--size-4-2);
+	align-items: center;
+}
+
+.obsync-status-bar.is-error {
+	color: var(--color-red);
+}
+
+/* Mutually exclusive with is-error (see status-bar.ts), so order is free. */
+.obsync-status-bar.is-offline {
+	color: var(--text-muted);
+}
+
+.obsync-status-spinner,
+.obsync-file-row.is-opening::after {
+	display: inline-block;
+	width: 0.75rem;
+	height: 0.75rem;
+	border: 2px solid var(--background-modifier-border);
+	border-top-color: var(--interactive-accent);
+	border-radius: 50%;
+	animation: obsync-spin 0.65s linear infinite;
+}
+
+.obsync-status-spinner.obsync-hidden,
+.obsync-hidden {
+	display: none;
+}
+
+@keyframes obsync-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@keyframes obsync-pulse {
+	50% {
+		opacity: 0.45;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.obsync-share-badge.obsync-share-syncing svg,
+	.obsync-share-syncing.obsync-context-action > svg,
+	.obsync-context-chip.obsync-share-syncing > svg,
+	.obsync-file-row.is-opening::after {
+		animation: none;
+	}
+}
+
+@container (min-width: 420px) {
+	.obsync-source-tab-label {
+		display: inline;
+	}
+
+	.obsync-source-tabs .obsync-settings-tab-button.is-active {
+		flex-grow: 1;
+	}
+}
+
+@container (max-width: 285px) {
+	.obsync-main-toolbar {
+		flex-wrap: wrap;
+	}
+}
+
+@container (max-width: 320px) {
+	.obsync-file-row.is-conflict {
+		flex-wrap: wrap;
+	}
+
+	.obsync-file-row.is-conflict .obsync-file-copy {
+		flex-basis: calc(100% - 2rem);
+	}
+}

@@ -1,0 +1,72 @@
+.cm-gutter.obsync-sign-gutter {
+	width: 4px;
+	padding: 0;
+	overflow: visible;
+	cursor: pointer;
+}
+
+.cm-gutter.obsync-sign-gutter .cm-gutterElement {
+	position: relative;
+	padding: 0;
+	width: 4px;
+}
+
+.obsync-sign {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	width: 3px;
+	border-radius: var(--obsync-radius-pill);
+	pointer-events: none;
+	transform-origin: center;
+	transition:
+		transform 120ms ease,
+		filter 120ms ease,
+		box-shadow 120ms ease;
+	will-change: transform;
+}
+
+.cm-gutter.obsync-sign-gutter .cm-gutterElement:hover .obsync-sign {
+	transform: scaleX(1.75);
+	filter: saturate(1.08);
+	box-shadow: 0 0 0 1px var(--background-modifier-border);
+}
+
+.obsync-sign-add {
+	background-color: var(--color-green, #2bb673);
+}
+
+.obsync-sign-change {
+	background-color: var(--color-yellow, #d6a700);
+}
+
+.obsync-sign-delete {
+	background: linear-gradient(
+		to bottom,
+		transparent 0%,
+		transparent 70%,
+		var(--color-red, #d04a4a) 70%,
+		var(--color-red, #d04a4a) 100%
+	);
+}
+
+.obsync-sign-topdelete {
+	background: linear-gradient(
+		to bottom,
+		var(--color-red, #d04a4a) 0%,
+		var(--color-red, #d04a4a) 30%,
+		transparent 30%,
+		transparent 100%
+	);
+}
+
+.obsync-sign-changedelete {
+	background: linear-gradient(
+		to bottom,
+		var(--color-yellow, #d6a700) 0%,
+		var(--color-yellow, #d6a700) 70%,
+		var(--color-red, #d04a4a) 70%,
+		var(--color-red, #d04a4a) 100%
+	);
+}

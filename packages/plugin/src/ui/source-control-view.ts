@@ -8,6 +8,8 @@ import {
 import { DIFF_VIEW_TYPE, SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
 import type { SyncStatusSnapshot } from "@/sync/controller";
+import type { HistoryVersionRef } from "@/sync/projection";
+import type { HistoryChange } from "./diff/history-state";
 import {
 	ChangesTab,
 	ConflictPreviewManager,
@@ -129,14 +131,18 @@ export class SourceControlView extends ItemView {
 			() => this.render(this.plugin.controller.getSnapshot(), true),
 			(path, history) => openDiffView(this.plugin, path, history),
 			() => this.showDeleted(),
+			() => this.refreshHistory(),
 		);
 		this.trashTab = new TrashTab(
 			this.plugin,
 			() => this.render(this.plugin.controller.getSnapshot(), true),
 			(path, history) => openDiffView(this.plugin, path, history),
 		);
-		this.timelineTab = new TimelineTab(this.plugin, () =>
-			this.render(this.plugin.controller.getSnapshot(), true),
+		this.timelineTab = new TimelineTab(
+			this.plugin,
+			() => this.render(this.plugin.controller.getSnapshot(), true),
+			(path, history) => openDiffView(this.plugin, path, history),
+			() => this.refreshHistory(),
 		);
 		this.registerEvent(
 			this.app.workspace.on("file-open", (file) => {
@@ -167,6 +173,7 @@ export class SourceControlView extends ItemView {
 		this.unsubscribe = null;
 		// Windowed lists listen on the active panel, which is about to be removed.
 		this.changes.dispose();
+		this.timelineTab.dispose();
 		// A load still in flight will call back; without this it rebuilds a dead view.
 		this.root = null;
 		this.contentEl.empty();
@@ -189,17 +196,10 @@ export class SourceControlView extends ItemView {
 		else this.timelineTab.render(root);
 	}
 
-	/** A push adds a snapshot, so every history-backed tab is stale afterwards. */
-	refreshHistoryAfterPush(): void {
-		if (this.tab === ESourceTab.Deleted) {
-			this.trashTab.clear();
-		} else if (this.tab === ESourceTab.Timeline) {
-			this.timelineTab.clear();
-		} else if (this.tab === ESourceTab.History && this.historyTab.hasPath) {
-			this.historyTab.clearVersions();
-		} else {
-			return;
-		}
+	refreshHistory(): void {
+		this.trashTab.clear();
+		this.timelineTab.clear();
+		this.historyTab.clearVersions();
 		this.render(this.plugin.controller.getSnapshot(), true);
 	}
 
@@ -213,6 +213,7 @@ export class SourceControlView extends ItemView {
 		const root = this.root;
 		if (this.tab !== ESourceTab.Changes) {
 			if (!force) return;
+			if (this.tab === ESourceTab.Timeline) this.timelineTab.captureState();
 			this.changes.dispose();
 			this.changes.invalidate();
 			root.empty();
@@ -295,6 +296,7 @@ export class SourceControlView extends ItemView {
 
 	private activateTab(tab: ESourceTab, restoreFocus = false): void {
 		if (this.tab === tab) return;
+		if (this.tab === ESourceTab.Timeline) this.timelineTab.captureState();
 		this.changes.invalidate();
 		this.tab = tab;
 		if (tab === ESourceTab.History && !this.historyTab.hasPath) {
@@ -309,12 +311,11 @@ export class SourceControlView extends ItemView {
 	}
 }
 
-export interface HistoryDiffTarget {
-	hash: string;
-	label: string;
-	size?: number;
+export interface HistoryDiffTarget extends HistoryVersionRef {
 	/** Right side. Without it the version is diffed against the file on disk. */
 	against?: { hash: string; label: string; size?: number };
+	change?: HistoryChange;
+	previewIfMissing?: boolean;
 }
 
 export async function openDiffView(
@@ -335,6 +336,8 @@ export async function openDiffView(
 			againstHash: history?.against?.hash,
 			againstLabel: history?.against?.label,
 			againstSize: history?.against?.size,
+			historyChange: history?.change,
+			historyPreviewIfMissing: history?.previewIfMissing,
 		},
 	});
 	await plugin.app.workspace.revealLeaf(leaf);

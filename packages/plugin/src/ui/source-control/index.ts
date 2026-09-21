@@ -2,7 +2,8 @@ export { SourceControlActions } from "./actions";
 export { ChangesTab } from "./changes-tab";
 export { renderConflictPreview } from "./conflict-preview";
 export { ConflictPreviewManager } from "./conflict-preview-manager";
-export { buildHistoryRows, type HistoryRow, sizeDelta } from "./history-rows";
+export { type DayGroup, groupByDay } from "./day-groups";
+export { buildHistoryRows, type HistoryRow } from "./history-rows";
 export { HistoryTab } from "./history-tab";
 export {
 	confirmAdoptNewVault,
@@ -18,7 +19,9 @@ export {
 	countsText,
 	describeRestorePlan,
 	samplePaths,
+	type TimelineFileRow,
 	type TimelineRow,
+	timelineDiffTarget,
 } from "./timeline-rows";
 export { TimelineTab } from "./timeline-tab";
 export {

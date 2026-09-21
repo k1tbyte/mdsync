@@ -11,6 +11,12 @@ export function formatBytes(bytes: number): string {
 	return `${(bytes / BYTES_PER_MB).toFixed(1)} MB`;
 }
 
+/** Signed byte change, or null when nothing moved. */
+export function formatSizeDelta(delta: number): string | null {
+	if (delta === 0) return null;
+	return `${delta > 0 ? "+" : "−"}${formatBytes(Math.abs(delta))}`;
+}
+
 export function formatTimestamp(ms: number): string {
 	return new Date(ms).toLocaleString();
 }
@@ -44,6 +50,23 @@ export function formatRelativeTime(
 		return agoText(delta / MS_PER_DAY, "day");
 	}
 	return new Date(ms).toLocaleDateString();
+}
+
+/** Heading for a day of rows: recent days read better by name than by date. */
+export function formatDayLabel(ms: number, now: number = Date.now()): string {
+	const days = Math.round((startOfDay(now) - startOfDay(ms)) / MS_PER_DAY);
+	if (days <= 0) return "Today";
+	if (days === 1) return "Yesterday";
+	if (days < 7) {
+		return new Date(ms).toLocaleDateString(undefined, { weekday: "long" });
+	}
+	return new Date(ms).toLocaleDateString();
+}
+
+function startOfDay(ms: number): number {
+	const date = new Date(ms);
+	date.setHours(0, 0, 0, 0);
+	return date.getTime();
 }
 
 function agoText(value: number, unit: string): string {

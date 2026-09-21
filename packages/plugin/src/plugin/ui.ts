@@ -58,7 +58,7 @@ export function refreshOpenHistoryViewsAfterPush(
 		SOURCE_CONTROL_VIEW_TYPE,
 	)) {
 		if (leaf.view instanceof SourceControlView) {
-			leaf.view.refreshHistoryAfterPush();
+			leaf.view.refreshHistory();
 		}
 	}
 }

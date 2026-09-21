@@ -1,0 +1,67 @@
+.obsync-gap {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	margin: 0;
+	padding: 1px var(--size-4-3);
+	border: 0;
+	border-block: 1px solid var(--background-modifier-border);
+	border-radius: 0;
+	background: color-mix(
+		in srgb,
+		var(--interactive-accent) 8%,
+		var(--background-primary)
+	);
+	color: var(--text-muted);
+	font-family: var(--font-interface);
+	font-size: var(--font-ui-smallest);
+	text-align: center;
+	cursor: pointer;
+}
+
+.obsync-diff-view.obsync-is-phone .obsync-gap {
+	position: sticky;
+	left: var(--obsync-gutter-width, 0px);
+	box-sizing: border-box;
+	width: var(--obsync-pane-width, 100%);
+}
+
+.obsync-gap-content {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-4-1);
+}
+
+.obsync-gap:hover {
+	background: color-mix(
+		in srgb,
+		var(--interactive-accent) 16%,
+		var(--background-primary)
+	);
+	color: var(--text-normal);
+}
+
+.obsync-gap-icon {
+	display: inline-flex;
+}
+
+.obsync-gap-icon svg {
+	width: 12px;
+	height: 12px;
+}
+
+.obsync-gap.is-fold {
+	border-block: 0;
+	background: transparent;
+	color: var(--text-faint);
+}
+
+.obsync-gap.is-fold:hover {
+	background: color-mix(
+		in srgb,
+		var(--interactive-accent) 8%,
+		var(--background-primary)
+	);
+	color: var(--text-normal);
+}

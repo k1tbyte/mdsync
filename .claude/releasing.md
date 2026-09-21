@@ -11,7 +11,7 @@
 
 - Bump `version` in `manifest.json` and update `versions.json` to map plugin version → minimum app version.
 - Create a GitHub release whose tag exactly matches `manifest.json`'s `version` - no leading `v`.
-- Attach `manifest.json`, `main.js`, and `styles.css` (if present) as individual release assets. Release artifacts live at the top level of the plugin folder in the vault (`<Vault>/.obsidian/plugins/<plugin-id>/`).
+- Attach `manifest.json`, `main.js`, and `styles.css` as individual release assets. `main.js` and `styles.css` are both build outputs of `pnpm build`. Release artifacts live at the top level of the plugin folder in the vault (`<Vault>/.obsidian/plugins/<plugin-id>/`).
 - After the initial release, add/update the plugin in the community catalog as required.
 
 ## References

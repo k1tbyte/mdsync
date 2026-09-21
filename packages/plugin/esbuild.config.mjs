@@ -11,7 +11,7 @@ if you want to view the source, please visit the github repository of this plugi
 
 const prod = process.argv[2] === "production";
 
-const context = await esbuild.context({
+const jsContext = await esbuild.context({
 	banner: {
 		js: banner,
 	},
@@ -46,9 +46,23 @@ const context = await esbuild.context({
 	minify: prod,
 });
 
+// Obsidian reads styles.css from the plugin folder, so the bundle keeps that
+// name and stays unminified: it is the file a user or theme author inspects.
+// The target lowers nesting; color-mix() already sets the floor at Chrome 111.
+const cssContext = await esbuild.context({
+	banner: {
+		css: banner,
+	},
+	entryPoints: ["src/styles/index.css"],
+	bundle: true,
+	target: ["chrome111", "safari16.4"],
+	logLevel: "info",
+	outfile: "styles.css",
+});
+
 if (prod) {
-	await context.rebuild();
+	await Promise.all([jsContext.rebuild(), cssContext.rebuild()]);
 	process.exit(0);
 } else {
-	await context.watch();
+	await Promise.all([jsContext.watch(), cssContext.watch()]);
 }

@@ -1,13 +1,17 @@
-import { Menu } from "obsidian";
+import { Menu, setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { errorMessage } from "@/shared/errors";
 import type { FileVersion } from "@/sync/history";
+import { appendIconButton, appendLabeledButton } from "@/ui/icon-button";
 import { notifyError, notifyInfo } from "@/ui/notices";
 import type { HistoryDiffTarget } from "@/ui/source-control-view";
 
+import { makeActivatable } from "./change-rows";
+import { groupByDay } from "./day-groups";
 import { buildHistoryRows, type HistoryRow } from "./history-rows";
-import { openPromptModal } from "./modals";
 import { confirmRestore } from "./restore-modal";
+import { renderSize } from "./row-parts";
+import { addSnapshotPinItems } from "./snapshot-menu";
 
 export class HistoryTab {
 	private explicitPath: string | null = null;
@@ -26,6 +30,7 @@ export class HistoryTab {
 			history?: HistoryDiffTarget,
 		) => Promise<void>,
 		private readonly showDeleted: () => void,
+		private readonly onSnapshotsChanged: () => void,
 	) {}
 
 	get hasPath(): boolean {
@@ -78,19 +83,16 @@ export class HistoryTab {
 
 	private renderHistoryVersions(parent: HTMLElement, path: string): void {
 		const header = parent.createDiv({ cls: "obsync-history-versions-head" });
-		this.renderBackButton(header, path);
-		const refresh = header.createEl("button", {
-			text: "⟳ Refresh",
-			cls: "obsync-history-refresh",
-		});
-		refresh.setAttr("aria-label", "Reload history for this file");
-		refresh.addEventListener("click", () => {
+		const bar = header.createDiv({ cls: "obsync-history-head-actions" });
+		this.renderBackButton(bar, path);
+		appendLabeledButton(bar, "refresh-cw", "Refresh history", () => {
 			this.clearVersions();
 			this.onRerender();
 		});
-		header.createSpan({ cls: "obsync-history-path", text: path });
 
-		const body = parent.createDiv({ cls: "obsync-history-list" });
+		const body = parent.createDiv({
+			cls: "obsync-history-list obsync-timeline-list",
+		});
 		if (this.loadedPath !== path) {
 			this.clearVersions();
 			this.loadedPath = path;
@@ -117,7 +119,10 @@ export class HistoryTab {
 		const rows = buildHistoryRows(this.historyVersions, {
 			currentDevice: this.plugin.controller.currentDevice(),
 		});
-		for (const row of rows) this.renderRow(body, path, row);
+		for (const group of groupByDay(rows)) {
+			body.createDiv({ cls: "obsync-timeline-day", text: group.label });
+			for (const row of group.rows) this.renderRow(body, path, row);
+		}
 	}
 
 	/** Loads into state, never into a captured node: a re-render discards that node. */
@@ -143,48 +148,37 @@ export class HistoryTab {
 			});
 	}
 
+	/** Same card as the timeline, plus the size this version weighed. */
 	private renderRow(body: HTMLElement, path: string, row: HistoryRow): void {
-		const item = body.createDiv({
-			cls: "obsync-history-row is-clickable",
-		});
-		item.setAttr("role", "button");
-		item.setAttr("tabindex", "0");
-		item.setAttr(
-			"aria-label",
-			`Diff ${path} against ${row.title} (${row.tooltip})`,
+		const card = body.createDiv({ cls: "obsync-timeline-card" });
+		const head = card.createDiv({ cls: "obsync-timeline-head" });
+		makeActivatable(
+			head,
+			`${row.title} · ${row.tooltip}`,
+			() => void this.openDiff(path, { ...row.version }),
 		);
-
-		const head = item.createDiv({ cls: "obsync-history-row-head" });
-		const titleEl = head.createDiv({
-			cls: "obsync-history-row-title",
-			text: row.isLatest ? `${row.title} (latest)` : row.title,
-		});
+		const copy = head.createDiv({ cls: "obsync-timeline-copy" });
+		const title = copy.createDiv({ cls: "obsync-timeline-title" });
+		title.createSpan({ cls: "obsync-history-row-title", text: row.title });
+		if (row.isLatest)
+			title.createSpan({ cls: "obsync-timeline-current", text: "Latest" });
 		if (row.pinned) {
-			titleEl.createSpan({
-				cls: "obsync-history-pinned-badge",
-				text: " 📌",
+			const pin = title.createSpan({
+				cls: "obsync-timeline-icon obsync-history-pinned-badge",
 			});
+			setIcon(pin, "pin");
+			pin.setAttr("aria-label", "Pinned snapshot");
 		}
-		const more = head.createEl("button", {
-			cls: "obsync-history-row-more",
-			text: "⋯",
-		});
-		more.setAttr("aria-label", `Actions for the version from ${row.tooltip}`);
-		more.addEventListener("click", (event) => {
+		copy.createDiv({ cls: "obsync-history-row-meta", text: row.meta });
+		renderSize(head, row.size, row.sizeDelta);
+		const actions = head.createDiv({ cls: "obsync-timeline-actions" });
+		appendIconButton(actions, "ellipsis", "Version actions", (event) => {
 			event.stopPropagation();
 			this.showRowMenu(event, path, row);
 		});
-
-		item.createDiv({ cls: "obsync-history-row-meta", text: row.meta });
-
-		const open = (): void => void this.openDiff(path, { ...row.version });
-		item.addEventListener("click", open);
-		item.addEventListener("keydown", (event: KeyboardEvent) => {
-			if (event.key !== "Enter" && event.key !== " ") return;
-			// The menu button sits inside the row; its own keys are not the row's.
-			if (event.target !== item) return;
+		head.addEventListener("contextmenu", (event) => {
 			event.preventDefault();
-			open();
+			this.showRowMenu(event, path, row);
 		});
 	}
 
@@ -212,61 +206,8 @@ export class HistoryTab {
 			);
 		}
 		menu.addSeparator();
-		if (row.pinned) {
-			menu.addItem((item) =>
-				item
-					.setTitle("Rename pin…")
-					.setIcon("pencil")
-					.onClick(() => void this.handleRenamePin(row)),
-			);
-			menu.addItem((item) =>
-				item
-					.setTitle("Unpin")
-					.setIcon("pin-off")
-					.onClick(() => void this.handleTogglePin(row.snapshotId, false)),
-			);
-		} else {
-			menu.addItem((item) =>
-				item
-					.setTitle("Pin this snapshot")
-					.setIcon("pin")
-					.onClick(() => void this.handleTogglePin(row.snapshotId, true)),
-			);
-		}
+		addSnapshotPinItems(menu, this.plugin, row, this.onSnapshotsChanged);
 		menu.showAtMouseEvent(event);
-	}
-
-	private async handleRenamePin(row: HistoryRow): Promise<void> {
-		const name = await openPromptModal({
-			app: this.plugin.app,
-			title: "Name this pin",
-			description: "Shown instead of the timestamp in the version list.",
-			label: "Pin name",
-			initialValue: row.label,
-			confirmLabel: "Save",
-			allowEmpty: true,
-		});
-		if (name === null) return;
-		await this.handleTogglePin(row.snapshotId, true, name);
-	}
-
-	private async handleTogglePin(
-		snapshotId: string,
-		pinned: boolean,
-		label?: string,
-	): Promise<void> {
-		try {
-			await this.plugin.controller.history.setSnapshotPinned(
-				snapshotId,
-				pinned,
-				label,
-			);
-			this.historyVersions = null;
-			this.onRerender();
-			notifyInfo(pinned ? "Snapshot pinned." : "Snapshot unpinned.");
-		} catch (err) {
-			notifyError("Could not update pin", err);
-		}
 	}
 
 	private renderBackButton(header: HTMLElement, path: string): void {
@@ -276,8 +217,7 @@ export class HistoryTab {
 			currentPath !== null &&
 			currentPath !== path;
 		if (!canGoBack) return;
-		const back = header.createEl("button", { text: "← Back to current file" });
-		back.addEventListener("click", () => {
+		appendLabeledButton(header, "arrow-left", "Back to current file", () => {
 			this.setPath(null);
 			this.onRerender();
 		});

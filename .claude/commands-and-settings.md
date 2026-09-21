@@ -20,3 +20,14 @@
 - Clear, action-oriented imperatives in step-by-step copy; keep in-app strings short, consistent, free of jargon.
 - **Bold** for literal UI labels; prefer "select" for interactions.
 - Arrow notation for navigation: **Settings → Community plugins**.
+
+## Tooltips
+
+- Never set the `title` attribute. Obsidian already renders its own tooltip from
+  `aria-label`, so a `title` beside one produces two overlapping tooltips.
+  `aria-label` is the only tooltip source; write it to read as one, since it is
+  also the accessible name.
+- `appendIconButton` and `makeActivatable` set `aria-label` for you - pass the
+  text you want shown rather than adding an attribute afterwards.
+- A button with visible text needs no `aria-label`: the text already names it,
+  and adding one only duplicates it in a hover bubble (`appendLabeledButton`).

@@ -86,12 +86,6 @@ export interface DeletedFilesResult {
 	truncated: boolean;
 }
 
-export interface SnapshotFiles {
-	added: string[];
-	modified: string[];
-	deleted: string[];
-}
-
 export interface SnapshotSummary {
 	id: string;
 	createdAt: number;
@@ -100,11 +94,13 @@ export interface SnapshotSummary {
 	pinned: boolean;
 	label?: string;
 	/** Null when no change record explains this snapshot, so its contents are unknown. */
-	files: SnapshotFiles | null;
+	files: SnapshotChanges | null;
 	/** Rank among non-pinned snapshots; see `DeletedFile.rank`. Null when pinned. */
 	rank: number | null;
 	/** Reachable by replay from HEAD, which a restore needs. */
 	restorable: boolean;
+	/** True when this snapshot is the actual remote HEAD, determined by snapshotId. */
+	isHead: boolean;
 }
 
 export interface SnapshotListResult {

@@ -1,8 +1,4 @@
-import {
-	formatBytes,
-	formatRelativeTime,
-	formatTimestamp,
-} from "@/shared/format";
+import { formatRelativeTime, formatTimestamp } from "@/shared/format";
 import type { FileVersion } from "@/sync/history";
 import { deviceText } from "./row-formatter";
 
@@ -14,8 +10,11 @@ export interface HistoryRowVersion {
 
 export interface HistoryRow {
 	snapshotId: string;
+	createdAt: number;
 	hash: string;
 	size: number;
+	/** Bytes gained or lost against the next older version. Absent on the oldest. */
+	sizeDelta?: number;
 	/** Relative time, or the pin's name once it has one. */
 	title: string;
 	meta: string;
@@ -46,16 +45,12 @@ export function buildHistoryRows(
 		const relative = formatRelativeTime(version.createdAt, now);
 		return {
 			snapshotId: version.snapshotId,
+			createdAt: version.createdAt,
 			hash: version.hash,
 			size: version.size,
+			sizeDelta: older ? version.size - older.size : undefined,
 			title: version.label?.trim() || relative,
-			meta: [
-				deviceText(version, options.currentDevice),
-				formatBytes(version.size),
-				sizeDelta(version.size, older?.size),
-			]
-				.filter((part): part is string => part !== null)
-				.join(" · "),
+			meta: deviceText(version, options.currentDevice),
 			tooltip: formatTimestamp(version.createdAt),
 			pinned: version.pinned,
 			label: version.label?.trim() ?? "",
@@ -70,15 +65,4 @@ export function buildHistoryRows(
 				: undefined,
 		};
 	});
-}
-
-/** Signed change against the previous version. Null on the oldest, or when equal. */
-export function sizeDelta(
-	size: number,
-	previousSize: number | undefined,
-): string | null {
-	if (previousSize === undefined) return null;
-	const delta = size - previousSize;
-	if (delta === 0) return null;
-	return `${delta > 0 ? "+" : "−"}${formatBytes(Math.abs(delta))}`;
 }

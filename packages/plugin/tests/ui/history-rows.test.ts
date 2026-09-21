@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FileVersion } from "@/sync/history";
 import type { EFileKind } from "@/sync/types";
-import { buildHistoryRows, sizeDelta } from "@/ui/source-control/history-rows";
+import { buildHistoryRows } from "@/ui/source-control/history-rows";
 
 const NOW = 1_700_000_000_000;
 const DAY = 86_400_000;
@@ -21,18 +21,6 @@ function version(overrides: Partial<FileVersion> = {}): FileVersion {
 	};
 }
 
-describe("sizeDelta", () => {
-	it("signs the change against the previous version", () => {
-		expect(sizeDelta(2048, 1024)).toBe("+1.0 KB");
-		expect(sizeDelta(1024, 2048)).toBe("−1.0 KB");
-	});
-
-	it("says nothing when the size held or there is no previous", () => {
-		expect(sizeDelta(1024, 1024)).toBeNull();
-		expect(sizeDelta(1024, undefined)).toBeNull();
-	});
-});
-
 describe("buildHistoryRows", () => {
 	it("titles a row by relative age and keeps the exact time in the tooltip", () => {
 		const [row] = buildHistoryRows([version()], { now: NOW });
@@ -41,7 +29,7 @@ describe("buildHistoryRows", () => {
 		expect(row?.tooltip).toBe(new Date(NOW - DAY).toLocaleString());
 	});
 
-	it("shows the size delta against the next older version", () => {
+	it("measures the size against the next older version", () => {
 		const rows = buildHistoryRows(
 			[
 				version({ snapshotId: "s2", hash: "H2", size: 2048, createdAt: NOW }),
@@ -49,10 +37,10 @@ describe("buildHistoryRows", () => {
 			],
 			{ now: NOW },
 		);
-		expect(rows[0]?.meta).toContain("+1.0 KB");
+		expect(rows[0]?.size).toBe(2048);
+		expect(rows[0]?.sizeDelta).toBe(1024);
 		// The oldest has nothing to compare against.
-		expect(rows[1]?.meta).not.toContain("+");
-		expect(rows[1]?.meta).not.toContain("−");
+		expect(rows[1]?.sizeDelta).toBeUndefined();
 	});
 
 	it("points each row at the next older version for compare-with-previous", () => {
@@ -109,6 +97,6 @@ describe("buildHistoryRows", () => {
 			now: NOW,
 			currentDevice: { id: "device-abcdef123456", name: "Laptop" },
 		});
-		expect(row?.meta).toBe("Laptop · 1.0 KB");
+		expect(row?.meta).toBe("Laptop");
 	});
 });

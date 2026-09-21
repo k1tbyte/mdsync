@@ -1,0 +1,115 @@
+/* Panel toolbars */
+.obsync-merge-toolbar,
+.obsync-compare-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-4-1) var(--size-4-3);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.obsync-merge-counter,
+.obsync-compare-summary {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	white-space: nowrap;
+}
+
+.obsync-merge-counter.is-resolved {
+	color: var(--text-success);
+}
+
+.obsync-compare-spacer {
+	flex: 1 1 auto;
+}
+
+.obsync-pending {
+	display: inline-flex;
+	gap: var(--size-4-1);
+}
+
+.obsync-pending:empty {
+	display: none;
+}
+
+.obsync-pending-kind {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-2-2);
+	padding: var(--size-2-1) var(--size-4-2);
+	border-radius: var(--radius-s);
+	background: rgba(var(--obsync-kind), 0.15);
+	color: rgb(var(--obsync-kind));
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.obsync-pending-kind svg {
+	width: 0.9rem;
+	height: 0.9rem;
+}
+
+.obsync-pending-kind.is-push {
+	--obsync-kind: var(--color-green-rgb, 44, 153, 115);
+}
+
+.obsync-pending-kind.is-revert {
+	--obsync-kind: var(--color-orange-rgb, 236, 117, 0);
+}
+
+.obsync-pending-kind.is-pull {
+	--obsync-kind: var(--color-blue-rgb, 55, 136, 216);
+}
+
+.obsync-pending-kind.is-restore {
+	--obsync-kind: var(--color-purple-rgb, 157, 105, 220);
+}
+
+.obsync-merge-legend {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--size-4-3);
+	padding: var(--size-4-1) var(--size-4-3);
+	font-size: var(--font-ui-smallest);
+	color: var(--text-muted);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.obsync-merge-help {
+	position: relative;
+}
+
+.obsync-merge-help-text {
+	position: absolute;
+	top: calc(100% + 4px);
+	left: 0;
+	z-index: 10;
+	width: min(340px, 70vw);
+	padding: var(--size-4-2) var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	box-shadow: var(--shadow-s);
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	line-height: 1.5;
+}
+
+.obsync-merge-help:not(:hover):not(:focus-within) .obsync-merge-help-text {
+	display: none;
+}
+
+.obsync-merge-key::before,
+.obsync-merge-pane-head.is-local::before,
+.obsync-merge-pane-head.is-remote::before {
+	content: "";
+	display: inline-block;
+	width: 7px;
+	height: 7px;
+	margin-right: var(--size-2-3);
+	border-radius: 2px;
+	background: rgb(var(--obsync-tone));
+}

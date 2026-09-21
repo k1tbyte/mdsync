@@ -13,6 +13,7 @@
 - `ui/` - views, modals, indicators, notices
 - `editor/` - CodeMirror gutter signs
 - `shared/`, `utils/` - app-aware helpers vs. generic algorithms
+- `styles/` - the stylesheet, one slice per feature (see Styles)
 
 ## PluginHost over the plugin class
 
@@ -20,6 +21,24 @@ Feature modules take `PluginHost` (`plugin/host.ts`), never
 `import ObsyncPlugin from "@/main"` - that import direction is what turned
 `main.ts` into a proxy dump. A module that also registers something with
 Obsidian takes `Plugin & PluginHost`; `ObsyncPlugin` satisfies both.
+
+## Styles
+
+`src/styles/` is bundled to `packages/plugin/styles.css` by the same esbuild
+config that builds `main.js`. The generated file is gitignored; edit the slices.
+
+- Slices mirror `ui/`: one file per feature, imported by `index.css`. Import
+  order is the cascade, so append within a slice rather than reordering imports.
+- Phone overrides live next to the component they override; only `mobile.css`
+  (the cross-cutting touch-target pass) is loaded last.
+- Spacing uses Obsidian's 4px grid (`--size-4-*`, `--size-2-*`) directly. Do not
+  add a parallel scale. `tokens.css` holds only what Obsidian has no variable
+  for: `--obsync-icon`, `--obsync-touch`, `--obsync-bar`, the pill radius.
+- `--obsync-bar` is a tone-coloured change bar, `--obsync-bar-strong` the
+  heavier accent bar for a chosen side. Keep that distinction.
+- Raw px is for hairlines (1px borders, outlines) and the few off-grid values
+  with no token. Row metrics (`min-height` on rows) are a contract with
+  `virtual-list.ts`, which measures them - don't round them casually.
 
 ## Layering
 
@@ -48,7 +67,7 @@ tell the user something returns a result for the caller to surface - see
 - Constants live with their consumer: a value used by one module is a
   module-level `const` there; only genuinely cross-area values belong in
   `src/constants.ts`.
-- Never commit generated files (`node_modules/`, `main.js`).
+- Never commit generated files (`node_modules/`, `main.js`, `styles.css`).
 
 ## Scope rules
 

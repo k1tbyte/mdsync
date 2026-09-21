@@ -1,0 +1,93 @@
+.obsync-tree-folder {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-2);
+	min-height: 27px;
+	cursor: pointer;
+	color: var(--text-muted);
+	padding: var(--size-2-1) var(--size-4-1);
+	border-radius: var(--radius-s);
+}
+
+.obsync-tree-folder:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.obsync-tree-folder:focus-visible {
+	outline: 1px solid var(--interactive-accent);
+	outline-offset: -1px;
+}
+
+.obsync-tree-folder-toggle,
+.obsync-tree-folder-icon {
+	display: inline-flex;
+	flex: 0 0 auto;
+}
+
+.obsync-tree-folder-toggle svg,
+.obsync-tree-folder-icon svg {
+	width: var(--obsync-icon);
+	height: var(--obsync-icon);
+}
+
+.obsync-tree-folder-icon {
+	color: var(--text-accent);
+}
+
+.obsync-tree-folder-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.obsync-file-row::before,
+.obsync-tree-folder::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: calc(var(--size-4-1) + 7px);
+	width: calc(var(--obsync-depth, 0) * var(--size-4-4));
+	background-image: repeating-linear-gradient(
+		to right,
+		var(--background-modifier-border) 0 1px,
+		transparent 1px var(--size-4-4)
+	);
+	pointer-events: none;
+	opacity: 0.65;
+}
+
+/* Nesting is an indent on the row itself: the tree is flattened into one list
+   so a collapsed folder costs one row rather than its whole subtree. */
+.obsync-file-row,
+.obsync-tree-folder {
+	padding-left: calc(
+		var(--size-4-1) +
+		var(--obsync-depth, 0) *
+		var(--size-4-4)
+	);
+}
+
+/* A windowed list places its rows itself, on a fixed pitch. */
+.obsync-file-list.is-virtual {
+	display: block;
+	position: relative;
+}
+
+.obsync-file-list.is-virtual > .obsync-file-row,
+.obsync-file-list.is-virtual > .obsync-tree-folder {
+	position: absolute;
+	left: 0;
+	right: 0;
+	/* A wrapped row would be taller than the pitch and overlap its neighbour. */
+	flex-wrap: nowrap;
+	/* One pitch for both kinds: a windowed list places a folder and a file on
+	   the same grid, and a folder is otherwise a pixel shorter. */
+	padding-top: var(--size-2-1);
+	padding-bottom: var(--size-2-1);
+	box-sizing: border-box;
+	height: var(--obsync-row-height, auto);
+}

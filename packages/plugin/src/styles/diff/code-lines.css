@@ -1,0 +1,38 @@
+.obsync-code-line {
+	display: grid;
+	grid-template-columns: 3.5em minmax(0, 1fr);
+	min-height: 1.55em;
+	line-height: 1.55;
+}
+
+.obsync-code-number {
+	padding: 0 var(--size-4-2);
+	color: var(--text-faint);
+	background: var(--background-secondary-alt);
+	text-align: right;
+	user-select: none;
+}
+
+.obsync-code-text {
+	padding: 0 var(--size-4-2);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.obsync-code-line.is-removed {
+	background: rgba(var(--obsync-tone-removed), 0.13);
+}
+
+.obsync-code-line.is-added {
+	background: rgba(var(--obsync-tone-added), 0.13);
+}
+
+.obsync-code-line.is-removed .obsync-code-text {
+	box-shadow: inset var(--obsync-bar) 0 rgba(var(--obsync-tone-removed), 0.7);
+}
+
+.obsync-code-line.is-added .obsync-code-text {
+	box-shadow: inset var(--obsync-bar) 0 rgba(var(--obsync-tone-added), 0.7);
+}
+
+/* Collapsed run of unchanged lines; the fold row collapses it back. */

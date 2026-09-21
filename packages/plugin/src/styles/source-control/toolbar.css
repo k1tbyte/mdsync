@@ -1,0 +1,107 @@
+.obsync-toolbar {
+	display: flex;
+	gap: var(--size-4-2);
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.obsync-toolbar button {
+	background-color: var(--interactive-normal);
+}
+
+.obsync-toolbar button.is-primary {
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.obsync-toolbar button.is-warning,
+.obsync-history-row-actions button.is-warning {
+	background-color: var(--background-modifier-error);
+	color: var(--text-on-accent);
+}
+
+.obsync-toolbar button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.obsync-main-toolbar {
+	flex-wrap: nowrap;
+	gap: var(--size-2-2);
+}
+
+.obsync-main-toolbar .obsync-bulk-action {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--size-2-2);
+	min-width: 0;
+	padding-inline: var(--size-4-2);
+}
+
+.obsync-toolbar-icon {
+	display: inline-flex;
+	flex: 0 0 32px;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 30px;
+	padding: 0;
+}
+
+.obsync-toolbar-icon svg {
+	width: 15px;
+	height: 15px;
+}
+
+.obsync-toolbar-count {
+	padding: 1px var(--size-2-2);
+	border-radius: var(--radius-s);
+	background: rgba(0, 0, 0, 0.15);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+	line-height: 1.2;
+}
+
+.obsync-status-line {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.obsync-status-line.is-error {
+	color: var(--color-red);
+}
+
+.obsync-status-conflicts {
+	color: var(--color-red);
+	font-weight: var(--font-semibold);
+}
+
+/* Clickable pill after the compared timestamp; a text button here reads as
+ * part of the sentence and crams against it. */
+.obsync-ignored-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-4-1);
+	margin-inline-start: var(--size-4-2);
+	padding: 0 var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: transparent;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+	line-height: 1.4;
+	vertical-align: middle;
+	box-shadow: none;
+}
+
+.obsync-ignored-badge:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.obsync-ignored-badge svg {
+	width: 0.85rem;
+	height: 0.85rem;
+}

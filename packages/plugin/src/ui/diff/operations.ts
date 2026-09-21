@@ -2,11 +2,14 @@ import type { PluginHost } from "@/plugin/host";
 import { EConflictStrategy, type SyncOperationResult } from "@/sync/controller";
 import { EDiffDirection, type FileDiffModel } from "@/sync/projection";
 import { notifyError, runWithNotice } from "@/ui/notices";
+import { confirmRestore } from "@/ui/source-control/restore-modal";
 import { EChoiceKind, type HunkChoices } from "./choices";
+import type { HistoryChange } from "./history-state";
 
 export interface DiffOperationState {
 	path: string | null;
 	historyHash: string | null;
+	historyChange: HistoryChange | null;
 	model: FileDiffModel | null;
 }
 
@@ -25,8 +28,25 @@ export class DiffOperations {
 	) {}
 
 	async restoreVersion(): Promise<void> {
-		const { path, historyHash } = this.callbacks.state();
+		const { path, historyHash, historyChange, model } = this.callbacks.state();
 		if (!path || !historyHash) return;
+		const version = {
+			hash: historyHash,
+			label:
+				(historyChange?.after ?? historyChange?.before)?.label ??
+				model?.leftLabel ??
+				"Version",
+			size: historyChange
+				? (historyChange.after?.size ?? historyChange.before?.size)
+				: model?.leftSize,
+		};
+		const confirmed = await confirmRestore({
+			plugin: this.plugin,
+			path,
+			target: path,
+			version,
+		});
+		if (!confirmed) return;
 		await this.runOnFile(
 			() =>
 				this.plugin.controller.history.restoreFileVersion(path, historyHash),
@@ -35,10 +55,11 @@ export class DiffOperations {
 		);
 	}
 
-	/** Carries out every chosen segment in one operation per direction. */
 	async applyChoices(choices: HunkChoices): Promise<void> {
-		const { path, historyHash, model } = this.callbacks.state();
+		const { path, historyHash, historyChange, model } = this.callbacks.state();
 		if (!path || !model || this.hunkOpInFlight || choices.size === 0) return;
+		// Historical change mode has no working copy to apply to.
+		if (historyChange) return;
 		this.hunkOpInFlight = true;
 		const applied = choices.size;
 		const expected = { left: model.leftHash, right: model.rightHash };

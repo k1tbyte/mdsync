@@ -323,22 +323,25 @@ describe("listDeletedFiles", () => {
 });
 
 describe("listSnapshots", () => {
-	it("summarises each push with its own change counts", async () => {
+	it("surfaces full before/after manifest metadata per file", async () => {
 		const storage = await seed([
-			manifest("s1", null, { a: entry("A1"), b: entry("B1") }, 100),
-			manifest("s2", "s1", { a: entry("A2"), c: entry("C1") }, 200),
+			manifest("s1", null, { a: entry("A1", 10), b: entry("B1", 20) }, 100),
+			manifest("s2", "s1", { a: entry("A2", 15), c: entry("C1", 5) }, 200),
 		]);
 
 		const result = await listSnapshots({ storage, key });
 		expect(result.lagging).toBe(false);
 		expect(result.snapshots.map((s) => s.id)).toEqual(["s2", "s1"]);
+
 		expect(result.snapshots[0]?.files).toEqual({
-			added: ["c"],
-			modified: ["a"],
-			deleted: ["b"],
+			added: { c: entry("C1", 5) },
+			modified: { a: { from: entry("A1", 10), to: entry("A2", 15) } },
+			deleted: { b: entry("B1", 20) },
 		});
-		// The first push records the whole vault as added.
-		expect(result.snapshots[1]?.files?.added).toEqual(["a", "b"]);
+		expect(result.snapshots[1]?.files?.added).toEqual({
+			a: entry("A1", 10),
+			b: entry("B1", 20),
+		});
 	});
 
 	it("marks only what a replay can actually reach as restorable", async () => {
@@ -393,5 +396,30 @@ describe("listSnapshots", () => {
 		await writeHistoryLog(storage, key, logOf(chain.slice(0, 1)));
 
 		expect((await listSnapshots({ storage, key })).lagging).toBe(true);
+	});
+
+	it("marks isHead from actual remote HEAD snapshotId, not log index", async () => {
+		const storage = await seed([
+			manifest("s1", null, { a: entry("A1") }, 100),
+			manifest("s2", "s1", { a: entry("A2") }, 200),
+		]);
+
+		const result = await listSnapshots({ storage, key });
+		expect(result.snapshots[0]?.id).toBe("s2");
+		expect(result.snapshots[0]?.isHead).toBe(true);
+		expect(result.snapshots[1]?.isHead).toBe(false);
+	});
+
+	it("no entry is HEAD when log lags behind remote", async () => {
+		const chain = [
+			manifest("s1", null, { a: entry("A1") }, 100),
+			manifest("s2", "s1", {}, 200),
+		];
+		const storage = new FakeStorage();
+		await publishManifest(storage, key, chain[1] as Manifest);
+		await writeHistoryLog(storage, key, logOf(chain.slice(0, 1)));
+
+		const result = await listSnapshots({ storage, key });
+		expect(result.snapshots.every((s) => !s.isHead)).toBe(true);
 	});
 });

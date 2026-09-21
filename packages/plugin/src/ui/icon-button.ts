@@ -13,3 +13,19 @@ export function appendIconButton(
 	button.addEventListener("click", onClick);
 	return button;
 }
+
+/** Icon plus text: a bare icon button left dead space in a full-width toolbar. */
+export function appendLabeledButton(
+	parent: HTMLElement,
+	icon: string,
+	label: string,
+	onClick: (event: MouseEvent) => void,
+): HTMLButtonElement {
+	const button = parent.createEl("button", { cls: "obsync-labeled-btn" });
+	button.type = "button";
+	const iconEl = button.createSpan({ cls: "obsync-labeled-btn-icon" });
+	setIcon(iconEl, icon);
+	button.createSpan({ text: label });
+	button.addEventListener("click", onClick);
+	return button;
+}

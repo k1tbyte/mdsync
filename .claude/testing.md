@@ -17,9 +17,10 @@ re-injected only on reload.
 
 ## Manual install for testing
 
-Copy `main.js`, `manifest.json`, `styles.css` (if any) to
+Copy `main.js`, `manifest.json`, `styles.css` to
 `<Vault>/.obsidian/plugins/<plugin-id>/`, reload Obsidian and enable the
-plugin in **Settings → Community plugins**.
+plugin in **Settings → Community plugins**. Both `main.js` and `styles.css` are
+build outputs, so run `pnpm build` (or `pnpm dev`) first - neither is in git.
 
 ## Mobile
 

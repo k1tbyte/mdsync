@@ -1,0 +1,102 @@
+/* Pane grids: heads sit exactly over their panes and divider strips. */
+.obsync-merge-pane-heads,
+.obsync-merge-body {
+	display: grid;
+	grid-template-columns:
+		minmax(0, 1fr) 52px minmax(0, 1fr) 52px
+		minmax(0, 1fr);
+}
+
+.obsync-compare-heads,
+.obsync-compare-body {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 52px minmax(0, 1fr);
+}
+
+.obsync-merge-pane-heads,
+.obsync-compare-heads {
+	flex: 0 0 auto;
+}
+
+.obsync-merge-pane-head,
+.obsync-compare-head {
+	padding: var(--size-4-1) var(--size-4-3);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	border-bottom: 1px solid var(--background-modifier-border);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.obsync-merge-divider-head,
+.obsync-compare-divider-head {
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+}
+
+.obsync-merge-body,
+.obsync-compare-body {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.obsync-merge-editor-host,
+.obsync-compare-host {
+	position: relative;
+	min-width: 0;
+	min-height: 0;
+}
+
+.obsync-merge-editor-host .cm-editor,
+.obsync-compare-host .cm-editor {
+	height: 100%;
+}
+
+.obsync-merge-editor-host .cm-scroller,
+.obsync-compare-host .cm-scroller {
+	overflow: auto;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+	line-height: 1.55;
+}
+
+.obsync-merge-editor-host .cm-gutters,
+.obsync-compare-host .cm-gutters {
+	background: transparent;
+	border-right: none;
+	color: var(--text-faint);
+}
+
+.obsync-diff-view.obsync-is-phone .cm-gutters {
+	background: color-mix(in srgb, var(--background-primary) 94%, transparent);
+	box-shadow: 1px 0 var(--background-modifier-border);
+}
+
+/* CodeMirror retains a measured line width after its text is folded away. */
+.obsync-diff-view.obsync-is-phone .is-fully-folded .cm-content {
+	/* biome-ignore lint/complexity/noImportantStyles: CodeMirror sets flex-basis
+	   inline from its own measurement, so only !important can clear it. */
+	flex-basis: auto !important;
+}
+
+/* biome-ignore-start lint/style/noDescendingSpecificity: the .cm-content rules
+   below set disjoint properties (flex-basis, padding-bottom, caret-color), so
+   none of them can override another. */
+.obsync-merge-editor-host .cm-content,
+.obsync-compare-host .cm-content {
+	padding-bottom: 0;
+}
+
+.obsync-diff-view.obsync-is-phone .obsync-merge-editor-host .cm-content,
+.obsync-diff-view.obsync-is-phone .obsync-compare-host .cm-content {
+	padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+}
+
+.obsync-merge-editor-host.is-local .cm-content,
+.obsync-merge-editor-host.is-remote .cm-content,
+.obsync-compare-host .cm-content {
+	caret-color: transparent;
+}
+/* biome-ignore-end lint/style/noDescendingSpecificity: see above */
