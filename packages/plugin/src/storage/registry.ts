@@ -18,14 +18,6 @@ import {
 	s3Identity,
 } from "./adapters/s3";
 import {
-	createShareBrokerAdapter,
-	defaultShareBrokerConfig,
-	describeShareBrokerTarget,
-	isShareBrokerConfigured,
-	SHARE_BROKER_FIELDS,
-	shareBrokerIdentity,
-} from "./adapters/share-broker";
-import {
 	createWebDAVAdapter,
 	defaultWebDAVConfig,
 	describeWebDAVTarget,
@@ -47,11 +39,6 @@ export interface StorageDescriptor<
 	describeTarget: (config: T) => string;
 	identity: (config: T) => string;
 	fields: ReadonlyArray<SettingsFieldSpec>;
-	/**
-	 * Can host shared folders. Requires per-object presigned URLs: the broker
-	 * hands invitees one signed URL per object instead of proxying the data.
-	 */
-	hostsShares?: boolean;
 	/** Returns false when not this backend's to handle. */
 	handleProtocol?: (
 		params: ObsidianProtocolData,
@@ -73,7 +60,6 @@ const STORAGE_REGISTRY: {
 		describeTarget: describeS3Target,
 		identity: s3Identity,
 		fields: S3_FIELDS,
-		hostsShares: true,
 	},
 	[EStorageBackend.WebDAV]: {
 		label: "WebDAV",
@@ -94,45 +80,17 @@ const STORAGE_REGISTRY: {
 		fields: GOOGLE_DRIVE_FIELDS,
 		handleProtocol: handleGoogleDriveProtocol,
 	},
-	[EStorageBackend.ShareBroker]: {
-		label: "Shared folder (broker)",
-		defaults: defaultShareBrokerConfig,
-		create: createShareBrokerAdapter,
-		isConfigured: isShareBrokerConfigured,
-		describeTarget: describeShareBrokerTarget,
-		identity: shareBrokerIdentity,
-		fields: SHARE_BROKER_FIELDS,
-	},
 };
-
-/** Backends that can host a shared folder, for the share-storage picker. */
-export function listShareBackends(): ReadonlyArray<{
-	kind: EStorageBackend;
-	label: string;
-}> {
-	return Object.entries(STORAGE_REGISTRY)
-		.filter(([, descriptor]) => descriptor.hostsShares === true)
-		.map(([kind, descriptor]) => ({
-			kind: kind as EStorageBackend,
-			label: descriptor.label,
-		}));
-}
-
-export function canHostShares(kind: EStorageBackend): boolean {
-	return STORAGE_REGISTRY[kind].hostsShares === true;
-}
-
-/** Backends users can pick directly (broker is invite-only). */
-const SELECTABLE_BACKENDS = new Set<EStorageBackend>([
-	EStorageBackend.S3,
-	EStorageBackend.WebDAV,
-	EStorageBackend.GoogleDrive,
-]);
 
 export function getDescriptor<K extends EStorageBackend>(
 	kind: K,
 ): StorageDescriptor<Extract<StorageAdapterConfig, { kind: K }>> {
 	return STORAGE_REGISTRY[kind];
+}
+
+/** Stored settings can name a backend this build dropped; every lookup would throw. */
+export function isKnownBackend(kind: string): kind is EStorageBackend {
+	return kind in STORAGE_REGISTRY;
 }
 
 /** A storage config with every field still at its adapter default dropped. */
@@ -164,12 +122,10 @@ export function listBackends(): ReadonlyArray<{
 	kind: EStorageBackend;
 	label: string;
 }> {
-	return Object.entries(STORAGE_REGISTRY)
-		.filter(([kind]) => SELECTABLE_BACKENDS.has(kind as EStorageBackend))
-		.map(([kind, descriptor]) => ({
-			kind: kind as EStorageBackend,
-			label: descriptor.label,
-		}));
+	return Object.entries(STORAGE_REGISTRY).map(([kind, descriptor]) => ({
+		kind: kind as EStorageBackend,
+		label: descriptor.label,
+	}));
 }
 
 export function createStorageAdapter(

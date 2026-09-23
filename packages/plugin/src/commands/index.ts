@@ -3,7 +3,6 @@ import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
 import {
 	deepCleanOrphanedObjects,
-	JoinShareModal,
 	notifyError,
 	notifyInfo,
 	openDiffView,
@@ -96,44 +95,6 @@ export function registerCommands(plugin: Plugin & PluginHost): void {
 		id: "deep-clean-orphans",
 		name: "Deep-clean orphaned objects",
 		callback: () => void deepCleanOrphanedObjects(plugin),
-	});
-
-	plugin.addCommand({
-		id: "join-shared-folder",
-		name: "Join a shared folder",
-		callback: () => {
-			const modal = new JoinShareModal(plugin);
-			modal.open();
-		},
-	});
-
-	plugin.addCommand({
-		id: "sync-shared-folders",
-		name: "Sync shared folders now",
-		checkCallback: (checking) => {
-			if (plugin.settings.sharedFolders.length === 0) return false;
-			if (checking) return true;
-			void plugin.shares
-				?.syncAll()
-				.then(() => {
-					// syncAll swallows per-share failures into their statuses.
-					const failed = plugin.settings.sharedFolders.filter(
-						(share) => plugin.shares.getStatus(share.id).error,
-					).length;
-					if (failed > 0) {
-						notifyError(
-							"Could not sync shared folders",
-							new Error(`${failed} folder(s) failed. See settings.`),
-						);
-						return;
-					}
-					notifyInfo("Shared folders synced.");
-				})
-				.catch((err: unknown) =>
-					notifyError("Could not sync shared folders", err),
-				);
-			return true;
-		},
 	});
 
 	plugin.addCommand({

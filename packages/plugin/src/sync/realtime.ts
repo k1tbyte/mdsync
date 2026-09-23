@@ -36,8 +36,6 @@ export interface RealtimeClientOptions {
 	channelId: string;
 	/** Relay secret. The room token is derived from it. */
 	token?: string;
-	/** Sent as is: a share participant's share token opens that share's room. */
-	roomToken?: string;
 	deviceId?: string;
 	deviceName?: string;
 	onRemoteSync: () => void;
@@ -168,12 +166,6 @@ export class RealtimeClient {
 
 	/** Room URL carrying the room-scoped token, derived once per client. */
 	private async roomUrl(serverUrl: string): Promise<string> {
-		if (this.options.roomToken) {
-			return buildRoomUrl(serverUrl, {
-				...this.options,
-				token: this.options.roomToken,
-			});
-		}
 		const secret = this.options.token;
 		if (!secret) {
 			return buildRoomUrl(serverUrl, { ...this.options, token: undefined });
@@ -266,7 +258,7 @@ export function normalizePresenceDevices(
  * HMAC-SHA256(deployment token, room id) as lowercase hex. Must match relay's
  * deriveRoomToken.
  */
-export async function deriveRoomToken(
+async function deriveRoomToken(
 	secret: string,
 	roomId: string,
 ): Promise<string> {

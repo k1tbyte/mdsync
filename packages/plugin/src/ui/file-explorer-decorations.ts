@@ -1,18 +1,9 @@
 import { setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
-import {
-	describeShareTooltip,
-	type ShareIndicatorState,
-	shareIndicatorState,
-} from "@/share";
 import type { SyncController } from "@/sync/controller";
 import type { EChangeType } from "@/sync/types";
 import { type ChangeAction, changeActionOf } from "./change-action";
-import {
-	decorateShareIndicator,
-	renderPresenceCount,
-	setIndicatorTooltip,
-} from "./share-indicator";
+import { setIndicatorTooltip } from "./indicator-tooltip";
 
 type ChangeIndicatorClass =
 	| "obsync-changed-added"
@@ -20,15 +11,8 @@ type ChangeIndicatorClass =
 	| "obsync-changed-deleted"
 	| "obsync-changed-conflict";
 
-interface ShareDecoration {
-	state: ShareIndicatorState;
-	online: number;
-	tooltip: string;
-}
-
 interface PathDecoration {
 	change?: ChangeIndicatorClass;
-	share?: ShareDecoration;
 	linkRoot?: string;
 	ignored?: boolean;
 }
@@ -66,17 +50,6 @@ export function computeDecorations(
 	for (const path of plugin.ignoreState.ignoredPaths()) {
 		patchDecoration(out, path, { ignored: true });
 	}
-	for (const share of plugin.settings.sharedFolders) {
-		const status = plugin.shares.getStatus(share.id);
-		if (!status) continue;
-		patchDecoration(out, share.localRoot, {
-			share: {
-				state: shareIndicatorState(share, status),
-				online: status.peers.length,
-				tooltip: describeShareTooltip(share, status),
-			},
-		});
-	}
 	return out;
 }
 
@@ -90,18 +63,16 @@ export function renderDecoration(
 ): void {
 	if (decoration.change) target.addClass(decoration.change);
 	if (decoration.ignored) target.addClass("obsync-explorer-ignored");
-	if (decoration.share || decoration.linkRoot) {
+	if (decoration.linkRoot) {
 		target.addClass("obsync-has-path-badge");
+		renderLinkBadge(target, decoration.linkRoot);
 	}
-	if (decoration.share) renderShareBadge(target, decoration.share);
-	if (decoration.linkRoot) renderLinkBadge(target, decoration.linkRoot);
 }
 
 export function clearDecoration(target: HTMLElement): void {
 	for (const cls of CHANGE_CLASSES) target.removeClass(cls);
 	target.removeClass("obsync-explorer-ignored");
 	target.removeClass("obsync-has-path-badge");
-	target.removeClass("obsync-share-root");
 	for (const badge of target.querySelectorAll(".obsync-path-badge")) {
 		badge.remove();
 	}
@@ -132,15 +103,6 @@ function patchDecoration(
 	patch: PathDecoration,
 ): void {
 	target.set(path, { ...target.get(path), ...patch });
-}
-
-function renderShareBadge(target: HTMLElement, share: ShareDecoration): void {
-	target.addClass("obsync-share-root");
-	const badge = target.createSpan({
-		cls: "obsync-path-badge obsync-share-badge",
-	});
-	decorateShareIndicator(badge, share);
-	renderPresenceCount(badge, share.online);
 }
 
 function renderLinkBadge(target: HTMLElement, linkRoot: string): void {

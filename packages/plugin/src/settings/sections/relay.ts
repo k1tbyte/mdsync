@@ -1,4 +1,4 @@
-import { debounce, Setting } from "obsidian";
+import { Setting } from "obsidian";
 
 import {
 	type FieldContext,
@@ -12,8 +12,6 @@ import { bytesToBase64Url } from "@/utils/base64";
 import { testRelay } from "../connection-test";
 
 const SECRET_BYTES = 32;
-/** Shares reconnect and re-register once typing stops, not per keystroke. */
-const SHARE_REFRESH_DELAY_MS = 1_000;
 
 export function renderRelaySection(
 	parent: HTMLElement,
@@ -22,13 +20,7 @@ export function renderRelaySection(
 	const { plugin } = ctx;
 	new Setting(parent).setName("Relay server").setHeading();
 	new Setting(parent).setDesc(
-		"Your own Cloudflare worker: instant sync between devices and shared folders. Generate a secret, save it as the RELAY_SECRET repository secret, run the Deploy Relay GitHub action and paste the URL it prints.",
-	);
-
-	const refreshShares = debounce(
-		() => plugin.shares.refresh(),
-		SHARE_REFRESH_DELAY_MS,
-		true,
+		"Your own Cloudflare worker: instant sync between devices. Generate a secret, save it as the RELAY_SECRET repository secret, run the Deploy Relay GitHub action and paste the URL it prints.",
 	);
 
 	renderField(parent, ctx, {
@@ -37,16 +29,14 @@ export function renderRelaySection(
 		placeholder: "https://obsync-relay.<account>.workers.dev",
 		get: (s) => s.relayUrl,
 		set: (v) => ({ relayUrl: v.trim().replace(/\/+$/, "") }),
-		after: refreshShares,
 	});
 
 	const secretRow = renderField(parent, ctx, {
 		kind: EFieldKind.Password,
 		name: "Relay secret",
-		desc: "Matches RELAY_SECRET on the worker. Never leaves this device: invites carry per-person tokens instead.",
+		desc: "Matches RELAY_SECRET on the worker. Never leaves this device.",
 		get: (s) => s.relaySecret,
 		set: (v) => ({ relaySecret: v.trim() }),
-		after: refreshShares,
 	});
 	secretRow.addButton((button) =>
 		button
@@ -57,7 +47,6 @@ export function renderRelaySection(
 						crypto.getRandomValues(new Uint8Array(SECRET_BYTES)),
 					);
 					await plugin.saveSettings();
-					refreshShares();
 					ctx.rerender();
 				}
 				await copySecret(plugin.settings.relaySecret);

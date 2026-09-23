@@ -1,9 +1,8 @@
 # Obsync
 
 An Obsidian community plugin that syncs a vault between devices over
-user-configured remote storage (S3-compatible, WebDAV, Google Drive), with
-shared folders brokered by a self-hosted worker. TypeScript, bundled to
-`main.js` by esbuild.
+user-configured remote storage (S3-compatible, WebDAV, Google Drive).
+TypeScript, bundled to `main.js` by esbuild.
 
 pnpm workspace: `packages/plugin` (the plugin), `packages/relay` (one
 Cloudflare worker: realtime relay over PartyServer Durable Objects, share
@@ -22,14 +21,13 @@ broker, Google OAuth proxy; deployed by the Deploy Relay workflow).
 
 Breaking an engine invariant silently corrupts user data or publishes remote
 deletions. Read [sync invariants](.claude/sync-invariants.md) before changing
-diff, hunk, baseline, history or GC code, and [shares](.claude/shares.md)
-before touching shared folders - `share-key.ts` is the whole security boundary.
+diff, hunk, baseline, history or GC code.
 
 ## Guidelines
 
 - [Architecture](.claude/architecture.md) - layout, layering, imports, conventions
 - [Sync invariants](.claude/sync-invariants.md) - data-integrity rules of the engine
-- [Shares](.claude/shares.md) - shared folders, invites, broker, share key
+- [Shares](.claude/shares.md) - deleted from the plugin; what the relay still does, and why
 - [Commands & settings](.claude/commands-and-settings.md) - commands, settings, transfer, UI copy
 - [Testing](.claude/testing.md) - vitest, CDP driver, manual install
 - [Releasing](.claude/releasing.md) - manifest, versioning, release assets

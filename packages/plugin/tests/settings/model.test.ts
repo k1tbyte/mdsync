@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AUTO_PUSH_SETTLE_MAX_SECONDS } from "@/constants";
-import {
-	DEFAULT_SETTINGS,
-	isShareStorageConfigured,
-	mergeSettings,
-	shareStorage,
-} from "@/settings/model";
+import { DEFAULT_SETTINGS, mergeSettings } from "@/settings/model";
 import { EStorageBackend, type StorageAdapterConfig } from "@/storage/config";
 
 describe("mergeSettings", () => {
@@ -85,6 +80,18 @@ describe("mergeSettings", () => {
 			merged.storageConfigs[EStorageBackend.GoogleDrive]?.concurrency,
 		).toBe(8);
 		expect(merged.storageConfigs[EStorageBackend.S3]?.concurrency).toBe(4);
+	});
+
+	it("drops a storage config naming a backend this build no longer has", () => {
+		const merged = mergeSettings({
+			activeStorageKind: "share-broker" as EStorageBackend,
+			storageConfigs: {
+				"share-broker": { kind: "share-broker", brokerUrl: "https://x" },
+			} as unknown as Record<string, StorageAdapterConfig>,
+		});
+
+		expect(merged.storageConfigs).not.toHaveProperty("share-broker");
+		expect(merged.activeStorageKind).toBe(EStorageBackend.S3);
 	});
 
 	it("replaces an invalid concurrency with the backend default", () => {
@@ -167,44 +174,5 @@ describe("mergeSettings clamps", () => {
 		});
 		expect(merged.autoSyncEnabled).toBe(false);
 		expect(merged.autoPushAfterSync).toBe(false);
-	});
-});
-
-describe("share storage selection", () => {
-	it("defaults to S3 and seeds a config for it", () => {
-		const merged = mergeSettings(null);
-		expect(merged.shareStorageKind).toBe(EStorageBackend.S3);
-		expect(merged.storageConfigs[EStorageBackend.S3]).toBeDefined();
-	});
-
-	it("rejects a backend that cannot presign", () => {
-		const merged = mergeSettings({
-			shareStorageKind: EStorageBackend.GoogleDrive,
-		});
-		expect(merged.shareStorageKind).toBe(EStorageBackend.S3);
-	});
-
-	it("stays on S3 while the vault syncs to another backend", () => {
-		const merged = mergeSettings({
-			activeStorageKind: EStorageBackend.WebDAV,
-			storageConfigs: {
-				[EStorageBackend.WebDAV]: {
-					kind: EStorageBackend.WebDAV,
-					url: "https://dav.example",
-					username: "u",
-					password: "p",
-					basePath: "",
-					concurrency: 4,
-				} as unknown as StorageAdapterConfig,
-			},
-		});
-
-		expect(merged.activeStorageKind).toBe(EStorageBackend.WebDAV);
-		expect(merged.shareStorageKind).toBe(EStorageBackend.S3);
-		expect(shareStorage(merged).kind).toBe(EStorageBackend.S3);
-	});
-
-	it("reports empty share credentials as unconfigured", () => {
-		expect(isShareStorageConfigured(mergeSettings(null))).toBe(false);
 	});
 });

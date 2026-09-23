@@ -31,12 +31,7 @@ const TRANSFER_SYNC_KEYS: ReadonlyArray<keyof SettingsSyncCategories> = [
 	"themes",
 ];
 const DEFAULT_SYNC_MASK = encodeSyncMask(DEFAULT_SETTINGS_SYNC);
-/** The share broker only backs shared folders, never the main vault; it cannot be transferred as active. */
-const STORAGE_BACKENDS = new Set<string>(
-	Object.values(EStorageBackend).filter(
-		(kind) => kind !== EStorageBackend.ShareBroker,
-	),
-);
+const STORAGE_BACKENDS = new Set<string>(Object.values(EStorageBackend));
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

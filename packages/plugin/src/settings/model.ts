@@ -6,13 +6,12 @@ import {
 	FILE_HISTORY_MAX_SNAPSHOTS,
 	FILE_HISTORY_MIN_SNAPSHOTS,
 } from "@/constants";
-import type { SharedFolderConfig } from "@/share/types";
 import {
-	canHostShares,
 	defaultS3Config,
-	EStorageBackend,
+	type EStorageBackend,
 	getDescriptor,
 	isAdapterConfigured,
+	isKnownBackend,
 	type StorageAdapterConfig,
 } from "@/storage";
 
@@ -59,18 +58,11 @@ export interface ObsyncSettings {
 	fileHistoryMaxSnapshots: number;
 	historyAutoRefresh: boolean;
 	realtimeSync: boolean;
-	/** Self-hosted worker (packages/relay): realtime signals and the share broker. */
+	/** Self-hosted worker (packages/relay): realtime signals. */
 	relayUrl: string;
 	/** The worker's RELAY_SECRET; relay room tokens derive from it. */
 	relaySecret: string;
 	cachePassphrase: boolean;
-	/** Folders shared with others, each with its own encrypted remote and key. */
-	sharedFolders: SharedFolderConfig[];
-	/**
-	 * Backend that hosts shared folders. Independent of activeStorageKind, so a
-	 * vault syncing to Google Drive can still share over S3 without switching.
-	 */
-	shareStorageKind: EStorageBackend;
 	showStatusBar: boolean;
 	showRibbonIcon: boolean;
 	showFileExplorerIndicators: boolean;
@@ -101,8 +93,6 @@ export const DEFAULT_SETTINGS: ObsyncSettings = {
 	relayUrl: "",
 	relaySecret: "",
 	cachePassphrase: true,
-	sharedFolders: [],
-	shareStorageKind: EStorageBackend.S3,
 	showStatusBar: true,
 	showRibbonIcon: true,
 	showFileExplorerIndicators: true,
@@ -117,19 +107,8 @@ export function activeStorage(settings: ObsyncSettings): StorageAdapterConfig {
 	);
 }
 
-/** Config that hosts shared folders - not necessarily the active one. */
-export function shareStorage(settings: ObsyncSettings): StorageAdapterConfig {
-	return (
-		settings.storageConfigs[settings.shareStorageKind] ?? defaultS3Config()
-	);
-}
-
 export function isStorageConfigured(settings: ObsyncSettings): boolean {
 	return isAdapterConfigured(activeStorage(settings));
-}
-
-export function isShareStorageConfigured(settings: ObsyncSettings): boolean {
-	return isAdapterConfigured(shareStorage(settings));
 }
 
 export type RelayConfig = Pick<ObsyncSettings, "relayUrl" | "relaySecret">;
@@ -139,12 +118,14 @@ export function isRelayConfigured(relay: RelayConfig): boolean {
 	return Boolean(relay.relayUrl && relay.relaySecret);
 }
 
-/** Replaced by relayUrl/relaySecret; two of them held secrets, so they are not kept around. */
+/** Dropped settings. Several held secrets - share keys among them - so they are deleted, not kept. */
 const RETIRED_KEYS = [
 	"realtimeServerUrl",
 	"realtimeToken",
 	"shareBrokerUrl",
 	"shareBrokerAdminSecret",
+	"sharedFolders",
+	"shareStorageKind",
 ] as const;
 
 /** Bounds for numeric settings. Clamping here prevents invalid values from files or tokens. */
@@ -186,16 +167,20 @@ export function mergeSettings(
 	const storageConfigs: Record<string, StorageAdapterConfig> = {
 		...(stored?.storageConfigs ?? {}),
 	};
-	if (Object.keys(storageConfigs).length === 0) {
-		storageConfigs[DEFAULT_STORAGE.kind] = DEFAULT_STORAGE;
-	}
 	// Backfill fields added after initial save from backend defaults.
 	for (const [kind, config] of Object.entries(storageConfigs)) {
+		if (!isKnownBackend(kind)) {
+			delete storageConfigs[kind];
+			continue;
+		}
 		config.concurrency = clamp(
 			config.concurrency,
 			CONCURRENCY_BOUNDS,
-			getDescriptor(kind as EStorageBackend).defaults().concurrency,
+			getDescriptor(kind).defaults().concurrency,
 		);
+	}
+	if (Object.keys(storageConfigs).length === 0) {
+		storageConfigs[DEFAULT_STORAGE.kind] = DEFAULT_STORAGE;
 	}
 	const requested = stored?.activeStorageKind;
 	const activeStorageKind =
@@ -203,30 +188,17 @@ export function mergeSettings(
 			? requested
 			: (Object.keys(storageConfigs)[0] as EStorageBackend);
 
-	// A share backend must be able to presign; anything else would strand every
-	// share behind a broker that cannot reach the data.
-	const shareStorageKind =
-		stored?.shareStorageKind && canHostShares(stored.shareStorageKind)
-			? stored.shareStorageKind
-			: DEFAULT_SETTINGS.shareStorageKind;
-	if (!storageConfigs[shareStorageKind]) {
-		storageConfigs[shareStorageKind] =
-			getDescriptor(shareStorageKind).defaults();
-	}
-
 	const merged: ObsyncSettings = {
 		...DEFAULT_SETTINGS,
 		...(stored ?? {}),
 		storageConfigs,
 		activeStorageKind,
-		shareStorageKind,
 		settingsSync: {
 			...DEFAULT_SETTINGS_SYNC,
 			...((stored?.settingsSync as
 				| Partial<SettingsSyncCategories>
 				| undefined) ?? {}),
 		},
-		sharedFolders: normalizeSharedFolders(stored?.sharedFolders),
 	};
 	for (const [key, bounds] of Object.entries(NUMERIC_BOUNDS)) {
 		const field = key as keyof typeof NUMERIC_BOUNDS;
@@ -234,19 +206,4 @@ export function mergeSettings(
 	}
 	for (const key of RETIRED_KEYS) Reflect.deleteProperty(merged, key);
 	return merged;
-}
-
-function normalizeSharedFolders(value: unknown): SharedFolderConfig[] {
-	if (!Array.isArray(value)) return [];
-	return value.filter(
-		(entry): entry is SharedFolderConfig =>
-			Boolean(entry) &&
-			typeof entry === "object" &&
-			typeof (entry as SharedFolderConfig).id === "string" &&
-			typeof (entry as SharedFolderConfig).localRoot === "string" &&
-			typeof (entry as SharedFolderConfig).keyB64 === "string" &&
-			// Reject null to prevent crashes.
-			(entry as SharedFolderConfig).storage !== null &&
-			typeof (entry as SharedFolderConfig).storage === "object",
-	);
 }

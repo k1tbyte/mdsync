@@ -1,19 +1,10 @@
 import { MarkdownView, type Plugin, setIcon } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
-import {
-	describeShareTooltip,
-	findShareForPath,
-	shareIndicatorState,
-} from "@/share";
 import { createSymlinkDetector, type SymlinkDetector } from "@/vault/symlinks";
 import type { IndicatorHandle } from "./indicator-handle";
+import { setIndicatorTooltip } from "./indicator-tooltip";
 import { revealInFileExplorer } from "./obsidian-helpers";
-import {
-	decorateShareIndicator,
-	renderPresenceCount,
-	setIndicatorTooltip,
-} from "./share-indicator";
 
 export function registerFileContextIndicators(
 	plugin: Plugin & PluginHost,
@@ -60,41 +51,16 @@ export function registerFileContextIndicators(
 			root.addClass("obsync-hidden");
 			return;
 		}
-		const share = findShareForPath(plugin.settings.sharedFolders, file.path);
 		const linkRoot = detector.findLink(file.path);
 		const ignoredLocally = plugin.ignoreState.isIgnoredLocally(file.path);
 		const ignoredGlobally = plugin.ignoreState.isIgnoredGlobally(file.path);
 		const ignored = ignoredLocally || ignoredGlobally;
-		if (!share && !linkRoot && !ignored) {
+		if (!linkRoot && !ignored) {
 			root.addClass("obsync-hidden");
 			return;
 		}
 		root.removeClass("obsync-hidden");
-		revealPath = linkRoot ?? share?.localRoot ?? (ignored ? file.path : null);
-
-		if (share) {
-			const status = plugin.shares.getStatus(share.id);
-			if (status) {
-				const state = shareIndicatorState(share, status);
-				const tooltip = describeShareTooltip(share, status);
-				const chip = root.createSpan({ cls: "obsync-context-chip" });
-				decorateShareIndicator(chip, {
-					state,
-					tooltip,
-				});
-				chip.createSpan({ text: share.name });
-				renderPresenceCount(chip, status.peers.length);
-				if (view) {
-					const action = view.addAction("users", tooltip, () => {
-						void revealInFileExplorer(plugin.app, share.localRoot);
-					});
-					action.addClass("obsync-context-action");
-					decorateShareIndicator(action, { state, tooltip }, false);
-					renderPresenceCount(action, status.peers.length);
-					actions.push(action);
-				}
-			}
-		}
+		revealPath = linkRoot ?? (ignored ? file.path : null);
 
 		if (linkRoot) {
 			const tooltip = `Linked via ${linkRoot}\nExcluded from sync`;
@@ -108,7 +74,7 @@ export function registerFileContextIndicators(
 				const action = view.addAction("link-2", tooltip, () => {
 					void revealInFileExplorer(plugin.app, linkRoot);
 				});
-				action.addClass("obsync-context-action", "obsync-link-context");
+				action.addClass("obsync-link-context");
 				setIndicatorTooltip(action, tooltip);
 				actions.push(action);
 			}
@@ -131,7 +97,7 @@ export function registerFileContextIndicators(
 				const action = view.addAction("eye-off", tooltip, () => {
 					void revealInFileExplorer(plugin.app, file.path);
 				});
-				action.addClass("obsync-context-action", "obsync-ignored-context");
+				action.addClass("obsync-ignored-context");
 				setIndicatorTooltip(action, tooltip);
 				actions.push(action);
 			}
@@ -160,7 +126,6 @@ export function registerFileContextIndicators(
 	plugin.registerEvent(plugin.app.vault.on("create", resetDetector));
 	plugin.registerEvent(plugin.app.vault.on("delete", resetDetector));
 	plugin.registerEvent(plugin.app.vault.on("rename", resetDetector));
-	if (plugin.shares) plugin.register(plugin.shares.subscribe(schedule));
 	plugin.register(plugin.ignoreState.subscribe(schedule));
 	plugin.register(() => {
 		disposed = true;

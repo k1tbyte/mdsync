@@ -6,8 +6,3 @@ export {
 	confirmSettingsTransferImport,
 	showSettingsTransferExport,
 } from "./settings-transfer-modal";
-export {
-	CreateShareModal,
-	JoinShareModal,
-	ShareInviteModal,
-} from "./share-modals";

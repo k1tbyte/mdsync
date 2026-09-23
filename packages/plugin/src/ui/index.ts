@@ -13,12 +13,9 @@ export {
 	askNewPassphrase,
 	askPassphrase,
 	askSettingsTransferInput,
-	CreateShareModal,
 	confirmRemoteReset,
 	confirmSettingsTransferImport,
-	JoinShareModal,
 	openPromiseModal,
-	ShareInviteModal,
 	showSettingsTransferExport,
 } from "./modals";
 export {

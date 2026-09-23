@@ -1,10 +1,10 @@
 import type { PluginHost } from "@/plugin/host";
+import { checkRelay } from "@/plugin/relay-check";
 import {
 	activeStorage,
 	isRelayConfigured,
 	type RelayConfig,
 } from "@/settings/model";
-import { checkRelay } from "@/share";
 import { errorMessage } from "@/shared/errors";
 import {
 	createStorageAdapter,

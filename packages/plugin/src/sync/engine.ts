@@ -248,7 +248,7 @@ export async function pullPaths(
 /**
  * Mirrors the remote folder set, so empty directories survive a round trip, and
  * returns the folders it put on disk. Filtered by scope: unfiltered folders
- * would let a share participant create directories outside the share root.
+ * would recreate ignored and out-of-scope directories on every pull.
  */
 async function syncFolders(
 	deps: EngineDependencies,

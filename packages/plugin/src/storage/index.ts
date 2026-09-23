@@ -18,15 +18,14 @@ export {
 } from "./field-spec";
 export {
 	type CompactStorageConfig,
-	canHostShares,
 	compactStorageConfig,
 	createStorageAdapter,
 	describeStorageTarget,
 	getDescriptor,
 	handleStorageProtocol,
 	isAdapterConfigured,
+	isKnownBackend,
 	listBackends,
-	listShareBackends,
 	storageDefaults,
 	storageIdentity,
 } from "./registry";

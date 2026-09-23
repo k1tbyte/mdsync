@@ -84,7 +84,6 @@ describe("StatePersister.load", () => {
 			deviceName: "Desk",
 			storages: {},
 			hashCache,
-			shareCaches: {},
 		};
 		await adapter.write(stateFilePath(".obsidian"), serializeState(stored));
 		adapter.writes = 0;

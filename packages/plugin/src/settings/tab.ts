@@ -35,13 +35,11 @@ import {
 	renderMaintenanceSection,
 	renderRelaySection,
 	renderSecuritySection,
-	renderSharesSection,
 } from "./sections";
 
 const ESettingsViewTab = {
 	Connection: "connection",
 	Sync: "sync",
-	Sharing: "sharing",
 	Interface: "interface",
 	Maintenance: "maintenance",
 	Logs: "logs",
@@ -52,7 +50,6 @@ type ESettingsViewTab =
 const SETTINGS_TAB_LABELS: Record<ESettingsViewTab, string> = {
 	[ESettingsViewTab.Connection]: "Connection",
 	[ESettingsViewTab.Sync]: "Sync",
-	[ESettingsViewTab.Sharing]: "Sharing",
 	[ESettingsViewTab.Interface]: "Interface",
 	[ESettingsViewTab.Maintenance]: "Maintenance",
 	[ESettingsViewTab.Logs]: "Logs",
@@ -152,7 +149,7 @@ const INTERFACE_FIELDS: ReadonlyArray<SettingsField> = [
 	{
 		kind: EFieldKind.Toggle,
 		name: "File and folder indicators",
-		desc: "Show sync status, shared folders, linked paths, and active-file context.",
+		desc: "Show sync status, linked paths, and active-file context.",
 		get: (s) => s.showFileExplorerIndicators,
 		set: (v) => ({ showFileExplorerIndicators: v }),
 		after: (plugin) =>
@@ -203,9 +200,6 @@ export class ObsyncSettingTab extends PluginSettingTab {
 				break;
 			case ESettingsViewTab.Sync:
 				this.renderSyncTab(containerEl);
-				break;
-			case ESettingsViewTab.Sharing:
-				this.renderSharingTab(containerEl);
 				break;
 			case ESettingsViewTab.Interface:
 				this.renderUiSection(containerEl);
@@ -270,13 +264,6 @@ export class ObsyncSettingTab extends PluginSettingTab {
 		if (automationUnsub) this.sectionUnsubs.push(automationUnsub);
 		this.renderSettingsSyncSection(parent);
 		this.renderIgnoreSection(parent);
-	}
-
-	private renderSharingTab(parent: HTMLElement): void {
-		const sharesUnsub = renderSharesSection(parent, this.plugin, () =>
-			this.display(),
-		);
-		if (sharesUnsub) this.sectionUnsubs.push(sharesUnsub);
 	}
 
 	private renderTransferSection(parent: HTMLElement): void {

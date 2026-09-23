@@ -2,7 +2,6 @@ export const EStorageBackend = {
 	S3: "s3",
 	WebDAV: "webdav",
 	GoogleDrive: "google-drive",
-	ShareBroker: "share-broker",
 } as const;
 export type EStorageBackend =
 	(typeof EStorageBackend)[keyof typeof EStorageBackend];
@@ -39,20 +38,7 @@ export interface GoogleDriveStorageConfig {
 	concurrency: number;
 }
 
-/**
- * A shared folder seen from a participant's device. Carries no storage
- * credentials: every object access is signed on demand by the owner's broker,
- * scoped to this share's prefix.
- */
-export interface ShareBrokerStorageConfig {
-	kind: typeof EStorageBackend.ShareBroker;
-	brokerUrl: string;
-	shareToken: string;
-	concurrency: number;
-}
-
 export type StorageAdapterConfig =
 	| S3StorageConfig
 	| WebDAVStorageConfig
-	| GoogleDriveStorageConfig
-	| ShareBrokerStorageConfig;
+	| GoogleDriveStorageConfig;

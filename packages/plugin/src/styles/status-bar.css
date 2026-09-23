@@ -37,16 +37,7 @@
 	}
 }
 
-@keyframes obsync-pulse {
-	50% {
-		opacity: 0.45;
-	}
-}
-
 @media (prefers-reduced-motion: reduce) {
-	.obsync-share-badge.obsync-share-syncing svg,
-	.obsync-share-syncing.obsync-context-action > svg,
-	.obsync-context-chip.obsync-share-syncing > svg,
 	.obsync-file-row.is-opening::after {
 		animation: none;
 	}

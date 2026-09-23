@@ -53,42 +53,6 @@
 	height: 0.9rem;
 }
 
-.obsync-share-badge.obsync-share-active,
-.obsync-share-active.obsync-context-action,
-.obsync-context-chip.obsync-share-active {
-	color: var(--interactive-accent);
-}
-
-.obsync-share-badge.obsync-share-syncing,
-.obsync-share-syncing.obsync-context-action,
-.obsync-context-chip.obsync-share-syncing {
-	color: var(--interactive-accent);
-}
-
-.obsync-share-badge.obsync-share-syncing svg,
-.obsync-share-syncing.obsync-context-action > svg,
-.obsync-context-chip.obsync-share-syncing > svg {
-	animation: obsync-pulse 1.2s ease-in-out infinite;
-}
-
-.obsync-share-badge.obsync-share-error,
-.obsync-share-error.obsync-context-action,
-.obsync-context-chip.obsync-share-error {
-	color: var(--color-red);
-}
-
-.obsync-share-badge.obsync-share-paused,
-.obsync-share-paused.obsync-context-action,
-.obsync-context-chip.obsync-share-paused {
-	color: var(--text-faint);
-}
-
-.obsync-share-badge.obsync-share-offline,
-.obsync-share-offline.obsync-context-action,
-.obsync-context-chip.obsync-share-offline {
-	color: var(--color-orange);
-}
-
 .obsync-link-badge,
 .obsync-link-context {
 	color: var(--color-cyan);
@@ -96,28 +60,6 @@
 
 .obsync-ignored-context {
 	color: var(--text-faint);
-}
-
-.obsync-presence-count {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	min-width: 0.9rem;
-	height: 0.9rem;
-	padding: 0 0.2rem;
-	border-radius: var(--obsync-radius-pill);
-	background: var(--interactive-accent);
-	color: var(--text-on-accent);
-	font-size: 0.6rem;
-	font-weight: 700;
-	line-height: 1;
-}
-
-.obsync-path-badge .obsync-presence-count,
-.obsync-context-action .obsync-presence-count {
-	position: absolute;
-	top: -0.35rem;
-	right: -0.45rem;
 }
 
 .obsync-file-context {
@@ -144,12 +86,8 @@
 	max-width: 18rem;
 }
 
-.obsync-context-chip > span:not(.obsync-presence-count) {
+.obsync-context-chip > span {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-.obsync-context-action {
-	position: relative;
 }

@@ -88,7 +88,5 @@ export function mergeSessionIntoLocal(
 		deviceName: session.deviceName,
 		storages,
 		hashCache: session.hashCache,
-		// Preserve share service caches.
-		shareCaches: current.shareCaches,
 	};
 }

@@ -152,9 +152,6 @@ describe("session projection", () => {
 			"s3:two": { vaultId: "v2", baseline: null },
 		},
 		hashCache: { "a.md": { mtime: 1, size: 2, hash: "aa" } },
-		shareCaches: {
-			"share-1": { "note.md": { mtime: 3, size: 4, hash: "cc" } },
-		},
 	};
 
 	it("reads only the slot belonging to the active storage", () => {
@@ -178,15 +175,6 @@ describe("session projection", () => {
 
 		expect(next.storages["s3:one"]).toEqual(local.storages["s3:one"]);
 		expect(next.storages["s3:two"]?.baseline?.files["b.md"]?.hash).toBe("bb");
-	});
-
-	it("carries share caches through a main-sync persist", () => {
-		const next = mergeSessionIntoLocal(
-			local,
-			projectSession(local, "s3:one") as SessionState,
-			"s3:one",
-		);
-		expect(next.shareCaches).toEqual(local.shareCaches);
 	});
 
 	it("forgets the slot when the session no longer has a vault", () => {

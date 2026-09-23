@@ -12,9 +12,8 @@ import { toArrayBuffer } from "@/utils/bytes";
  * below repairs both the folder and the entry. Everything else probes, since
  * nothing follows it that would notice a stale yes.
  *
- * Per adapter, because `ScopedVaultAdapter` rewrites paths: a share mounted at
- * `Root/` answers for `notes` with the vault's `Root/notes`, and one shared set
- * would let it vouch for a folder the vault adapter has never seen.
+ * Keyed per adapter so one adapter never vouches for a folder another one owns,
+ * and so the entry dies with the adapter rather than outliving it.
  */
 const ensuredDirs = new WeakMap<DataAdapter, Set<string>>();
 

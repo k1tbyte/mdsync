@@ -3,7 +3,6 @@ import type { App } from "obsidian";
 import type { DeviceName, LogService, PassphraseManager } from "@/core";
 import type { ObsyncSettings } from "@/settings/model";
 import type { SettingsTransferController } from "@/settings/transfer-controller";
-import type { SharedFolderConfig, ShareSyncService } from "@/share";
 import type { SyncController } from "@/sync/controller";
 
 import type { IgnoreStateHandle } from "./ignore-state";
@@ -23,14 +22,11 @@ export interface PluginHost {
 	readonly realtime: PluginRealtime;
 	readonly device: DeviceName;
 	readonly transfer: SettingsTransferController;
-	readonly shares: ShareSyncService;
 	readonly ignoreState: IgnoreStateHandle;
 
 	saveSettings(): Promise<void>;
 	scheduleScopeRefresh(reason?: string): void;
 	resetLocalState(): Promise<void>;
-	addSharedFolder(share: SharedFolderConfig): Promise<void>;
-	removeSharedFolder(shareId: string): Promise<void>;
 	refreshEditorSigns(enabled: boolean): void;
 	refreshFileIndicators(enabled: boolean): void;
 	refreshSourceControlView(): void;

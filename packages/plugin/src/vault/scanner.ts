@@ -256,9 +256,8 @@ async function collectFromWalk(
 	scope: ScopePolicy,
 ): Promise<Collected> {
 	const walked = await listAllFiles(adapter, scope, ROOT);
-	// The index path sorts these too. A shared folder scans through the walk
-	// while the vault scans through the index, and folders published in DFS
-	// order would rewrite the state file every time the two swap.
+	// The index path sorts these too: the two paths must agree, or folders
+	// published in DFS order rewrite the state file whenever a scan falls back.
 	return {
 		files: walked.files.map((path) => ({ path })),
 		emptyFolders: [...walked.emptyFolders].sort(),

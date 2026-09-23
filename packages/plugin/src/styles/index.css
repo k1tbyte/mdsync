@@ -37,7 +37,6 @@
 @import "./source-control/history.css";
 @import "./editor/signs.css";
 @import "./editor/hunk-popup.css";
-@import "./shares.css";
 @import "./source-control/restore.css";
 @import "./source-control/timeline.css";
 

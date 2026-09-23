@@ -22,10 +22,10 @@ export const ESyncLogOperation = {
 	Pull: "pull",
 	Reset: "reset",
 	Session: "session",
-	Share: "share",
 } as const;
 export type ESyncLogOperation =
 	(typeof ESyncLogOperation)[keyof typeof ESyncLogOperation];
+const OPERATIONS = new Set<ESyncLogOperation>(Object.values(ESyncLogOperation));
 
 export interface SyncLogEntry {
 	id: string;
@@ -116,7 +116,8 @@ function isSyncLogEntry(value: unknown): value is SyncLogEntry {
 		typeof entry.id === "string" &&
 		typeof entry.timestamp === "number" &&
 		typeof entry.level === "string" &&
-		typeof entry.operation === "string" &&
+		// A stored operation this build dropped has no label; drop the entry instead.
+		OPERATIONS.has(entry.operation as ESyncLogOperation) &&
 		typeof entry.message === "string" &&
 		Array.isArray(entry.details) &&
 		entry.details.every((detail) => typeof detail === "string")

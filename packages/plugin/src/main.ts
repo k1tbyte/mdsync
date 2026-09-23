@@ -16,7 +16,6 @@ import {
 } from "@/settings/model";
 import type { ObsyncSettingTab } from "@/settings/tab";
 import { SettingsTransferController } from "@/settings/transfer-controller";
-import type { SharedFolderConfig, ShareSyncService } from "@/share";
 import { reportWarning } from "@/shared/diagnostics";
 import type { SyncController } from "@/sync/controller";
 import { registerScheduler } from "@/sync/scheduler";
@@ -38,7 +37,6 @@ import {
 } from "./plugin/ignore-state";
 import { registerProtocolHandlers } from "./plugin/protocols";
 import { PluginRealtime } from "./plugin/realtime";
-import { registerShares } from "./plugin/shares";
 import {
 	refreshOpenHistoryViewsAfterPush,
 	refreshOpenSourceControlViews,
@@ -65,7 +63,6 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 	realtime!: PluginRealtime;
 	device!: DeviceName;
 	transfer!: SettingsTransferController;
-	shares!: ShareSyncService;
 	ignoreState!: IgnoreStateHandle;
 	private settingsTab?: ObsyncSettingTab;
 	private statePersister!: StatePersister;
@@ -108,10 +105,6 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 			onSettingsReplaced: () => this.onSettingsReplaced(),
 		});
 		this.realtime.restart();
-		this.shares = registerShares(this, {
-			logs: this.logs,
-			statePersister: this.statePersister,
-		});
 		this.ignoreState = registerIgnoreState(this);
 
 		registerVaultAdoptionPrompt(this, this.controller);
@@ -147,7 +140,6 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 		safely(() => this.controller?.dispose());
 		safely(() => this.passphrase?.dispose());
 		safely(() => this.realtime?.dispose());
-		safely(() => this.shares?.dispose());
 		safely(() => this.logs?.dispose());
 	}
 
@@ -161,21 +153,6 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 		// Every settings write funnels through here, and any of them can change
 		// the room or the credentials the relay client is using.
 		this.realtime.restartIfChanged();
-	}
-
-	async addSharedFolder(share: SharedFolderConfig): Promise<void> {
-		this.settings.sharedFolders.push(share);
-		await this.saveSettings();
-		this.shares.refresh();
-		this.shares.scheduleSync(share.id);
-	}
-
-	async removeSharedFolder(shareId: string): Promise<void> {
-		this.settings.sharedFolders = this.settings.sharedFolders.filter(
-			(share) => share.id !== shareId,
-		);
-		await this.saveSettings();
-		await this.shares.forgetShareState(shareId);
 	}
 
 	async resetLocalState(): Promise<void> {
@@ -210,14 +187,13 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 	}
 
 	/**
-	 * Imported settings change the backend, the relay and the shares; without
-	 * this the services keep running against the previous configuration until
-	 * Obsidian is restarted.
+	 * Imported settings change the backend and the relay; without this the
+	 * services keep running against the previous configuration until Obsidian
+	 * is restarted.
 	 */
 	private onSettingsReplaced(): void {
 		void this.ignoreState.refresh();
 		this.realtime.restart();
-		this.shares.refresh();
 		this.refreshEditorSigns(this.settings.showEditorChangeSigns);
 		this.refreshFileIndicators(this.settings.showFileExplorerIndicators);
 		this.refreshSourceControlView();
