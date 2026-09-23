@@ -8,6 +8,7 @@ import {
 	EHubParam,
 	HUB_PATH,
 	HUB_SIGNAL_PATH,
+	OWNER,
 	UNAUTHORIZED_CLOSE_CODE,
 } from "@obsync/protocol";
 import { type Admission, HUB_ADMISSION_HEADER, hubStub } from "./hub";
@@ -20,8 +21,6 @@ const MAX_TOKEN_LENGTH = 128;
 const MAX_CHANNEL_LENGTH = 128;
 const MAX_SLOTS = 32;
 const MAX_DEVICE_LENGTH = 64;
-/** `who` of a socket admitted by the deployment secret itself. */
-export const OWNER = "owner";
 
 /** Returns null when the path is not a hub route, so index.ts can fall through. */
 export async function handleHubRequest(

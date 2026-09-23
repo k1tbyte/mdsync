@@ -11,6 +11,7 @@ import { createStorageAdapter, type StorageAdapter } from "@/storage";
 import { clearRemoteTextCache } from "@/sync/content";
 import type { EngineDependencies } from "@/sync/engine";
 import { PassphraseRotatedError } from "@/sync/keyfile";
+import type { LiveNotes } from "@/sync/live-notes";
 import { projectSession } from "@/sync/session-state";
 import { createVaultIndex } from "@/vault/file-index";
 import {
@@ -33,6 +34,8 @@ export interface SessionFactoryDeps {
 	notify: (message: string) => void;
 	/** Persists settings an adapter rewrote itself, such as a refreshed token. */
 	persistSettings?: () => Promise<void>;
+	/** Late-bound: live editing starts after the sync it hooks into. */
+	liveNotes?: () => LiveNotes | undefined;
 }
 
 export function createSessionOpener(
@@ -143,6 +146,7 @@ async function openSession(
 		history: settings.fileHistoryEnabled
 			? { maxSnapshots: settings.fileHistoryMaxSnapshots }
 			: undefined,
+		live: deps.liveNotes?.(),
 	};
 }
 

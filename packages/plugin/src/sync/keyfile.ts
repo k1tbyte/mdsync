@@ -6,6 +6,7 @@ import {
 	importAesKey,
 	randomBytes,
 } from "@/crypto";
+import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
 import { errorMessage } from "@/shared/errors";
 import type { ObjectStorage } from "@/storage/types";
 import { REMOTE_KEYFILE_KEY } from "@/sync/constants";
@@ -37,6 +38,7 @@ export interface Keyfile {
 
 export interface ResolvedContentKey {
 	contentKey: EncryptionKey;
+	liveKeys: LiveKeys;
 	epoch: number;
 }
 
@@ -116,8 +118,10 @@ export async function resolveContentKey(
 	const existing = await readKeyfile(storage);
 
 	if (existing) {
-		const raw = await unwrapRawKey(kek, existing.wrapped);
-		return { contentKey: await importAesKey(raw), epoch: existing.epoch };
+		return resolvedFrom(
+			await unwrapRawKey(kek, existing.wrapped),
+			existing.epoch,
+		);
 	}
 
 	const raw = randomBytes(DATA_KEY_BYTES);
@@ -136,8 +140,19 @@ export async function resolveContentKey(
 	if (!winner) {
 		throw new Error("Keyfile vanished while it was being created.");
 	}
-	const winnerRaw = await unwrapRawKey(kek, winner.wrapped);
-	return { contentKey: await importAesKey(winnerRaw), epoch: winner.epoch };
+	return resolvedFrom(await unwrapRawKey(kek, winner.wrapped), winner.epoch);
+}
+
+/** Every key the data key yields is derived here, the one place its raw bytes exist. */
+async function resolvedFrom(
+	raw: Uint8Array,
+	epoch: number,
+): Promise<ResolvedContentKey> {
+	const [contentKey, liveKeys] = await Promise.all([
+		importAesKey(raw),
+		deriveLiveKeys(raw),
+	]);
+	return { contentKey, liveKeys, epoch };
 }
 
 /**

@@ -1,5 +1,7 @@
 import { structuredPatch } from "diff";
 
+import { toLf } from "@/utils/eol";
+
 export const EHunkKind = {
 	Added: "added",
 	Removed: "removed",
@@ -144,8 +146,8 @@ export const MAX_EDIT_LENGTH = 1000;
 const NO_NEWLINE_MARKER = "\\ No newline at end of file";
 
 export function computeHunks(left: string, right: string): ComputedHunks {
-	const normalizedLeft = normalizeEol(left);
-	const normalizedRight = normalizeEol(right);
+	const normalizedLeft = toLf(left);
+	const normalizedRight = toLf(right);
 	const patch = structuredPatch(
 		"a",
 		"b",
@@ -175,7 +177,7 @@ export function applyHunks(
 	selected: HunkSelection,
 ): string {
 	// A line's terminator belongs to its selected side, including EOF newline changes.
-	const baseLines = lineTokens(normalizeEol(left));
+	const baseLines = lineTokens(toLf(left));
 	const out: string[] = [];
 	let cursor = 0;
 	for (const hunk of hunks) {
@@ -298,10 +300,6 @@ function classify(added: number, removed: number): EHunkKind {
 	if (added > 0 && removed === 0) return EHunkKind.Added;
 	if (added === 0 && removed > 0) return EHunkKind.Removed;
 	return EHunkKind.Modified;
-}
-
-function normalizeEol(value: string): string {
-	return value.replace(/\r\n/g, "\n");
 }
 
 function splitLines(value: string): string[] {

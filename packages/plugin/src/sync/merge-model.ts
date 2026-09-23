@@ -1,4 +1,7 @@
 import { diffArrays } from "diff";
+
+import { toLf } from "@/utils/eol";
+
 import { anchoredHunks, hunksFromChanges } from "./anchored-hunks";
 import { MAX_EDIT_LENGTH } from "./hunks";
 
@@ -432,5 +435,5 @@ export function sameLines(a: readonly string[], b: readonly string[]): boolean {
 
 /** Splits text into lines after normalising CRLF to prevent spurious mixed-EOL diffs. */
 export function toLines(value: string): string[] {
-	return value.replace(/\r\n/g, "\n").split("\n");
+	return toLf(value).split("\n");
 }

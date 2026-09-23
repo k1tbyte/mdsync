@@ -21,7 +21,14 @@ const CLIENT_FRAMES: ClientFrame[] = [
 	{ ...at, type: EFrame.Update, payload: bytes(1, 2, 3) },
 	{ ...at, type: EFrame.Awareness, payload: bytes(9) },
 	{ ...at, type: EFrame.Snapshot, upto: 7, payload: bytes(4, 5) },
-	{ ...at, type: EFrame.Rotate, target: "next-doc-id" },
+	{
+		...at,
+		type: EFrame.Rotate,
+		target: "next-doc-id",
+		upto: 7,
+		payload: Uint8Array.of(4, 2),
+	},
+	{ ...at, type: EFrame.Seed, payload: Uint8Array.of(4, 2) },
 	{ slot: 0, doc: CHANNEL_DOC, type: EFrame.Signal },
 ];
 

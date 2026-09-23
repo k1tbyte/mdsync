@@ -10,6 +10,15 @@ export interface ManifestEntry {
 	size: number;
 	mtime: number;
 	kind: EFileKind;
+	/** The content is exactly this live room's text at `seq`. */
+	live?: LiveMark;
+}
+
+export interface LiveMark {
+	/** The note's first docId: rotations keep it and bump `gen`. */
+	doc: string;
+	gen: number;
+	seq: number;
 }
 
 export interface Manifest {

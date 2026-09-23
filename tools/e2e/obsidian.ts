@@ -6,6 +6,7 @@
 
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { once } from "node:events";
 import {
 	copyFileSync,
 	mkdirSync,
@@ -80,9 +81,17 @@ export async function launchObsidian(options: {
 		[`--remote-debugging-port=${options.port}`, `--user-data-dir=${userData}`],
 		{ stdio: "ignore" },
 	);
-	const stopProcess = () => {
+	const exited = once(child, "exit");
+	const stopProcess = async () => {
 		killTree(child);
-		rmSync(root, { recursive: true, force: true, maxRetries: 10 });
+		await exited;
+		// The killed helpers let go of the profile a moment after the main process.
+		rmSync(root, {
+			recursive: true,
+			force: true,
+			maxRetries: 10,
+			retryDelay: 300,
+		});
 	};
 
 	try {
@@ -99,7 +108,7 @@ export async function launchObsidian(options: {
 				}),
 			stop: async () => {
 				await browser.close().catch(() => undefined);
-				stopProcess();
+				await stopProcess();
 			},
 		};
 		// A fresh device asks before running a vault's community plugins.
@@ -113,7 +122,7 @@ export async function launchObsidian(options: {
 		});
 		return obsidian;
 	} catch (error) {
-		stopProcess();
+		await stopProcess();
 		throw error;
 	}
 }

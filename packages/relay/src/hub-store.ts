@@ -5,12 +5,15 @@
 
 import type { DocState, DocStore } from "./hub-docs";
 
+/** `SqlStorageValue`, spelled out so code without workers-types can import this. */
+export type SqlValue = ArrayBuffer | string | number | null;
+
 /** The slice of `SqlStorage` used here, so tests can back it with node:sqlite. */
 export interface Sql {
 	exec(
 		query: string,
-		...bindings: SqlStorageValue[]
-	): { toArray(): Record<string, SqlStorageValue>[] };
+		...bindings: SqlValue[]
+	): { toArray(): Record<string, SqlValue>[] };
 }
 
 interface DocRow {
@@ -33,7 +36,22 @@ export class SqlDocStore implements DocStore {
 		return this.row(channel, doc)?.moved ?? null;
 	}
 
-	markMoved(channel: string, doc: string, target: string): void {
+	rotate(
+		channel: string,
+		doc: string,
+		target: string,
+		upto: number,
+		payload: Uint8Array,
+	): boolean {
+		const row = this.row(channel, doc);
+		if (row?.moved !== null || row.head !== upto) return false;
+		if (this.seed(channel, target, payload) === null) return false;
+		this.markMoved(channel, doc, target);
+		return true;
+	}
+
+	/** Drops the log: from here the pointer is the only answer. */
+	private markMoved(channel: string, doc: string, target: string): void {
 		this.sql.exec(
 			"INSERT INTO docs(channel, doc, head, moved) VALUES(?, ?, 0, ?) ON CONFLICT(channel, doc) DO UPDATE SET head = 0, snap_seq = 0, snap = NULL, moved = excluded.moved",
 			channel,
@@ -48,14 +66,34 @@ export class SqlDocStore implements DocStore {
 	}
 
 	append(channel: string, doc: string, payload: Uint8Array): number {
+		return this.log(
+			channel,
+			doc,
+			payload,
+			"DO UPDATE SET head = head + 1",
+		) as number;
+	}
+
+	seed(channel: string, doc: string, payload: Uint8Array): number | null {
+		return this.log(channel, doc, payload, "DO NOTHING");
+	}
+
+	/** RETURNING yields no row when the conflict clause did nothing. */
+	private log(
+		channel: string,
+		doc: string,
+		payload: Uint8Array,
+		onConflict: string,
+	): number | null {
 		const [row] = this.sql
 			.exec(
-				"INSERT INTO docs(channel, doc, head) VALUES(?, ?, 1) ON CONFLICT(channel, doc) DO UPDATE SET head = head + 1 RETURNING head",
+				`INSERT INTO docs(channel, doc, head) VALUES(?, ?, 1) ON CONFLICT(channel, doc) ${onConflict} RETURNING head`,
 				channel,
 				doc,
 			)
 			.toArray();
-		const seq = Number(row?.head);
+		if (!row) return null;
+		const seq = Number(row.head);
 		this.sql.exec(
 			"INSERT INTO deltas(channel, doc, seq, blob) VALUES(?, ?, ?, ?)",
 			channel,
@@ -140,6 +178,6 @@ function blob(payload: Uint8Array): ArrayBuffer {
 }
 
 /** workerd returns ArrayBuffer, node:sqlite a Uint8Array. */
-function bytes(value: SqlStorageValue): Uint8Array {
+function bytes(value: SqlValue | undefined): Uint8Array {
 	return new Uint8Array(value as ArrayBuffer);
 }

@@ -1,5 +1,6 @@
 import { MarkdownView, type Plugin } from "obsidian";
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
+import type { Rotation } from "@/live/session";
 import type { PluginHost } from "@/plugin/host";
 import {
 	deepCleanOrphanedObjects,
@@ -13,6 +14,12 @@ import {
 	runWithNotice,
 	verifyRemoteIntegrity,
 } from "@/ui";
+
+const REBUILT: Record<Rotation, string> = {
+	moved: "Live note rebuilt from its text.",
+	refused: "The note changed meanwhile. Try again.",
+	busy: "Still sending edits. Try again in a moment.",
+};
 
 export function registerCommands(plugin: Plugin & PluginHost): void {
 	plugin.addCommand({
@@ -95,6 +102,21 @@ export function registerCommands(plugin: Plugin & PluginHost): void {
 		id: "deep-clean-orphans",
 		name: "Deep-clean orphaned objects",
 		callback: () => void deepCleanOrphanedObjects(plugin),
+	});
+
+	plugin.addCommand({
+		id: "rebuild-live-note",
+		name: "Rebuild live note",
+		checkCallback: (checking) => {
+			const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+			const path = view?.file?.path;
+			if (!path || !plugin.realtime.live.roomOf(path)) return false;
+			if (checking) return true;
+			void plugin.realtime.live
+				.rotate(path)
+				.then((outcome) => notifyInfo(REBUILT[outcome]));
+			return true;
+		},
 	});
 
 	plugin.addCommand({

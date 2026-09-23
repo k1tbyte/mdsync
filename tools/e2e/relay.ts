@@ -17,14 +17,22 @@ export interface Relay {
 	stop(): void;
 }
 
-export async function startRelay(port: number, secret: string): Promise<Relay> {
+export async function startRelay(
+	port: number,
+	secret: string,
+	vars: Record<string, string> = {},
+): Promise<Relay> {
 	const url = `http://127.0.0.1:${port}`;
 	if (await answers(url)) throw new Error(`${url} is taken by another relay`);
+	const flags = Object.entries({ ...vars, RELAY_SECRET: secret })
+		.map(([name, value]) => `--var ${name}:${value}`)
+		.join(" ");
 	// One command string: pnpm is a .cmd shim on Windows, which needs the shell.
-	const child = spawn(
-		`pnpm exec wrangler dev --port ${port} --var RELAY_SECRET:${secret}`,
-		{ cwd: RELAY_DIR, stdio: "ignore", shell: true },
-	);
+	const child = spawn(`pnpm exec wrangler dev --port ${port} ${flags}`, {
+		cwd: RELAY_DIR,
+		stdio: "ignore",
+		shell: true,
+	});
 	const relay = { url, secret, stop: () => killTree(child) };
 	try {
 		await poll(

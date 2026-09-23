@@ -81,6 +81,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 				refreshOpenHistoryViewsAfterPush(this);
 			},
 			persistSettings: () => this.saveSettings(),
+			liveNotes: () => this.realtime?.liveNotes,
 		});
 		// Obsidian can unload a plugin while its onload is still awaiting, and this
 		// one awaits a 3 MB state file. A teardown registered past that point is
@@ -93,7 +94,12 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 		this.statePersister = runtime.statePersister;
 		this.passphrase = runtime.passphraseManager;
 		this.controller = runtime.controller;
-		this.realtime = createRealtime(this.controller, () => this.settings);
+		this.realtime = createRealtime({
+			app: this.app,
+			passphrase: this.passphrase,
+			controller: this.controller,
+			settings: () => this.settings,
+		});
 		this.device = new DeviceName(this.statePersister, () =>
 			this.realtime.hub.restart(),
 		);

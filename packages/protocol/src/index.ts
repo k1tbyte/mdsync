@@ -23,6 +23,8 @@ export const KEEPALIVE_PING = "ping";
 export const KEEPALIVE_PONG = "pong";
 /** Terminal for a whole socket: no channel it asked for was granted. */
 export const UNAUTHORIZED_CLOSE_CODE = 4001;
+/** `who` of a socket the deployment secret admitted: the vault's owner. */
+export const OWNER = "owner";
 
 export const EFrame = {
 	Sub: 1,
@@ -32,6 +34,7 @@ export const EFrame = {
 	Snapshot: 5,
 	Rotate: 6,
 	Signal: 7,
+	Seed: 8,
 	State: 16,
 	Fanout: 17,
 	Echo: 18,
@@ -61,8 +64,19 @@ export type ClientFrame = Address &
 		| { type: typeof EFrame.Update; payload: Uint8Array }
 		| { type: typeof EFrame.Awareness; payload: Uint8Array }
 		| { type: typeof EFrame.Snapshot; upto: number; payload: Uint8Array }
-		| { type: typeof EFrame.Rotate; target: string }
+		/**
+		 * Seeds `target` with the rebuilt document and seals this one with a
+		 * pointer, as one step, only while the log still ends at `upto`.
+		 */
+		| {
+				type: typeof EFrame.Rotate;
+				target: string;
+				upto: number;
+				payload: Uint8Array;
+		  }
 		| { type: typeof EFrame.Signal }
+		/** An Update the hub takes only into a document with no log. */
+		| { type: typeof EFrame.Seed; payload: Uint8Array }
 	);
 
 export type ServerFrame = Address &
@@ -118,10 +132,18 @@ const CLIENT: Codec<ClientFrame> = {
 		read: (input) => ({ upto: input.u32(), payload: input.rest() }),
 	},
 	[EFrame.Rotate]: {
-		write: (f, out) => out.text(f.target),
-		read: (input) => ({ target: input.text() }),
+		write: (f, out) => out.text(f.target).u32(f.upto).bytes(f.payload),
+		read: (input) => ({
+			target: input.text(),
+			upto: input.u32(),
+			payload: input.rest(),
+		}),
 	},
 	[EFrame.Signal]: none,
+	[EFrame.Seed]: {
+		write: (f, out) => out.bytes(f.payload),
+		read: (input) => ({ payload: input.rest() }),
+	},
 };
 
 const SERVER: Codec<ServerFrame> = {

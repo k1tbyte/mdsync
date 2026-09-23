@@ -28,8 +28,22 @@ function sub(core: HubCore, who: FakePeer, since = 0, slot = 0): ServerFrame {
 	return who.inbox.pop() as ServerFrame;
 }
 
-function update(core: HubCore, who: FakePeer, byte: number, slot = 0): void {
-	send(core, who, frame(EFrame.Update, { payload: Uint8Array.of(byte) }, slot));
+function update(
+	core: HubCore,
+	who: FakePeer,
+	byte: number,
+	slot = 0,
+	doc = DOC,
+): void {
+	send(
+		core,
+		who,
+		frame(EFrame.Update, { payload: Uint8Array.of(byte) }, slot, doc),
+	);
+}
+
+function rotate(target: string, upto: number, byte: number): ClientFrame {
+	return frame(EFrame.Rotate, { target, upto, payload: Uint8Array.of(byte) });
 }
 
 describe("hub documents", () => {
@@ -85,6 +99,54 @@ describe("hub documents", () => {
 
 		expect(stranger.inbox).toEqual([]);
 		expect(sub(core, reader)).toMatchObject({ head: 0, deltas: [] });
+	});
+
+	it("takes the first seed of a document and answers a later one with the room", () => {
+		const first = peer(1, [grant(VAULT)]);
+		const second = peer(2, [grant(VAULT)]);
+		const core = hub(first, second);
+		sub(core, first);
+		sub(core, second);
+		first.inbox.length = 0;
+
+		send(core, first, frame(EFrame.Seed, { payload: Uint8Array.of(1) }));
+		send(core, second, frame(EFrame.Seed, { payload: Uint8Array.of(2) }));
+
+		expect(first.inbox).toEqual([
+			{ type: EFrame.Echo, slot: 0, doc: DOC, seq: 1 },
+		]);
+		expect(second.inbox).toEqual([
+			expect.objectContaining({ type: EFrame.Fanout, seq: 1 }),
+			expect.objectContaining({
+				type: EFrame.State,
+				head: 1,
+				deltas: [Uint8Array.of(1)],
+			}),
+		]);
+	});
+
+	it("refuses a seed once the log was compacted away", () => {
+		const device = peer(1, [grant(VAULT)]);
+		const core = hub(device);
+		sub(core, device);
+		update(core, device, 1);
+		send(
+			core,
+			device,
+			frame(EFrame.Snapshot, { upto: 1, payload: Uint8Array.of(9) }),
+		);
+		device.inbox.length = 0;
+
+		send(core, device, frame(EFrame.Seed, { payload: Uint8Array.of(2) }));
+
+		expect(device.inbox).toEqual([
+			expect.objectContaining({
+				type: EFrame.State,
+				head: 1,
+				snapshot: Uint8Array.of(9),
+				deltas: [],
+			}),
+		]);
 	});
 
 	it("sends a returning follower only what it has not seen", () => {
@@ -192,7 +254,7 @@ describe("hub documents", () => {
 		});
 	});
 
-	it("moves a rotated document once and points everyone at its successor", () => {
+	it("seeds the successor and points everyone there, the rotator included", () => {
 		const rotator = peer(1, [grant(VAULT)]);
 		const follower = peer(2, [grant(VAULT)]);
 		const late = peer(3, [grant(VAULT)]);
@@ -203,24 +265,70 @@ describe("hub documents", () => {
 		rotator.inbox.length = 0;
 		follower.inbox.length = 0;
 
-		send(core, rotator, frame(EFrame.Rotate, { target: NEXT }));
-		send(core, follower, frame(EFrame.Rotate, { target: "c".repeat(32) }));
+		send(core, rotator, rotate(NEXT, 1, 9));
+		send(core, follower, rotate("c".repeat(32), 1, 8));
 		update(core, follower, 2);
 
 		const moved = { type: EFrame.Moved, slot: 0, doc: DOC, target: NEXT };
-		expect(rotator.inbox).toEqual([]);
+		expect(rotator.inbox).toEqual([moved]);
 		expect(follower.inbox).toEqual([moved, moved, moved]);
 		expect(sub(core, late)).toEqual(moved);
 		expect(late.subs).toEqual([]);
+		send(core, late, frame(EFrame.Sub, { since: 0 }, 0, NEXT));
+		expect(late.inbox.pop()).toMatchObject({
+			head: 1,
+			deltas: [Uint8Array.of(9)],
+		});
+	});
+
+	it("refuses a rotation the log has moved past and sends the rotator what it missed", () => {
+		const rotator = peer(1, [grant(VAULT)]);
+		const typist = peer(2, [grant(VAULT)]);
+		const core = hub(rotator, typist);
+		sub(core, rotator);
+		sub(core, typist);
+		update(core, rotator, 1);
+		update(core, typist, 2);
+		rotator.inbox.length = 0;
+		typist.inbox.length = 0;
+
+		send(core, rotator, rotate(NEXT, 1, 9));
+
+		expect(rotator.inbox).toEqual([
+			expect.objectContaining({
+				type: EFrame.State,
+				head: 2,
+				deltas: [Uint8Array.of(2)],
+			}),
+		]);
+		expect(typist.inbox).toEqual([]);
+		send(core, typist, frame(EFrame.Sub, { since: 0 }, 0, NEXT));
+		expect(typist.inbox.pop()).toMatchObject({ head: 0 });
+	});
+
+	it("never rotates into a document that already has a log", () => {
+		const device = peer(1, [grant(VAULT)]);
+		const core = hub(device);
+		sub(core, device);
+		update(core, device, 1);
+		send(core, device, frame(EFrame.Sub, { since: 0 }, 0, NEXT));
+		update(core, device, 5, 0, NEXT);
+		device.inbox.length = 0;
+
+		send(core, device, rotate(NEXT, 1, 9));
+
+		expect(types(device)).toEqual([EFrame.State]);
+		expect(sub(core, device).type).toBe(EFrame.State);
 	});
 
 	it("ignores a rotation that does not name another document", () => {
 		const device = peer(1, [grant(VAULT)]);
 		const core = hub(device);
 		sub(core, device);
+		update(core, device, 1);
 
-		send(core, device, frame(EFrame.Rotate, { target: DOC }));
-		send(core, device, frame(EFrame.Rotate, { target: "" }));
+		send(core, device, rotate(DOC, 1, 9));
+		send(core, device, rotate("", 1, 9));
 
 		expect(sub(core, device).type).toBe(EFrame.State);
 	});

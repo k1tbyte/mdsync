@@ -16,6 +16,7 @@
 		"obsidian": "node tools/obsidian.mjs",
 		"e2e:hub": "jiti tools/e2e/hub.ts",
 		"e2e:realtime": "pnpm build && jiti tools/e2e/realtime.ts",
+		"e2e:live": "pnpm build && jiti tools/e2e/live.ts",
 		"prepare": "husky"
 	},
 	"devDependencies": {

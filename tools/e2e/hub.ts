@@ -4,7 +4,12 @@
  * logs in its SQLite, which must outlive a relay restart.
  */
 
-import { type ClientFrame, deriveChannelGrant, EFrame } from "@obsync/protocol";
+import {
+	type ClientFrame,
+	deriveChannelGrant,
+	EFrame,
+	KEEPALIVE_PING,
+} from "@obsync/protocol";
 
 import { check, runScenario } from "./harness";
 import { connectPeer, type Peer } from "./peer";
@@ -14,7 +19,11 @@ const PORT = 8799;
 const SECRET = "e2e-secret";
 const VAULT = `e2e-vault-${Date.now()}`;
 const DOC = Date.now().toString(16).padStart(32, "0");
-const NEXT = "f".repeat(32);
+/** Rotation seeds its target, so each run needs one no earlier run left a log in. */
+const NEXT = `f${DOC.slice(1)}`;
+const SWEPT = "e".repeat(32);
+/** A short stale window, so the sweep is seen in seconds. */
+const STALE_MS = 1_500;
 
 type Unaddressed<F = ClientFrame> = F extends ClientFrame
 	? Omit<F, "slot" | "doc">
@@ -28,10 +37,48 @@ await runScenario("hub e2e", async () => {
 		relay.stop();
 		relay = await startRelay(PORT, SECRET);
 		await afterRestart(relay.url);
+		relay.stop();
+		relay = await startRelay(PORT, SECRET, {
+			HUB_STALE_MS: String(STALE_MS),
+		});
+		await sweep(relay.url);
 	} finally {
 		relay?.stop();
 	}
 });
+
+async function sweep(url: string): Promise<void> {
+	const grant = await deriveChannelGrant(SECRET, VAULT);
+	const alive = await connectPeer(url, [[VAULT, grant]], "alive");
+	const keepalive = setInterval(() => alive.raw(KEEPALIVE_PING), STALE_MS / 4);
+	const silent = await connectPeer(url, [[VAULT, grant]], "silent");
+	for (const peer of [alive, silent]) {
+		peer.send({ type: EFrame.Sub, slot: 0, doc: SWEPT, since: 0 });
+		await peer.next(EFrame.State);
+	}
+
+	check(
+		"a socket that stopped pinging is closed",
+		(await silent.next("close", STALE_MS * 4)).code,
+		1001,
+	);
+	const leaves = [
+		await alive.next(EFrame.Leave),
+		await alive.next(EFrame.Leave),
+	];
+	check(
+		"its departure reaches the channel and the document",
+		leaves.map((leave) => leave.doc).sort(),
+		["", SWEPT],
+	);
+	check(
+		"a pinging socket stays",
+		await alive.quiet("close", STALE_MS * 2),
+		true,
+	);
+	clearInterval(keepalive);
+	alive.close();
+}
 
 async function documents(url: string): Promise<void> {
 	const grant = await deriveChannelGrant(SECRET, VAULT);
@@ -46,12 +93,19 @@ async function documents(url: string): Promise<void> {
 	await phone.next(EFrame.State);
 	await laptop.next(EFrame.Join);
 
-	doc(laptop, { type: EFrame.Update, payload: Uint8Array.of(1) });
-	check("update acked with its seq", (await laptop.next(EFrame.Echo)).seq, 1);
+	doc(laptop, { type: EFrame.Seed, payload: Uint8Array.of(1) });
+	check("seed acked with its seq", (await laptop.next(EFrame.Echo)).seq, 1);
 	check(
-		"update reaches the follower",
+		"seed reaches the follower",
 		[...(await phone.next(EFrame.Fanout)).payload],
 		[1],
+	);
+	doc(phone, { type: EFrame.Seed, payload: Uint8Array.of(3) });
+	const room = await phone.next(EFrame.State);
+	check(
+		"late seed answered with the room",
+		[room.head, room.deltas.map((delta) => [...delta])],
+		[1, [[1]]],
 	);
 	doc(laptop, { type: EFrame.Update, payload: Uint8Array.of(2) });
 	await laptop.next(EFrame.Echo);
@@ -84,13 +138,32 @@ async function afterRestart(url: string): Promise<void> {
 		[2, [11], [[2]]],
 	);
 
-	tablet.send({ type: EFrame.Rotate, slot: 0, doc: DOC, target: NEXT });
+	tablet.send({
+		type: EFrame.Rotate,
+		slot: 0,
+		doc: DOC,
+		target: NEXT,
+		upto: state.head,
+		payload: Uint8Array.of(21),
+	});
+	check(
+		"the rotator is pointed at the successor too",
+		(await tablet.next(EFrame.Moved)).target,
+		NEXT,
+	);
 	const late = await connectPeer(url, [[VAULT, grant]], "late");
 	late.send({ type: EFrame.Sub, slot: 0, doc: DOC, since: 0 });
 	check(
 		"rotated document points at its successor",
 		(await late.next(EFrame.Moved)).target,
 		NEXT,
+	);
+	late.send({ type: EFrame.Sub, slot: 0, doc: NEXT, since: 0 });
+	const successor = await late.next(EFrame.State);
+	check(
+		"the successor starts from the rebuilt document",
+		[successor.head, successor.deltas.map((delta) => [...delta])],
+		[1, [[21]]],
 	);
 	tablet.close();
 	late.close();

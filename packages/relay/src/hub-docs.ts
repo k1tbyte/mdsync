@@ -16,7 +16,9 @@ import {
 import {
 	broadcast,
 	follows,
+	type Grant,
 	type Handler,
+	type HandlerContext,
 	type Handlers,
 	type HubPeer,
 	type Peers,
@@ -31,9 +33,20 @@ export interface DocState {
 export interface DocStore {
 	/** The document it continued as, or null while it is live. */
 	movedTo(channel: string, doc: string): string | null;
-	/** Drops the log: from here the pointer is the only answer. */
-	markMoved(channel: string, doc: string, target: string): void;
+	/**
+	 * Seeds `target` and replaces this log with a pointer to it, only while
+	 * the log ends at `upto` and `target` has none; false changes nothing.
+	 */
+	rotate(
+		channel: string,
+		doc: string,
+		target: string,
+		upto: number,
+		payload: Uint8Array,
+	): boolean;
 	append(channel: string, doc: string, payload: Uint8Array): number;
+	/** Appends only to a document with no log; null when it has one. */
+	seed(channel: string, doc: string, payload: Uint8Array): number | null;
 	/** The snapshot only when `since` predates it; deltas after both. */
 	state(channel: string, doc: string, since: number): DocState;
 	/**
@@ -63,6 +76,21 @@ export function docHandlers(store: DocStore): Handlers {
 			}
 			handler(context, frame);
 		};
+	const sendState = (
+		peer: HubPeer,
+		grant: Grant,
+		slot: number,
+		doc: string,
+		since: number,
+	) =>
+		peer.send(
+			encodeServer({
+				type: EFrame.State,
+				slot,
+				doc,
+				...store.state(grant.channel, doc, since),
+			}),
+		);
 
 	return {
 		[EFrame.Sub]: ({ peers, peer, grant }, { slot, doc, since }) => {
@@ -75,14 +103,7 @@ export function docHandlers(store: DocStore): Handlers {
 			const fresh = !follows(peer, slot, doc);
 			if (fresh && peer.subs.length >= MAX_DOC_SUBS) return;
 			if (fresh) peer.subscribe(slot, doc);
-			peer.send(
-				encodeServer({
-					type: EFrame.State,
-					slot,
-					doc,
-					...store.state(grant.channel, doc, since),
-				}),
-			);
+			sendState(peer, grant, slot, doc, since);
 			// Awareness is never stored, so followers re-announce for the newcomer.
 			if (fresh) {
 				toFollowers(peers, grant.channel, doc, peer, {
@@ -97,16 +118,19 @@ export function docHandlers(store: DocStore): Handlers {
 			peer.unsubscribe(slot, doc);
 			toFollowers(peers, grant.channel, doc, peer, leaveFrame(peer));
 		},
-		[EFrame.Update]: live(({ peers, peer, grant }, { slot, doc, payload }) => {
-			const seq = store.append(grant.channel, doc, payload);
-			// The echo is the sender's ack; resending unacked updates is safe in Yjs.
-			peer.send(encodeServer({ type: EFrame.Echo, slot, doc, seq }));
-			toFollowers(peers, grant.channel, doc, peer, {
-				type: EFrame.Fanout,
-				seq,
-				from: peer.tag,
-				payload,
-			});
+		[EFrame.Update]: live((context, frame) =>
+			logged(
+				context,
+				frame,
+				store.append(context.grant.channel, frame.doc, frame.payload),
+			),
+		),
+		[EFrame.Seed]: live((context, frame) => {
+			const { peer, grant } = context;
+			const seq = store.seed(grant.channel, frame.doc, frame.payload);
+			// Concurrent seeds would double the text: the loser gets the room to merge into.
+			if (seq === null) sendState(peer, grant, frame.slot, frame.doc, 0);
+			else logged(context, frame, seq);
 		}),
 		[EFrame.Awareness]: live(({ peers, peer, grant }, { doc, payload }) =>
 			toFollowers(peers, grant.channel, doc, peer, {
@@ -118,15 +142,20 @@ export function docHandlers(store: DocStore): Handlers {
 		[EFrame.Snapshot]: live(({ grant }, { doc, upto, payload }) =>
 			store.compact(grant.channel, doc, payload, upto),
 		),
-		[EFrame.Rotate]: live(({ peers, peer, grant }, { doc, target }) => {
+		[EFrame.Rotate]: live(({ peers, peer, grant }, frame) => {
+			const { slot, doc, target, upto, payload } = frame;
 			if (!target || target === doc || target.length > MAX_DOC_ID_LENGTH) {
 				return;
 			}
-			store.markMoved(grant.channel, doc, target);
-			toFollowers(peers, grant.channel, doc, peer, {
-				type: EFrame.Moved,
-				target,
-			});
+			// An update after `upto` would be acked here and missing there: the rotator gets the room instead.
+			if (!store.rotate(grant.channel, doc, target, upto, payload)) {
+				sendState(peer, grant, slot, doc, upto);
+				return;
+			}
+			// The rotator follows too: this is its confirmation.
+			broadcast(peers, grant.channel, movedFrame(0, doc, target), (at, slot) =>
+				follows(at, slot, doc),
+			);
 		}),
 	};
 }
@@ -138,6 +167,21 @@ export function leaveDocs(peers: Peers, peer: HubPeer, slot?: number): void {
 		if (!grant || (slot !== undefined && at !== slot)) continue;
 		toFollowers(peers, grant.channel, doc, peer, leaveFrame(peer));
 	}
+}
+
+/** The echo is the sender's ack; resending unacked updates is safe in Yjs. */
+function logged(
+	{ peers, peer, grant }: HandlerContext,
+	{ slot, doc, payload }: { slot: number; doc: string; payload: Uint8Array },
+	seq: number,
+): void {
+	peer.send(encodeServer({ type: EFrame.Echo, slot, doc, seq }));
+	toFollowers(peers, grant.channel, doc, peer, {
+		type: EFrame.Fanout,
+		seq,
+		from: peer.tag,
+		payload,
+	});
 }
 
 type Unaddressed<F> = F extends ServerFrame ? Omit<F, "slot" | "doc"> : never;

@@ -1,7 +1,10 @@
 import { DEFAULT_CONCURRENCY } from "@/constants";
 import { ESyncLogOperation } from "@/logs/store";
 import { sortedByPath } from "@/shared/records";
-import { mergeWrittenIntoCache } from "@/sync/baseline";
+import {
+	advanceBaselineForPaths,
+	mergeWrittenIntoCache,
+} from "@/sync/baseline";
 import { HUNK_TEXT_MAX_BYTES, LOG_PATH_LIMIT } from "@/sync/constants";
 import { runWithConcurrency } from "@/utils/concurrency";
 import { tryAutoMergeConflict } from "./conflict-merge";
@@ -11,8 +14,9 @@ import {
 	writeLocalFile,
 } from "./content";
 import type { CompareResult, EngineDependencies } from "./engine";
+import { grewFrom, settleLive, writeIncoming } from "./live-notes";
 import type { OperationContext, OperationOutcome } from "./operations";
-import type { Manifest, ManifestEntry, SessionState } from "./types";
+import type { Conflict, Manifest, ManifestEntry, SessionState } from "./types";
 
 export async function autoMergeOp(
 	deps: EngineDependencies,
@@ -30,24 +34,8 @@ export async function autoMergeOp(
 		result.diff.conflicts,
 		deps.concurrency ?? DEFAULT_CONCURRENCY,
 		async (conflict, index) => {
-			// No common ancestor: nothing to merge against, and no reason to stat.
-			if (!conflict.baselineHash) return;
-			// Rules out binary/oversized files via path and manifest sizes - never
-			// downloads megabytes just to discover the file can't be merged.
-			const mergeable = await isTextMergeCandidate(
-				deps,
-				conflict.path,
-				result.remote,
-				deps.state.baseline,
-			);
-			if (!mergeable) return;
-			const text = await tryAutoMergeConflict(deps, conflict);
-			if (text === null) return;
-			const entry = await writeLocalFile(
-				deps,
-				conflict.path,
-				textToBytes(text),
-			);
+			const entry = await settleConflict(deps, result, conflict);
+			if (entry === undefined) return;
 			localEntries.set(conflict.path, entry);
 			merged[index] = conflict.path;
 		},
@@ -66,16 +54,11 @@ export async function autoMergeOp(
 	// Advances baseline for merged paths so the merged content is treated as a
 	// new local edit, not a conflict.
 	const freshState: SessionState = ctx.getFreshState();
-	const baseline = freshState.baseline;
+	const baseline = nextBaseline(deps, result, freshState.baseline, mergedPaths);
 	if (baseline) {
-		const files = { ...baseline.files };
-		for (const path of mergedPaths) {
-			const remoteEntry = result.remote?.files[path];
-			if (remoteEntry) files[path] = remoteEntry;
-		}
 		await ctx.persistState({
 			...freshState,
-			baseline: { ...baseline, files },
+			baseline,
 			hashCache: sortedByPath(nextHashCache),
 		});
 	}
@@ -91,6 +74,64 @@ export async function autoMergeOp(
 		// Merged text is new: localEntries ensures the snapshot does not adopt the remote hash and drop the push.
 		localEntries,
 	};
+}
+
+function nextBaseline(
+	deps: EngineDependencies,
+	result: CompareResult,
+	baseline: Manifest | null,
+	paths: ReadonlyArray<string>,
+): Manifest | null {
+	if (!result.remote) return baseline;
+	// A device that never synced adopts only what it settled, as a pull would.
+	if (!baseline) {
+		return advanceBaselineForPaths(
+			null,
+			result.remote,
+			new Set(paths),
+			result.snapshot.emptyFolders,
+			deps.scope,
+		);
+	}
+	const files = { ...baseline.files };
+	for (const path of paths) {
+		const remoteEntry = result.remote.files[path];
+		// Only an open live note outlives a remote deletion here.
+		if (remoteEntry) files[path] = remoteEntry;
+		else delete files[path];
+	}
+	return { ...baseline, files };
+}
+
+/** What the file holds once the conflict is settled; undefined leaves it to the user. */
+async function settleConflict(
+	deps: EngineDependencies,
+	result: CompareResult,
+	conflict: Conflict,
+): Promise<ManifestEntry | null | undefined> {
+	const side = await settleLive(deps, result, conflict.path);
+	if (side === "later") return undefined;
+	if (side === "local") return result.snapshot.files[conflict.path] ?? null;
+	const remote = result.remote?.files[conflict.path];
+	if (side === "remote" && remote) {
+		return writeIncoming(deps, conflict.path, remote);
+	}
+	// No common ancestor: nothing to merge against, and no reason to stat.
+	if (!conflict.baselineHash) return undefined;
+	// Rules out binary/oversized files via path and manifest sizes - never
+	// downloads megabytes just to discover the file can't be merged.
+	const mergeable = await isTextMergeCandidate(
+		deps,
+		conflict.path,
+		result.remote,
+		deps.state.baseline,
+	);
+	if (!mergeable) return undefined;
+	const text = await tryAutoMergeConflict(deps, conflict);
+	if (text === null) return undefined;
+	const written = await writeLocalFile(deps, conflict.path, textToBytes(text));
+	if (remote) await grewFrom(deps, conflict.path, remote);
+	return written;
 }
 
 /**

@@ -112,6 +112,16 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 		after: restartRelay,
 		rerender: true,
 	},
+	{
+		kind: EFieldKind.Toggle,
+		name: "Live editing",
+		desc: "Notes open in the editor on several of your devices edit together, keystroke by keystroke, through the relay.",
+		when: (s) => s.realtimeSync,
+		sub: true,
+		get: (s) => s.liveEditing,
+		set: (v) => ({ liveEditing: v }),
+		after: (plugin) => plugin.realtime.live.refresh(),
+	},
 ];
 
 /** Returns unsubscribe for the connected-devices row, if shown. */

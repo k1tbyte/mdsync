@@ -8,6 +8,7 @@ import {
 } from "@/core";
 import type { ObsyncSettings } from "@/settings/model";
 import { SyncController } from "@/sync/controller";
+import type { LiveNotes } from "@/sync/live-notes";
 import { askPassphrase, notifyInfo } from "@/ui";
 
 export interface PluginRuntime {
@@ -22,12 +23,13 @@ interface BootstrapPluginRuntimeOptions {
 	settings: ObsyncSettings;
 	onPushComplete?: () => void;
 	persistSettings?: () => Promise<void>;
+	liveNotes?: () => LiveNotes | undefined;
 }
 
 export async function bootstrapPluginRuntime(
 	options: BootstrapPluginRuntimeOptions,
 ): Promise<PluginRuntime> {
-	const { app, settings, onPushComplete, persistSettings } = options;
+	const { app, settings, onPushComplete, persistSettings, liveNotes } = options;
 	const { adapter, configDir } = app.vault;
 	const logs = new LogService(adapter, configDir);
 	await logs.load();
@@ -48,6 +50,7 @@ export async function bootstrapPluginRuntime(
 		logs,
 		notify: notifyInfo,
 		persistSettings,
+		liveNotes,
 	});
 
 	const controller = new SyncController({

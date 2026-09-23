@@ -1,6 +1,7 @@
 import type { DataAdapter } from "obsidian";
 
 import type { EncryptionKey } from "@/crypto";
+import type { LiveKeys } from "@/crypto/live-keys";
 import {
 	clearCachedPassphrase,
 	loadCachedPassphrase,
@@ -21,6 +22,7 @@ import { resolveContentKey, rotatePassphrase } from "@/sync/keyfile";
 
 interface CachedKey {
 	key: EncryptionKey;
+	liveKeys: LiveKeys;
 	signature: string;
 	epoch: number;
 }
@@ -134,17 +136,25 @@ export class PassphraseManager {
 		const signature = this.bindingSignature();
 		if (this.cachedKey && this.cachedKey.signature === signature)
 			return this.cachedKey.key;
-		const { contentKey, epoch } = await resolveContentKey(
+		const { contentKey, liveKeys, epoch } = await resolveContentKey(
 			storage,
 			this.passphrase,
 		);
-		this.cachedKey = { key: contentKey, signature, epoch };
+		this.cachedKey = { key: contentKey, liveKeys, signature, epoch };
 		return contentKey;
 	}
 
 	/** Key epoch from the last {@link resolveKey}, or null if not resolved. */
 	epoch(): number | null {
 		return this.cachedKey?.epoch ?? null;
+	}
+
+	/** Live-layer keys of the current storage, once a sync session resolved the key. */
+	liveKeys(): LiveKeys | null {
+		const cached = this.cachedKey;
+		return cached?.signature === this.bindingSignature()
+			? cached.liveKeys
+			: null;
 	}
 
 	private bindingSignature(): string {

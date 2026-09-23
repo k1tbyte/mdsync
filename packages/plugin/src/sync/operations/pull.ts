@@ -43,8 +43,8 @@ export const pullPathsOp: Operation<ReadonlyArray<string>> = async (
 	return {
 		newRemote: result.remote,
 		// Only what landed was touched; claiming the rest would advance state
-		// for files that were never downloaded.
-		touchedPaths: pulled.cancelled ? new Set(pulled.written.keys()) : pullSet,
+		// for files that were never downloaded, or that an open room held back.
+		touchedPaths: new Set(pulled.written.keys()),
 		localEntries: pulled.written,
 		cancelled: pulled.cancelled,
 	};

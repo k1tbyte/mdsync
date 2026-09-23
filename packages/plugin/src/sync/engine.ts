@@ -13,9 +13,9 @@ import type { ScopePolicy } from "@/vault/scope";
 import { advanceBaselineForPaths, mergeFolderArrays } from "./baseline";
 import { throwIfCancelled } from "./cancel";
 import { reconcileBaselineResetGenerations } from "./config-reset";
-import { writeRemoteEntry } from "./content";
 import { diff } from "./diff";
 import { type HistoryConfig, publishManifestWithHistory } from "./history";
+import { type LiveNotes, settleLive, writeIncoming } from "./live-notes";
 import {
 	buildManifest,
 	fetchRemoteManifest,
@@ -27,6 +27,7 @@ import {
 	EChangeType,
 	type EFileKind,
 	type HashCacheEntry,
+	type LiveMark,
 	type LocalSnapshot,
 	type Manifest,
 	type ManifestEntry,
@@ -47,6 +48,7 @@ export interface EngineDependencies {
 	signal?: AbortSignal;
 	onScanProgress?: (scanned: number) => void;
 	history?: HistoryConfig;
+	live?: LiveNotes;
 }
 
 export interface CompareResult {
@@ -115,6 +117,7 @@ export async function pushPaths(
 	compareResult: CompareResult,
 	paths: ReadonlyArray<string>,
 	onProgress?: (done: number, total: number) => void,
+	marks: ReadonlyMap<string, LiveMark> = new Map(),
 ): Promise<Manifest> {
 	const concurrency = deps.concurrency ?? DEFAULT_CONCURRENCY;
 	const pathSet = new Set(paths);
@@ -162,6 +165,7 @@ export async function pushPaths(
 		base: compareResult.remote,
 		snapshot: compareResult.snapshot,
 		localChanges,
+		marks,
 	});
 	const manifest = await publishFileMap(deps, compareResult, nextFiles);
 	return manifest;
@@ -197,16 +201,23 @@ export async function pullPaths(
 	let done = 0;
 
 	const written = new Map<string, ManifestEntry | null>();
+	/** True when live editing settled the path: an open room keeps its file. */
+	const settledLive = async (path: string): Promise<boolean> => {
+		const side = await settleLive(deps, compareResult, path);
+		if (side === "local") {
+			written.set(path, entryAt(compareResult.snapshot.files, path) ?? null);
+		}
+		return side === "local" || side === "later";
+	};
 	await runWithConcurrency(
 		downloads,
 		concurrency,
 		async (change) => {
 			const entry = entryAt(remote.files, change.path);
 			if (!entry) throw new Error(`Missing manifest entry for ${change.path}`);
-			written.set(
-				change.path,
-				await writeRemoteEntry(deps, change.path, entry),
-			);
+			if (!(await settledLive(change.path))) {
+				written.set(change.path, await writeIncoming(deps, change.path, entry));
+			}
 			onProgress?.(++done, total);
 		},
 		deps.signal,
@@ -216,8 +227,10 @@ export async function pullPaths(
 		deletions,
 		concurrency,
 		async (change) => {
-			await deletePath(deps.adapter, change.path);
-			written.set(change.path, null);
+			if (!(await settledLive(change.path))) {
+				await deletePath(deps.adapter, change.path);
+				written.set(change.path, null);
+			}
 			onProgress?.(++done, total);
 		},
 		deps.signal,
@@ -349,6 +362,7 @@ function buildPartialFileMap(input: {
 	base: Manifest | null;
 	snapshot: LocalSnapshot;
 	localChanges: ReadonlyArray<{ path: string; type: EChangeType }>;
+	marks: ReadonlyMap<string, LiveMark>;
 }): Record<string, ManifestEntry> {
 	const next: Record<string, ManifestEntry> = { ...(input.base?.files ?? {}) };
 	for (const change of input.localChanges) {
@@ -357,7 +371,8 @@ function buildPartialFileMap(input: {
 			continue;
 		}
 		const entry = input.snapshot.files[change.path];
-		if (entry) next[change.path] = entry;
+		const live = input.marks.get(change.path);
+		if (entry) next[change.path] = live ? { ...entry, live } : entry;
 	}
 	// Added paths land at the end, so a manifest drifts out of order over
 	// successive pushes. Sorted paths share longer prefixes and gzip 8.5%

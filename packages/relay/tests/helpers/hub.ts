@@ -1,5 +1,3 @@
-import { DatabaseSync } from "node:sqlite";
-
 import {
 	type ClientFrame,
 	decodeServer,
@@ -9,7 +7,9 @@ import {
 
 import { HubCore } from "../../src/hub-core";
 import type { DocSub, Grant, HubPeer } from "../../src/hub-peer";
-import { type Sql, SqlDocStore } from "../../src/hub-store";
+import { SqlDocStore } from "../../src/hub-store";
+
+import { memorySql } from "./memory-sql";
 
 export interface FakePeer extends HubPeer {
 	slots: (Grant | null)[];
@@ -72,26 +72,4 @@ export function send(core: HubCore, from: FakePeer, frame: ClientFrame): void {
 
 export function types(target: FakePeer): number[] {
 	return target.inbox.map((frame) => frame.type);
-}
-
-/** node:sqlite behind the Durable Object's `sql.exec` shape. */
-export function memorySql(): Sql {
-	const db = new DatabaseSync(":memory:");
-	return {
-		exec(query, ...bindings) {
-			const statement = db.prepare(query);
-			const params = bindings.map((value) =>
-				value instanceof ArrayBuffer ? new Uint8Array(value) : value,
-			);
-			if (statement.columns().length === 0) {
-				statement.run(...params);
-				return { toArray: () => [] };
-			}
-			const rows = statement.all(...params) as Record<
-				string,
-				SqlStorageValue
-			>[];
-			return { toArray: () => rows };
-		},
-	};
 }

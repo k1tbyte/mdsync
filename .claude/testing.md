@@ -3,6 +3,7 @@
 - vitest covers core logic (diff, hunks, concurrency, ignore, etc.). Run with `pnpm test`, or `pnpm --filter obsync test:watch` while iterating.
 - ALL domain logic (diffs, merging, concurrency, hunks matching, baseline cache) must have complete unit-test coverage.
 - Tests mirror `src/`: `tests/<area>/<module>.test.ts`, helpers in `tests/helpers/`.
+- Live sessions run against the relay's own hub logic and SQLite store in-process (`tests/helpers/live-hub.ts`, via the `obsync-relay` devDependency), with switches for lost frames and reconnects.
 
 ## Driving a real Obsidian
 
@@ -19,14 +20,18 @@ re-injected only on reload.
 
 `tools/e2e/` runs scenarios against real processes and tears them down:
 
-- `pnpm e2e:hub` - the relay hub under `wrangler dev`, driven by scripted peers.
+- `pnpm e2e:hub` - the relay hub under `wrangler dev`, driven by scripted peers;
+  its last run sets `HUB_STALE_MS` low to watch the stale-socket sweep.
 - `pnpm e2e:realtime` - builds, then runs the plugin in a throwaway Obsidian
   (own `--user-data-dir` and temp vault, trust modal clicked) against the relay.
   `E2E_SOAK_MS=130000` adds an idle stretch past the link's silence timeout.
+- `pnpm e2e:live` - two Obsidians type into one note through the relay; the
+  shared key lives on an in-memory WebDAV (`startWebDav`).
 
-Ports 8799 (relay) and 9223 (CDP) must be free. New scenarios reuse
-`launchObsidian`, `startRelay` and `connectPeer`; several Obsidians need
-distinct CDP ports.
+Ports 8799 (relay), 8801 (WebDAV), 9223 and 9224 (CDP) must be free. A run
+killed midway can leave `wrangler dev` holding 8799: kill that tree. New
+scenarios reuse `launchObsidian`, `startRelay`, `startWebDav` and
+`connectPeer`; several Obsidians need distinct CDP ports.
 
 ## Manual install for testing
 

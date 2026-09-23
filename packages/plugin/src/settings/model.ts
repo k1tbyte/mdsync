@@ -58,6 +58,8 @@ export interface ObsyncSettings {
 	fileHistoryMaxSnapshots: number;
 	historyAutoRefresh: boolean;
 	realtimeSync: boolean;
+	/** Notes open in the editor edit together across devices, over the relay. */
+	liveEditing: boolean;
 	/** Self-hosted worker (packages/relay): realtime signals. */
 	relayUrl: string;
 	/** The worker's RELAY_SECRET; relay room tokens derive from it. */
@@ -90,6 +92,7 @@ export const DEFAULT_SETTINGS: ObsyncSettings = {
 	fileHistoryMaxSnapshots: DEFAULT_FILE_HISTORY_MAX_SNAPSHOTS,
 	historyAutoRefresh: true,
 	realtimeSync: false,
+	liveEditing: true,
 	relayUrl: "",
 	relaySecret: "",
 	cachePassphrase: true,

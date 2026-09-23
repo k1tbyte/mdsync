@@ -1,12 +1,12 @@
-import { deriveChannelGrant } from "@obsync/protocol";
+import { deriveChannelGrant, OWNER } from "@obsync/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { HUB_ADMISSION_HEADER } from "../src/hub";
-import { grantFor, OWNER } from "../src/hub-access";
+import { grantFor } from "../src/hub-access";
 import worker, { type Env } from "../src/index";
 import { fingerprint } from "../src/secret";
 import { FakeKV } from "./helpers/fake-kv";
-import { memorySql } from "./helpers/hub";
+import { memorySql } from "./helpers/memory-sql";
 
 const SECRET = "deployment-secret";
 const VAULT = "s3|bucket/prefix";

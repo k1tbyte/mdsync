@@ -55,6 +55,7 @@ const TRANSFER_FIELDS = {
 	},
 	l: {
 		realtimeSync: "e",
+		liveEditing: "v",
 		relayUrl: "u",
 		relaySecret: "t",
 	},

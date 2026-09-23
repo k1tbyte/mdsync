@@ -5,6 +5,7 @@
 - Add user-facing commands via `this.addCommand(...)` with stable IDs; never rename once released.
 - Sync flow is manual: `compare`, `push`, `pull`. Push/pull run a compare preflight and must surface conflicts instead of choosing a side silently.
 - The `reset-remote-storage` command is destructive and must remain confirmation-gated. It deletes `manifest.json.enc`, `objects/`, `history.json.enc`, and `pins/` in the configured remote prefix (history must not outlive the objects it references), preserves local vault files, clears local `baseline`/`vaultId`, and keeps `salt.bin` and `keys.json` so the current passphrase-derived key remains valid.
+- `rebuild-live-note` is available only for the active note bound to a live room. It moves the room into its next generation from the current text, shedding the edit history; attribution survives.
 
 ## Settings
 

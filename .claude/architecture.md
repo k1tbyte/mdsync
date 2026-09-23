@@ -7,6 +7,7 @@
 - `core/` - long-lived services: LogService, PassphraseManager, StatePersister, DeviceName
 - `sync/` - the engine: manifest, diff, operations, history, projection. No UI.
 - `hub/` - the relay hub: socket link, the vault connection and its listeners, presence
+- `live/` - live documents: the Y.Doc session per note, sealing, merge and patch into Y.Text, and the file sync's `LiveNotes` port (declared in `sync/live-notes.ts`, so `sync/` never imports `live/`)
 - `storage/` - remote backends behind StorageAdapter, plus the registry
 - `vault/` - Obsidian filesystem access, scanning, ignore rules
 - `settings/` - settings model, transfer, and the settings tab sections
