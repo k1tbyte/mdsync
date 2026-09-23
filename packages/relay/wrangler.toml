@@ -7,18 +7,23 @@ compatibility_date = "2026-09-14"
 [[kv_namespaces]]
 binding = "SHARE_TOKENS"
 
-# Realtime relay: one SQLite-backed Durable Object per room, so the whole
-# worker stays inside the Workers free tier.
+# Realtime hub: one SQLite-backed Durable Object for the whole deployment, so
+# the worker stays inside the Workers free tier.
 [durable_objects]
 bindings = [
-  { name = "SYNC_RELAY", class_name = "SyncRelay" }
+  { name = "HUB", class_name = "Hub" }
 ]
 
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["SyncRelay"]
 
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Hub"]
+deleted_classes = ["SyncRelay"]
+
 # Secrets (never hardcode; the Deploy Relay workflow uploads them):
-# - RELAY_SECRET          admin auth for shared folders; relay room tokens derive from it
+# - RELAY_SECRET          admin auth for shared folders; hub channel grants derive from it
 # - GDRIVE_CLIENT_ID      optional, only for the Google Drive token exchange
 # - GDRIVE_CLIENT_SECRET

@@ -13,6 +13,7 @@
 		"typecheck": "tsc -noEmit"
 	},
 	"dependencies": {
+		"@obsync/protocol": "workspace:*",
 		"@codemirror/merge": "^6.12.2",
 		"diff": "^9.0.0",
 		"ignore": "^7.0.6",

@@ -135,8 +135,8 @@ function renderConnectedDevices(
 ): () => void {
 	const devicesSetting = new Setting(parent).setName("Connected devices");
 	devicesSetting.settingEl.addClass(SUB_SETTING_CLASS);
-	let connected = plugin.realtime.isConnected();
-	let devices = [...plugin.realtime.getDevices()];
+	let connected = plugin.realtime.hub.isConnected();
+	let devices = [...plugin.realtime.presence.getDevices()];
 
 	const render = (): void => {
 		devicesSetting.setDesc(
@@ -145,11 +145,13 @@ function renderConnectedDevices(
 	};
 	render();
 
-	const unsubscribeStatus = plugin.realtime.subscribe((value) => {
-		connected = value;
-		render();
+	const unsubscribeStatus = plugin.realtime.hub.listen({
+		onConnectionChange: (value) => {
+			connected = value;
+			render();
+		},
 	});
-	const unsubscribeDevices = plugin.realtime.subscribeDevices((value) => {
+	const unsubscribeDevices = plugin.realtime.presence.subscribe((value) => {
 		devices = [...value];
 		render();
 	});
@@ -161,7 +163,7 @@ function renderConnectedDevices(
 
 /** Reconnects relay with new settings. */
 function restartRelay(plugin: PluginHost): void {
-	plugin.realtime.restart();
+	plugin.realtime.hub.restart();
 }
 
 function clampAutoSyncMinutes(raw: string): number {

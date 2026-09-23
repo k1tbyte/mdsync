@@ -36,7 +36,7 @@ import {
 	registerIgnoreState,
 } from "./plugin/ignore-state";
 import { registerProtocolHandlers } from "./plugin/protocols";
-import { PluginRealtime } from "./plugin/realtime";
+import { createRealtime, type Realtime } from "./plugin/realtime";
 import {
 	refreshOpenHistoryViewsAfterPush,
 	refreshOpenSourceControlViews,
@@ -60,7 +60,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 	controller!: SyncController;
 	logs!: LogService;
 	passphrase!: PassphraseManager;
-	realtime!: PluginRealtime;
+	realtime!: Realtime;
 	device!: DeviceName;
 	transfer!: SettingsTransferController;
 	ignoreState!: IgnoreStateHandle;
@@ -77,7 +77,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 			app: this.app,
 			settings: this.settings,
 			onPushComplete: () => {
-				this.realtime.notifySync();
+				this.realtime.hub.signal();
 				refreshOpenHistoryViewsAfterPush(this);
 			},
 			persistSettings: () => this.saveSettings(),
@@ -93,9 +93,9 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 		this.statePersister = runtime.statePersister;
 		this.passphrase = runtime.passphraseManager;
 		this.controller = runtime.controller;
-		this.realtime = new PluginRealtime(this.controller, () => this.settings);
+		this.realtime = createRealtime(this.controller, () => this.settings);
 		this.device = new DeviceName(this.statePersister, () =>
-			this.realtime.restart(),
+			this.realtime.hub.restart(),
 		);
 		this.transfer = new SettingsTransferController({
 			app: this.app,
@@ -104,7 +104,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 			saveSettings: () => this.saveSettings(),
 			onSettingsReplaced: () => this.onSettingsReplaced(),
 		});
-		this.realtime.restart();
+		this.realtime.hub.restart();
 		this.ignoreState = registerIgnoreState(this);
 
 		registerVaultAdoptionPrompt(this, this.controller);
@@ -152,7 +152,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 		await this.saveData(this.settings);
 		// Every settings write funnels through here, and any of them can change
 		// the room or the credentials the relay client is using.
-		this.realtime.restartIfChanged();
+		this.realtime.hub.restartIfChanged();
 	}
 
 	async resetLocalState(): Promise<void> {
@@ -193,7 +193,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 	 */
 	private onSettingsReplaced(): void {
 		void this.ignoreState.refresh();
-		this.realtime.restart();
+		this.realtime.hub.restart();
 		this.refreshEditorSigns(this.settings.showEditorChangeSigns);
 		this.refreshFileIndicators(this.settings.showFileExplorerIndicators);
 		this.refreshSourceControlView();

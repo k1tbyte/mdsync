@@ -14,6 +14,6 @@
 		"wrangler": "^4.131.2"
 	},
 	"dependencies": {
-		"partyserver": "^0.5.10"
+		"@obsync/protocol": "workspace:*"
 	}
 }

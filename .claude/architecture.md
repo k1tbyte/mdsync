@@ -6,6 +6,7 @@
 - `plugin/` - composition root: host.ts, bootstrap, one register*() per concern
 - `core/` - long-lived services: LogService, PassphraseManager, StatePersister, DeviceName
 - `sync/` - the engine: manifest, diff, operations, history, projection. No UI.
+- `hub/` - the relay hub: socket link, the vault connection and its listeners, presence
 - `storage/` - remote backends behind StorageAdapter, plus the registry
 - `vault/` - Obsidian filesystem access, scanning, ignore rules
 - `settings/` - settings model, transfer, and the settings tab sections

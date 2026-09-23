@@ -9,9 +9,7 @@
  * base location and credentials, so a deploy needs no storage secrets.
  */
 
-import { getServerByName } from "partyserver";
-
-import type { SyncRelay } from "./relay";
+import { type HubEnv, hubStub } from "./hub";
 import { fingerprint, isAdmin, type SecretEnv } from "./secret";
 import {
 	InvalidShareKeyError,
@@ -21,10 +19,8 @@ import {
 } from "./share-key";
 import { type PresignMethod, presignS3, type S3Target } from "./sigv4";
 
-export interface ShareEnv extends Cloudflare.Env, SecretEnv {
+export interface ShareEnv extends Cloudflare.Env, SecretEnv, HubEnv {
 	SHARE_TOKENS: KVNamespace;
-	/** Rooms of this worker; each room is one Durable Object instance. */
-	SYNC_RELAY: DurableObjectNamespace<SyncRelay>;
 }
 
 export const EShareRole = {
@@ -48,6 +44,8 @@ type JsonObject = Record<string, unknown>;
 
 const PRESIGN_TTL_SECONDS = 120;
 const TOKEN_BYTES = 32;
+/** Rides in each hub socket's 16 KB attachment as `who`. */
+const MAX_PARTICIPANT_ID_LENGTH = 64;
 const WRITE_OPS = new Set(["put", "delete"]);
 const REQUIRED_STORAGE_FIELDS = [
 	"endpoint",
@@ -92,21 +90,20 @@ export async function handleShareRequest(
 	return jsonError(404, "not_found", "Unknown broker route");
 }
 
-/** The relay room of a share. Mirrored by the plugin's shareChannelId. */
+/** The hub channel of a share. */
 export function shareRoomId(shareId: string): string {
 	return `obsync-share-${shareId}`;
 }
 
-/** The share a live token belongs to; null once it is revoked. */
-export async function shareIdOfToken(
+/** Whose live token this is and for which share; null once it is revoked. */
+export async function shareGrantOf(
 	env: ShareEnv,
 	token: string,
-): Promise<string | null> {
-	const record = (await env.SHARE_TOKENS.get(
+): Promise<Pick<TokenRecord, "shareId" | "participantId"> | null> {
+	return (await env.SHARE_TOKENS.get(
 		`tok:${token}`,
 		"json",
 	)) as TokenRecord | null;
-	return record?.shareId ?? null;
 }
 
 /* -------------------------------------------------------------- participant */
@@ -264,7 +261,11 @@ async function issueToken(request: Request, env: ShareEnv): Promise<Response> {
 	) {
 		return jsonError(400, "bad_request", "shareId and participantId required");
 	}
-	if (!body.participantId || !isValidShareId(body.shareId)) {
+	if (
+		!body.participantId ||
+		body.participantId.length > MAX_PARTICIPANT_ID_LENGTH ||
+		!isValidShareId(body.shareId)
+	) {
 		return jsonError(400, "bad_request", "Invalid shareId or participantId");
 	}
 
@@ -285,7 +286,7 @@ async function issueToken(request: Request, env: ShareEnv): Promise<Response> {
 	await env.SHARE_TOKENS.put(`tok:${token}`, JSON.stringify(record));
 	await env.SHARE_TOKENS.put(pointer, token);
 	if (previous && previous !== token) {
-		await dropToken(env, record.shareId, previous);
+		await dropToken(env, previous);
 	}
 	return json({ token, ...record });
 }
@@ -355,19 +356,14 @@ async function revokeParticipant(
 	const token = await env.SHARE_TOKENS.get(pointer);
 	await env.SHARE_TOKENS.delete(pointer);
 	if (!token) return false;
-	await dropToken(env, shareId, token);
+	await dropToken(env, token);
 	return true;
 }
 
-/** An open relay socket outlives the KV record it was admitted with, so it is closed as well. */
-async function dropToken(
-	env: ShareEnv,
-	shareId: string,
-	token: string,
-): Promise<void> {
+/** An open hub socket outlives the KV record it was admitted with, so its channel is cut as well. */
+async function dropToken(env: ShareEnv, token: string): Promise<void> {
 	await env.SHARE_TOKENS.delete(`tok:${token}`);
-	const room = await getServerByName(env.SYNC_RELAY, shareRoomId(shareId));
-	await room.dropGrant(await fingerprint(token));
+	await hubStub(env).dropGrant(await fingerprint(token));
 }
 
 async function readToken(

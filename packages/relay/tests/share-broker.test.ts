@@ -19,20 +19,19 @@ type TestEnv = ShareEnv & { SHARE_TOKENS: FakeKV; dropped: string[] };
 
 function makeEnv(kv = new FakeKV()): TestEnv {
 	const dropped: string[] = [];
-	// Rooms record which grants the broker asked them to disconnect.
-	const rooms = {
+	// The hub records which grants the broker asked it to cut.
+	const hub = {
 		idFromName: (name: string) => ({ name }),
-		get: (id: { name: string }) => ({
-			setName: async () => undefined,
+		get: () => ({
 			dropGrant: async (grant: string) => {
-				dropped.push(`${id.name} ${grant}`);
+				dropped.push(grant);
 			},
 		}),
 	};
 	return {
 		SHARE_TOKENS: kv,
 		RELAY_SECRET: ADMIN,
-		SYNC_RELAY: rooms,
+		HUB: hub,
 		dropped,
 	} as unknown as TestEnv;
 }
@@ -230,9 +229,7 @@ describe("token issuing", () => {
 		const body = { op: "get", key: "objects/abc" };
 		expect((await sign(env, first, body)).status).toBe(401);
 		expect((await sign(env, second, body)).status).toBe(200);
-		expect(env.dropped).toEqual([
-			`obsync-share-share1 ${await fingerprint(first)}`,
-		]);
+		expect(env.dropped).toEqual([await fingerprint(first)]);
 	});
 
 	it("refuses a share id that could reshape the key space", async () => {
@@ -299,9 +296,7 @@ describe("token revocation", () => {
 			admin: true,
 		});
 
-		expect(env.dropped).toEqual([
-			`obsync-share-share1 ${await fingerprint(token)}`,
-		]);
+		expect(env.dropped).toEqual([await fingerprint(token)]);
 	});
 
 	it("survives a participant id that is not valid percent-encoding", async () => {

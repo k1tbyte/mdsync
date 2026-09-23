@@ -12,8 +12,5 @@ export default defineConfig({
 	test: {
 		environment: "node",
 		include: ["tests/**/*.test.ts"],
-		// PartyServer imports the workerd-only "cloudflare:workers" module, so it
-		// must go through the transform pipeline for the alias to rewrite it.
-		server: { deps: { inline: ["partyserver"] } },
 	},
 });

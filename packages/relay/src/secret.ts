@@ -1,4 +1,4 @@
-/** The one deployment secret: admin auth for shares and the root of every relay room token. */
+/** The one deployment secret: admin auth for shares and the root of every hub channel grant. */
 
 export const ADMIN_HEADER = "X-Obsync-Admin";
 
@@ -35,23 +35,7 @@ export async function secretsEqual(
 	return diff === 0;
 }
 
-/** HMAC-SHA256(secret, roomId) as lowercase hex. Mirrored by the plugin. */
-export async function deriveRoomToken(
-	secret: string,
-	roomId: string,
-): Promise<string> {
-	const key = await crypto.subtle.importKey(
-		"raw",
-		encoder.encode(secret),
-		{ name: "HMAC", hash: "SHA-256" },
-		false,
-		["sign"],
-	);
-	const mac = await crypto.subtle.sign("HMAC", key, encoder.encode(roomId));
-	return toHex(new Uint8Array(mac));
-}
-
-/** Lets a room remember which token opened a socket without holding the token. */
+/** Lets the hub remember which token opened a channel without holding the token. */
 export async function fingerprint(value: string): Promise<string> {
 	return toHex(await digest(value));
 }

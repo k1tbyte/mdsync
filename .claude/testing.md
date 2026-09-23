@@ -15,6 +15,19 @@ reachable. After copying a new build in, reload with
 `app.plugins.disablePlugin('obsync')` then `enablePlugin` - `styles.css` is
 re-injected only on reload.
 
+## End to end
+
+`tools/e2e/` runs scenarios against real processes and tears them down:
+
+- `pnpm e2e:hub` - the relay hub under `wrangler dev`, driven by scripted peers.
+- `pnpm e2e:realtime` - builds, then runs the plugin in a throwaway Obsidian
+  (own `--user-data-dir` and temp vault, trust modal clicked) against the relay.
+  `E2E_SOAK_MS=130000` adds an idle stretch past the link's silence timeout.
+
+Ports 8799 (relay) and 9223 (CDP) must be free. New scenarios reuse
+`launchObsidian`, `startRelay` and `connectPeer`; several Obsidians need
+distinct CDP ports.
+
 ## Manual install for testing
 
 Copy `main.js`, `manifest.json`, `styles.css` to

@@ -6,7 +6,7 @@ import type { SettingsTransferController } from "@/settings/transfer-controller"
 import type { SyncController } from "@/sync/controller";
 
 import type { IgnoreStateHandle } from "./ignore-state";
-import type { PluginRealtime } from "./realtime";
+import type { Realtime } from "./realtime";
 
 /**
  * The plugin surface feature modules are allowed to reach for. Obsidian's own
@@ -19,7 +19,7 @@ export interface PluginHost {
 	readonly controller: SyncController;
 	readonly logs: LogService;
 	readonly passphrase: PassphraseManager;
-	readonly realtime: PluginRealtime;
+	readonly realtime: Realtime;
 	readonly device: DeviceName;
 	readonly transfer: SettingsTransferController;
 	readonly ignoreState: IgnoreStateHandle;

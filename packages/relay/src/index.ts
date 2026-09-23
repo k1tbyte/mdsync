@@ -3,14 +3,15 @@ import {
 	handleAuthCallback,
 	handleTokenRefresh,
 } from "./google-oauth";
-import { handleRoomRequest, SyncRelay } from "./relay";
+import { Hub } from "./hub";
+import { handleHubRequest } from "./hub-access";
 import { ADMIN_HEADER, isAdmin } from "./secret";
 import { handleShareRequest, type ShareEnv } from "./share";
 
 export interface Env extends ShareEnv, GoogleOAuthEnv {}
 
-/** The Durable Object class the SYNC_RELAY binding routes rooms to. */
-export { SyncRelay };
+/** The Durable Object class the HUB binding routes sockets to. */
+export { Hub };
 
 const CORS_PREFLIGHT_HEADERS = {
 	"Access-Control-Allow-Origin": "*",
@@ -19,9 +20,7 @@ const CORS_PREFLIGHT_HEADERS = {
 } as const;
 
 const NOT_FOUND =
-	"Not found. Use /party/<room> for realtime sync, /share/* for shared folders, or /auth for Google Drive.";
-
-const ROOM_PATH = /^\/party\/([^/]+)$/;
+	"Not found. Use /hub for realtime sync, /share/* for shared folders, or /auth for Google Drive.";
 
 export default {
 	async fetch(
@@ -39,13 +38,13 @@ export default {
 		const shareResponse = await handleShareRequest(request, env, url);
 		if (shareResponse) return shareResponse;
 
+		const hubResponse = await handleHubRequest(request, env, url);
+		if (hubResponse) return hubResponse;
+
 		if (url.pathname === "/refresh") return handleTokenRefresh(request, env);
 		if (url.pathname === "/auth") {
 			return handleAuthCallback(url, env, request);
 		}
-
-		const room = ROOM_PATH.exec(url.pathname);
-		if (room) return handleRoomRequest(request, env, room[1] ?? "");
 		return new Response(NOT_FOUND, { status: 404 });
 	},
 };

@@ -1,18 +1,14 @@
 import type { App, Plugin } from "obsidian";
 
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
+import type { HubConnection } from "@/hub/connection";
 import type { SyncController, SyncStatusSnapshot } from "@/sync/controller";
 import { openSourceControlView } from "./source-control-view";
-
-export interface RealtimeStatusHandle {
-	isConnected(): boolean;
-	subscribe(fn: (connected: boolean) => void): () => void;
-}
 
 export function registerRibbon(
 	plugin: Plugin,
 	controller: SyncController,
-	realtimeStatus: RealtimeStatusHandle,
+	hub: Pick<HubConnection, "isConnected" | "listen">,
 ): void {
 	// Through a holder rather than `plugin` directly: the click listener rides on
 	// a DOM element other plugins keep in their own event maps after unload, and
@@ -44,10 +40,13 @@ export function registerRibbon(
 	};
 
 	apply(controller.getSnapshot());
-	applyRelay(realtimeStatus.isConnected());
+	applyRelay(hub.isConnected());
 
 	plugin.register(controller.subscribe(apply));
-	plugin.register(realtimeStatus.subscribe(applyRelay));
+	const unlisten = hub.listen({ onConnectionChange: applyRelay });
+	plugin.register(() => {
+		unlisten();
+	});
 }
 
 function buildLabel(snapshot: SyncStatusSnapshot): string {

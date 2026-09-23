@@ -11,6 +11,9 @@ importers:
       '@biomejs/biome':
         specifier: ^2.5.9
         version: 2.5.9
+      '@obsync/protocol':
+        specifier: workspace:*
+        version: link:packages/protocol
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -38,6 +41,9 @@ importers:
       '@codemirror/view':
         specifier: ^6.38.6
         version: 6.43.9
+      '@obsync/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       diff:
         specifier: ^9.0.0
         version: 9.0.0
@@ -70,11 +76,17 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(@types/node@22.20.1)(vite@8.0.13(@types/node@22.20.1)(esbuild@0.25.12)(jiti@2.7.0)(yaml@2.9.0))
 
+  packages/protocol:
+    devDependencies:
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@22.20.1)(vite@8.0.13(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+
   packages/relay:
     dependencies:
-      partyserver:
-        specifier: ^0.5.10
-        version: 0.5.10(@cloudflare/workers-types@5.20260914.1)
+      '@obsync/protocol':
+        specifier: workspace:*
+        version: link:../protocol
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^5.20260911.1
@@ -1091,11 +1103,6 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
-  nanoid@5.1.16:
-    resolution: {integrity: sha512-kVrnsrJqMR8+oLJnGEmSWw9BivK5mt7H3FZatVRjrc5wGqFYuBxX1yG7+A7Gi5AefkX6t/oCkizcQgpu0cY1dQ==}
-    engines: {node: ^18 || >=20}
-    hasBin: true
-
   obsidian@1.13.1:
     resolution: {integrity: sha512-qtTEA2pmhJzhuhJqzbBFRYhpIOqvW+krDYjtFynv66KbxBbumHBlsJfWw3I4jtnK/6fZwbQhCrmmDdRwXmX56w==}
     peerDependencies:
@@ -1117,11 +1124,6 @@ packages:
   p-try@2.2.0:
     resolution: {integrity: sha512-R4nPAVTAU0B9D35/Gk3uJf/7XYbQcyohSKdvAxIRSNghFl4e71hVoGnBNQz9cWaXxO2I10KTC+3jMdvvoKw6dQ==}
     engines: {node: '>=6'}
-
-  partyserver@0.5.10:
-    resolution: {integrity: sha512-t2B3mhTL1IOxCsj8rZgn4TxTuub7oLhypjc1/fGPNsbgnn9OsHms6uR3QEd5bFJ/7xrFo771j3DdUlll8cxgBg==}
-    peerDependencies:
-      '@cloudflare/workers-types': ^4.20260424.1 || ^5.20260703.1
 
   path-exists@4.0.0:
     resolution: {integrity: sha512-ak9Qy5Q7jYb2Wwcey5Fpvg2KoAc/ZIhLSLOSBmRmygPsGwkVVt0fZa0qrtMz+m6tJTAHfZQ8FnmB4MG4LWy7/w==}
@@ -2168,8 +2170,6 @@ snapshots:
 
   nanoid@3.3.18: {}
 
-  nanoid@5.1.16: {}
-
   obsidian@1.13.1(@codemirror/state@6.7.1)(@codemirror/view@6.43.9):
     dependencies:
       '@codemirror/state': 6.7.1
@@ -2188,11 +2188,6 @@ snapshots:
       p-limit: 2.3.0
 
   p-try@2.2.0: {}
-
-  partyserver@0.5.10(@cloudflare/workers-types@5.20260914.1):
-    dependencies:
-      '@cloudflare/workers-types': 5.20260914.1
-      nanoid: 5.1.16
 
   path-exists@4.0.0: {}
 

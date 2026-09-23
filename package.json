@@ -11,13 +11,16 @@
 		"test": "pnpm -r --if-present run test",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
-		"typecheck": "pnpm -r --if-present run typecheck",
+		"typecheck": "pnpm -r --if-present run typecheck && tsc -p tools",
 		"version": "node version-bump.mjs",
 		"obsidian": "node tools/obsidian.mjs",
+		"e2e:hub": "jiti tools/e2e/hub.ts",
+		"e2e:realtime": "pnpm build && jiti tools/e2e/realtime.ts",
 		"prepare": "husky"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.9",
+		"@obsync/protocol": "workspace:*",
 		"husky": "^9.1.7",
 		"jiti": "^2.7.0",
 		"playwright-core": "^1.63.0",

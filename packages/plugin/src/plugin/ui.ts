@@ -35,7 +35,7 @@ export function registerPluginUi(
 		registerStatusBar(plugin, controller);
 	}
 	if (plugin.settings.showRibbonIcon) {
-		registerRibbon(plugin, controller, plugin.realtime);
+		registerRibbon(plugin, controller, plugin.realtime.hub);
 	}
 	const explorerIndicators = registerFileExplorerIndicators(plugin, controller);
 	const contextIndicators = registerFileContextIndicators(plugin);
