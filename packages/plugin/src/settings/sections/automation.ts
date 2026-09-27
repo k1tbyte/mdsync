@@ -106,7 +106,7 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 	{
 		kind: EFieldKind.Toggle,
 		name: "Real-time sync signals",
-		desc: "Notify other devices through the relay server (Connection tab) the moment you push, so they pull immediately.",
+		desc: "Notify other devices the moment you push, so they pull immediately: your own through the relay server (Connection tab), shared folders through their owner's.",
 		get: (s) => s.realtimeSync,
 		set: (v) => ({ realtimeSync: v }),
 		after: restartRelay,

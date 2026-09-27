@@ -1,5 +1,13 @@
 import type { CompareResult } from "@/sync/engine";
+import { type Space, VAULT_SPACE } from "@/sync/space";
 import { StatusBroadcaster } from "@/sync/status-broadcaster";
+import { mergeResults } from "./merged-result";
+
+/** A shared folder the last refresh could not compare; the others went on. */
+export interface SpaceError {
+	root: string;
+	message: string;
+}
 
 export interface SyncStatusSnapshot {
 	pendingLocal: number;
@@ -8,6 +16,7 @@ export interface SyncStatusSnapshot {
 	lastCompareAt: number | null;
 	busy: boolean;
 	error: string | null;
+	spaceErrors: readonly SpaceError[];
 	result: CompareResult | null;
 	progressText: string | null;
 	staleReason: string | null;
@@ -18,15 +27,22 @@ export interface SyncStatusSnapshot {
 export type SyncStatusListener = (snapshot: SyncStatusSnapshot) => void;
 
 export class SyncControllerRuntimeState {
-	private result: CompareResult | null = null;
+	/** Keyed by space id, in the order the spaces were listed. */
+	private results = new Map<string, CompareResult>();
+	private merged: CompareResult | null = null;
+	/** The partition of the last refresh; operations route by it until the next. */
+	private partition: readonly Space[] = [VAULT_SPACE];
 	private resultAt: number | null = null;
 	private pendingOps = 0;
 	private error: string | null = null;
+	private spaceErrors: readonly SpaceError[] = [];
 	private progressText: string | null = null;
 	private staleReason: string | null = null;
 	private readonly broadcaster: StatusBroadcaster<SyncStatusSnapshot>;
 	private chain: Promise<void> = Promise.resolve();
 	private aborter: AbortController | null = null;
+	/** Bumped by `invalidate`: work begun before it publishes no results. */
+	private epoch = 0;
 
 	constructor() {
 		this.broadcaster = new StatusBroadcaster<SyncStatusSnapshot>({
@@ -35,7 +51,8 @@ export class SyncControllerRuntimeState {
 	}
 
 	getSnapshot(): SyncStatusSnapshot {
-		const diff = this.result?.diff;
+		const result = this.getResult();
+		const diff = result?.diff;
 		return {
 			pendingLocal: diff?.localChanges.length ?? 0,
 			pendingRemote: diff?.remoteChanges.length ?? 0,
@@ -43,15 +60,30 @@ export class SyncControllerRuntimeState {
 			lastCompareAt: this.resultAt,
 			busy: this.pendingOps > 0,
 			error: this.error,
-			result: this.result,
+			spaceErrors: this.spaceErrors,
+			result,
 			progressText: this.progressText,
 			staleReason: this.staleReason,
 			cancellable: this.aborter !== null && !this.aborter.signal.aborted,
 		};
 	}
 
+	/** Every space's compare as one; the UI reads this. */
 	getResult(): CompareResult | null {
-		return this.result;
+		this.merged ??= mergeResults([...this.results.values()]);
+		return this.merged;
+	}
+
+	spaces(): readonly Space[] {
+		return this.partition;
+	}
+
+	setSpaces(spaces: readonly Space[]): void {
+		this.partition = spaces;
+	}
+
+	resultOf(space: Space): CompareResult | null {
+		return this.results.get(space.id) ?? null;
 	}
 
 	subscribe(listener: SyncStatusListener): () => void {
@@ -63,18 +95,34 @@ export class SyncControllerRuntimeState {
 		// Obsidian keeps a plugin's bundle scope alive through any closure that
 		// outlives unload, and other plugins hold detached elements of ours. What
 		// survives should be an empty controller, not 20k files worth of compare.
-		this.result = null;
+		this.clearResult();
 		this.error = null;
+		this.spaceErrors = [];
 		this.progressText = null;
 	}
 
-	setResult(result: CompareResult): void {
-		this.result = result;
+	/** A space that compared again is no longer failing. */
+	setResult(space: Space, result: CompareResult): void {
+		this.results.set(space.id, result);
+		this.spaceErrors = this.spaceErrors.filter(
+			(error) => error.root !== space.root,
+		);
+		this.merged = null;
+		this.resultAt = Date.now();
+	}
+
+	/** A full refresh: spaces no longer listed drop out. */
+	setResults(results: ReadonlyMap<Space, CompareResult>): void {
+		this.results = new Map(
+			[...results].map(([space, result]) => [space.id, result]),
+		);
+		this.merged = null;
 		this.resultAt = Date.now();
 	}
 
 	clearResult(): void {
-		this.result = null;
+		this.results.clear();
+		this.merged = null;
 	}
 
 	setError(error: string | null): void {
@@ -83,6 +131,10 @@ export class SyncControllerRuntimeState {
 
 	clearError(): void {
 		this.error = null;
+	}
+
+	setSpaceErrors(errors: readonly SpaceError[]): void {
+		this.spaceErrors = errors;
 	}
 
 	setProgressText(progressText: string | null): void {
@@ -103,9 +155,15 @@ export class SyncControllerRuntimeState {
 		this.staleReason = staleReason;
 	}
 
+	currentEpoch(): number {
+		return this.epoch;
+	}
+
 	invalidate(reason: string): void {
-		this.result = null;
+		this.epoch++;
+		this.clearResult();
 		this.error = null;
+		this.spaceErrors = [];
 		this.progressText = null;
 		this.staleReason = reason;
 		this.broadcast();

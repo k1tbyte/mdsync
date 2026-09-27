@@ -126,7 +126,7 @@ describe("cancelling a push", () => {
 
 		expect(uploaded).toBe(2);
 		// No manifest: a partial one would name objects that were never stored.
-		expect(await fetchRemoteManifest(session.storage, deps.key)).toBeNull();
+		expect(await fetchRemoteManifest(session.storage, deps.key, "")).toBeNull();
 		// The blobs that did land stay, so a retry skips re-uploading them.
 		expect(await session.storage.list(REMOTE_OBJECTS_PREFIX)).toHaveLength(2);
 	});

@@ -49,6 +49,7 @@ export function shouldRunGc(entryCount: number, maxSnapshots: number): boolean {
 export interface GcInput {
 	storage: ObjectStorage;
 	key: EncryptionKey;
+	root: string;
 	log: HistoryLog;
 	maxSnapshots: number;
 	headManifest: Manifest;
@@ -68,7 +69,7 @@ export interface GcResult {
  * a dangling reference is not.
  */
 export async function collectGarbage(input: GcInput): Promise<GcResult> {
-	const { storage, key, log } = input;
+	const { storage, key, root, log } = input;
 	const max = clampMaxSnapshots(input.maxSnapshots);
 	const pinned = log.snapshots.filter((entry) => entry.pinned);
 	const nonPinned = log.snapshots.filter((entry) => !entry.pinned);
@@ -100,7 +101,7 @@ export async function collectGarbage(input: GcInput): Promise<GcResult> {
 		collectChangeHashes(changes, liveHashes);
 	}
 	retainedComplete =
-		(await addPinnedHashes(storage, key, pinned, liveHashes)) &&
+		(await addPinnedHashes(storage, key, root, pinned, liveHashes)) &&
 		retainedComplete;
 
 	const evictedHashes = new Set<string>();
@@ -116,6 +117,7 @@ export async function collectGarbage(input: GcInput): Promise<GcResult> {
 	const nextLog = await updateHistoryLog(
 		storage,
 		key,
+		root,
 		(current) => pruneLog(current, evictedIds),
 		(current) =>
 			current.snapshots.every(
@@ -125,7 +127,7 @@ export async function collectGarbage(input: GcInput): Promise<GcResult> {
 
 	// Re-read head as late as possible: a device that published while we pruned
 	// may reference, by content hash, a blob we were about to sweep.
-	const headNow = await readHead(storage, key);
+	const headNow = await readHead(storage, key, root);
 	if (headNow.manifest) collectHashes(headNow.manifest, liveHashes);
 	// A head we cannot read, or one that has vanished, might have moved; sweeping
 	// now risks deleting what it references.
@@ -201,12 +203,13 @@ function pruneLog(
 async function addPinnedHashes(
 	storage: ObjectStorage,
 	key: EncryptionKey,
+	root: string,
 	pinned: readonly SnapshotEntry[],
 	into: Set<string>,
 ): Promise<boolean> {
 	let complete = true;
 	for (const entry of pinned) {
-		const manifest = await readPinManifest(storage, key, entry.id);
+		const manifest = await readPinManifest(storage, key, root, entry.id);
 		if (!manifest) {
 			reportWarning(
 				`Pinned snapshot "${entry.id}" has no stored manifest, so old file contents cannot be cleaned up. Unpin and pin it again to repair it.`,
@@ -243,9 +246,13 @@ async function safeDelete(
 async function readHead(
 	storage: ObjectStorage,
 	key: EncryptionKey,
+	root: string,
 ): Promise<{ read: boolean; manifest: Manifest | null }> {
 	try {
-		return { read: true, manifest: await fetchRemoteManifest(storage, key) };
+		return {
+			read: true,
+			manifest: await fetchRemoteManifest(storage, key, root),
+		};
 	} catch (err) {
 		reportWarning("Could not re-read the head before collecting garbage.", err);
 		return { read: false, manifest: null };

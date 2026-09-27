@@ -4,7 +4,7 @@ import type { DocSub, HubPeer } from "obsync-relay/src/hub-peer";
 import { SqlDocStore } from "obsync-relay/src/hub-store";
 import { memorySql } from "obsync-relay/tests/helpers/memory-sql";
 
-import type { HubConnection, HubListener } from "@/hub/connection";
+import type { SpaceFrame, SpaceHub, SpaceListener } from "@/hub/connection";
 
 /**
  * The relay's own hub logic over a real SQLite store, in-process. Frames cross
@@ -64,10 +64,9 @@ export class LiveHub {
 }
 
 /** One device's socket, reconnectable, with switches that make it half-open. */
-export class TestConnection
-	implements Pick<HubConnection, "send" | "isConnected" | "listen">
-{
-	private readonly listeners = new Set<HubListener>();
+/** One device's socket carrying one space, at slot 0. */
+export class TestConnection implements SpaceHub {
+	private readonly listeners = new Set<SpaceListener>();
 	private peer: HubPeer | null = null;
 	/** Counts sockets, so frames still on the wire die with theirs. */
 	private socket = 0;
@@ -80,13 +79,20 @@ export class TestConnection
 		return this.peer !== null;
 	}
 
-	listen(listener: HubListener): () => void {
+	/** Stands in for a whole HubConnection with this one space. */
+	space(): SpaceHub {
+		return this;
+	}
+
+	listen(listener: SpaceListener): () => void {
 		this.listeners.add(listener);
 		return () => this.listeners.delete(listener);
 	}
 
-	send(frame: ClientFrame): void {
-		if (this.peer && !this.mute) this.hub.handle(this.peer, frame);
+	send(frame: SpaceFrame): void {
+		if (this.peer && !this.mute) {
+			this.hub.handle(this.peer, { ...frame, slot: 0 } as ClientFrame);
+		}
 	}
 
 	connect(): void {

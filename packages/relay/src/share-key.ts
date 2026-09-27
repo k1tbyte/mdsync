@@ -7,7 +7,8 @@
  * rather than sanitised, so a bypass fails closed.
  */
 
-const SHARE_ROOT = "shares";
+import { sharePrefix } from "@obsync/protocol";
+
 const MAX_KEY_LENGTH = 1024;
 const SHARE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 /** Traversal or separators smuggled in percent-encoded form. */
@@ -25,7 +26,7 @@ export function shareBasePrefix(prefix: string, shareId: string): string {
 	if (!SHARE_ID_PATTERN.test(shareId)) {
 		throw new InvalidShareKeyError("Invalid share id");
 	}
-	return `${normalizePrefix(prefix)}${SHARE_ROOT}/${shareId}/`;
+	return sharePrefix(prefix, shareId);
 }
 
 export function shareObjectKey(
@@ -84,9 +85,4 @@ function assertSafeSegment(segment: string): void {
 	if (!segment || segment === "." || segment === "..") {
 		throw new InvalidShareKeyError("Key contains a traversal segment");
 	}
-}
-
-function normalizePrefix(prefix: string): string {
-	const trimmed = prefix.replace(/^\/+|\/+$/g, "");
-	return trimmed ? `${trimmed}/` : "";
 }

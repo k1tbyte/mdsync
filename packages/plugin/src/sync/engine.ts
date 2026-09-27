@@ -22,6 +22,7 @@ import {
 	objectKey,
 	reconcileRemoteAgainstBaseline,
 } from "./manifest";
+import { assertSpacePresent, type Space } from "./space";
 import {
 	type DiffResult,
 	EChangeType,
@@ -35,6 +36,7 @@ import {
 } from "./types";
 
 export interface EngineDependencies {
+	space: Space;
 	adapter: DataAdapter;
 	storage: StorageAdapter;
 	scope: ScopePolicy;
@@ -77,10 +79,16 @@ export async function compare(
 			deps.state.hashCache,
 		),
 		knownRemote === undefined
-			? fetchRemoteManifest(deps.storage, deps.key, deps.state.baseline)
+			? fetchRemoteManifest(
+					deps.storage,
+					deps.key,
+					deps.space.root,
+					deps.state.baseline,
+				)
 			: Promise.resolve(knownRemote),
 	]);
 	assertVaultCompatibility(deps.state, fetched);
+	assertSpacePresent(deps.space, snapshot, deps.state.baseline);
 	const remote = reconcileRemoteAgainstBaseline(
 		fetched,
 		deps.state.baseline,
@@ -350,6 +358,7 @@ export async function publishFileMap(
 	await publishManifestWithHistory(
 		deps.storage,
 		deps.key,
+		deps.space.root,
 		manifest,
 		compareResult.remote,
 		deps.history,

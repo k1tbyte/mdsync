@@ -43,6 +43,8 @@ type ShareStorage = S3Target & { prefix: string };
 type JsonObject = Record<string, unknown>;
 
 const PRESIGN_TTL_SECONDS = 120;
+/** S3's own ceiling for one ListObjectsV2 page. */
+const MAX_PAGE_SIZE = 1000;
 const TOKEN_BYTES = 32;
 /** Rides in each hub socket's 16 KB attachment as `who`. */
 const MAX_PARTICIPANT_ID_LENGTH = 64;
@@ -83,6 +85,10 @@ export async function handleShareRequest(
 		if (request.method === "GET") return listTokens(request, env, url);
 		return methodNotAllowed("GET, POST");
 	}
+	if (url.pathname === "/share/token") {
+		if (request.method !== "DELETE") return methodNotAllowed("DELETE");
+		return leaveShare(request, env);
+	}
 	if (url.pathname.startsWith(TOKENS_PATH)) {
 		if (request.method !== "DELETE") return methodNotAllowed("DELETE");
 		return revokeToken(request, env, url);
@@ -90,16 +96,11 @@ export async function handleShareRequest(
 	return jsonError(404, "not_found", "Unknown broker route");
 }
 
-/** The hub channel of a share. */
-export function shareRoomId(shareId: string): string {
-	return `obsync-share-${shareId}`;
-}
-
 /** Whose live token this is and for which share; null once it is revoked. */
 export async function shareGrantOf(
 	env: ShareEnv,
 	token: string,
-): Promise<Pick<TokenRecord, "shareId" | "participantId"> | null> {
+): Promise<TokenRecord | null> {
 	return (await env.SHARE_TOKENS.get(
 		`tok:${token}`,
 		"json",
@@ -107,6 +108,19 @@ export async function shareGrantOf(
 }
 
 /* -------------------------------------------------------------- participant */
+
+/** A participant leaving revokes the token they hold, never one issued after it. */
+async function leaveShare(request: Request, env: ShareEnv): Promise<Response> {
+	const token = bearerOf(request);
+	const record = token && (await shareGrantOf(env, token));
+	if (!token || !record) return json({ revoked: false });
+	const pointer = pointerKey(record.shareId, record.participantId);
+	if ((await env.SHARE_TOKENS.get(pointer)) === token) {
+		await env.SHARE_TOKENS.delete(pointer);
+	}
+	await dropToken(env, token);
+	return json({ revoked: true });
+}
 
 async function signObject(request: Request, env: ShareEnv): Promise<Response> {
 	const record = await readToken(request, env);
@@ -121,6 +135,9 @@ async function signObject(request: Request, env: ShareEnv): Promise<Response> {
 	}
 	if (!isOptionalString(body.cursor)) {
 		return jsonError(400, "bad_request", "cursor must be a string");
+	}
+	if (body.maxKeys !== undefined && !isPageSize(body.maxKeys)) {
+		return jsonError(400, "bad_request", "maxKeys must be 1 to 1000");
 	}
 	const op = typeof body.op === "string" ? body.op : "";
 	if (WRITE_OPS.has(op) && record.role !== EShareRole.ReadWrite) {
@@ -152,6 +169,7 @@ async function signObject(request: Request, env: ShareEnv): Promise<Response> {
 						(body.prefix as string | undefined) ?? "",
 					),
 					body.cursor as string | undefined,
+					body.maxKeys as number | undefined,
 				),
 			);
 			return json({
@@ -186,6 +204,14 @@ function isOptionalString(value: unknown): boolean {
 	return value === undefined || typeof value === "string";
 }
 
+function isPageSize(value: unknown): boolean {
+	return (
+		Number.isInteger(value) &&
+		(value as number) >= 1 &&
+		(value as number) <= MAX_PAGE_SIZE
+	);
+}
+
 function objectMethod(op: string): PresignMethod | null {
 	switch (op) {
 		case "get":
@@ -204,9 +230,11 @@ function objectMethod(op: string): PresignMethod | null {
 function listQuery(
 	prefix: string,
 	cursor: string | undefined,
+	maxKeys: number | undefined,
 ): Record<string, string> {
 	const query: Record<string, string> = { "list-type": "2", prefix };
 	if (cursor) query["continuation-token"] = cursor;
+	if (maxKeys) query["max-keys"] = String(maxKeys);
 	return query;
 }
 
@@ -303,9 +331,21 @@ async function listTokens(
 		return jsonError(400, "bad_request", "Invalid shareId");
 	}
 	const ids = await participantIds(env, shareId);
-	return json({
-		participants: ids.map((participantId) => ({ participantId })),
-	});
+	const participants = await Promise.all(
+		ids.map(async (participantId) => {
+			const token = await env.SHARE_TOKENS.get(
+				pointerKey(shareId, participantId),
+			);
+			const record = token
+				? ((await env.SHARE_TOKENS.get(
+						`tok:${token}`,
+						"json",
+					)) as TokenRecord | null)
+				: null;
+			return { participantId, label: record?.label ?? "", role: record?.role };
+		}),
+	);
+	return json({ participants });
 }
 
 async function revokeToken(
@@ -366,18 +406,18 @@ async function dropToken(env: ShareEnv, token: string): Promise<void> {
 	await hubStub(env).dropGrant(await fingerprint(token));
 }
 
-async function readToken(
+function readToken(
 	request: Request,
 	env: ShareEnv,
 ): Promise<TokenRecord | null> {
+	const token = bearerOf(request);
+	return token ? shareGrantOf(env, token) : Promise.resolve(null);
+}
+
+function bearerOf(request: Request): string | null {
 	const header = request.headers.get("Authorization");
 	if (!header?.startsWith("Bearer ")) return null;
-	const token = header.slice("Bearer ".length).trim();
-	if (!token) return null;
-	return (await env.SHARE_TOKENS.get(
-		`tok:${token}`,
-		"json",
-	)) as TokenRecord | null;
+	return header.slice("Bearer ".length).trim() || null;
 }
 
 /** Extra fields are dropped, so a registration stores exactly what signing reads. */

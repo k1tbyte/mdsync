@@ -25,7 +25,8 @@ export interface BaselineSnapshot {
 }
 
 interface FileDiffServiceDeps {
-	openSession: () => Promise<EngineDependencies | null>;
+	/** The session of the space that owns the path. */
+	openSession: (path: string) => Promise<EngineDependencies | null>;
 	getResult: () => CompareResult | null;
 }
 
@@ -70,7 +71,7 @@ export class FileDiffService {
 		if (!result) return null;
 		const conflict = this.pathIndex()?.conflict.get(path);
 		if (!conflict?.baselineHash) return null;
-		const session = await this.deps.openSession();
+		const session = await this.deps.openSession(path);
 		if (!session) return null;
 		// Pre-flight size/extension so binary or oversized conflicts return null before downloading.
 		const mergeable = await isTextMergeCandidate(
@@ -99,7 +100,7 @@ export class FileDiffService {
 	 * Returns null if missing from baseline or if binary.
 	 */
 	async loadBaselineForPath(path: string): Promise<BaselineSnapshot | null> {
-		const session = await this.deps.openSession();
+		const session = await this.deps.openSession(path);
 		if (!session) return null;
 		const baseline = session.state.baseline;
 		const entry = baseline?.files[path];
@@ -130,7 +131,7 @@ export class FileDiffService {
 		if (!status) return null;
 		const result = this.deps.getResult();
 		if (!result) return null;
-		const session = await this.deps.openSession();
+		const session = await this.deps.openSession(path);
 		if (!session) return null;
 		const input: DiffCacheInput = {
 			path,

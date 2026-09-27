@@ -32,7 +32,7 @@ export function registerStatusBar(
 	const render = (snapshot: SyncStatusSnapshot): void => {
 		const offline = !navigator.onLine;
 		spinner.toggleClass("obsync-hidden", !snapshot.busy || offline);
-		root.toggleClass("is-error", Boolean(snapshot.error) && !offline);
+		root.toggleClass("is-error", hasError(snapshot) && !offline);
 		root.toggleClass("is-offline", offline);
 		text.setText(offline ? "Obsync: offline" : formatStatus(snapshot));
 		root.setAttr(
@@ -53,7 +53,7 @@ export function registerStatusBar(
 }
 
 function formatStatus(snapshot: SyncStatusSnapshot): string {
-	if (snapshot.error) return `Obsync: error`;
+	if (hasError(snapshot)) return `Obsync: error`;
 	if (snapshot.busy) return `Obsync: syncing…`;
 	const parts: string[] = [];
 	if (snapshot.pendingLocal > 0) parts.push(`↑${snapshot.pendingLocal}`);
@@ -65,8 +65,19 @@ function formatStatus(snapshot: SyncStatusSnapshot): string {
 
 function buildTooltip(snapshot: SyncStatusSnapshot): string {
 	if (snapshot.error) return `Obsync error: ${snapshot.error}`;
+	if (hasError(snapshot)) {
+		const failed = snapshot.spaceErrors.map(
+			({ root, message }) => `"${root}": ${message}`,
+		);
+		return `Obsync error in ${failed.join("; ")}`;
+	}
 	const last = snapshot.lastCompareAt
 		? `Last compared ${formatRelativeTime(snapshot.lastCompareAt)}`
 		: "Not compared yet";
 	return `${last}. Click to open source control.`;
+}
+
+/** A shared folder that failed counts: the rest syncs, it does not. */
+function hasError(snapshot: SyncStatusSnapshot): boolean {
+	return Boolean(snapshot.error) || snapshot.spaceErrors.length > 0;
 }

@@ -53,6 +53,7 @@ export async function runCategoryResetFlow(
 	await publishManifestWithHistory(
 		deps.storage,
 		deps.key,
+		deps.space.root,
 		manifest,
 		remote,
 		deps.history,

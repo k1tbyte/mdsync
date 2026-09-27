@@ -6,15 +6,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { sha256Hex } from "@/crypto";
 import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
-import { VAULT_SLOT } from "@/hub/connection";
 import { AgreedTexts } from "@/live/agreed-texts";
 import { bindEditor } from "@/live/binding";
 import { LiveColdSync } from "@/live/cold-sync";
 import { docIdFor, seal } from "@/live/seal";
 import type { LiveSession } from "@/live/session";
 import { LiveSessions } from "@/live/sessions";
+import type { LiveSpace } from "@/live/space";
 
-vi.mock("@/live/binding", () => ({ bindEditor: vi.fn(() => vi.fn()) }));
+vi.mock("@/live/binding", () => ({
+	bindEditor: vi.fn(() => ({ detach: vi.fn(), showAuthors: vi.fn() })),
+}));
+
+const USER = { name: "laptop", color: "red", colorLight: "pink" };
 
 function editorOf(file: TFile, mode = "source"): MarkdownView {
 	return Object.assign(Object.create(MarkdownView.prototype), {
@@ -28,6 +32,8 @@ function editorOf(file: TFile, mode = "source"): MarkdownView {
 let hub: LiveHub;
 let connection: TestConnection;
 let keys: LiveKeys | null;
+/** Where a path goes live; by default the vault, and nothing under Shared/. */
+let spaceOf: (path: string) => LiveSpace | null;
 let leaves: { view: MarkdownView }[];
 let agreed: AgreedTexts;
 let sessions: LiveSessions;
@@ -38,6 +44,7 @@ beforeEach(async () => {
 	connection = hub.connection();
 	connection.connect();
 	keys = await freshKeys();
+	spaceOf = (path) => (path.startsWith("Shared/") ? null : vault());
 	leaves = [];
 	agreed = new AgreedTexts(
 		new InMemoryAdapter() as unknown as DataAdapter,
@@ -46,8 +53,7 @@ beforeEach(async () => {
 	sessions = new LiveSessions({
 		app: fakeApp(),
 		hub: connection,
-		keys: async () => keys,
-		user: () => ({ name: "laptop", color: "red", colorLight: "pink" }),
+		liveSpace: async (path) => spaceOf(path),
 		agreed,
 		baseText: async () => null,
 	});
@@ -69,6 +75,10 @@ function note(path: string, size = 10): TFile {
 		extension: path.split(".").pop(),
 		stat: { size },
 	});
+}
+
+function vault(): LiveSpace | null {
+	return keys && { id: "vault", root: "", keys, person: "owner", user: USER };
 }
 
 function freshKeys(): Promise<LiveKeys> {
@@ -94,11 +104,12 @@ describe("live sessions", () => {
 		await vi.waitFor(() => expect(bindEditor).toHaveBeenCalledTimes(1));
 	});
 
-	it("leaves reading view, other files and oversized notes alone", async () => {
+	it("leaves reading view, other files, oversized and shared notes alone", async () => {
 		leaves = [
 			{ view: editorOf(note("read.md"), "preview") },
 			{ view: editorOf(note("image.png")) },
 			{ view: editorOf(note("huge.md", 300 * 1024)) },
+			{ view: editorOf(note("Shared/a.md")) },
 		];
 
 		await sessions.refresh();
@@ -110,13 +121,31 @@ describe("live sessions", () => {
 		leaves = [{ view: editorOf(note("a.md")) }];
 		await sessions.refresh();
 		await vi.waitFor(() => expect(bindEditor).toHaveBeenCalled());
-		const detach = vi.mocked(bindEditor).mock.results[0]?.value;
+		const detach = vi.mocked(bindEditor).mock.results[0]?.value.detach;
 
 		leaves = [];
 		await sessions.refresh();
 
 		expect(detach).toHaveBeenCalled();
 		await vi.waitFor(() => expect(followed()).toEqual([]));
+	});
+
+	it("tints other people's text in every bound editor while authors are shown", async () => {
+		leaves = [{ view: editorOf(note("a.md")) }];
+		await sessions.refresh();
+		await vi.waitFor(() => expect(bindEditor).toHaveBeenCalledTimes(1));
+		const first = vi.mocked(bindEditor).mock.results[0]?.value;
+		expect(vi.mocked(bindEditor).mock.calls[0]?.[2]).toBeNull();
+
+		expect(sessions.toggleAuthors()).toBe(true);
+		expect(first.showAuthors).toHaveBeenCalledWith("owner");
+		leaves.push({ view: editorOf(note("b.md")) });
+		await sessions.refresh();
+		await vi.waitFor(() => expect(bindEditor).toHaveBeenCalledTimes(2));
+		expect(vi.mocked(bindEditor).mock.calls[1]?.[2]).toBe("owner");
+
+		expect(sessions.toggleAuthors()).toBe(false);
+		expect(first.showAuthors).toHaveBeenLastCalledWith(null);
 	});
 
 	it("stays out without keys and moves every note to new rooms when they change", async () => {
@@ -134,11 +163,38 @@ describe("live sessions", () => {
 		const next = await idOf("a.md");
 		await vi.waitFor(() => expect(followed()).toEqual([next]));
 	});
+
+	it("takes a shared note into its share's room, named by its path inside the share", async () => {
+		const team: LiveSpace = {
+			id: "team",
+			root: "Shared/Team",
+			keys: await freshKeys(),
+			person: "p1",
+			user: USER,
+		};
+		leaves = [{ view: editorOf(note("Shared/Team/a.md")) }];
+		spaceOf = () => vault();
+		await sessions.refresh();
+		expect(followed()).toEqual([await idOf("Shared/Team/a.md")]);
+
+		// The folder became a share: the note leaves the vault's room for the share's.
+		spaceOf = () => team;
+		await sessions.refresh();
+
+		const inShare = await docIdFor(team.keys, "a.md", 0);
+		await vi.waitFor(() => expect(followed()).toEqual([inShare]));
+		expect(sessions.spaceOf("Shared/Team/a.md")).toBe("team");
+	});
 });
 
 describe("live notes as the file sync sees them", () => {
-	const cold = () =>
-		new LiveColdSync({ rooms: sessions, agreed, keys: async () => keys });
+	const cold = (space = "vault") =>
+		new LiveColdSync({
+			rooms: sessions,
+			agreed,
+			space,
+			live: async () => vault(),
+		});
 
 	function hashOf(text: string): Promise<string> {
 		return sha256Hex(new TextEncoder().encode(text));
@@ -219,6 +275,15 @@ describe("live notes as the file sync sees them", () => {
 		expect(room.text.toString()).toBe("text");
 	});
 
+	it("holds a note open in another space's room until this sync's partition catches up", async () => {
+		await openRoom();
+		const texts = vi.fn();
+
+		expect(await cold("team").absorb("a.md", undefined, texts)).toBe("later");
+		expect(await cold("team").mark("a.md", await hashOf("text"))).toBe("later");
+		expect(texts).not.toHaveBeenCalled();
+	});
+
 	it("leaves a closed note to the file sync", async () => {
 		expect(await cold().absorb("b.md", undefined, vi.fn())).toBe("cold");
 	});
@@ -260,7 +325,7 @@ describe("rebuilt rooms", () => {
 
 	it("moves an open note's editor into the successor of its room", async () => {
 		const first = await bound();
-		const detach = vi.mocked(bindEditor).mock.results[0]?.value;
+		const detach = vi.mocked(bindEditor).mock.results[0]?.value.detach;
 		await vi.waitFor(() => expect(first.settled).toBe(true));
 
 		expect(await sessions.rotate("a.md")).toBe("moved");
@@ -272,6 +337,29 @@ describe("rebuilt rooms", () => {
 		expect(followed()).toEqual([next]);
 		await vi.waitFor(async () =>
 			expect(await agreed.get(await idOf("a.md"))).toMatchObject({ gen: 1 }),
+		);
+	});
+
+	it("rebuilds a shared note under its share's key and inner path", async () => {
+		const team: LiveSpace = {
+			id: "team",
+			root: "Shared",
+			keys: await freshKeys(),
+			person: "p1",
+			user: USER,
+		};
+		spaceOf = () => team;
+		leaves = [{ view: editorOf(note("Shared/a.md")) }];
+		await sessions.refresh();
+		await vi.waitFor(() =>
+			expect(sessions.roomOf("Shared/a.md")?.settled).toBe(true),
+		);
+
+		expect(await sessions.rotate("Shared/a.md")).toBe("moved");
+
+		const next = await docIdFor(team.keys, "a.md", 1);
+		await vi.waitFor(() =>
+			expect(sessions.roomOf("Shared/a.md")?.docId).toBe(next),
 		);
 	});
 
@@ -287,10 +375,9 @@ describe("rebuilt rooms", () => {
 		const room = await bound();
 		const raw = hub.connection();
 		raw.connect();
-		raw.send({ type: EFrame.Sub, slot: VAULT_SLOT, doc: room.docId, since: 0 });
+		raw.send({ type: EFrame.Sub, doc: room.docId, since: 0 });
 		raw.send({
 			type: EFrame.Rotate,
-			slot: VAULT_SLOT,
 			doc: room.docId,
 			target: "f".repeat(32),
 			upto: room.seq,

@@ -138,21 +138,22 @@ interface ResolvedEndpoint {
  * resolves nowhere. Signing for us-east-1 instead fails with a 400 that names
  * the bucket's real region, an answer the user can act on.
  */
-function signingRegion(config: S3StorageConfig): string {
+export function signingRegion(config: S3StorageConfig): string {
 	const region = config.region.trim();
 	if (!region) return AWS_DEFAULT_REGION;
 	if (!config.endpoint.trim() && region === "auto") return AWS_DEFAULT_REGION;
 	return region;
 }
 
-function resolveEndpoint(config: S3StorageConfig): ResolvedEndpoint {
+/** The endpoint as a full URL; empty means AWS itself. */
+export function endpointUrl(config: S3StorageConfig): string {
 	const raw = config.endpoint.trim();
-	const base = raw
-		? raw.includes("://")
-			? raw
-			: `https://${raw}`
-		: `https://s3.${signingRegion(config)}.amazonaws.com`;
-	const url = new URL(base);
+	if (!raw) return `https://s3.${signingRegion(config)}.amazonaws.com`;
+	return raw.includes("://") ? raw : `https://${raw}`;
+}
+
+function resolveEndpoint(config: S3StorageConfig): ResolvedEndpoint {
+	const url = new URL(endpointUrl(config));
 	// Only the hostname is lowercased. A bucket typed with capitals is still
 	// that bucket in a path-style URI, but DNS is case-insensitive and the
 	// transport sends a lowercased Host, which would not match the signature.

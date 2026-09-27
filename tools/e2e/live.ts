@@ -4,7 +4,8 @@
  * restart in the middle of the typing, and a rebuild of the note's room.
  */
 
-import { check, poll, runScenario, sleep } from "./harness";
+import { converged, editorText, open, textOn, type } from "./editor";
+import { check, runScenario, sleep } from "./harness";
 import { launchObsidian, type Obsidian } from "./obsidian";
 import { type Relay, startRelay } from "./relay";
 import { startWebDav } from "./webdav";
@@ -16,7 +17,6 @@ const SECRET = "e2e-secret";
 const PASSPHRASE = "e2e-passphrase";
 const NOTE = "note.md";
 const OTHER = "other.md";
-const KEYSTROKE_MS = 25;
 /** A rebuild is refused while the other side's keystrokes keep landing. */
 const REBUILD_ATTEMPTS = 10;
 
@@ -103,9 +103,9 @@ async function scenario(
 		await desktop.waitFor(
 			"remote cursor",
 			() =>
-				app.plugins.plugins.obsync.realtime.live.sessions
-					.get("note.md")
-					.awareness.getStates().size,
+				app.plugins.plugins.obsync.realtime.live
+					.roomOf("note.md")
+					?.awareness.getStates().size,
 			(size) => size === 2,
 		),
 		2,
@@ -274,73 +274,6 @@ async function unlock(device: Obsidian): Promise<void> {
 			app.plugins.plugins.obsync.passphrase.replacePassphrase(passphrase),
 		PASSPHRASE,
 	);
-}
-
-/** Opens a note in the active leaf and waits until the leaf is bound to its room. */
-async function open(device: Obsidian, path: string): Promise<void> {
-	await device.evaluate(async (target) => {
-		await app.workspace
-			.getLeaf(false)
-			.openFile(app.vault.getFileByPath(target));
-	}, path);
-	await device.waitFor(
-		`${path} bound`,
-		() => {
-			const live = app.plugins.plugins.obsync.realtime.live;
-			return [...live.bound.values()].map((binding) => binding.path);
-		},
-		(paths) => paths.length === 1 && paths[0] === path,
-	);
-}
-
-/** Types one character at a time, as a person would, through the editor. */
-async function type(
-	device: Obsidian,
-	where: "start" | "end",
-	text: string,
-): Promise<void> {
-	await device.evaluate(
-		async ({ where, text, delay }) => {
-			const editor = app.workspace.getLeavesOfType("markdown")[0].view.editor;
-			let at = where === "start" ? 0 : editor.getValue().length;
-			for (const char of text) {
-				editor.replaceRange(char, editor.offsetToPos(at));
-				at += char.length;
-				if (where === "end") at = editor.getValue().length;
-				await new Promise((resolve) => setTimeout(resolve, delay));
-			}
-		},
-		{ where, text, delay: KEYSTROKE_MS },
-	);
-}
-
-function editorText(device: Obsidian): Promise<string> {
-	return device.evaluate(() =>
-		app.workspace.getLeavesOfType("markdown")[0].view.editor.getValue(),
-	);
-}
-
-function textOn(
-	device: Obsidian,
-	accept: (text: string) => boolean,
-): Promise<string> {
-	return device.waitFor(
-		"editor text",
-		() => app.workspace.getLeavesOfType("markdown")[0].view.editor.getValue(),
-		accept,
-	);
-}
-
-/** Both editors equal, and still equal a moment later. */
-function converged(a: Obsidian, b: Obsidian): Promise<string> {
-	const texts = () => Promise.all([editorText(a), editorText(b)]);
-	return poll("editors converge", async () => {
-		const [left, right] = await texts();
-		if (left !== right) return undefined;
-		await sleep(500);
-		const [again, other] = await texts();
-		return again === left && other === left ? left : undefined;
-	});
 }
 
 function diskOf(device: Obsidian, expected: string): Promise<string> {

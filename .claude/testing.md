@@ -27,10 +27,31 @@ re-injected only on reload.
   `E2E_SOAK_MS=130000` adds an idle stretch past the link's silence timeout.
 - `pnpm e2e:live` - two Obsidians type into one note through the relay; the
   shared key lives on an in-memory WebDAV (`startWebDav`).
+- `pnpm e2e:shares` - two Obsidians of one owner on an in-memory S3
+  (`startS3`): one shares a folder through its menu, the other mounts it,
+  pauses and resumes it; the first renames the folder and the other follows.
+- `pnpm e2e:invite` - an owner and a participant with separate vaults: invite
+  through the relay's broker, accept through the protocol handler; each
+  side's edit reaches the other on the share channel's signal alone.
+- `pnpm e2e:people` - a read-only participant, a re-invite that kills the old
+  link, the owner's rotated S3 key (`s3.revoke`) reaching the broker, People
+  and Revoke.
+- `pnpm e2e:live-share` - an owner and a participant type into one note of a
+  share, in the share's room on the owner's relay; the cursor carries the
+  invited name, authors tint the other's text, and the sync after is clean.
 
-Ports 8799 (relay), 8801 (WebDAV), 9223 and 9224 (CDP) must be free. A run
+`tools/e2e/device.ts` drives a device: sync, files, folder menus, modals.
+`tools/e2e/sharing.ts` holds the owner-and-participant setup and share steps.
+`tools/e2e/editor.ts` opens, types into and reads a device's editor.
+Obsidian 1.13 mounts modals in `activeDocument`, not `document`, and keeps
+protocol handlers in `app.workspace.protocolHandler.handlers`; never open an
+`obsidian://` URL through the OS, it would reach the user's own Obsidian.
+Settings stay open under later modals, so helpers search the topmost first;
+close buttons ignore synthetic clicks, `closeModals` sends Escape.
+
+Ports 8799 (relay), 8801 (WebDAV), 8802 (S3), 9223 and 9224 (CDP) must be free. A run
 killed midway can leave `wrangler dev` holding 8799: kill that tree. New
-scenarios reuse `launchObsidian`, `startRelay`, `startWebDav` and
+scenarios reuse `launchObsidian`, `startRelay`, `startWebDav`, `startS3` and
 `connectPeer`; several Obsidians need distinct CDP ports.
 
 ## Manual install for testing

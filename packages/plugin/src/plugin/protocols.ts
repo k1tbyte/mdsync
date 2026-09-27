@@ -1,8 +1,10 @@
 import type { ObsidianProtocolData, Plugin } from "obsidian";
 
+import { LINK_PARAM } from "@/crypto/sealed-link";
 import { TRANSFER_ACTION } from "@/settings/transfer";
+import { INVITE_ACTION } from "@/spaces/invite";
 import { handleStorageProtocol } from "@/storage";
-import { notifyError, notifyInfo } from "@/ui";
+import { notifyError, notifyInfo, openInvite } from "@/ui";
 
 import type { PluginHost } from "./host";
 
@@ -16,6 +18,9 @@ export function registerProtocolHandlers(
 	});
 	plugin.registerObsidianProtocolHandler("obsync-auth", (params) => {
 		void authorizeStorage(plugin, params, onStorageAuthorized);
+	});
+	plugin.registerObsidianProtocolHandler(INVITE_ACTION, (params) => {
+		openInvite(plugin, params[LINK_PARAM] ?? "");
 	});
 }
 

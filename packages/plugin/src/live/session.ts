@@ -4,7 +4,7 @@
  * acks updates in the order they were sent.
  */
 
-import { type ClientFrame, EFrame, type ServerFrame } from "@obsync/protocol";
+import { EFrame, type ServerFrame } from "@obsync/protocol";
 import {
 	Awareness,
 	applyAwarenessUpdate,
@@ -14,17 +14,14 @@ import {
 import * as Y from "yjs";
 
 import type { LiveKeys } from "@/crypto/live-keys";
-import {
-	type HubConnection,
-	type HubListener,
-	VAULT_SLOT,
-} from "@/hub/connection";
+import type { SpaceFrame, SpaceHub, SpaceListener } from "@/hub/connection";
 import { reportWarning } from "@/shared/diagnostics";
 import { toLf } from "@/utils/eol";
 
+import { type Author, USERS } from "./authors";
 import { mergeThreeWay } from "./merge";
 import { patchYText } from "./patch";
-import { BODY, rebuild, USERS } from "./rebuild";
+import { BODY, rebuild } from "./rebuild";
 import { seal, unseal } from "./seal";
 
 /** Edits and cursors batch this long: at 100 ms the envelope outweighed the content. */
@@ -40,8 +37,8 @@ const LOCAL_AWARENESS = "local";
 export type Rotation = "moved" | "refused" | "busy";
 
 type Frame<T> = Extract<ServerFrame, { type: T }>;
-type Unaddressed<F = ClientFrame> = F extends ClientFrame
-	? Omit<F, "slot" | "doc">
+type Unaddressed<F = SpaceFrame> = F extends SpaceFrame
+	? Omit<F, "doc">
 	: never;
 interface AwarenessChanges {
 	added: number[];
@@ -51,9 +48,10 @@ interface AwarenessChanges {
 
 export interface LiveSessionDeps {
 	keys: LiveKeys;
-	hub: Pick<HubConnection, "send" | "isConnected" | "listen">;
-	/** Who this device types as: attribution maps its client ids to them. */
-	person: string;
+	/** The channel of the space the note is in. */
+	hub: SpaceHub;
+	/** Who this device types as: attribution maps its client id to them. */
+	author: Author;
 	/** Opened by following a moved room, which is never seeded from disk. */
 	follower?: boolean;
 	readDisk(): Promise<string>;
@@ -65,7 +63,7 @@ export interface LiveSessionDeps {
 	onMoved(): void;
 }
 
-export class LiveSession implements HubListener {
+export class LiveSession implements SpaceListener {
 	readonly doc = new Y.Doc();
 	readonly text = this.doc.getText(BODY);
 	readonly awareness = new Awareness(this.doc);
@@ -206,7 +204,7 @@ export class LiveSession implements HubListener {
 
 	onFrame(frame: ServerFrame): void {
 		if (this.disposed) return;
-		if (frame.slot !== VAULT_SLOT || frame.doc !== this.docId) return;
+		if (frame.doc !== this.docId) return;
 		const epoch = this.epoch;
 		const handler = this.handlers[frame.type] as
 			| ((frame: ServerFrame, epoch: number) => unknown)
@@ -384,7 +382,7 @@ export class LiveSession implements HubListener {
 	private attribute(): void {
 		if (this.attributed) return;
 		this.attributed = true;
-		this.doc.getMap(USERS).set(String(this.doc.clientID), this.deps.person);
+		this.doc.getMap(USERS).set(String(this.doc.clientID), this.deps.author);
 	}
 
 	private onLeave(from: number): void {
@@ -420,11 +418,7 @@ export class LiveSession implements HubListener {
 	}
 
 	private send(frame: Unaddressed): void {
-		this.deps.hub.send({
-			...frame,
-			slot: VAULT_SLOT,
-			doc: this.docId,
-		} as ClientFrame);
+		this.deps.hub.send({ ...frame, doc: this.docId } as SpaceFrame);
 	}
 
 	private enqueue(step: () => unknown): void {

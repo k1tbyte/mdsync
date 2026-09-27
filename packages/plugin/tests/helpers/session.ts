@@ -3,6 +3,7 @@ import { deriveKey, type EncryptionKey } from "@/crypto";
 import { DEFAULT_SETTINGS_SYNC } from "@/settings/model";
 import { compare, type EngineDependencies } from "@/sync/engine";
 import type { OperationContext } from "@/sync/operations";
+import { VAULT_SPACE } from "@/sync/space";
 import type { SessionState } from "@/sync/types";
 import { createScopePolicy } from "@/vault/scope";
 import { FakeStorage } from "./fake-storage";
@@ -43,6 +44,7 @@ export class TestSession {
 
 	deps(): EngineDependencies {
 		return {
+			space: VAULT_SPACE,
 			adapter: this.adapter.asDataAdapter(),
 			storage: this.storage,
 			scope,

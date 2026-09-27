@@ -4,12 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 
 import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
-import { VAULT_SLOT } from "@/hub/connection";
 import { docIdFor, seal } from "@/live/seal";
 import { COMPACT_AFTER, LiveSession } from "@/live/session";
 
 /** Longer than the session's batching window, so a typed edit has left. */
 const FLUSHED_MS = 400;
+const OWNER = { person: "owner", name: "Laptop" };
 
 let hub: LiveHub;
 let keys: LiveKeys;
@@ -51,7 +51,7 @@ function device(
 		session: new LiveSession(room.doc, room.generation, {
 			keys,
 			hub: connection,
-			person: "owner",
+			author: OWNER,
 			follower: room.follower,
 			readDisk: async () => disk,
 			readBase: async () => base,
@@ -93,14 +93,14 @@ function type(target: Device, at: number, text: string): void {
 async function typedElsewhere(count: number): Promise<void> {
 	const raw = hub.connection();
 	raw.connect();
-	raw.send({ type: EFrame.Sub, slot: VAULT_SLOT, doc: docId, since: 0 });
+	raw.send({ type: EFrame.Sub, doc: docId, since: 0 });
 	const doc = new Y.Doc();
 	for (let left = count; left > 0; left--) {
 		const before = Y.encodeStateVector(doc);
 		doc.getText("body").insert(0, "z");
 		const update = Y.encodeStateAsUpdate(doc, before);
 		const payload = await seal(keys, update);
-		raw.send({ type: EFrame.Update, slot: VAULT_SLOT, doc: docId, payload });
+		raw.send({ type: EFrame.Update, doc: docId, payload });
 	}
 	raw.disconnect();
 }
@@ -111,7 +111,7 @@ async function roomState(doc = docId): Promise<ServerFrame> {
 	const states: ServerFrame[] = [];
 	raw.listen({ onFrame: (frame) => states.push(frame) });
 	raw.connect();
-	raw.send({ type: EFrame.Sub, slot: VAULT_SLOT, doc, since: 0 });
+	raw.send({ type: EFrame.Sub, doc, since: 0 });
 	await vi.waitFor(() => expect(states.length).toBeGreaterThan(0));
 	raw.disconnect();
 	return states[0] as ServerFrame;
@@ -384,7 +384,7 @@ describe("live session rotation", () => {
 		const c = await synced("hello world", "hello world", await successor());
 		expect(c.session.text.toString()).toBe("hello world");
 		expect(c.session.doc.getMap("users").toJSON()).toEqual({
-			[String(b.session.doc.clientID)]: "owner",
+			[String(b.session.doc.clientID)]: OWNER,
 		});
 	});
 
@@ -394,7 +394,7 @@ describe("live session rotation", () => {
 		await vi.waitFor(() => expect(a.session.settled).toBe(true));
 		const raw = hub.connection();
 		raw.connect();
-		raw.send({ type: EFrame.Sub, slot: VAULT_SLOT, doc: docId, since: 0 });
+		raw.send({ type: EFrame.Sub, doc: docId, since: 0 });
 		const edit = new Y.Doc();
 		edit.getText("body").insert(0, "y");
 		const payload = await seal(keys, Y.encodeStateAsUpdate(edit));
@@ -404,7 +404,6 @@ describe("live session rotation", () => {
 			if (frame.type === EFrame.Rotate) {
 				raw.send({
 					type: EFrame.Update,
-					slot: VAULT_SLOT,
 					doc: docId,
 					payload,
 				});
@@ -458,7 +457,7 @@ describe("live session attribution", () => {
 		await converge("xy", a, b);
 
 		expect(b.session.doc.getMap("users").toJSON()).toEqual({
-			[String(a.session.doc.clientID)]: "owner",
+			[String(a.session.doc.clientID)]: OWNER,
 		});
 	});
 });

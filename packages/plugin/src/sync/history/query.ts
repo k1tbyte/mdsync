@@ -19,12 +19,14 @@ import type {
 export interface FileHistoryQuery {
 	storage: ObjectStorage;
 	key: EncryptionKey;
+	root: string;
 	path: string;
 }
 
 export interface DeletedFilesQuery {
 	storage: ObjectStorage;
 	key: EncryptionKey;
+	root: string;
 }
 
 /**
@@ -35,16 +37,18 @@ export interface DeletedFilesQuery {
 export async function getFileHistory(
 	query: FileHistoryQuery,
 ): Promise<FileVersion[]> {
-	const { storage, key, path } = query;
+	const { storage, key, root, path } = query;
 	const [log, head] = await Promise.all([
-		readHistoryLog(storage, key),
-		fetchRemoteManifest(storage, key),
+		readHistoryLog(storage, key, root),
+		fetchRemoteManifest(storage, key, root),
 	]);
 	if (!head) return [];
 
 	const chain = walkableChain(log, head);
 	const { versions, visited } = walkChain(log, head, chain, path);
-	versions.push(...(await pinnedVersions(storage, key, log, visited, path)));
+	versions.push(
+		...(await pinnedVersions(storage, key, root, log, visited, path)),
+	);
 	return orderByChain(versions, log);
 }
 
@@ -105,6 +109,7 @@ function walkChain(
 async function pinnedVersions(
 	storage: ObjectStorage,
 	key: EncryptionKey,
+	root: string,
 	log: HistoryLog,
 	visited: ReadonlySet<string>,
 	path: string,
@@ -112,7 +117,7 @@ async function pinnedVersions(
 	const versions: FileVersion[] = [];
 	for (const meta of log.snapshots) {
 		if (!meta.pinned || visited.has(meta.id)) continue;
-		const manifest = await readPinManifest(storage, key, meta.id);
+		const manifest = await readPinManifest(storage, key, root, meta.id);
 		const entry = manifest ? entryAt(manifest.files, path) : undefined;
 		if (entry) versions.push(toVersion(meta, entry));
 	}
@@ -152,16 +157,16 @@ function toVersion(meta: SnapshotEntry, entry: ManifestEntry): FileVersion {
 export async function listDeletedFiles(
 	query: DeletedFilesQuery,
 ): Promise<DeletedFilesResult> {
-	const { storage, key } = query;
+	const { storage, key, root } = query;
 	const [log, head] = await Promise.all([
-		readHistoryLog(storage, key),
-		fetchRemoteManifest(storage, key),
+		readHistoryLog(storage, key, root),
+		fetchRemoteManifest(storage, key, root),
 	]);
 	if (!head) return { files: [], lagging: false, truncated: false };
 
 	const chain = walkableChain(log, head);
 	const { found, walked } = collectDeletions(log, head, chain);
-	await applyPins(storage, key, log, head, found);
+	await applyPins(storage, key, root, log, head, found);
 	const position = logPositions(log);
 	return {
 		files: [...found.values()].sort(
@@ -214,6 +219,7 @@ function collectDeletions(
 async function applyPins(
 	storage: ObjectStorage,
 	key: EncryptionKey,
+	root: string,
 	log: HistoryLog,
 	head: Manifest,
 	found: Map<string, DeletedFile>,
@@ -221,7 +227,7 @@ async function applyPins(
 	const pinned = log.snapshots.filter((meta) => meta.pinned);
 	if (pinned.length === 0) return;
 	const manifests = await Promise.all(
-		pinned.map((meta) => readPinManifest(storage, key, meta.id)),
+		pinned.map((meta) => readPinManifest(storage, key, root, meta.id)),
 	);
 	// Newest first, so the freshest pinned version of a path wins.
 	for (const [index, meta] of pinned.entries()) {
@@ -258,10 +264,10 @@ async function applyPins(
 export async function listSnapshots(
 	query: DeletedFilesQuery,
 ): Promise<SnapshotListResult> {
-	const { storage, key } = query;
+	const { storage, key, root } = query;
 	const [log, head] = await Promise.all([
-		readHistoryLog(storage, key),
-		fetchRemoteManifest(storage, key),
+		readHistoryLog(storage, key, root),
+		fetchRemoteManifest(storage, key, root),
 	]);
 	if (!head) return { snapshots: [], lagging: false };
 

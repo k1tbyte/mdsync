@@ -22,8 +22,9 @@ export function grant(
 	channel: string,
 	token = `${channel}-token`,
 	who = "owner",
+	readOnly = false,
 ): Grant {
-	return { channel, grant: token, who };
+	return { channel, grant: token, who, ...(readOnly ? { readOnly } : {}) };
 }
 
 export function peer(

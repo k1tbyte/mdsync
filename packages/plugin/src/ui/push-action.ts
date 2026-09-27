@@ -44,7 +44,8 @@ export function addPushMenuItem(
 	);
 }
 
-async function pushScope(
+/** Compares first, then pushes the local changes under `path`. */
+export async function pushScope(
 	plugin: PluginHost,
 	path: string,
 	isFolder: boolean,

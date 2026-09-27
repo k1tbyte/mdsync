@@ -32,7 +32,11 @@ import {
 import { FileDiffService } from "./runtime/file-diff-service";
 import { HistoryService } from "./runtime/history-service";
 import { MaintenanceService } from "./runtime/maintenance-service";
-import { OperationRunner } from "./runtime/operation-runner";
+import {
+	OperationRunner,
+	type SpaceOperation,
+} from "./runtime/operation-runner";
+import { pathsBySpace, type Space, spaceOf, VAULT_SPACE } from "./space";
 import type { LocalState } from "./types";
 
 export const EConflictStrategy = {
@@ -43,10 +47,22 @@ export type EConflictStrategy =
 	(typeof EConflictStrategy)[keyof typeof EConflictStrategy];
 
 export interface SyncControllerHost {
-	openSession(): Promise<EngineDependencies | null>;
+	/**
+	 * The vault first. Asked once per refresh: the partition holds until the
+	 * next. Null when the vault cannot open, which ends the refresh.
+	 */
+	spaces(): Promise<readonly Space[] | null>;
+	/** Builds the space's scope from `partition` alone, never from newer records. */
+	openSession(
+		space: Space,
+		partition: readonly Space[],
+	): Promise<EngineDependencies | null>;
 	persistState(state: LocalState): Promise<void>;
 	getState(): LocalState;
-	onPushComplete?(): void;
+	/** Another device may want the space now: its channel is signalled. */
+	onPushComplete?(space: Space): void;
+	/** The space compared fine in a refresh: its storage answers this device. */
+	onSpaceRefreshed?(space: Space): void;
 	logInfo(
 		operation: ESyncLogOperation,
 		message: string,
@@ -91,8 +107,10 @@ export class SyncController {
 	constructor(host: SyncControllerHost) {
 		this.host = host;
 		this.runtimeState = new SyncControllerRuntimeState();
+		const open = (space: Space) =>
+			this.host.openSession(space, this.runtimeState.spaces());
 		this.fileDiffs = new FileDiffService({
-			openSession: () => this.host.openSession(),
+			openSession: (path) => open(this.spaceFor(path)),
 			getResult: () => this.runtimeState.getResult(),
 		});
 		this.operations = new OperationRunner({
@@ -101,12 +119,13 @@ export class SyncController {
 			clearFileDiffs: () => this.fileDiffs.clear(),
 		});
 		this.history = new HistoryService({
-			openSession: () => this.host.openSession(),
+			openSession: (path) =>
+				open(path === undefined ? VAULT_SPACE : this.spaceFor(path)),
 			enqueue: (task) => this.runtimeState.enqueue(task),
 			refresh: () => this.operations.refreshNow(),
 		});
 		this.maintenance = new MaintenanceService({
-			openSession: () => this.host.openSession(),
+			openSession: () => open(VAULT_SPACE),
 			logInfo: (operation, message, details) =>
 				this.host.logInfo(operation, message, details),
 		});
@@ -137,6 +156,14 @@ export class SyncController {
 
 	async refresh(): Promise<void> {
 		await this.operations.refresh();
+	}
+
+	/** Before a share mounts into an empty folder, or once it closes; see `OperationRunner.forget`. */
+	forgetSpace(
+		space: Space,
+		options?: { deleteRemote?: boolean },
+	): Promise<void> {
+		return this.operations.forget(space, options);
 	}
 
 	invalidate(reason: string): void {
@@ -178,16 +205,23 @@ export class SyncController {
 		if (this.runtimeState.getSnapshot().error) return;
 		const result = this.runtimeState.getResult();
 		if (!result) return;
-		const paths = selectAutoPushPaths(result.diff, only);
+		const paths = selectAutoPushPaths(result.diff, only).filter(
+			(path) => !this.spaceFor(path).readOnly,
+		);
 		if (paths.length === 0) return;
 		await this.pushPaths(paths);
 	}
 
 	private async autoMerge(): Promise<void> {
-		await this.operations.runOperation(
-			ESyncLogOperation.Compare,
-			(deps, result, ctx) => autoMergeOp(deps, result, ctx),
-		);
+		for (const space of this.runtimeState.spaces()) {
+			const conflicts = this.runtimeState.resultOf(space)?.diff.conflicts;
+			if ((conflicts?.length ?? 0) === 0) continue;
+			await this.operations.runOperation(
+				space,
+				ESyncLogOperation.Compare,
+				autoMergeOp,
+			);
+		}
 	}
 
 	private async refreshAndAutoMerge(): Promise<CompareResult | null> {
@@ -223,20 +257,28 @@ export class SyncController {
 		this.runtimeState.cancel();
 	}
 
+	/** Refused whole when any path is in a read-only share: its owner's relay would refuse it, Revert drops it. */
 	async pushPaths(paths: ReadonlyArray<string>): Promise<SyncOperationResult> {
-		if (paths.length === 0) return { ok: false };
-		return this.operations.runOperation(
+		if (paths.some((path) => this.spaceFor(path).readOnly)) {
+			return {
+				ok: false,
+				error:
+					"Files in a read-only shared folder cannot be pushed. Revert them to drop the changes.",
+			};
+		}
+		return this.perSpace(
 			ESyncLogOperation.Push,
-			(deps, result, ctx) => pushPathsOp(deps, result, paths, ctx),
+			paths,
+			(group) => (deps, result, ctx) => pushPathsOp(deps, result, group, ctx),
 			true,
 		);
 	}
 
 	async pullPaths(paths: ReadonlyArray<string>): Promise<SyncOperationResult> {
-		if (paths.length === 0) return { ok: false };
-		return this.operations.runOperation(
+		return this.perSpace(
 			ESyncLogOperation.Pull,
-			(deps, result, ctx) => pullPathsOp(deps, result, paths, ctx),
+			paths,
+			(group) => (deps, result, ctx) => pullPathsOp(deps, result, group, ctx),
 			true,
 		);
 	}
@@ -245,6 +287,7 @@ export class SyncController {
 	async applyLocalHunks(args: LocalHunksArgs): Promise<SyncOperationResult> {
 		if (args.push.size === 0 && args.revert.size === 0) return { ok: false };
 		return this.operations.runOperation(
+			this.spaceFor(args.path),
 			args.push.size > 0 ? ESyncLogOperation.Push : ESyncLogOperation.Compare,
 			(deps, result, ctx) => localHunksOp(deps, result, args, ctx),
 		);
@@ -270,6 +313,7 @@ export class SyncController {
 	): Promise<SyncOperationResult> {
 		if (selected.size === 0) return { ok: false };
 		return this.operations.runOperation(
+			this.spaceFor(path),
 			ESyncLogOperation.Pull,
 			(deps, result, ctx) =>
 				pullHunksOp(deps, result, { path, selected, expected }, ctx),
@@ -279,10 +323,10 @@ export class SyncController {
 	async revertPaths(
 		paths: ReadonlyArray<string>,
 	): Promise<SyncOperationResult> {
-		if (paths.length === 0) return { ok: false };
-		return this.operations.runOperation(
+		return this.perSpace(
 			ESyncLogOperation.Compare,
-			(deps, result, ctx) => revertPathsOp(deps, result, paths, ctx),
+			paths,
+			(group) => (deps, result, ctx) => revertPathsOp(deps, result, group, ctx),
 		);
 	}
 
@@ -292,6 +336,7 @@ export class SyncController {
 	 */
 	async resolveConflictKeepBoth(path: string): Promise<SyncOperationResult> {
 		return this.operations.runOperation(
+			this.spaceFor(path),
 			ESyncLogOperation.Push,
 			(deps, res, ctx) => keepBothConflictOp(deps, res, path, ctx),
 		);
@@ -301,11 +346,11 @@ export class SyncController {
 		paths: ReadonlyArray<string>,
 		strategy: EConflictStrategy,
 	): Promise<SyncOperationResult> {
-		const set = new Set(paths);
-		if (set.size === 0) return { ok: false };
 		const { op, logOp } = CONFLICT_STRATEGY_OPS[strategy];
-		return this.operations.runOperation(logOp, (deps, result, ctx) =>
-			op(deps, result, set, ctx),
+		return this.perSpace(
+			logOp,
+			new Set(paths),
+			(group) => (deps, result, ctx) => op(deps, result, new Set(group), ctx),
 		);
 	}
 
@@ -319,11 +364,39 @@ export class SyncController {
 		content: string,
 	): Promise<SyncOperationResult> {
 		return this.operations.runOperation(
+			this.spaceFor(path),
 			ESyncLogOperation.Push,
 			async (deps, res, ctx) => {
 				await writeBinary(deps.adapter, path, textToBytes(content));
 				return batchKeepLocalOp(deps, res, new Set([path]), ctx);
 			},
 		);
+	}
+
+	private spaceFor(path: string): Space {
+		return spaceOf(this.runtimeState.spaces(), path);
+	}
+
+	/** One operation per space the paths fall in; stops at the first that fails. */
+	private async perSpace(
+		operation: ESyncLogOperation,
+		paths: Iterable<string>,
+		bind: (group: string[]) => SpaceOperation,
+		cancellable = false,
+	): Promise<SyncOperationResult> {
+		let outcome: SyncOperationResult = { ok: false };
+		for (const [space, group] of pathsBySpace(
+			this.runtimeState.spaces(),
+			paths,
+		)) {
+			outcome = await this.operations.runOperation(
+				space,
+				operation,
+				bind(group),
+				cancellable,
+			);
+			if (!outcome.ok) break;
+		}
+		return outcome;
 	}
 }

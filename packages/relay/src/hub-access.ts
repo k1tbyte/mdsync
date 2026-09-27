@@ -9,12 +9,13 @@ import {
 	HUB_PATH,
 	HUB_SIGNAL_PATH,
 	OWNER,
+	shareChannel,
 	UNAUTHORIZED_CLOSE_CODE,
 } from "@obsync/protocol";
 import { type Admission, HUB_ADMISSION_HEADER, hubStub } from "./hub";
 import type { Grant } from "./hub-peer";
 import { fingerprint, relaySecret, secretsEqual } from "./secret";
-import { type ShareEnv, shareGrantOf, shareRoomId } from "./share";
+import { EShareRole, type ShareEnv, shareGrantOf } from "./share";
 
 /** Room tokens are 64 hex chars and share tokens 43; KV rejects keys over 512 bytes. */
 const MAX_TOKEN_LENGTH = 128;
@@ -57,8 +58,13 @@ export async function grantFor(
 		return { channel, grant: await fingerprint(token), who: OWNER };
 	}
 	const share = await shareGrantOf(env, token);
-	if (!share || shareRoomId(share.shareId) !== channel) return null;
-	return { channel, grant: await fingerprint(token), who: share.participantId };
+	if (!share || shareChannel(share.shareId) !== channel) return null;
+	return {
+		channel,
+		grant: await fingerprint(token),
+		who: share.participantId,
+		...(share.role === EShareRole.ReadOnly ? { readOnly: true } : {}),
+	};
 }
 
 async function admit(

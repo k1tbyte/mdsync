@@ -7,29 +7,37 @@ import {
 	StatePersister,
 } from "@/core";
 import type { ObsyncSettings } from "@/settings/model";
+import { reportWarning } from "@/shared/diagnostics";
+import { SpaceRecords } from "@/spaces/records";
 import { SyncController } from "@/sync/controller";
 import type { LiveNotes } from "@/sync/live-notes";
-import { askPassphrase, notifyInfo } from "@/ui";
+import { type Space, VAULT_SPACE } from "@/sync/space";
+import { askPassphrase, notifyError, notifyInfo } from "@/ui";
+
+import { createMoveFollower } from "./share-moves";
 
 export interface PluginRuntime {
 	controller: SyncController;
 	logs: LogService;
 	passphraseManager: PassphraseManager;
 	statePersister: StatePersister;
+	spaces: SpaceRecords;
 }
 
 interface BootstrapPluginRuntimeOptions {
 	app: App;
 	settings: ObsyncSettings;
-	onPushComplete?: () => void;
-	persistSettings?: () => Promise<void>;
-	liveNotes?: () => LiveNotes | undefined;
+	/** Also for a published space record: other devices learn of shares from the vault. */
+	onPushComplete?: (space: Space) => void;
+	onSpaceRefreshed?: (space: Space) => void;
+	persistSettings: () => Promise<void>;
+	liveNotes?: (space: Space) => LiveNotes | undefined;
 }
 
 export async function bootstrapPluginRuntime(
 	options: BootstrapPluginRuntimeOptions,
 ): Promise<PluginRuntime> {
-	const { app, settings, onPushComplete, persistSettings, liveNotes } = options;
+	const { app, settings, persistSettings, liveNotes } = options;
 	const { adapter, configDir } = app.vault;
 	const logs = new LogService(adapter, configDir);
 	await logs.load();
@@ -53,14 +61,41 @@ export async function bootstrapPluginRuntime(
 		liveNotes,
 	});
 
+	const spaces = new SpaceRecords(settings, persistSettings);
+	const followMoves = createMoveFollower(app.vault, spaces, notifyError);
+	const warnInert = createInertWarning(spaces);
 	const controller = new SyncController({
+		spaces: async () => {
+			const vault = await openSession(VAULT_SPACE, [VAULT_SPACE]);
+			if (!vault) return null;
+			const { published, closed, left } = await spaces.sync(
+				vault.storage,
+				vault.key,
+			);
+			if (published) options.onPushComplete?.(VAULT_SPACE);
+			if (left.length > 0) {
+				notifyError(
+					`The vault storage changed: ${left.length} shared folder(s) stay with the previous one and sync here as plain folders until you switch back.`,
+				);
+			}
+			// Queued behind this refresh: a share reopened later must not start from this baseline.
+			for (const space of [...closed, ...left]) {
+				controller
+					.forgetSpace(space)
+					.catch((err) => reportWarning("A closed share kept its state.", err));
+			}
+			await followMoves();
+			warnInert();
+			return spaces.partition();
+		},
 		openSession,
 		persistState: (state) => statePersister.persist(state),
 		getState: () => statePersister.state,
 		logInfo: (op, msg, details) => logs.info(op, msg, details),
 		logWarn: (op, msg, details) => logs.warn(op, msg, details),
 		logError: (op, msg, details) => logs.error(op, msg, details),
-		onPushComplete,
+		onPushComplete: options.onPushComplete,
+		onSpaceRefreshed: options.onSpaceRefreshed,
 	});
 
 	return {
@@ -68,6 +103,7 @@ export async function bootstrapPluginRuntime(
 		logs,
 		passphraseManager,
 		statePersister,
+		spaces,
 	};
 }
 
@@ -77,4 +113,18 @@ export function disposePluginRuntime(runtime: PluginRuntime): void {
 	runtime.controller.dispose();
 	runtime.passphraseManager.dispose();
 	runtime.logs.dispose();
+}
+
+/** Once per record and session: two devices shared one folder offline, and this one lost. */
+function createInertWarning(spaces: SpaceRecords): () => void {
+	const warned = new Set<string>();
+	return () => {
+		for (const { id, name, root } of spaces.inert()) {
+			if (warned.has(id)) continue;
+			warned.add(id);
+			notifyError(
+				`"${name}" is not syncing: another shared folder already holds "${root}". Stop sharing it in the Sync settings.`,
+			);
+		}
+	};
 }

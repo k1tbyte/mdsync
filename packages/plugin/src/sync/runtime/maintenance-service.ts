@@ -24,7 +24,12 @@ export class MaintenanceService {
 	async verifyRemote(deep: boolean): Promise<VerifyResult | null> {
 		const session = await this.deps.openSession();
 		if (!session) return null;
-		const result = await verifyRemote(session.storage, session.key, deep);
+		const result = await verifyRemote(
+			session.storage,
+			session.key,
+			session.space.root,
+			deep,
+		);
 		await this.deps.logInfo(
 			ESyncLogOperation.Compare,
 			`Integrity check: ${result.checked} object(s), ${result.missing.length} missing, ${result.corrupt.length} corrupt.`,
@@ -36,7 +41,11 @@ export class MaintenanceService {
 	async deepCleanRemote(): Promise<CleanResult | null> {
 		const session = await this.deps.openSession();
 		if (!session) return null;
-		const result = await deepCleanOrphans(session.storage, session.key);
+		const result = await deepCleanOrphans(
+			session.storage,
+			session.key,
+			session.space.root,
+		);
 		await this.deps.logInfo(
 			ESyncLogOperation.Reset,
 			`Deep-clean ${cleanSummary(result)}`,

@@ -76,6 +76,11 @@ export function docHandlers(store: DocStore): Handlers {
 			}
 			handler(context, frame);
 		};
+	/** Frames that change a document; a read-only grant only follows. */
+	const write = <F extends ClientFrame>(handler: Handler<F>): Handler<F> =>
+		live((context, frame) => {
+			if (!context.grant.readOnly) handler(context, frame);
+		});
 	const sendState = (
 		peer: HubPeer,
 		grant: Grant,
@@ -118,14 +123,14 @@ export function docHandlers(store: DocStore): Handlers {
 			peer.unsubscribe(slot, doc);
 			toFollowers(peers, grant.channel, doc, peer, leaveFrame(peer));
 		},
-		[EFrame.Update]: live((context, frame) =>
+		[EFrame.Update]: write((context, frame) =>
 			logged(
 				context,
 				frame,
 				store.append(context.grant.channel, frame.doc, frame.payload),
 			),
 		),
-		[EFrame.Seed]: live((context, frame) => {
+		[EFrame.Seed]: write((context, frame) => {
 			const { peer, grant } = context;
 			const seq = store.seed(grant.channel, frame.doc, frame.payload);
 			// Concurrent seeds would double the text: the loser gets the room to merge into.
@@ -139,10 +144,10 @@ export function docHandlers(store: DocStore): Handlers {
 				payload,
 			}),
 		),
-		[EFrame.Snapshot]: live(({ grant }, { doc, upto, payload }) =>
+		[EFrame.Snapshot]: write(({ grant }, { doc, upto, payload }) =>
 			store.compact(grant.channel, doc, payload, upto),
 		),
-		[EFrame.Rotate]: live(({ peers, peer, grant }, frame) => {
+		[EFrame.Rotate]: write(({ peers, peer, grant }, frame) => {
 			const { slot, doc, target, upto, payload } = frame;
 			if (!target || target === doc || target.length > MAX_DOC_ID_LENGTH) {
 				return;

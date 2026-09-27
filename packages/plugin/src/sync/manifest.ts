@@ -11,6 +11,7 @@ import {
 	REMOTE_OBJECTS_PREFIX,
 } from "@/sync/constants";
 import { defaultDeviceName } from "./device";
+import { manifestToSpace, manifestToVault } from "./space-paths";
 import type { LocalSnapshot, Manifest } from "./types";
 
 // A per-path baseline can share a snapshot id with HEAD without holding all its files.
@@ -27,6 +28,7 @@ const publishedHeads = new WeakMap<
 export async function fetchRemoteManifest(
 	storage: ObjectStorage,
 	key: EncryptionKey,
+	root: string,
 	known?: Manifest | null,
 ): Promise<Manifest | null> {
 	const cached = validators.get(storage);
@@ -54,12 +56,13 @@ export async function fetchRemoteManifest(
 		publishedHeads.delete(storage);
 		return null;
 	}
-	const manifest = await decryptJson<Manifest>(key, read.body);
-	if (manifest.version > MANIFEST_VERSION) {
+	const raw = await decryptJson<Manifest>(key, read.body);
+	if (raw.version > MANIFEST_VERSION) {
 		throw new Error(
-			`Remote manifest version ${manifest.version} requires a newer Obsync version.`,
+			`Remote manifest version ${raw.version} requires a newer Obsync version.`,
 		);
 	}
+	const manifest = manifestToVault(raw, root);
 	if (read.etag) {
 		validators.set(storage, {
 			etag: read.etag,
@@ -130,6 +133,7 @@ export class ConcurrentPushError extends Error {
 export async function publishManifestWithGuard(
 	storage: ObjectStorage,
 	key: EncryptionKey,
+	root: string,
 	manifest: Manifest,
 	expectedParentSnapshotId: string | null,
 	baseline: Manifest | null = null,
@@ -137,9 +141,9 @@ export async function publishManifestWithGuard(
 	// Sealed first: gzipping a 20k-file manifest is ~50 ms of main thread, and
 	// spending it after the precheck would widen the window a competing writer
 	// has to slip through.
-	const blob = await encryptJson(key, manifest);
+	const blob = await encryptJson(key, manifestToSpace(manifest, root));
 	// Stale-read reconciliation prevents a lagging backend from appearing as a competing writer.
-	const fetched = await fetchRemoteManifest(storage, key, baseline);
+	const fetched = await fetchRemoteManifest(storage, key, root, baseline);
 	const precheck = reconcileRemoteAgainstBaseline(
 		fetched,
 		baseline,
@@ -154,7 +158,7 @@ export async function publishManifestWithGuard(
 		);
 	}
 	await storage.put(REMOTE_MANIFEST_KEY, blob, "application/octet-stream");
-	const verify = await fetchRemoteManifest(storage, key);
+	const verify = await fetchRemoteManifest(storage, key, root);
 	if (
 		verify?.snapshotId === manifest.snapshotId ||
 		(verify && ownSnapshotIds(manifest, storage, key).has(verify.snapshotId))

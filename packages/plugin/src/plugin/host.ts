@@ -3,6 +3,7 @@ import type { App } from "obsidian";
 import type { DeviceName, LogService, PassphraseManager } from "@/core";
 import type { ObsyncSettings } from "@/settings/model";
 import type { SettingsTransferController } from "@/settings/transfer-controller";
+import type { SpaceRecords } from "@/spaces/records";
 import type { SyncController } from "@/sync/controller";
 
 import type { IgnoreStateHandle } from "./ignore-state";
@@ -23,6 +24,7 @@ export interface PluginHost {
 	readonly device: DeviceName;
 	readonly transfer: SettingsTransferController;
 	readonly ignoreState: IgnoreStateHandle;
+	readonly spaces: SpaceRecords;
 
 	saveSettings(): Promise<void>;
 	scheduleScopeRefresh(reason?: string): void;

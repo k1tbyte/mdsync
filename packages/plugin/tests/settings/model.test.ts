@@ -35,6 +35,15 @@ describe("mergeSettings", () => {
 		expect(mergeSettings({ showFileSizes: false }).showFileSizes).toBe(false);
 	});
 
+	it("keeps only folder paths in the pending share moves", () => {
+		const localRoots = { a: "Team", b: "", c: 3 } as unknown as Record<
+			string,
+			string
+		>;
+		expect(mergeSettings({ localRoots }).localRoots).toEqual({ a: "Team" });
+		expect(mergeSettings(null).localRoots).toEqual({});
+	});
+
 	it("drops the retired relay and broker fields but keeps the relay config", () => {
 		const merged = mergeSettings({
 			relayUrl: "https://relay.example",

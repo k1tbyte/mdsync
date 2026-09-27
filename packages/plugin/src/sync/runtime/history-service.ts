@@ -40,7 +40,8 @@ import { scanVault } from "@/vault/scanner";
 const NO_SESSION = "Storage session unavailable";
 
 interface HistoryServiceDeps {
-	openSession: () => Promise<EngineDependencies | null>;
+	/** The session of the space that owns the path; the vault's without one. */
+	openSession: (path?: string) => Promise<EngineDependencies | null>;
 	/** Serialises writes against the rest of the sync queue. */
 	enqueue: <T>(task: () => Promise<T>) => Promise<T>;
 	refresh: () => Promise<void>;
@@ -51,11 +52,12 @@ export class HistoryService {
 	constructor(private readonly deps: HistoryServiceDeps) {}
 
 	async getFileHistory(path: string): Promise<FileVersion[]> {
-		const session = await this.deps.openSession();
+		const session = await this.deps.openSession(path);
 		if (!session) return [];
 		return queryFileHistory({
 			storage: session.storage,
 			key: session.key,
+			root: session.space.root,
 			path,
 		});
 	}
@@ -63,13 +65,21 @@ export class HistoryService {
 	async listDeletedFiles(): Promise<DeletedFilesResult> {
 		const session = await this.deps.openSession();
 		if (!session) return { files: [], lagging: false, truncated: false };
-		return queryDeletedFiles({ storage: session.storage, key: session.key });
+		return queryDeletedFiles({
+			storage: session.storage,
+			key: session.key,
+			root: session.space.root,
+		});
 	}
 
 	async listSnapshots(): Promise<SnapshotListResult> {
 		const session = await this.deps.openSession();
 		if (!session) return { snapshots: [], lagging: false };
-		return querySnapshots({ storage: session.storage, key: session.key });
+		return querySnapshots({
+			storage: session.storage,
+			key: session.key,
+			root: session.space.root,
+		});
 	}
 
 	/** What a restore would change, computed against a fresh scan of the vault. */
@@ -118,6 +128,7 @@ export class HistoryService {
 		const target = await resolveSnapshotManifest(
 			session.storage,
 			session.key,
+			session.space.root,
 			snapshotId,
 		);
 		if (!target) {
@@ -137,6 +148,7 @@ export class HistoryService {
 		await storeSetSnapshotPinned(
 			session.storage,
 			session.key,
+			session.space.root,
 			snapshotId,
 			pinned,
 			label,
@@ -146,14 +158,14 @@ export class HistoryService {
 	async getHistoryDiff(
 		request: HistoryDiffRequest,
 	): Promise<FileDiffModel | null> {
-		const session = await this.deps.openSession();
+		const session = await this.deps.openSession(request.path);
 		if (!session) return null;
 		return buildHistoryDiff(session, request);
 	}
 
 	async restoreFileVersion(path: string, hash: string): Promise<void> {
 		await this.deps.enqueue(async () => {
-			const session = await this.requireSession();
+			const session = await this.requireSession(path);
 			const bytes = await loadVersionBytes(session.storage, session.key, hash);
 			await writeBinary(session.adapter, path, bytes);
 			await this.deps.refresh();
@@ -169,7 +181,7 @@ export class HistoryService {
 	): Promise<void> {
 		if (selected.size === 0) return;
 		await this.deps.enqueue(async () => {
-			const session = await this.requireSession();
+			const session = await this.requireSession(path);
 			const versionBytes = await loadVersionBytes(
 				session.storage,
 				session.key,
@@ -208,8 +220,8 @@ export class HistoryService {
 		});
 	}
 
-	private async requireSession(): Promise<EngineDependencies> {
-		const session = await this.deps.openSession();
+	private async requireSession(path?: string): Promise<EngineDependencies> {
+		const session = await this.deps.openSession(path);
 		if (!session) throw new Error(NO_SESSION);
 		return session;
 	}

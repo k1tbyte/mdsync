@@ -1,6 +1,8 @@
 import { diff } from "./diff";
 import type { CompareResult, EngineDependencies } from "./engine";
 import type { OperationOutcome } from "./operations/types";
+import type { Space } from "./space";
+import { manifestMoved } from "./space-paths";
 import type {
 	LocalSnapshot,
 	LocalState,
@@ -47,17 +49,21 @@ export function recomputeAfterWrite(
 	};
 }
 
-/** Flattens persisted per-storage state into session view. */
+/** Flattens persisted per-storage state into session view, for the space mounted at `root`. */
 export function projectSession(
 	local: LocalState,
 	identity: string,
+	root: string,
 ): SessionState {
 	const slot = local.storages[identity];
 	return {
 		deviceId: local.deviceId,
 		deviceName: local.deviceName,
 		vaultId: slot?.vaultId ?? null,
-		baseline: slot?.baseline ?? null,
+		// The share's folder was moved since: the same files, at the new root.
+		baseline: slot?.baseline
+			? manifestMoved(slot.baseline, slot.root ?? "", root)
+			: null,
 		hashCache: local.hashCache,
 	};
 }
@@ -67,18 +73,22 @@ export function mergeSessionIntoLocal(
 	current: LocalState,
 	session: SessionState,
 	identity: string,
+	space: Space,
 ): LocalState {
 	const storages: LocalState["storages"] = { ...current.storages };
+	const at = space.root === "" ? {} : { root: space.root, space: space.id };
 	if (session.vaultId !== null) {
 		storages[identity] = {
 			vaultId: session.vaultId,
 			baseline: session.baseline,
+			...at,
 		};
 	} else if (current.storages[identity] && session.baseline !== null) {
 		// Preserve vaultId if engine returned baseline without vaultId (defensive).
 		storages[identity] = {
 			vaultId: current.storages[identity].vaultId,
 			baseline: session.baseline,
+			...at,
 		};
 	} else {
 		delete storages[identity];
@@ -89,4 +99,12 @@ export function mergeSessionIntoLocal(
 		storages,
 		hashCache: session.hashCache,
 	};
+}
+
+/** Drops a share's slot, wherever it was mounted: it mounts afresh, no session needed. */
+export function forgetShare(state: LocalState, id: string): LocalState {
+	const storages = Object.fromEntries(
+		Object.entries(state.storages).filter(([, slot]) => slot.space !== id),
+	);
+	return { ...state, storages };
 }

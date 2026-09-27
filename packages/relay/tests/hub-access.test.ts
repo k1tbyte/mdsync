@@ -48,6 +48,10 @@ async function shareKv(): Promise<FakeKV> {
 		"tok:participant",
 		JSON.stringify({ shareId: "share1", participantId: "p1" }),
 	);
+	await kv.put(
+		"tok:viewer",
+		JSON.stringify({ shareId: "share1", participantId: "p2", role: "ro" }),
+	);
 	return kv;
 }
 
@@ -106,6 +110,10 @@ describe("grants", () => {
 			await grantFor(env, "obsync-share-share2", "participant"),
 		).toBeNull();
 		expect(await grantFor(env, VAULT, "participant")).toBeNull();
+		expect(await grantFor(env, SHARE, "viewer")).toMatchObject({
+			who: "p2",
+			readOnly: true,
+		});
 	});
 
 	it("refuses an oversized token before it reaches KV", async () => {

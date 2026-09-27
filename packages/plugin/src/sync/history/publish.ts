@@ -20,6 +20,7 @@ import type { HistoryConfig, SnapshotEntry } from "./types";
 export async function publishManifestWithHistory(
 	storage: ObjectStorage,
 	key: EncryptionKey,
+	root: string,
 	manifest: Manifest,
 	parent: Manifest | null,
 	history: HistoryConfig | undefined,
@@ -28,6 +29,7 @@ export async function publishManifestWithHistory(
 	await publishManifestWithGuard(
 		storage,
 		key,
+		root,
 		manifest,
 		parent?.snapshotId ?? null,
 		baseline,
@@ -45,6 +47,7 @@ export async function publishManifestWithHistory(
 		const log = await updateHistoryLog(
 			storage,
 			key,
+			root,
 			(current) => prependSnapshot(current, entry, changes),
 			(current) => current.snapshots.some((s) => s.id === entry.id),
 		);
@@ -53,6 +56,7 @@ export async function publishManifestWithHistory(
 			await collectGarbage({
 				storage,
 				key,
+				root,
 				log,
 				maxSnapshots: history.maxSnapshots,
 				headManifest: manifest,

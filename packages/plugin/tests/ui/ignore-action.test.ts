@@ -1,9 +1,11 @@
-import { TFile } from "obsidian";
+import { TFile, TFolder } from "obsidian";
 import { describe, expect, it } from "vitest";
 
 import { IGNORE_FILE_NAME } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
+import { type Space, VAULT_SPACE } from "@/sync/space";
 import {
+	carryVaultIgnores,
 	stopIgnoring,
 	toggleGlobalIgnore,
 	toggleLocalIgnore,
@@ -25,6 +27,12 @@ interface PluginOptions {
 	ignoredGlobally?: boolean;
 	/** null = no syncignore.md in the vault. */
 	sharedNote?: string | null;
+	/** Other notes and files by path. */
+	files?: Record<string, string>;
+	folders?: string[];
+	/** Ignored by the vault's shared rules. */
+	ignoredPaths?: string[];
+	spaces?: Space[];
 	saveFails?: boolean;
 }
 
@@ -36,16 +44,20 @@ function makePlugin(options: PluginOptions = {}): TestPlugin {
 	};
 	const created: Array<[string, string]> = [];
 	const modified: Array<[string, string]> = [];
-	const sharedFile =
-		options.sharedNote === null || options.sharedNote === undefined
-			? null
-			: Object.assign(new TFile(), { path: IGNORE_FILE_NAME });
+	const files: Record<string, string> = { ...options.files };
+	if (typeof options.sharedNote === "string") {
+		files[IGNORE_FILE_NAME] = options.sharedNote;
+	}
+	const ignoredPaths = options.ignoredPaths ?? [];
 
 	const plugin = {
 		settings: { ignorePatterns: options.patterns ?? "" },
+		spaces: { partition: () => options.spaces ?? [VAULT_SPACE] },
 		ignoreState: {
 			isIgnoredLocally: () => options.ignoredLocally ?? false,
-			isIgnoredGlobally: () => options.ignoredGlobally ?? false,
+			isIgnoredGlobally: (path: string) =>
+				options.ignoredGlobally ?? ignoredPaths.includes(path),
+			ignoredPaths: () => new Set(ignoredPaths),
 			refresh: async () => {
 				calls.refreshed++;
 			},
@@ -59,11 +71,15 @@ function makePlugin(options: PluginOptions = {}): TestPlugin {
 		},
 		app: {
 			vault: {
-				getAbstractFileByPath: (path: string) =>
-					path === IGNORE_FILE_NAME ? sharedFile : null,
-				read: async () => options.sharedNote ?? "",
-				modify: async (_file: TFile, content: string) => {
-					modified.push([IGNORE_FILE_NAME, content]);
+				getAbstractFileByPath: (path: string) => {
+					if (options.folders?.includes(path)) {
+						return Object.assign(new TFolder(), { path });
+					}
+					return path in files ? Object.assign(new TFile(), { path }) : null;
+				},
+				read: async (file: TFile) => files[file.path] ?? "",
+				modify: async (file: TFile, content: string) => {
+					modified.push([file.path, content]);
 				},
 				create: async (path: string, content: string) => {
 					created.push([path, content]);
@@ -208,5 +224,35 @@ describe("stopIgnoring", () => {
 
 		expect(plugin.settings.ignorePatterns).toBe("/foo.md");
 		expect(plugin.calls.refreshed).toBe(0);
+	});
+});
+
+describe("ignore rules in a shared folder", () => {
+	const spaces = [VAULT_SPACE, { id: "a", root: "Team" }];
+
+	it("go to the share's own note, relative to its root", async () => {
+		const plugin = makePlugin({ spaces, sharedNote: "/old.md" });
+		await toggleGlobalIgnore(plugin, "Team/drafts", true);
+
+		expect(plugin.created).toEqual([["Team/syncignore.md", "/drafts/"]]);
+		expect(plugin.modified).toEqual([]);
+	});
+
+	it("carry what the vault kept out of a folder into the new share's note", async () => {
+		const plugin = makePlugin({
+			files: { "Team/syncignore.md": "*.tmp" },
+			folders: ["Team/private"],
+			ignoredPaths: [
+				"Team/private",
+				"Team/private/a.md",
+				"Team/b.pdf",
+				"c.pdf",
+			],
+		});
+
+		expect(await carryVaultIgnores(plugin, "Team")).toBe(true);
+		expect(plugin.modified).toEqual([
+			["Team/syncignore.md", "*.tmp\n/private/\n/b.pdf"],
+		]);
 	});
 });

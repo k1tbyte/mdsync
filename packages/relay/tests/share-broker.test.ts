@@ -270,6 +270,30 @@ describe("token issuing", () => {
 			"p5",
 		]);
 	});
+
+	it("lists each participant with the name and role it was invited with", async () => {
+		const env = makeEnv();
+		await call(env, "/share/tokens", {
+			method: "POST",
+			admin: true,
+			body: JSON.stringify({
+				shareId: SHARE,
+				participantId: "p1",
+				label: "Friend",
+				role: EShareRole.ReadOnly,
+			}),
+		});
+
+		const response = await call(env, `/share/tokens?shareId=${SHARE}`, {
+			admin: true,
+		});
+
+		expect(await response.json()).toEqual({
+			participants: [
+				{ participantId: "p1", label: "Friend", role: EShareRole.ReadOnly },
+			],
+		});
+	});
 });
 
 describe("token revocation", () => {
@@ -310,6 +334,34 @@ describe("token revocation", () => {
 			},
 		);
 		expect(response.status).toBe(400);
+	});
+
+	it("lets a participant leave with only their own token", async () => {
+		const env = await registeredEnv();
+		const token = await issue(env, "p1");
+		const other = await issue(env, "p2");
+		const leave = () => call(env, "/share/token", { method: "DELETE", token });
+
+		expect(await (await leave()).json()).toEqual({ revoked: true });
+		expect(await (await leave()).json()).toEqual({ revoked: false });
+
+		expect((await sign(env, token, { op: "get", key: "a" })).status).toBe(401);
+		expect((await sign(env, other, { op: "get", key: "a" })).status).toBe(200);
+		expect(env.dropped).toEqual([await fingerprint(token)]);
+	});
+
+	it("never lets a stale token take down the one issued after it", async () => {
+		const env = await registeredEnv();
+		const old = await issue(env, "p1");
+		const record = env.SHARE_TOKENS.map.get(`tok:${old}`) ?? "";
+		const fresh = await issue(env, "p1");
+		// KV still serving the replaced token, as it may for a minute.
+		env.SHARE_TOKENS.map.set(`tok:${old}`, record);
+
+		await call(env, "/share/token", { method: "DELETE", token: old });
+
+		expect((await sign(env, fresh, { op: "get", key: "a" })).status).toBe(200);
+		expect(env.SHARE_TOKENS.map.get(`pt:${SHARE}:p1`)).toBe(fresh);
 	});
 });
 
@@ -372,6 +424,19 @@ describe("signing", () => {
 		const url = new URL(body.url);
 		expect(url.pathname).toBe("/bucket");
 		expect(url.searchParams.get("prefix")).toBe("vault/shares/share1/");
+	});
+
+	it("passes a page size to a listing and refuses one S3 would not take", async () => {
+		const env = await registeredEnv();
+		const token = await issue(env, "p1");
+		const one = await sign(env, token, { op: "list", maxKeys: 1 });
+		const url = new URL(((await one.json()) as { url: string }).url);
+		expect(url.searchParams.get("max-keys")).toBe("1");
+
+		for (const maxKeys of [0, 1001, 1.5, "1"]) {
+			const response = await sign(env, token, { op: "list", maxKeys });
+			expect(response.status, String(maxKeys)).toBe(400);
+		}
 	});
 
 	it("rejects an unknown op rather than signing something arbitrary", async () => {

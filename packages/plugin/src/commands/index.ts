@@ -120,6 +120,17 @@ export function registerCommands(plugin: Plugin & PluginHost): void {
 	});
 
 	plugin.addCommand({
+		id: "toggle-live-authors",
+		name: "Toggle authors in live notes",
+		callback: () =>
+			notifyInfo(
+				plugin.realtime.live.toggleAuthors()
+					? "Text others typed in live notes is tinted by author."
+					: "Authors hidden.",
+			),
+	});
+
+	plugin.addCommand({
 		id: "open-diff-active-file",
 		name: "Open diff for active file",
 		checkCallback: (checking) => {

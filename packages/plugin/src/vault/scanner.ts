@@ -169,17 +169,19 @@ export async function scanVault(
 		}
 	}
 
-	// Carry forward cached entries under unreadable directories to avoid re-hashing later.
-	if (unreadable.length > 0) {
-		for (const [path, entry] of Object.entries(hashCache)) {
-			if (!updatedCache[path] && isUnderUnreadable(path, unreadable)) {
-				updatedCache[path] = entry;
-			}
+	// Carry forward what this scan could not see: entries under unreadable
+	// directories, and other spaces' files, whose own scans keep them fresh.
+	for (const [path, entry] of Object.entries(hashCache)) {
+		if (updatedCache[path]) continue;
+		if (!scope.owns(path) || isUnderUnreadable(path, unreadable)) {
+			updatedCache[path] = entry;
 		}
 	}
 
 	// Folders were reached via canDescend; re-testing bypasses extension-based ignore rules.
-	const emptyFolders = rawEmptyFolders.filter((dir) => scope.canDescend(dir));
+	const emptyFolders = rawEmptyFolders.filter(
+		(dir) => scope.owns(dir) && scope.canDescend(dir),
+	);
 	return {
 		snapshot: {
 			files: sortedByPath(files),

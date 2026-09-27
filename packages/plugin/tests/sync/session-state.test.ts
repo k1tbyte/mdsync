@@ -6,6 +6,7 @@ import {
 	projectSession,
 	recomputeAfterWrite,
 } from "@/sync/session-state";
+import { VAULT_SPACE } from "@/sync/space";
 import type {
 	LocalState,
 	Manifest,
@@ -14,6 +15,8 @@ import type {
 } from "@/sync/types";
 import { EFileKind } from "@/sync/types";
 import { createScopePolicy } from "@/vault/scope";
+
+const TEAM = { id: "team", root: "Team" };
 
 const scope: EngineDependencies["scope"] = createScopePolicy({
 	settingsSync: DEFAULT_SETTINGS_SYNC,
@@ -155,9 +158,9 @@ describe("session projection", () => {
 	};
 
 	it("reads only the slot belonging to the active storage", () => {
-		expect(projectSession(local, "s3:two")?.vaultId).toBe("v2");
-		expect(projectSession(local, "s3:two")?.baseline).toBeNull();
-		expect(projectSession(local, "unknown")?.vaultId).toBeNull();
+		expect(projectSession(local, "s3:two", "")?.vaultId).toBe("v2");
+		expect(projectSession(local, "s3:two", "")?.baseline).toBeNull();
+		expect(projectSession(local, "unknown", "")?.vaultId).toBeNull();
 	});
 
 	it("writes back one slot without disturbing the others", () => {
@@ -171,10 +174,38 @@ describe("session projection", () => {
 				hashCache: local.hashCache,
 			},
 			"s3:two",
+			VAULT_SPACE,
 		);
 
 		expect(next.storages["s3:one"]).toEqual(local.storages["s3:one"]);
 		expect(next.storages["s3:two"]?.baseline?.files["b.md"]?.hash).toBe("bb");
+	});
+
+	it("keeps a share's baseline when its folder moves, at the new root", () => {
+		const session = projectSession(local, "s3:one", "");
+		const team = mergeSessionIntoLocal(
+			local,
+			{ ...session, baseline: manifest({ "Team/a.md": "aa" }) },
+			"s3:one",
+			TEAM,
+		);
+		expect(team.storages["s3:one"]).toMatchObject({
+			root: "Team",
+			space: "team",
+		});
+		// Unmoved: the stored baseline itself, so the persister can still debounce.
+		const same = projectSession(team, "s3:one", "Team");
+		expect(same.baseline).toBe(team.storages["s3:one"]?.baseline);
+
+		const moved = projectSession(team, "s3:one", "Projects/Team");
+		expect(Object.keys(moved.baseline?.files ?? {})).toEqual([
+			"Projects/Team/a.md",
+		]);
+		const next = mergeSessionIntoLocal(team, moved, "s3:one", {
+			...TEAM,
+			root: "Projects/Team",
+		});
+		expect(next.storages["s3:one"]?.root).toBe("Projects/Team");
 	});
 
 	it("forgets the slot when the session no longer has a vault", () => {
@@ -187,6 +218,7 @@ describe("session projection", () => {
 				hashCache: {},
 			},
 			"s3:one",
+			VAULT_SPACE,
 		);
 		expect(next.storages["s3:one"]).toBeUndefined();
 		expect(next.storages["s3:two"]).toBeDefined();

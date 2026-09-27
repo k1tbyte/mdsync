@@ -37,12 +37,12 @@ describe("verifyRemote", () => {
 		await publishManifest(storage, key, head);
 		await storage.put(objectKey("H1"), new Uint8Array([1]));
 
-		const ok = await verifyRemote(storage, key, false);
+		const ok = await verifyRemote(storage, key, "", false);
 		expect(ok.checked).toBe(1);
 		expect(ok.missing).toHaveLength(0);
 
 		await storage.delete(objectKey("H1"));
-		const bad = await verifyRemote(storage, key, false);
+		const bad = await verifyRemote(storage, key, "", false);
 		expect(bad.missing).toEqual(["H1"]);
 	});
 });
@@ -53,7 +53,7 @@ describe("deepCleanOrphans", () => {
 		const head = manifest("s1", { "a.md": "H1" });
 		await publishManifest(storage, key, head);
 		await storage.put(objectKey("H1"), new Uint8Array([1]));
-		await writeHistoryLog(storage, key, {
+		await writeHistoryLog(storage, key, "", {
 			version: 2,
 			snapshots: [{ id: "s1", parentId: null, createdAt: 1, deviceId: "d" }],
 			changes: { s1: diffManifests(null, head) },
@@ -62,7 +62,7 @@ describe("deepCleanOrphans", () => {
 		await storage.put(objectKey("ORPHAN"), new Uint8Array([9]));
 		await storage.put(`${REMOTE_OBJECTS_PREFIX}stray`, new Uint8Array([9]));
 
-		const res = await deepCleanOrphans(storage, key);
+		const res = await deepCleanOrphans(storage, key, "");
 		expect(res.deletedObjects).toBe(2);
 		expect(res.deletedPins).toBe(0);
 		expect(await storage.exists(objectKey("H1"))).toBe(true);
@@ -70,7 +70,7 @@ describe("deepCleanOrphans", () => {
 		expect((await storage.list(REMOTE_PINS_PREFIX)).length).toBe(0);
 
 		// A second pass is a no-op.
-		const again = await deepCleanOrphans(storage, key);
+		const again = await deepCleanOrphans(storage, key, "");
 		expect(again.deletedObjects).toBe(0);
 		expect(again.deletedPins).toBe(0);
 	});
@@ -102,10 +102,10 @@ describe("deepCleanOrphans concurrency", () => {
 			s2: diffManifests(manifest("s1", { "a.md": "H1" }), head),
 			s1: diffManifests(null, manifest("s1", { "a.md": "H1" })),
 		};
-		await writeHistoryLog(storage, key, { version: 2, snapshots, changes });
+		await writeHistoryLog(storage, key, "", { version: 2, snapshots, changes });
 
 		storage.raceOnce = async () => {
-			await writeHistoryLog(storage, key, {
+			await writeHistoryLog(storage, key, "", {
 				version: 2,
 				snapshots: snapshots.map((entry) =>
 					entry.id === "s1" ? { ...entry, pinned: true } : entry,
@@ -114,7 +114,7 @@ describe("deepCleanOrphans concurrency", () => {
 			});
 		};
 
-		await expect(deepCleanOrphans(storage, key)).rejects.toThrow(
+		await expect(deepCleanOrphans(storage, key, "")).rejects.toThrow(
 			/pinned snapshot while cleaning/,
 		);
 	});

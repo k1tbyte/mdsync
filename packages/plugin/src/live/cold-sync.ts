@@ -5,7 +5,6 @@
  */
 
 import { sha256Hex } from "@/crypto";
-import type { LiveKeys } from "@/crypto/live-keys";
 import {
 	type IncomingText,
 	isNewerMark,
@@ -16,13 +15,16 @@ import type { LiveMark } from "@/sync/types";
 import { toLf } from "@/utils/eol";
 
 import type { AgreedTexts } from "./agreed-texts";
-import { docIdFor } from "./seal";
 import type { LiveSessions } from "./sessions";
+import { docIdIn, type LiveSpace } from "./space";
 
 export interface LiveColdSyncDeps {
-	rooms: Pick<LiveSessions, "roomOf" | "joining" | "save">;
+	rooms: Pick<LiveSessions, "roomOf" | "joining" | "save" | "spaceOf">;
 	agreed: AgreedTexts;
-	keys(): Promise<LiveKeys | null>;
+	/** The space this sync session runs in. */
+	space: string;
+	/** Its keys and root; null while it cannot go live. */
+	live(): Promise<LiveSpace | null>;
 }
 
 const encoder = new TextEncoder();
@@ -34,7 +36,7 @@ export class LiveColdSync implements LiveNotes {
 	async mark(path: string, hash: string): Promise<LiveMark | "later" | null> {
 		// Only notes go live; anything else would cost a key derivation per file.
 		if (!path.endsWith(LIVE_EXTENSION)) return null;
-		if (this.deps.rooms.joining(path)) return "later";
+		if (this.elsewhere(path) || this.deps.rooms.joining(path)) return "later";
 		const room = this.deps.rooms.roomOf(path);
 		// Unsettled, the file may still be a text the room has moved past.
 		if (room && !room.settled) return "later";
@@ -55,6 +57,7 @@ export class LiveColdSync implements LiveNotes {
 		mark: LiveMark | undefined,
 		texts: () => Promise<IncomingText | null>,
 	): Promise<LiveTake> {
+		if (this.elsewhere(path)) return "later";
 		const room = this.deps.rooms.roomOf(path);
 		// Written now, the file would be read back as the open's disk and undo what came in.
 		if (!room) return this.deps.rooms.joining(path) ? "later" : "cold";
@@ -80,7 +83,13 @@ export class LiveColdSync implements LiveNotes {
 
 	/** The note's first docId, which names it across rotations. */
 	private async docOf(path: string): Promise<string | null> {
-		const keys = await this.deps.keys();
-		return keys ? docIdFor(keys, path, 0) : null;
+		const space = await this.deps.live();
+		return space ? docIdIn(space, path, 0) : null;
+	}
+
+	/** Open in another space's room: this sync's partition is behind, the room answers once it catches up. */
+	private elsewhere(path: string): boolean {
+		const space = this.deps.rooms.spaceOf(path);
+		return space !== null && space !== this.deps.space;
 	}
 }

@@ -1,3 +1,9 @@
+export {
+	AcceptInviteModal,
+	type CreatedInvite,
+	InviteModal,
+} from "./invite-modal";
+export { ParticipantsModal } from "./participants-modal";
 export { askNewPassphrase, askPassphrase } from "./passphrase-modal";
 export { openPromiseModal } from "./promise-modal";
 export { confirmRemoteReset } from "./reset-modal";

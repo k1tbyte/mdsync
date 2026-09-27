@@ -1,11 +1,11 @@
 import { Menu } from "obsidian";
 
-import { IGNORE_FILE_NAME } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
 import { EConflictStrategy } from "@/sync/controller";
 import { addIgnoreMenuItem } from "@/ui/ignore-action";
 import { runWithNotice } from "@/ui/notices";
 import { openInEditor, revealInFileExplorer } from "@/ui/obsidian-helpers";
+import { isIgnoreNote } from "@/vault/ignore";
 import {
 	confirmAdoptNewVault,
 	confirmBatchResolve,
@@ -77,7 +77,7 @@ export class SourceControlActions {
 					.onClick(() => this.showHistory(path)),
 			);
 		}
-		if (path !== IGNORE_FILE_NAME) {
+		if (!isIgnoreNote(this.plugin.spaces.partition(), path)) {
 			menu.addSeparator();
 			addIgnoreMenuItem(menu, this.plugin, path, false);
 		}

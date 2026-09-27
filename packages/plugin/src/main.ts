@@ -17,6 +17,7 @@ import {
 import type { ObsyncSettingTab } from "@/settings/tab";
 import { SettingsTransferController } from "@/settings/transfer-controller";
 import { reportWarning } from "@/shared/diagnostics";
+import type { SpaceRecords } from "@/spaces/records";
 import type { SyncController } from "@/sync/controller";
 import { registerScheduler } from "@/sync/scheduler";
 import type { IndicatorHandle } from "@/ui";
@@ -37,6 +38,8 @@ import {
 } from "./plugin/ignore-state";
 import { registerProtocolHandlers } from "./plugin/protocols";
 import { createRealtime, type Realtime } from "./plugin/realtime";
+import { registerShareRenames } from "./plugin/share-moves";
+import { createShareRegistration } from "./plugin/share-registration";
 import {
 	refreshOpenHistoryViewsAfterPush,
 	refreshOpenSourceControlViews,
@@ -64,6 +67,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 	device!: DeviceName;
 	transfer!: SettingsTransferController;
 	ignoreState!: IgnoreStateHandle;
+	spaces!: SpaceRecords;
 	private settingsTab?: ObsyncSettingTab;
 	private statePersister!: StatePersister;
 	private scopeRefreshTimer: number | null = null;
@@ -76,12 +80,13 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 		const runtime = await bootstrapPluginRuntime({
 			app: this.app,
 			settings: this.settings,
-			onPushComplete: () => {
-				this.realtime.hub.signal();
+			onPushComplete: (space) => {
+				this.realtime.hub.signal(space.id);
 				refreshOpenHistoryViewsAfterPush(this);
 			},
+			onSpaceRefreshed: createShareRegistration(this),
 			persistSettings: () => this.saveSettings(),
-			liveNotes: () => this.realtime?.liveNotes,
+			liveNotes: (space) => this.realtime?.liveNotes(space),
 		});
 		// Obsidian can unload a plugin while its onload is still awaiting, and this
 		// one awaits a 3 MB state file. A teardown registered past that point is
@@ -92,6 +97,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 		}
 		this.logs = runtime.logs;
 		this.statePersister = runtime.statePersister;
+		this.spaces = runtime.spaces;
 		this.passphrase = runtime.passphraseManager;
 		this.controller = runtime.controller;
 		this.realtime = createRealtime({
@@ -99,6 +105,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 			passphrase: this.passphrase,
 			controller: this.controller,
 			settings: () => this.settings,
+			partition: () => this.spaces.partition(),
 		});
 		this.device = new DeviceName(this.statePersister, () =>
 			this.realtime.hub.restart(),
@@ -123,6 +130,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 		registerCommands(this);
 		registerScheduler(this, this.controller);
 		registerWorkspaceMenus(this);
+		registerShareRenames(this);
 		registerIgnoreFileRefresh(this);
 		registerStatePersistenceFlush(this, this.statePersister);
 
@@ -157,8 +165,10 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 		// Every settings write funnels through here, and any of them can change
-		// the room or the credentials the relay client is using.
+		// the room or the credentials the relay client is using, or which space a
+		// note is in: a record synced, accepted, closed, paused or moved.
 		this.realtime.hub.restartIfChanged();
+		void this.realtime.live.refresh();
 	}
 
 	async resetLocalState(): Promise<void> {
@@ -180,7 +190,10 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 
 	scheduleScopeRefresh(reason = "Sync scope changed."): void {
 		const snapshot = this.controller.getSnapshot();
-		if (!snapshot.result && snapshot.lastCompareAt === null) return;
+		// A first refresh still running read the old scope: drop it too.
+		if (!snapshot.result && snapshot.lastCompareAt === null && !snapshot.busy) {
+			return;
+		}
 		this.controller.invalidate(reason);
 		if (!isStorageConfigured(this.settings)) return;
 		if (this.scopeRefreshTimer !== null) {

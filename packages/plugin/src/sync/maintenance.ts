@@ -42,10 +42,11 @@ interface ReachableSet {
 async function reachableHashes(
 	storage: StorageAdapter,
 	key: EncryptionKey,
+	root: string,
 ): Promise<ReachableSet> {
 	const [head, log] = await Promise.all([
-		fetchRemoteManifest(storage, key),
-		readHistoryLog(storage, key),
+		fetchRemoteManifest(storage, key, root),
+		readHistoryLog(storage, key, root),
 	]);
 	const hashes = new Set<string>();
 	if (head) collectHashes(head, hashes);
@@ -60,7 +61,7 @@ async function reachableHashes(
 	}
 	for (const entry of log.snapshots) {
 		if (!entry.pinned) continue;
-		const manifest = await readPinManifest(storage, key, entry.id);
+		const manifest = await readPinManifest(storage, key, root, entry.id);
 		if (!manifest) {
 			complete = false;
 			continue;
@@ -77,11 +78,12 @@ async function reachableHashes(
 export async function verifyRemote(
 	storage: StorageAdapter,
 	key: EncryptionKey,
+	root: string,
 	deep: boolean,
 	options: MaintenanceOptions = {},
 ): Promise<VerifyResult> {
 	const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
-	const reachable = await reachableHashes(storage, key);
+	const reachable = await reachableHashes(storage, key, root);
 	if (!reachable.complete) {
 		throw new Error(
 			"Some history records could not be read, so the check would be incomplete. Try again later.",
@@ -116,10 +118,11 @@ export async function verifyRemote(
 export async function deepCleanOrphans(
 	storage: StorageAdapter,
 	key: EncryptionKey,
+	root: string,
 	options: MaintenanceOptions = {},
 ): Promise<CleanResult> {
 	const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
-	const reachable = await reachableHashes(storage, key);
+	const reachable = await reachableHashes(storage, key, root);
 	// An unreadable record means the live set is unknown, so we cannot safely delete.
 	if (!reachable.complete) {
 		throw new Error(
@@ -145,7 +148,7 @@ export async function deepCleanOrphans(
 	]);
 
 	// If another device published during listing, its new objects appear as orphans. Bail.
-	const headNow = await fetchRemoteManifest(storage, key);
+	const headNow = await fetchRemoteManifest(storage, key, root);
 	if ((headNow?.snapshotId ?? null) !== (reachable.head?.snapshotId ?? null)) {
 		throw new Error(
 			"Another device pushed while cleaning; nothing was deleted. Try again.",
@@ -153,7 +156,7 @@ export async function deepCleanOrphans(
 	}
 	// Pinning does not move HEAD, so the head check alone would let a pin created
 	// during the listing look like an orphan.
-	const logNow = await readHistoryLog(storage, key);
+	const logNow = await readHistoryLog(storage, key, root);
 	if (pinnedSignature(logNow) !== pinnedSignature(reachable.log)) {
 		throw new Error(
 			"Another device changed a pinned snapshot while cleaning; nothing was deleted. Try again.",

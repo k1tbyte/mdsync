@@ -5,7 +5,7 @@
 
 import { CHANNEL_DOC, EFrame, type ServerFrame } from "@obsync/protocol";
 
-import { type HubConnection, type HubListener, VAULT_SLOT } from "./connection";
+import type { SpaceHub, SpaceListener } from "./connection";
 
 export interface PresenceDevice {
 	id: string;
@@ -18,7 +18,7 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 /** The vault channel's other devices, as the settings tab shows them. */
-export class DevicePresence implements HubListener {
+export class DevicePresence implements SpaceListener {
 	private channel: ChannelPresence | null = null;
 	private devices: readonly PresenceDevice[] = [];
 	private readonly listeners = new Set<
@@ -26,7 +26,7 @@ export class DevicePresence implements HubListener {
 	>();
 
 	constructor(
-		private readonly hub: Pick<HubConnection, "send">,
+		private readonly hub: Pick<SpaceHub, "send">,
 		/** Read per connection, so a rename is announced after the restart it causes. */
 		private readonly self: () => PresenceDevice,
 	) {}
@@ -49,7 +49,7 @@ export class DevicePresence implements HubListener {
 	}
 
 	onFrame(frame: ServerFrame): void {
-		if (frame.slot !== VAULT_SLOT || frame.doc !== CHANNEL_DOC) return;
+		if (frame.doc !== CHANNEL_DOC) return;
 		// Presence is never stored, so every newcomer is told who is here.
 		if (frame.type === EFrame.Join) {
 			this.announce();
@@ -62,7 +62,6 @@ export class DevicePresence implements HubListener {
 		if (!this.channel) return;
 		this.hub.send({
 			type: EFrame.Awareness,
-			slot: VAULT_SLOT,
 			doc: CHANNEL_DOC,
 			payload: this.channel.announcement(),
 		});

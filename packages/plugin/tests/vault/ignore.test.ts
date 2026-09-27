@@ -1,6 +1,12 @@
 import type { DataAdapter } from "obsidian";
 import { describe, expect, it } from "vitest";
-import { createIgnoreMatcher, loadSharedIgnoreMatcher } from "@/vault/ignore";
+import { VAULT_SPACE } from "@/sync/space";
+import {
+	createIgnoreMatcher,
+	ignoreHome,
+	isIgnoreNote,
+	loadSharedIgnoreMatcher,
+} from "@/vault/ignore";
 
 describe("ignore matcher loading", () => {
 	it("loads local ignore patterns from settings only", async () => {
@@ -59,3 +65,28 @@ function createIgnoreAdapter(input: { syncignore?: string }) {
 		},
 	};
 }
+
+describe("ignore rules per space", () => {
+	const spaces = [VAULT_SPACE, { id: "a", root: "Team" }];
+
+	it("read a share's rules inside its root only", () => {
+		const matcher = createIgnoreMatcher("/drafts/\nsecret.md", "Team");
+
+		expect(matcher.ignores("Team/drafts/x.md")).toBe(true);
+		expect(matcher.ignores("Team/deep/secret.md")).toBe(true);
+		expect(matcher.ignores("drafts/x.md")).toBe(false);
+		expect(matcher.ignores("Teams/secret.md")).toBe(false);
+		expect(matcher.ignores("Team")).toBe(false);
+	});
+
+	it("keep each space's note in its root", () => {
+		expect(ignoreHome(spaces, "Team/drafts")).toEqual({
+			note: "Team/syncignore.md",
+			inside: "drafts",
+		});
+		expect(ignoreHome(spaces, "notes/a.md").note).toBe("syncignore.md");
+		expect(isIgnoreNote(spaces, "Team/syncignore.md")).toBe(true);
+		expect(isIgnoreNote(spaces, "Team/sub/syncignore.md")).toBe(false);
+		expect(isIgnoreNote(spaces, "syncignore.md")).toBe(true);
+	});
+});

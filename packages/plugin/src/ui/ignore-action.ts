@@ -1,12 +1,13 @@
-import { type App, type Menu, Modal, TFile } from "obsidian";
+import { type App, type Menu, Modal, TFile, TFolder } from "obsidian";
 
-import { IGNORE_FILE_NAME } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
 import {
 	appendIgnoreRule,
 	buildIgnoreRule,
 	removeIgnoreRule,
 } from "@/settings/ignore-rules";
+import { isUnder, spaceOf } from "@/sync/space";
+import { ignoreHome, ignoreNoteOf, isIgnoreNote } from "@/vault/ignore";
 import { openPromiseModal } from "./modals/promise-modal";
 import { notifyError, notifyInfo } from "./notices";
 
@@ -24,7 +25,11 @@ export function addIgnoreMenuItem(
 	isFolder: boolean,
 	titlePrefix = "",
 ): void {
-	if (path === IGNORE_FILE_NAME) return;
+	const spaces = plugin.spaces.partition();
+	// A share's root is its mount point: ignoring it would stop the whole share.
+	if (isIgnoreNote(spaces, path) || spaces.some((s) => s.root === path)) {
+		return;
+	}
 	const target = isFolder ? "folder" : "file";
 	if (plugin.ignoreState.isIgnored(path)) {
 		menu.addItem((item) =>
@@ -50,6 +55,10 @@ async function chooseIgnoreLevel(
 	path: string,
 	isFolder: boolean,
 ): Promise<void> {
+	// A reader's note edit is never pushed: only this device can ignore.
+	if (spaceOf(plugin.spaces.partition(), path).readOnly) {
+		return toggleLocalIgnore(plugin, path, isFolder);
+	}
 	const level = await askIgnoreLevel(plugin.app, path, isFolder);
 	if (level === "local") await toggleLocalIgnore(plugin, path, isFolder);
 	if (level === "global") await toggleGlobalIgnore(plugin, path, isFolder);
@@ -129,37 +138,22 @@ export async function toggleGlobalIgnore(
 ): Promise<void> {
 	const target = isFolder ? "Folder" : "File";
 	const ignored = plugin.ignoreState.isIgnoredGlobally(path);
-	const rule = buildIgnoreRule(path, isFolder);
-	const file = plugin.app.vault.getAbstractFileByPath(IGNORE_FILE_NAME);
-	try {
-		if (file instanceof TFile) {
-			const content = await plugin.app.vault.read(file);
-			const next = ignored
-				? removeIgnoreRule(content, rule)
-				: appendIgnoreRule(content, rule);
-			if (next === content) {
-				notifyInfo(`Ignored globally by another rule in ${IGNORE_FILE_NAME}.`);
-				return;
-			}
-			await plugin.app.vault.modify(file, next);
-		} else {
-			if (file) {
-				notifyError(`${IGNORE_FILE_NAME} exists but is not a file.`);
-				return;
-			}
-			if (ignored) return;
-			await plugin.app.vault.create(IGNORE_FILE_NAME, rule);
-		}
-	} catch (error) {
-		notifyError(`Could not update ${IGNORE_FILE_NAME}`, error);
+	const { note, inside } = ignoreHome(plugin.spaces.partition(), path);
+	const rule = buildIgnoreRule(inside, isFolder);
+	const changed = await editIgnoreNote(plugin, note, (content) =>
+		ignored ? removeIgnoreRule(content, rule) : appendIgnoreRule(content, rule),
+	);
+	if (changed === null) return;
+	if (!changed) {
+		notifyInfo(`Ignored globally by another rule in ${note}.`);
 		return;
 	}
 	await plugin.ignoreState.refresh();
-	// The vault event on syncignore.md schedules the scope refresh.
+	// The vault event on the note schedules the scope refresh.
 	notifyInfo(
 		ignored
 			? `${target} no longer ignored globally.`
-			: `${target} added to ${IGNORE_FILE_NAME}.`,
+			: `${target} added to ${note}.`,
 	);
 }
 
@@ -170,11 +164,14 @@ export async function stopIgnoring(
 	isFolder: boolean,
 ): Promise<void> {
 	const target = isFolder ? "Folder" : "File";
-	const rule = buildIgnoreRule(path, isFolder);
+	const { note, inside } = ignoreHome(plugin.spaces.partition(), path);
 	let changed = false;
 
 	const previous = plugin.settings.ignorePatterns;
-	const nextPatterns = removeIgnoreRule(previous, rule);
+	const nextPatterns = removeIgnoreRule(
+		previous,
+		buildIgnoreRule(path, isFolder),
+	);
 	if (nextPatterns !== previous) {
 		plugin.settings.ignorePatterns = nextPatterns;
 		try {
@@ -187,27 +184,88 @@ export async function stopIgnoring(
 		}
 	}
 
-	const file = plugin.app.vault.getAbstractFileByPath(IGNORE_FILE_NAME);
-	if (file instanceof TFile) {
-		try {
-			const content = await plugin.app.vault.read(file);
-			const nextNote = removeIgnoreRule(content, rule);
-			if (nextNote !== content) {
-				await plugin.app.vault.modify(file, nextNote);
-				changed = true;
-			}
-		} catch (error) {
-			notifyError(`Could not update ${IGNORE_FILE_NAME}`, error);
-		}
+	const rule = buildIgnoreRule(inside, isFolder);
+	if (await editIgnoreNote(plugin, note, (c) => removeIgnoreRule(c, rule))) {
+		changed = true;
 	}
 
 	if (!changed) {
 		notifyInfo(
-			`Ignored by another rule. Edit it in Settings → Obsync or ${IGNORE_FILE_NAME}.`,
+			`Ignored by another rule. Edit it in Settings → Obsync or ${note}.`,
 		);
 		return;
 	}
 	await plugin.ignoreState.refresh();
 	plugin.scheduleScopeRefresh(IGNORE_RULES_CHANGED);
 	notifyInfo(`${target} no longer ignored.`);
+}
+
+/**
+ * The vault's rules stop at a new share's root, so what they kept out goes into
+ * the share's own note, one exact rule per topmost path: none of it gets shared.
+ */
+export async function carryVaultIgnores(
+	plugin: PluginHost,
+	root: string,
+): Promise<boolean> {
+	const ignored = [...plugin.ignoreState.ignoredPaths()].filter(
+		(path) =>
+			path !== root &&
+			isUnder(path, root) &&
+			plugin.ignoreState.isIgnoredGlobally(path),
+	);
+	const covered = new Set(ignored);
+	const rules = ignored
+		.filter((path) => !hasAncestorIn(covered, path, root))
+		.map((path) =>
+			buildIgnoreRule(
+				path.slice(root.length + 1),
+				plugin.app.vault.getAbstractFileByPath(path) instanceof TFolder,
+			),
+		);
+	if (rules.length === 0) return true;
+	const changed = await editIgnoreNote(plugin, ignoreNoteOf(root), (content) =>
+		rules.reduce(appendIgnoreRule, content),
+	);
+	return changed !== null;
+}
+
+/** Read, edit, write back; null when it failed (and said so), false when unchanged. */
+async function editIgnoreNote(
+	plugin: PluginHost,
+	note: string,
+	edit: (content: string) => string,
+): Promise<boolean | null> {
+	const { vault } = plugin.app;
+	const file = vault.getAbstractFileByPath(note);
+	if (file && !(file instanceof TFile)) {
+		notifyError(`${note} exists but is not a file.`);
+		return null;
+	}
+	try {
+		const content = file ? await vault.read(file) : "";
+		const next = edit(content);
+		if (next === content) return false;
+		if (file) await vault.modify(file, next);
+		else await vault.create(note, next);
+		return true;
+	} catch (error) {
+		notifyError(`Could not update ${note}`, error);
+		return null;
+	}
+}
+
+function hasAncestorIn(
+	paths: ReadonlySet<string>,
+	path: string,
+	root: string,
+): boolean {
+	for (
+		let parent = path.slice(0, path.lastIndexOf("/"));
+		parent.length > root.length;
+		parent = parent.slice(0, parent.lastIndexOf("/"))
+	) {
+		if (paths.has(parent)) return true;
+	}
+	return false;
 }

@@ -101,6 +101,21 @@ describe("hub documents", () => {
 		expect(sub(core, reader)).toMatchObject({ head: 0, deltas: [] });
 	});
 
+	it("lets a read-only participant follow a document but never write it", () => {
+		const viewer = peer(1, [grant(VAULT, "viewer", "p2", true)]);
+		const reader = peer(2, [grant(VAULT)]);
+		const core = hub(viewer, reader);
+		sub(core, viewer);
+		viewer.inbox.length = 0;
+
+		update(core, viewer, 1);
+		send(core, viewer, frame(EFrame.Seed, { payload: Uint8Array.of(2) }));
+		send(core, viewer, rotate(NEXT, 0, 3));
+
+		expect(viewer.inbox).toEqual([]);
+		expect(sub(core, reader)).toMatchObject({ head: 0, deltas: [] });
+	});
+
 	it("takes the first seed of a document and answers a later one with the room", () => {
 		const first = peer(1, [grant(VAULT)]);
 		const second = peer(2, [grant(VAULT)]);

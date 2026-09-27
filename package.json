@@ -17,6 +17,10 @@
 		"e2e:hub": "jiti tools/e2e/hub.ts",
 		"e2e:realtime": "pnpm build && jiti tools/e2e/realtime.ts",
 		"e2e:live": "pnpm build && jiti tools/e2e/live.ts",
+		"e2e:live-share": "pnpm build && jiti tools/e2e/live-share.ts",
+		"e2e:shares": "pnpm build && jiti tools/e2e/shares.ts",
+		"e2e:invite": "pnpm build && jiti tools/e2e/invite.ts",
+		"e2e:people": "pnpm build && jiti tools/e2e/people.ts",
 		"prepare": "husky"
 	},
 	"devDependencies": {

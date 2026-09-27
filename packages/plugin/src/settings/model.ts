@@ -6,12 +6,14 @@ import {
 	FILE_HISTORY_MAX_SNAPSHOTS,
 	FILE_HISTORY_MIN_SNAPSHOTS,
 } from "@/constants";
+import { isSpaceRecord, type SpaceRecord } from "@/spaces/record";
 import {
 	defaultS3Config,
-	type EStorageBackend,
+	EStorageBackend,
 	getDescriptor,
 	isAdapterConfigured,
 	isKnownBackend,
+	type S3StorageConfig,
 	type StorageAdapterConfig,
 } from "@/storage";
 
@@ -60,6 +62,14 @@ export interface ObsyncSettings {
 	realtimeSync: boolean;
 	/** Notes open in the editor edit together across devices, over the relay. */
 	liveEditing: boolean;
+	/** This device's copy of the shared folders it syncs; see `spaces/`. */
+	spaces: SpaceRecord[];
+	/** Shares this device holds out of sync; never published, unlike `spaces`. */
+	pausedSpaces: string[];
+	/** Shares moved on another device, by id: where the folder still is here. Never published. */
+	localRoots: Record<string, string>;
+	/** The vault storage (identity) the records were traded with: another vault's never reach this one. */
+	spacesVault: string | null;
 	/** Self-hosted worker (packages/relay): realtime signals. */
 	relayUrl: string;
 	/** The worker's RELAY_SECRET; relay room tokens derive from it. */
@@ -93,6 +103,10 @@ export const DEFAULT_SETTINGS: ObsyncSettings = {
 	historyAutoRefresh: true,
 	realtimeSync: false,
 	liveEditing: true,
+	spaces: [],
+	pausedSpaces: [],
+	localRoots: {},
+	spacesVault: null,
 	relayUrl: "",
 	relaySecret: "",
 	cachePassphrase: true,
@@ -112,6 +126,13 @@ export function activeStorage(settings: ObsyncSettings): StorageAdapterConfig {
 
 export function isStorageConfigured(settings: ObsyncSettings): boolean {
 	return isAdapterConfigured(activeStorage(settings));
+}
+
+/** A share pins its location for good, so only a complete S3 setup may own one. */
+export function ownerStorage(settings: ObsyncSettings): S3StorageConfig | null {
+	const storage = activeStorage(settings);
+	if (storage.kind !== EStorageBackend.S3) return null;
+	return isStorageConfigured(settings) ? storage : null;
 }
 
 export type RelayConfig = Pick<ObsyncSettings, "relayUrl" | "relaySecret">;
@@ -162,6 +183,17 @@ function clamp(value: unknown, bounds: Bounds, fallback: number): number {
 	return Math.min(bounds.max, Math.round(value));
 }
 
+/** Non-empty strings only: a root decides which files a space owns. */
+function stringValues(value: unknown): Record<string, string> {
+	if (typeof value !== "object" || value === null) return {};
+	return Object.fromEntries(
+		Object.entries(value).filter(
+			(entry): entry is [string, string] =>
+				typeof entry[1] === "string" && entry[1] !== "",
+		),
+	);
+}
+
 type StoredSettings = Partial<ObsyncSettings>;
 
 export function mergeSettings(
@@ -202,6 +234,15 @@ export function mergeSettings(
 				| Partial<SettingsSyncCategories>
 				| undefined) ?? {}),
 		},
+		spaces: Array.isArray(stored?.spaces)
+			? stored.spaces.filter(isSpaceRecord)
+			: [],
+		pausedSpaces: Array.isArray(stored?.pausedSpaces)
+			? stored.pausedSpaces.filter((id) => typeof id === "string")
+			: [],
+		localRoots: stringValues(stored?.localRoots),
+		spacesVault:
+			typeof stored?.spacesVault === "string" ? stored.spacesVault : null,
 	};
 	for (const [key, bounds] of Object.entries(NUMERIC_BOUNDS)) {
 		const field = key as keyof typeof NUMERIC_BOUNDS;

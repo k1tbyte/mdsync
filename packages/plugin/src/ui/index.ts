@@ -4,6 +4,11 @@ export { registerFileExplorerIndicators } from "./file-explorer-indicators";
 export { addIgnoreMenuItem } from "./ignore-action";
 export type { IndicatorHandle } from "./indicator-handle";
 export {
+	addInviteMenuItem,
+	openInvite,
+	openParticipants,
+} from "./invite-action";
+export {
 	deepCleanOrphanedObjects,
 	resetLocalState,
 	resetRemoteStorage,
@@ -27,6 +32,7 @@ export {
 export { openInEditor, revealInFileExplorer } from "./obsidian-helpers";
 export { addPushMenuItem } from "./push-action";
 export { registerRibbon } from "./ribbon";
+export { addShareMenuItem, closeShare } from "./share-action";
 export {
 	confirmAdoptNewVault,
 	confirmBatchResolve,

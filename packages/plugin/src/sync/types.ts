@@ -49,6 +49,10 @@ export interface HashCacheEntry {
 export interface StorageState {
 	vaultId: string;
 	baseline: Manifest | null;
+	/** The share's folder the baseline's paths sit under; absent for the vault. */
+	root?: string;
+	/** The share this state is of; absent for the vault. */
+	space?: string;
 }
 
 /**

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 
-import { BODY, rebuild, USERS } from "@/live/rebuild";
+import { USERS } from "@/live/authors";
+import { BODY, rebuild } from "@/live/rebuild";
 
 function authored(doc: Y.Doc): [number, string][] {
 	const runs: [number, string][] = [];
@@ -29,8 +30,12 @@ describe("rebuild", () => {
 		desktop.getText(BODY).insert(5, " dear");
 		desktop.getText(BODY).delete(0, 1);
 		desktop.getText(BODY).insert(0, "H");
-		desktop.getMap(USERS).set("1", "owner");
-		desktop.getMap(USERS).set("2", "guest");
+		const owner = { person: "owner", name: "Owner" };
+		const guest = { person: "p1", name: "Friend" };
+		desktop.getMap(USERS).set("1", owner);
+		desktop.getMap(USERS).set("2", guest);
+		// A session that only deleted, or whose text is all gone.
+		desktop.getMap(USERS).set("3", guest);
 
 		const fresh = opened(rebuild(desktop));
 
@@ -41,10 +46,7 @@ describe("rebuild", () => {
 			[2, " dear"],
 			[1, " world"],
 		]);
-		expect(fresh.getMap(USERS).toJSON()).toEqual({
-			"1": "owner",
-			"2": "guest",
-		});
+		expect(fresh.getMap(USERS).toJSON()).toEqual({ "1": owner, "2": guest });
 	});
 
 	it("sheds the tombstones of a long edit history", () => {

@@ -3,6 +3,7 @@ import { SyncController } from "@/sync/controller";
 import { pullPathsOp } from "@/sync/operations/pull";
 import { pushPathsOp } from "@/sync/operations/push";
 import { mergeSessionIntoLocal, projectSession } from "@/sync/session-state";
+import { VAULT_SPACE } from "@/sync/space";
 import type { LocalState } from "@/sync/types";
 import { createScopePolicy } from "@/vault/scope";
 import { TestSession } from "./session";
@@ -63,13 +64,15 @@ export function controllerFor(device: Device): SyncController {
 		{ deviceId: device.state.deviceId, hashCache: {}, storages: {} },
 		device.state,
 		device.storage.identity(),
+		VAULT_SPACE,
 	);
 	return new SyncController({
+		spaces: async () => [VAULT_SPACE],
 		openSession: async () => device.deps(),
 		getState: () => local,
 		persistState: async (state) => {
 			local = state;
-			device.state = projectSession(state, device.storage.identity());
+			device.state = projectSession(state, device.storage.identity(), "");
 		},
 		logInfo: async () => {},
 		logWarn: async () => {},

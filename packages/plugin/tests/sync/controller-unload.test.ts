@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { CompareResult } from "@/sync/engine";
 import { SyncControllerRuntimeState } from "@/sync/runtime/controller-state";
+import { VAULT_SPACE } from "@/sync/space";
 
 describe("SyncControllerRuntimeState.dispose", () => {
 	it("drops the compare result, which unload leaves reachable otherwise", () => {
 		const state = new SyncControllerRuntimeState();
-		state.setResult({
+		state.setResult(VAULT_SPACE, {
 			diff: { localChanges: [], remoteChanges: [], conflicts: [] },
 		} as unknown as CompareResult);
 		state.setError("boom");

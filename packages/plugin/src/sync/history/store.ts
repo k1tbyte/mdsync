@@ -4,6 +4,12 @@ import { errorMessage } from "@/shared/errors";
 import type { ObjectStorage } from "@/storage/types";
 import { REMOTE_HISTORY_LOG_KEY, REMOTE_PINS_PREFIX } from "@/sync/constants";
 import { fetchRemoteManifest } from "@/sync/manifest";
+import {
+	historyLogToSpace,
+	historyLogToVault,
+	manifestToSpace,
+	manifestToVault,
+} from "@/sync/space-paths";
 import type { Manifest } from "@/sync/types";
 import { replayTo } from "./replay";
 import type { HistoryLog, SnapshotChanges, SnapshotEntry } from "./types";
@@ -17,6 +23,7 @@ export function pinKey(snapshotId: string): string {
 export async function readHistoryLog(
 	storage: ObjectStorage,
 	key: EncryptionKey,
+	root: string,
 ): Promise<HistoryLog> {
 	const blob = await storage.get(REMOTE_HISTORY_LOG_KEY);
 	if (!blob) {
@@ -35,15 +42,16 @@ export async function readHistoryLog(
 	if (!Array.isArray(parsed.snapshots) || !isRecord(parsed.changes)) {
 		throw new Error("History log is malformed; refusing to reset it.");
 	}
-	return parsed;
+	return historyLogToVault(parsed, root);
 }
 
 export async function writeHistoryLog(
 	storage: ObjectStorage,
 	key: EncryptionKey,
+	root: string,
 	log: HistoryLog,
 ): Promise<void> {
-	const blob = await encryptJson(key, log);
+	const blob = await encryptJson(key, historyLogToSpace(log, root));
 	await storage.put(REMOTE_HISTORY_LOG_KEY, blob, "application/octet-stream");
 }
 
@@ -54,18 +62,19 @@ export async function writeHistoryLog(
 export async function updateHistoryLog(
 	storage: ObjectStorage,
 	key: EncryptionKey,
+	root: string,
 	mutate: (log: HistoryLog) => HistoryLog,
 	survived: (log: HistoryLog) => boolean,
 ): Promise<HistoryLog> {
-	let next = mutate(await readHistoryLog(storage, key));
-	await writeHistoryLog(storage, key, next);
-	const verify = await readHistoryLog(storage, key);
+	let next = mutate(await readHistoryLog(storage, key, root));
+	await writeHistoryLog(storage, key, root, next);
+	const verify = await readHistoryLog(storage, key, root);
 	// Return what is stored, not what we computed: a concurrent writer may have
 	// won and still satisfied `survived`, and callers act on the result.
 	if (survived(verify)) return verify;
 	next = mutate(verify);
-	await writeHistoryLog(storage, key, next);
-	return readHistoryLog(storage, key);
+	await writeHistoryLog(storage, key, root, next);
+	return readHistoryLog(storage, key, root);
 }
 
 export function prependSnapshot(
@@ -84,12 +93,14 @@ export function prependSnapshot(
 export async function readPinManifest(
 	storage: ObjectStorage,
 	key: EncryptionKey,
+	root: string,
 	snapshotId: string,
 ): Promise<Manifest | null> {
 	const blob = await storage.get(pinKey(snapshotId));
 	if (!blob) return null;
 	try {
-		return await decryptJson<Manifest>(key, blob);
+		const raw = await decryptJson<Manifest>(key, blob);
+		return manifestToVault(raw, root);
 	} catch (err) {
 		reportWarning(`Pinned snapshot "${snapshotId}" is unreadable.`, err);
 		return null;
@@ -104,15 +115,16 @@ export async function readPinManifest(
 export async function resolveSnapshotManifest(
 	storage: ObjectStorage,
 	key: EncryptionKey,
+	root: string,
 	snapshotId: string,
 ): Promise<Manifest | null> {
 	const [log, head] = await Promise.all([
-		readHistoryLog(storage, key),
-		fetchRemoteManifest(storage, key),
+		readHistoryLog(storage, key, root),
+		fetchRemoteManifest(storage, key, root),
 	]);
 	const replayed = head ? replayTo(head, log, snapshotId) : null;
 	if (replayed) return replayed;
-	return readPinManifest(storage, key, snapshotId);
+	return readPinManifest(storage, key, root, snapshotId);
 }
 
 /**
@@ -122,6 +134,7 @@ export async function resolveSnapshotManifest(
 export async function setSnapshotPinned(
 	storage: ObjectStorage,
 	key: EncryptionKey,
+	root: string,
 	snapshotId: string,
 	pinned: boolean,
 	/** Undefined keeps whatever name the pin already has; "" clears it. */
@@ -133,12 +146,12 @@ export async function setSnapshotPinned(
 	// Anything else there - corrupt, half-written, from another snapshot - must be
 	// replaced, or GC would trust a pin it cannot read.
 	const stored = pinned
-		? await readPinManifest(storage, key, snapshotId)
+		? await readPinManifest(storage, key, root, snapshotId)
 		: null;
 	if (pinned && stored?.snapshotId !== snapshotId) {
 		const [log, head] = await Promise.all([
-			readHistoryLog(storage, key),
-			fetchRemoteManifest(storage, key),
+			readHistoryLog(storage, key, root),
+			fetchRemoteManifest(storage, key, root),
 		]);
 		if (!head) throw new Error("No manifest is published on this remote.");
 		const manifest = replayTo(head, log, snapshotId);
@@ -149,7 +162,7 @@ export async function setSnapshotPinned(
 		}
 		// Store the manifest before flagging: a flag without its manifest would let
 		// GC believe objects are protected that nothing actually references.
-		const blob = await encryptJson(key, manifest);
+		const blob = await encryptJson(key, manifestToSpace(manifest, root));
 		await storage.put(pinKey(snapshotId), blob, "application/octet-stream");
 		wroteManifest = true;
 	}
@@ -157,6 +170,7 @@ export async function setSnapshotPinned(
 		await updateHistoryLog(
 			storage,
 			key,
+			root,
 			(log) => ({
 				...log,
 				snapshots: log.snapshots.map((entry) =>

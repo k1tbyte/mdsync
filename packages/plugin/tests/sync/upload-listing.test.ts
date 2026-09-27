@@ -5,6 +5,7 @@ import { deriveKey, type EncryptionKey } from "@/crypto";
 import { DEFAULT_SETTINGS_SYNC } from "@/settings/model";
 import { REMOTE_MANIFEST_KEY, REMOTE_OBJECTS_PREFIX } from "@/sync/constants";
 import { compare, type EngineDependencies, pushPaths } from "@/sync/engine";
+import { VAULT_SPACE } from "@/sync/space";
 import type { SessionState } from "@/sync/types";
 import { createScopePolicy } from "@/vault/scope";
 
@@ -36,6 +37,7 @@ function deps(
 	storage: FakeStorage,
 ): EngineDependencies {
 	return {
+		space: VAULT_SPACE,
 		adapter: adapter.asDataAdapter(),
 		storage,
 		scope,

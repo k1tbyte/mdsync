@@ -13,6 +13,7 @@ import {
 	pushPaths,
 } from "@/sync/engine";
 import { readHistoryLog } from "@/sync/history/store";
+import { VAULT_SPACE } from "@/sync/space";
 import { EChangeType, type SessionState } from "@/sync/types";
 import { createScopePolicy } from "@/vault/scope";
 
@@ -43,6 +44,7 @@ function deps(
 	history?: { maxSnapshots: number },
 ): EngineDependencies {
 	return {
+		space: VAULT_SPACE,
 		adapter: adapter.asDataAdapter(),
 		storage,
 		scope,
@@ -269,7 +271,7 @@ describe("engine round-trip", () => {
 			]);
 			state = advanceSessionAfterPush(state, cmp, m);
 		}
-		const log = await readHistoryLog(storage, key);
+		const log = await readHistoryLog(storage, key, "");
 		// buffer floor is 10 → GC fires once count exceeds max(2)+10, prunes to 2.
 		expect(log.snapshots.length).toBeLessThanOrEqual(12);
 		expect(log.snapshots.length).toBeGreaterThanOrEqual(2);

@@ -65,7 +65,7 @@ async function seed(
 ): Promise<FakeStorage> {
 	const storage = new FakeStorage();
 	await publishManifest(storage, key, chain[chain.length - 1] as Manifest);
-	await writeHistoryLog(storage, key, logOf(chain, pinnedIds));
+	await writeHistoryLog(storage, key, "", logOf(chain, pinnedIds));
 	return storage;
 }
 
@@ -76,7 +76,7 @@ describe("listDeletedFiles", () => {
 			manifest("s2", "s1", { keep: entry("K1") }, 200),
 		]);
 
-		const result = await listDeletedFiles({ storage, key });
+		const result = await listDeletedFiles({ storage, key, root: "" });
 
 		expect(result.lagging).toBe(false);
 		expect(result.files).toHaveLength(1);
@@ -97,7 +97,9 @@ describe("listDeletedFiles", () => {
 			manifest("s3", "s2", { a: entry("A2") }, 300),
 		]);
 
-		expect((await listDeletedFiles({ storage, key })).files).toEqual([]);
+		expect((await listDeletedFiles({ storage, key, root: "" })).files).toEqual(
+			[],
+		);
 	});
 
 	it("reports the latest death of a recreated-then-deleted file", async () => {
@@ -108,7 +110,7 @@ describe("listDeletedFiles", () => {
 			manifest("d", "c", {}, 400),
 		]);
 
-		const result = await listDeletedFiles({ storage, key });
+		const result = await listDeletedFiles({ storage, key, root: "" });
 		expect(result.files).toHaveLength(1);
 		expect(result.files[0]?.snapshotId).toBe("d");
 		expect(result.files[0]?.entry.hash).toBe("V2");
@@ -122,7 +124,7 @@ describe("listDeletedFiles", () => {
 			manifest("s3", "s2", {}, 200),
 		]);
 
-		const result = await listDeletedFiles({ storage, key });
+		const result = await listDeletedFiles({ storage, key, root: "" });
 		expect(result.files.map((f) => f.path)).toEqual(["recent", "old"]);
 		expect(result.files.map((f) => f.rank)).toEqual([0, 1]);
 	});
@@ -139,9 +141,9 @@ describe("listDeletedFiles", () => {
 		delete changes.s2;
 		const storage = new FakeStorage();
 		await publishManifest(storage, key, chain[2] as Manifest);
-		await writeHistoryLog(storage, key, { ...log, changes });
+		await writeHistoryLog(storage, key, "", { ...log, changes });
 
-		const result = await listDeletedFiles({ storage, key });
+		const result = await listDeletedFiles({ storage, key, root: "" });
 		expect(result.files.map((f) => f.path)).toEqual(["early"]);
 	});
 
@@ -152,9 +154,9 @@ describe("listDeletedFiles", () => {
 		];
 		const storage = new FakeStorage();
 		await publishManifest(storage, key, chain[1] as Manifest);
-		await writeHistoryLog(storage, key, logOf(chain.slice(0, 1)));
+		await writeHistoryLog(storage, key, "", logOf(chain.slice(0, 1)));
 
-		const result = await listDeletedFiles({ storage, key });
+		const result = await listDeletedFiles({ storage, key, root: "" });
 		expect(result.lagging).toBe(true);
 		expect(result.files).toEqual([]);
 	});
@@ -168,7 +170,7 @@ describe("listDeletedFiles", () => {
 		const storage = new FakeStorage();
 		await publishManifest(storage, key, chain[1] as Manifest);
 		// Only the pin survives: the chain is cut back to HEAD alone.
-		await writeHistoryLog(storage, key, {
+		await writeHistoryLog(storage, key, "", {
 			...log,
 			snapshots: [log.snapshots[0] as SnapshotEntry, ...log.snapshots.slice(1)],
 			changes: { s2: log.changes.s2 as HistoryLog["changes"][string] },
@@ -178,7 +180,7 @@ describe("listDeletedFiles", () => {
 			await encryptJson(key, chain[0] as Manifest),
 		);
 
-		const result = await listDeletedFiles({ storage, key });
+		const result = await listDeletedFiles({ storage, key, root: "" });
 		// The chain still records the deletion, so that record wins over the pin.
 		expect(result.files.map((f) => f.path)).toEqual(["ancient"]);
 		expect(result.files[0]?.source).toBe("deleted");
@@ -188,7 +190,7 @@ describe("listDeletedFiles", () => {
 		const head = manifest("s9", "s8", { kept: entry("K1") }, 900);
 		const storage = new FakeStorage();
 		await publishManifest(storage, key, head);
-		await writeHistoryLog(storage, key, {
+		await writeHistoryLog(storage, key, "", {
 			version: 2,
 			snapshots: [
 				{
@@ -217,7 +219,7 @@ describe("listDeletedFiles", () => {
 			),
 		);
 
-		const result = await listDeletedFiles({ storage, key });
+		const result = await listDeletedFiles({ storage, key, root: "" });
 		expect(result.files).toHaveLength(1);
 		expect(result.files[0]?.path).toBe("lost");
 		expect(result.files[0]?.source).toBe("pinned");
@@ -230,7 +232,7 @@ describe("listDeletedFiles", () => {
 			manifest("s2", "s1", {}, 200),
 		]);
 
-		const result = await listDeletedFiles({ storage, key });
+		const result = await listDeletedFiles({ storage, key, root: "" });
 		expect(result.files.map((f) => f.path)).toEqual(["toString"]);
 	});
 
@@ -244,7 +246,7 @@ describe("listDeletedFiles", () => {
 			["s3"],
 		);
 
-		const result = await listDeletedFiles({ storage, key });
+		const result = await listDeletedFiles({ storage, key, root: "" });
 		// s3 is pinned, so nothing evicts the record it carries.
 		expect(result.files.map((f) => [f.path, f.rank])).toEqual([
 			["a", null],
@@ -261,9 +263,9 @@ describe("listDeletedFiles", () => {
 		const { s2: _dropped, ...changes } = log.changes;
 		const storage = new FakeStorage();
 		await publishManifest(storage, key, chain[1] as Manifest);
-		await writeHistoryLog(storage, key, { ...log, changes });
+		await writeHistoryLog(storage, key, "", { ...log, changes });
 
-		const result = await listDeletedFiles({ storage, key });
+		const result = await listDeletedFiles({ storage, key, root: "" });
 		// The chain is not empty, so this must not read as a healthy empty trash.
 		expect(result.lagging).toBe(false);
 		expect(result.truncated).toBe(true);
@@ -281,13 +283,13 @@ describe("listDeletedFiles", () => {
 		const { s2: _dropped, ...changes } = log.changes;
 		const storage = new FakeStorage();
 		await publishManifest(storage, key, chain[2] as Manifest);
-		await writeHistoryLog(storage, key, { ...log, changes });
+		await writeHistoryLog(storage, key, "", { ...log, changes });
 		await storage.put(
 			pinKey("p"),
 			await encryptJson(key, chain[0] as Manifest),
 		);
 
-		const result = await listDeletedFiles({ storage, key });
+		const result = await listDeletedFiles({ storage, key, root: "" });
 		expect(result.truncated).toBe(true);
 		expect(result.files.map((f) => f.path)).toEqual(["archived"]);
 		expect(result.files[0]?.source).toBe("pinned");
@@ -301,13 +303,13 @@ describe("listDeletedFiles", () => {
 		];
 		const storage = new FakeStorage();
 		await publishManifest(storage, key, chain[2] as Manifest);
-		await writeHistoryLog(storage, key, logOf(chain, ["p"]));
+		await writeHistoryLog(storage, key, "", logOf(chain, ["p"]));
 		await storage.put(
 			pinKey("p"),
 			await encryptJson(key, chain[0] as Manifest),
 		);
 
-		const result = await listDeletedFiles({ storage, key });
+		const result = await listDeletedFiles({ storage, key, root: "" });
 		expect(result.files).toHaveLength(1);
 		// The deletion is dated from the chain, but the pin means it never ages out.
 		expect(result.files[0]?.source).toBe("deleted");
@@ -317,7 +319,7 @@ describe("listDeletedFiles", () => {
 
 	it("returns nothing when no vault is published", async () => {
 		const storage = new FakeStorage();
-		const result = await listDeletedFiles({ storage, key });
+		const result = await listDeletedFiles({ storage, key, root: "" });
 		expect(result).toEqual({ files: [], lagging: false, truncated: false });
 	});
 });
@@ -329,7 +331,7 @@ describe("listSnapshots", () => {
 			manifest("s2", "s1", { a: entry("A2", 15), c: entry("C1", 5) }, 200),
 		]);
 
-		const result = await listSnapshots({ storage, key });
+		const result = await listSnapshots({ storage, key, root: "" });
 		expect(result.lagging).toBe(false);
 		expect(result.snapshots.map((s) => s.id)).toEqual(["s2", "s1"]);
 
@@ -355,9 +357,9 @@ describe("listSnapshots", () => {
 		const { s2: _dropped, ...changes } = log.changes;
 		const storage = new FakeStorage();
 		await publishManifest(storage, key, chain[2] as Manifest);
-		await writeHistoryLog(storage, key, { ...log, changes });
+		await writeHistoryLog(storage, key, "", { ...log, changes });
 
-		const result = await listSnapshots({ storage, key });
+		const result = await listSnapshots({ storage, key, root: "" });
 		expect(
 			result.snapshots.map((s) => [s.id, s.restorable, s.files !== null]),
 		).toEqual([
@@ -376,9 +378,9 @@ describe("listSnapshots", () => {
 		const { s2: _dropped, ...changes } = log.changes;
 		const storage = new FakeStorage();
 		await publishManifest(storage, key, chain[1] as Manifest);
-		await writeHistoryLog(storage, key, { ...log, changes });
+		await writeHistoryLog(storage, key, "", { ...log, changes });
 
-		const result = await listSnapshots({ storage, key });
+		const result = await listSnapshots({ storage, key, root: "" });
 		const pinned = result.snapshots.find((s) => s.id === "s1");
 		expect(pinned?.pinned).toBe(true);
 		// Its stored manifest needs no replay.
@@ -393,9 +395,11 @@ describe("listSnapshots", () => {
 		];
 		const storage = new FakeStorage();
 		await publishManifest(storage, key, chain[1] as Manifest);
-		await writeHistoryLog(storage, key, logOf(chain.slice(0, 1)));
+		await writeHistoryLog(storage, key, "", logOf(chain.slice(0, 1)));
 
-		expect((await listSnapshots({ storage, key })).lagging).toBe(true);
+		expect((await listSnapshots({ storage, key, root: "" })).lagging).toBe(
+			true,
+		);
 	});
 
 	it("marks isHead from actual remote HEAD snapshotId, not log index", async () => {
@@ -404,7 +408,7 @@ describe("listSnapshots", () => {
 			manifest("s2", "s1", { a: entry("A2") }, 200),
 		]);
 
-		const result = await listSnapshots({ storage, key });
+		const result = await listSnapshots({ storage, key, root: "" });
 		expect(result.snapshots[0]?.id).toBe("s2");
 		expect(result.snapshots[0]?.isHead).toBe(true);
 		expect(result.snapshots[1]?.isHead).toBe(false);
@@ -417,9 +421,9 @@ describe("listSnapshots", () => {
 		];
 		const storage = new FakeStorage();
 		await publishManifest(storage, key, chain[1] as Manifest);
-		await writeHistoryLog(storage, key, logOf(chain.slice(0, 1)));
+		await writeHistoryLog(storage, key, "", logOf(chain.slice(0, 1)));
 
-		const result = await listSnapshots({ storage, key });
+		const result = await listSnapshots({ storage, key, root: "" });
 		expect(result.snapshots.every((s) => !s.isHead)).toBe(true);
 	});
 });

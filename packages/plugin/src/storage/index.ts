@@ -3,6 +3,18 @@ export {
 	defaultGoogleDriveConfig,
 } from "./adapters/google-drive-auth";
 export { defaultS3Config } from "./adapters/s3";
+export {
+	type BrokerAccess,
+	type BrokerAdmin,
+	createBrokerAdapter,
+	endShare,
+	issueShareToken,
+	leaveShare,
+	listParticipants,
+	type Participant,
+	registerShareStorage,
+	revokeParticipant,
+} from "./adapters/share-broker";
 export { defaultWebDAVConfig } from "./adapters/webdav";
 export {
 	EStorageBackend,

@@ -5,6 +5,7 @@ import { deriveKey, type EncryptionKey } from "@/crypto";
 import { DEFAULT_SETTINGS_SYNC } from "@/settings/model";
 import { buildSessionState, mergeWrittenIntoCache } from "@/sync/baseline";
 import { compare, type EngineDependencies, pushPaths } from "@/sync/engine";
+import { VAULT_SPACE } from "@/sync/space";
 import { EFileKind, type ManifestEntry, type SessionState } from "@/sync/types";
 import { createScopePolicy } from "@/vault/scope";
 
@@ -24,6 +25,7 @@ function deps(
 	state: SessionState,
 ): EngineDependencies {
 	return {
+		space: VAULT_SPACE,
 		adapter: adapter.asDataAdapter(),
 		storage,
 		scope,

@@ -324,6 +324,16 @@ export class ChangesTab {
 			line.setText(snapshot.progressText ?? "Syncing…");
 			return;
 		}
+		if (snapshot.spaceErrors.length > 0) {
+			line.addClass("is-error");
+			for (const { root, message } of snapshot.spaceErrors) {
+				line.createDiv({ text: `Error in "${root}": ${message}` });
+			}
+			line.createDiv({
+				text: "Restore the folder, or stop sharing or leave it in Obsync settings (Sync tab).",
+			});
+			return;
+		}
 		if (snapshot.staleReason) {
 			line.setText(snapshot.staleReason);
 			return;

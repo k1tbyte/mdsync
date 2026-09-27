@@ -116,7 +116,7 @@ async function scenario(obsidian: Obsidian, url: string): Promise<void> {
 	check("remote signals debounce into one pull", await counter("__pulls"), 1);
 
 	await obsidian.evaluate(() =>
-		app.plugins.plugins.obsync.realtime.hub.signal(),
+		app.plugins.plugins.obsync.realtime.hub.signal("vault"),
 	);
 	await peer.next(EFrame.Signal);
 

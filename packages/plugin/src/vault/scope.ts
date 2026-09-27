@@ -1,12 +1,13 @@
-import { IGNORE_FILE_NAME, PLUGIN_ID } from "@/constants";
+import { PLUGIN_ID } from "@/constants";
 import type { SettingsSyncCategories } from "@/settings/model";
 import {
 	hasDotSegment,
 	normalizePath,
 	stripTrailingSlash,
 } from "@/shared/path";
+import { isUnder } from "@/sync/space";
 import { EFileKind } from "@/sync/types";
-import type { IgnoreMatcher } from "./ignore";
+import { type IgnoreMatcher, ignoreNoteOf } from "./ignore";
 import type { SymlinkDetector } from "./symlinks";
 
 /** community-plugins.json is deliberately absent: it has its own toggle, and
@@ -50,6 +51,8 @@ export interface ScopePolicy {
 	includes(path: string): boolean;
 	includesInDiff(path: string): boolean;
 	canDescend(dir: string): boolean;
+	/** The path lies in this space's part of the vault, included or not. */
+	owns(path: string): boolean;
 	classify(path: string): EFileKind;
 	isIgnoredByPattern(path: string): boolean;
 	getCategory(path: string): keyof SettingsSyncCategories | null;
@@ -58,9 +61,14 @@ export interface ScopePolicy {
 export interface ScopeOptions {
 	settingsSync: SettingsSyncCategories;
 	configDir: string;
+	/** The space's own rules, read inside its root. */
 	sharedIgnore?: IgnoreMatcher;
 	localIgnore?: IgnoreMatcher;
 	symlinks?: SymlinkDetector;
+	/** Folder this space covers; "" (default) for the vault. */
+	root?: string;
+	/** Roots of the spaces inside this one: their paths are theirs. */
+	otherRoots?: readonly string[];
 }
 
 export function createScopePolicy(options: ScopeOptions): ScopePolicy {
@@ -89,19 +97,26 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 	const sharedIgnoreMatcher = options.sharedIgnore;
 	const localIgnoreMatcher = options.localIgnore;
 	const symlinks = options.symlinks;
+	const root = stripTrailingSlash(normalizePath(options.root ?? ""));
+	const otherRoots = (options.otherRoots ?? []).map((r) =>
+		stripTrailingSlash(normalizePath(r)),
+	);
+	const partitioned = root !== "" || otherRoots.length > 0;
+	const ignoreNote = ignoreNoteOf(root);
 
 	return {
 		configDir,
 		includes(rawPath) {
 			const path = normalizePath(rawPath);
-			if (!isPathAllowed(path)) return false;
+			if (!owns(path) || !isPathAllowed(path)) return false;
 			if (isIgnoreFile(path)) return true;
 			if (isSharedIgnored(path) || isLocalIgnored(path)) return false;
 			return true;
 		},
 		includesInDiff(rawPath) {
 			const path = normalizePath(rawPath);
-			if (!isPathAllowed(path)) return false;
+			// Another space's paths stay frozen here, like a local ignore.
+			if (!owns(path) || !isPathAllowed(path)) return false;
 			if (isIgnoreFile(path)) return true;
 			return !isLocalIgnored(path);
 		},
@@ -109,6 +124,9 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 			const dir = normalizePath(rawDir);
 			if (!dir) return true;
 			const dirPath = `${dir}/`;
+			// Inside this space, or on the way down to its root.
+			if (!isUnder(dir, root) && !isUnder(root, dir)) return false;
+			if (otherRoots.some((other) => isUnder(dir, other))) return false;
 			if (isInVaultDenylist(dirPath)) return false;
 			if (symlinks?.isLink(dir)) return false;
 			if (dirPath.startsWith(ownPluginPrefix)) return false;
@@ -125,6 +143,10 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 			if (dirPath.startsWith(configPrefix)) return canDescendConfigDir(dirPath);
 			return true;
 		},
+		owns(rawPath) {
+			// The scanner asks for every cached path; the vault alone owns all.
+			return !partitioned || owns(normalizePath(rawPath));
+		},
 		classify(rawPath) {
 			const path = normalizePath(rawPath);
 			if (path.startsWith(pluginsDir)) return EFileKind.Plugin;
@@ -133,7 +155,7 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 		},
 		isIgnoredByPattern(rawPath) {
 			const path = normalizePath(rawPath);
-			if (!path) return false;
+			if (!path || !owns(path)) return false;
 			if (isInVaultDenylist(path)) return false;
 			if (path.startsWith(ownPluginPrefix)) return false;
 			if (path.startsWith(configPrefix)) return false;
@@ -145,6 +167,15 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 			return configCategory(normalizePath(rawPath));
 		},
 	};
+
+	/** A share's root folder is its mount point, in no space: never published, never removed. */
+	function owns(path: string): boolean {
+		return (
+			path !== root &&
+			isUnder(path, root) &&
+			!otherRoots.some((other) => isUnder(path, other))
+		);
+	}
 
 	function isPathAllowed(path: string): boolean {
 		if (!path) return false;
@@ -162,7 +193,7 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 	}
 
 	function isIgnoreFile(path: string): boolean {
-		return path === IGNORE_FILE_NAME;
+		return path === ignoreNote;
 	}
 
 	function isSharedIgnored(path: string): boolean {

@@ -1,3 +1,4 @@
+import { LINK_PARAM, openLink, sealLink } from "@/crypto/sealed-link";
 import {
 	type CompactStorageConfig,
 	compactStorageConfig,
@@ -12,11 +13,6 @@ import {
 	type ObsyncSettings,
 	type SettingsSyncCategories,
 } from "./model";
-import {
-	openTransferToken,
-	sealTransferToken,
-	TRANSFER_PARAM,
-} from "./transfer-token";
 
 export const TRANSFER_ACTION = "obsync";
 const SETTINGS_TRANSFER_MAX_QR_BYTES = 1024;
@@ -149,8 +145,8 @@ export async function createSettingsTransferUrl(
 	const plaintext = encoder.encode(
 		JSON.stringify(createTransferPayload(settings, opts)),
 	);
-	const token = await sealTransferToken(plaintext, passphrase);
-	return `obsidian://${TRANSFER_ACTION}?${TRANSFER_PARAM}=${token}`;
+	const token = await sealLink(plaintext, passphrase);
+	return `obsidian://${TRANSFER_ACTION}?${LINK_PARAM}=${token}`;
 }
 
 export async function createSettingsTransferPackage(
@@ -171,7 +167,7 @@ export async function readSettingsTransfer(
 	input: string,
 	passphrase: string,
 ): Promise<ObsyncTransferSettings> {
-	const plaintext = await openTransferToken(input, passphrase);
+	const plaintext = await openLink(input, passphrase);
 	const payload = JSON.parse(decoder.decode(plaintext)) as unknown;
 	if (!isTransferPayload(payload)) {
 		throw new Error("Invalid Obsync settings transfer payload");

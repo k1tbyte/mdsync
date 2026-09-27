@@ -35,6 +35,7 @@ import {
 	renderMaintenanceSection,
 	renderRelaySection,
 	renderSecuritySection,
+	renderSharesSection,
 } from "./sections";
 
 const ESettingsViewTab = {
@@ -262,6 +263,7 @@ export class ObsyncSettingTab extends PluginSettingTab {
 			this.display(),
 		);
 		if (automationUnsub) this.sectionUnsubs.push(automationUnsub);
+		renderSharesSection(parent, this.plugin, () => this.display());
 		this.renderSettingsSyncSection(parent);
 		this.renderIgnoreSection(parent);
 	}

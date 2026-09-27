@@ -163,7 +163,7 @@ function canDebounce(prev: LocalState | null, next: LocalState): boolean {
 }
 
 /** Shallow structural compare: same set of identities, each pointing at the
- * same `vaultId` and the same `baseline` reference. The controller patches
+ * same `vaultId`, `root` and `baseline` reference. The controller patches
  * `storages` immutably, so per-slot reference equality is enough to tell
  * "nothing critical changed" from "vaultId/baseline moved." */
 function storagesEqual(
@@ -180,6 +180,7 @@ function storagesEqual(
 		if (!p || !n) return false;
 		if (p.vaultId !== n.vaultId) return false;
 		if (p.baseline !== n.baseline) return false;
+		if (p.root !== n.root || p.space !== n.space) return false;
 	}
 	return true;
 }

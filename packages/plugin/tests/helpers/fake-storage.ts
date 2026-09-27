@@ -6,8 +6,10 @@ export class FakeStorage implements StorageAdapter {
 	/** Counts existence probes for test assertions. */
 	existsCalls = 0;
 
+	constructor(private readonly name = "fake") {}
+
 	identity(): string {
-		return "fake";
+		return this.name;
 	}
 
 	exists(key: string): Promise<boolean> {

@@ -1,12 +1,17 @@
-import { type Plugin, type TAbstractFile, TFile } from "obsidian";
+import { type Plugin, type TAbstractFile, TFile, TFolder } from "obsidian";
 
-import { IGNORE_FILE_NAME } from "@/constants";
-import { createIgnoreMatcher, type IgnoreMatcher } from "@/vault/ignore";
+import { type Space, spaceOf } from "@/sync/space";
+import {
+	createIgnoreMatcher,
+	type IgnoreMatcher,
+	ignoreNoteOf,
+	isIgnoreNote,
+} from "@/vault/ignore";
 import type { PluginHost } from "./host";
 
 /**
  * Ignore state the UI reads without opening a sync session: the device-local
- * patterns from settings plus the shared syncignore.md note. Both sources are
+ * patterns from settings plus each space's own syncignore.md. All sources are
  * kept warm in memory so menus can answer synchronously.
  */
 export interface IgnoreStateHandle {
@@ -16,7 +21,7 @@ export interface IgnoreStateHandle {
 	/** Every loaded file/folder path currently ignored by either source. */
 	ignoredPaths(): ReadonlySet<string>;
 	subscribe(listener: () => void): () => void;
-	/** Reloads both rule sources, recomputes the ignored set and notifies. */
+	/** Reloads every rule source, recomputes the ignored set and notifies. */
 	refresh(): Promise<void>;
 }
 
@@ -27,40 +32,65 @@ export function registerIgnoreState(
 ): IgnoreStateHandle {
 	const listeners = new Set<() => void>();
 	let local: IgnoreMatcher = PASS_THROUGH;
-	let shared: IgnoreMatcher = PASS_THROUGH;
+	/** Shared rules per space root. */
+	let shared = new Map<string, IgnoreMatcher>();
 	let ignored = new Set<string>();
+	/** The partition `ignored` was computed for. */
+	let computedFor = "";
 
-	const isIgnoredLocally = (path: string): boolean =>
-		path !== IGNORE_FILE_NAME && local.ignores(path);
-	const isIgnoredGlobally = (path: string): boolean =>
-		path !== IGNORE_FILE_NAME && shared.ignores(path);
-	const isIgnored = (path: string): boolean =>
-		isIgnoredLocally(path) || isIgnoredGlobally(path);
+	const partition = () => plugin.spaces.partition();
 
-	const recompute = (): void => {
-		const next = new Set<string>();
-		for (const file of plugin.app.vault.getAllLoadedFiles()) {
-			if (isTrackable(file.path) && isIgnored(file.path)) next.add(file.path);
+	const load = async (root: string): Promise<IgnoreMatcher> => {
+		const file = plugin.app.vault.getAbstractFileByPath(ignoreNoteOf(root));
+		if (!(file instanceof TFile)) return PASS_THROUGH;
+		try {
+			return createIgnoreMatcher(await plugin.app.vault.read(file), root);
+		} catch {
+			return PASS_THROUGH;
 		}
-		ignored = next;
 	};
 
-	const reloadShared = async (): Promise<void> => {
-		const file = plugin.app.vault.getAbstractFileByPath(IGNORE_FILE_NAME);
-		if (!(file instanceof TFile)) {
-			shared = PASS_THROUGH;
-			return;
+	const sharedOf = (root: string): IgnoreMatcher => {
+		const hit = shared.get(root);
+		if (hit) return hit;
+		// A space mounted since the last refresh: its rules arrive a moment later,
+		// unless a refresh loaded newer ones meanwhile.
+		const loading = shared;
+		loading.set(root, PASS_THROUGH);
+		void load(root).then((matcher) => {
+			if (shared !== loading) return;
+			shared.set(root, matcher);
+			recompute();
+			notify();
+		});
+		return PASS_THROUGH;
+	};
+
+	const locally = (spaces: readonly Space[], path: string): boolean =>
+		!isIgnoreNote(spaces, path) && local.ignores(path);
+	const globally = (spaces: readonly Space[], path: string): boolean =>
+		!isIgnoreNote(spaces, path) &&
+		sharedOf(spaceOf(spaces, path).root).ignores(path);
+	const ignoredIn = (spaces: readonly Space[], path: string): boolean =>
+		locally(spaces, path) || globally(spaces, path);
+
+	const recompute = (): void => {
+		const spaces = partition();
+		const next = new Set<string>();
+		for (const file of plugin.app.vault.getAllLoadedFiles()) {
+			if (isTrackable(file.path) && ignoredIn(spaces, probeOf(file))) {
+				next.add(file.path);
+			}
 		}
-		try {
-			shared = createIgnoreMatcher(await plugin.app.vault.read(file));
-		} catch {
-			shared = PASS_THROUGH;
-		}
+		ignored = next;
+		computedFor = rootsOf(spaces);
 	};
 
 	const refresh = async (): Promise<void> => {
 		local = createIgnoreMatcher(plugin.settings.ignorePatterns);
-		await reloadShared();
+		const roots = partition().map((space) => space.root);
+		const loaded = await Promise.all(roots.map(load));
+		shared = new Map(roots.map((root, i) => [root, loaded[i] ?? PASS_THROUGH]));
 		recompute();
 		notify();
 	};
@@ -70,19 +100,29 @@ export function registerIgnoreState(
 	};
 
 	/** Cheap membership updates between full recomputes. */
-	const track = (path: string): boolean => {
-		if (!isTrackable(path) || !isIgnored(path)) return false;
-		ignored.add(path);
+	const track = (spaces: readonly Space[], file: TAbstractFile): boolean => {
+		if (!isTrackable(file.path) || !ignoredIn(spaces, probeOf(file))) {
+			return false;
+		}
+		ignored.add(file.path);
 		return true;
+	};
+	const probe = (path: string): string => {
+		const file = plugin.app.vault.getAbstractFileByPath(path);
+		return file ? probeOf(file) : path;
 	};
 
 	const onVaultChange = (file: TAbstractFile, oldPath?: string): void => {
-		if (file.path === IGNORE_FILE_NAME || oldPath === IGNORE_FILE_NAME) {
+		const spaces = partition();
+		if (
+			isIgnoreNote(spaces, file.path) ||
+			(oldPath !== undefined && isIgnoreNote(spaces, oldPath))
+		) {
 			void refresh();
 			return;
 		}
 		let changed = oldPath ? ignored.delete(oldPath) : false;
-		changed = track(file.path) || changed;
+		changed = track(spaces, file) || changed;
 		if (changed) notify();
 	};
 
@@ -93,10 +133,14 @@ export function registerIgnoreState(
 	plugin.app.workspace.onLayoutReady(() => void refresh());
 
 	return {
-		isIgnored,
-		isIgnoredLocally,
-		isIgnoredGlobally,
-		ignoredPaths: () => ignored,
+		isIgnored: (path) => ignoredIn(partition(), probe(path)),
+		isIgnoredLocally: (path) => locally(partition(), probe(path)),
+		isIgnoredGlobally: (path) => globally(partition(), probe(path)),
+		ignoredPaths() {
+			// Shares mount and close on a refresh, which tells nobody here.
+			if (rootsOf(partition()) !== computedFor) recompute();
+			return ignored;
+		},
 		subscribe(listener) {
 			listeners.add(listener);
 			return () => {
@@ -107,6 +151,15 @@ export function registerIgnoreState(
 	};
 }
 
+/** Folder rules (`drafts/`) match only a path that ends like a folder. */
+function probeOf(file: TAbstractFile): string {
+	return file instanceof TFolder ? `${file.path}/` : file.path;
+}
+
 function isTrackable(path: string): boolean {
-	return path !== "" && path !== "/" && path !== IGNORE_FILE_NAME;
+	return path !== "" && path !== "/";
+}
+
+function rootsOf(spaces: readonly Space[]): string {
+	return spaces.map((space) => space.root).join("\n");
 }

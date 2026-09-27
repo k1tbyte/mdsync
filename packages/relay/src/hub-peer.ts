@@ -18,6 +18,8 @@ export interface Grant {
 	grant: string;
 	/** Who holds the token: a share participant, or the deployment owner. */
 	who: string;
+	/** A read-only participant follows documents but never writes them. */
+	readOnly?: true;
 }
 
 /** A document a socket follows, addressed by the socket's own slot. */

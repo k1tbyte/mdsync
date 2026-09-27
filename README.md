@@ -64,7 +64,7 @@ Use a separate bucket prefix per vault. Reusing a prefix for another vault is re
 
 Obsync uses two ignore sources, both with gitignore-style syntax:
 
-- `syncignore.md` in the vault root is the shared repository-level ignore list.
+- `syncignore.md` in the vault root is the shared repository-level ignore list. A shared folder has its own in its root, with paths relative to it, shared by everyone in it; the vault's rules stop at that root, so sharing a folder copies what they kept out of it into its note.
 - The **Patterns** setting under Device-local exclusions is applied only on the current device.
 
 Shared ignore rules are synced like a normal note. If a shared rule starts matching a file that was already tracked, the file is shown as a deletion and is removed from remote on the next explicit push. Other devices then delete their local copy on pull.

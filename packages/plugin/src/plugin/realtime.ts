@@ -1,10 +1,10 @@
-import { CHANNEL_DOC, EFrame, type ServerFrame } from "@obsync/protocol";
 import { debounce } from "obsidian";
 
-import { HubConnection, VAULT_SLOT } from "@/hub/connection";
+import { HubConnection } from "@/hub/connection";
 import { DevicePresence } from "@/hub/presence";
 import type { LiveSessions } from "@/live/sessions";
 import type { LiveNotes } from "@/sync/live-notes";
+import { type Space, VAULT_SPACE } from "@/sync/space";
 
 import { createLive, type LiveHost } from "./live";
 
@@ -14,19 +14,20 @@ export interface Realtime {
 	readonly hub: HubConnection;
 	readonly presence: DevicePresence;
 	readonly live: LiveSessions;
-	/** What the file sync asks of live editing. */
-	readonly liveNotes: LiveNotes;
+	/** What the file sync asks of live editing, per space. */
+	liveNotes(space: Space): LiveNotes;
 	dispose(): void;
 }
 
-/** The vault's hub connection, its device list, live notes, and a pull when another device pushed. */
+/** The hub sockets, the vault's device list, live notes, and a pull when another device pushed into any space. */
 export function createRealtime(host: LiveHost): Realtime {
 	const { controller, settings } = host;
 	const hub = new HubConnection({
 		settings,
 		deviceId: () => controller.currentDevice().id,
 	});
-	const presence = new DevicePresence(hub, () => controller.currentDevice());
+	const vault = hub.space(VAULT_SPACE.id);
+	const presence = new DevicePresence(vault, () => controller.currentDevice());
 	// resetTimer is off: a steady stream of signals must still let a pull through.
 	const pull = debounce(
 		() => {
@@ -35,15 +36,9 @@ export function createRealtime(host: LiveHost): Realtime {
 		REALTIME_SYNC_DEBOUNCE_MS,
 		false,
 	);
-	hub.listen(presence);
-	hub.listen({
-		onFrame: (frame) => {
-			if (isVaultSignal(frame)) pull();
-		},
-		onConnectionChange: (connected) => {
-			if (!connected) pull.cancel();
-		},
-	});
+	vault.listen(presence);
+	// Kept across the vault socket's drops: the signal may have come on a share's.
+	hub.listen({ onSignal: pull });
 	const live = createLive(host, hub);
 	return {
 		hub,
@@ -56,12 +51,4 @@ export function createRealtime(host: LiveHost): Realtime {
 			hub.dispose();
 		},
 	};
-}
-
-function isVaultSignal(frame: ServerFrame): boolean {
-	return (
-		frame.type === EFrame.Signal &&
-		frame.slot === VAULT_SLOT &&
-		frame.doc === CHANNEL_DOC
-	);
 }

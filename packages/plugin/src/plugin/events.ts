@@ -5,15 +5,17 @@ import {
 	TFile,
 	TFolder,
 } from "obsidian";
-import { IGNORE_FILE_NAME } from "@/constants";
 import type { StatePersister } from "@/core";
 import type { PluginHost } from "@/plugin/host";
 import {
 	addIgnoreMenuItem,
+	addInviteMenuItem,
 	addPushMenuItem,
+	addShareMenuItem,
 	openSourceControlDeleted,
 	openSourceControlHistory,
 } from "@/ui";
+import { isIgnoreNote } from "@/vault/ignore";
 
 /**
  * History is only discoverable from the side panel otherwise, and a deleted file
@@ -24,6 +26,10 @@ export function registerWorkspaceMenus(plugin: Plugin & PluginHost): void {
 		plugin.app.workspace.on("file-menu", (menu, file) => {
 			addIgnoreItem(menu, plugin, file);
 			addPushMenuItem(menu, plugin, file.path, file instanceof TFolder);
+			if (file instanceof TFolder && !file.isRoot()) {
+				addShareMenuItem(menu, plugin, file.path);
+				addInviteMenuItem(menu, plugin, file.path);
+			}
 			if (plugin.settings.fileHistoryEnabled) {
 				if (file instanceof TFile) addHistoryItem(menu, plugin, file.path);
 				addDeletedItem(menu, plugin);
@@ -79,8 +85,11 @@ function addDeletedItem(menu: Menu, plugin: Plugin & PluginHost): void {
 
 export function registerIgnoreFileRefresh(plugin: Plugin & PluginHost): void {
 	const refreshIfIgnoreFile = (file: TAbstractFile, oldPath?: string): void => {
-		if (!isTrackedIgnorePath(file.path) && !isTrackedIgnorePath(oldPath))
-			return;
+		const spaces = plugin.spaces.partition();
+		const touched = [file.path, oldPath].some(
+			(path) => path !== undefined && isIgnoreNote(spaces, path),
+		);
+		if (!touched) return;
 		plugin.scheduleScopeRefresh("Ignore rules changed.");
 	};
 
@@ -112,8 +121,4 @@ export function registerStatePersistenceFlush(
 		if (document.visibilityState === "hidden") flush();
 	});
 	plugin.registerDomEvent(window, "beforeunload", flush);
-}
-
-function isTrackedIgnorePath(path?: string): boolean {
-	return path === IGNORE_FILE_NAME;
 }

@@ -52,7 +52,7 @@ describe("reconcileRemoteAgainstBaseline", () => {
 			...manifest("s2", "s1"),
 			files: { "acknowledged.md": entry, "remote-only.md": entry },
 		};
-		await publishManifestWithGuard(storage, key, published, "s1");
+		await publishManifestWithGuard(storage, key, "", published, "s1");
 		const baseline = { ...published, files: { "acknowledged.md": entry } };
 		expect(
 			reconcileRemoteAgainstBaseline(parent, baseline, storage, key)?.files,
@@ -90,18 +90,29 @@ describe("publishManifestWithGuard", () => {
 		await publishManifestWithGuard(
 			storage,
 			key,
+			"",
 			manifest("s2", "s1"),
 			"s1",
 			head,
 		);
 
-		expect((await fetchRemoteManifest(storage, key))?.snapshotId).toBe("s2");
+		expect((await fetchRemoteManifest(storage, key, ""))?.snapshotId).toBe(
+			"s2",
+		);
 	});
 
 	it("publishes the first manifest against an empty remote", async () => {
 		const storage = new FakeStorage();
-		await publishManifestWithGuard(storage, key, manifest("s1", null), null);
-		expect((await fetchRemoteManifest(storage, key))?.snapshotId).toBe("s1");
+		await publishManifestWithGuard(
+			storage,
+			key,
+			"",
+			manifest("s1", null),
+			null,
+		);
+		expect((await fetchRemoteManifest(storage, key, ""))?.snapshotId).toBe(
+			"s1",
+		);
 	});
 
 	it("refuses when another device pushed in between", async () => {
@@ -112,6 +123,7 @@ describe("publishManifestWithGuard", () => {
 		const error = await publishManifestWithGuard(
 			storage,
 			key,
+			"",
 			manifest("s2", "s1"),
 			"s1",
 			manifest("s1", null),
@@ -122,7 +134,9 @@ describe("publishManifestWithGuard", () => {
 			"s9",
 		);
 		// The competing head must survive intact.
-		expect((await fetchRemoteManifest(storage, key))?.snapshotId).toBe("s9");
+		expect((await fetchRemoteManifest(storage, key, ""))?.snapshotId).toBe(
+			"s9",
+		);
 	});
 
 	it("refuses a first push onto a remote that already has a vault", async () => {
@@ -130,7 +144,7 @@ describe("publishManifestWithGuard", () => {
 		await seed(storage, manifest("s1", null));
 
 		await expect(
-			publishManifestWithGuard(storage, key, manifest("s2", null), null),
+			publishManifestWithGuard(storage, key, "", manifest("s2", null), null),
 		).rejects.toBeInstanceOf(ConcurrentPushError);
 	});
 
@@ -138,20 +152,23 @@ describe("publishManifestWithGuard", () => {
 		const storage = new StaleReadStorage();
 		const baseline = manifest("s2", "s1");
 		await seed(storage, manifest("s1", null));
-		await publishManifestWithGuard(storage, key, baseline, "s1");
+		await publishManifestWithGuard(storage, key, "", baseline, "s1");
 		// Read path is stuck one publish behind.
 		storage.staleBlob = await encryptJson(key, manifest("s1", null));
 
 		await publishManifestWithGuard(
 			storage,
 			key,
+			"",
 			manifest("s3", "s2"),
 			"s2",
 			baseline,
 		);
 
 		storage.staleBlob = null;
-		expect((await fetchRemoteManifest(storage, key))?.snapshotId).toBe("s3");
+		expect((await fetchRemoteManifest(storage, key, ""))?.snapshotId).toBe(
+			"s3",
+		);
 	});
 
 	it("tolerates a verify that reads back the manifest we replaced", async () => {
@@ -170,13 +187,16 @@ describe("publishManifestWithGuard", () => {
 		await publishManifestWithGuard(
 			storage,
 			key,
+			"",
 			manifest("s2", "s1"),
 			"s1",
 			head,
 		);
 
 		storage.staleBlob = null;
-		expect((await fetchRemoteManifest(storage, key))?.snapshotId).toBe("s2");
+		expect((await fetchRemoteManifest(storage, key, ""))?.snapshotId).toBe(
+			"s2",
+		);
 	});
 
 	it("reports a manifest overwritten right after our push", async () => {
@@ -193,7 +213,14 @@ describe("publishManifestWithGuard", () => {
 		};
 
 		await expect(
-			publishManifestWithGuard(storage, key, manifest("s2", "s1"), "s1", head),
+			publishManifestWithGuard(
+				storage,
+				key,
+				"",
+				manifest("s2", "s1"),
+				"s1",
+				head,
+			),
 		).rejects.toBeInstanceOf(ConcurrentPushError);
 	});
 });
@@ -205,12 +232,12 @@ describe("fetchRemoteManifest", () => {
 			REMOTE_MANIFEST_KEY,
 			await encryptJson(key, { ...manifest("s1", null), version: 999 }),
 		);
-		await expect(fetchRemoteManifest(storage, key)).rejects.toThrow(
+		await expect(fetchRemoteManifest(storage, key, "")).rejects.toThrow(
 			/requires a newer Obsync/,
 		);
 	});
 
 	it("returns null for an empty remote", async () => {
-		expect(await fetchRemoteManifest(new FakeStorage(), key)).toBeNull();
+		expect(await fetchRemoteManifest(new FakeStorage(), key, "")).toBeNull();
 	});
 });

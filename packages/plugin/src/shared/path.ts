@@ -17,6 +17,11 @@ export function hasDotSegment(path: string): boolean {
 	return path.startsWith(".") || path.includes("/.");
 }
 
+/** A name as one folder on every platform: separators and reserved characters become "-", no leading or trailing dots. */
+export function folderName(name: string): string {
+	return name.replace(/[\\/:*?"<>|]/g, "-").replace(/^[.\s]+|[.\s]+$/g, "");
+}
+
 /** Drops one trailing slash, after normalising separators: `"a/b/" -> "a/b"`. */
 export function stripTrailingSlash(value: string): string {
 	const normalized = value.replace(/\\/g, "/");

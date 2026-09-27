@@ -8,6 +8,7 @@
 import { Reader, Writer } from "./bytes";
 
 export { deriveChannelGrant } from "./grant";
+export { shareChannel, sharePrefix } from "./share";
 
 /** The hub route; `/hub/signal` is its HTTP fallback for the cold-sync ping. */
 export const HUB_PATH = "/hub";

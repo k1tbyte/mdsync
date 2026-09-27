@@ -209,7 +209,7 @@ describe("getFileHistory", () => {
 		pinnedIds: string[] = [],
 	): Promise<void> {
 		await publishManifest(storage, key, chain[chain.length - 1] as Manifest);
-		await writeHistoryLog(storage, key, logOf(chain, pinnedIds));
+		await writeHistoryLog(storage, key, "", logOf(chain, pinnedIds));
 	}
 
 	it("returns distinct versions newest first and skips unchanged pushes", async () => {
@@ -220,7 +220,12 @@ describe("getFileHistory", () => {
 			manifest("s3", "s2", { "a.md": entry("A2") }, 300),
 		]);
 
-		const versions = await getFileHistory({ storage, key, path: "a.md" });
+		const versions = await getFileHistory({
+			storage,
+			key,
+			root: "",
+			path: "a.md",
+		});
 		expect(versions.map((v) => v.hash)).toEqual(["A2", "A1"]);
 		// The A1 version is attributed to the newest snapshot holding it.
 		expect(versions.map((v) => v.snapshotId)).toEqual(["s3", "s2"]);
@@ -230,7 +235,9 @@ describe("getFileHistory", () => {
 	it("returns nothing for a path the history never saw", async () => {
 		const storage = new FakeStorage();
 		await seed(storage, [manifest("s1", null, { "a.md": entry("A1") })]);
-		expect(await getFileHistory({ storage, key, path: "b.md" })).toEqual([]);
+		expect(
+			await getFileHistory({ storage, key, root: "", path: "b.md" }),
+		).toEqual([]);
 	});
 
 	it("still finds a file that was deleted", async () => {
@@ -241,7 +248,12 @@ describe("getFileHistory", () => {
 			manifest("s3", "s2", {}, 300),
 		]);
 
-		const versions = await getFileHistory({ storage, key, path: "gone.md" });
+		const versions = await getFileHistory({
+			storage,
+			key,
+			root: "",
+			path: "gone.md",
+		});
 		expect(versions.map((v) => v.hash)).toEqual(["G2", "G1"]);
 	});
 
@@ -253,7 +265,12 @@ describe("getFileHistory", () => {
 			manifest("s3", "s2", { "a.md": entry("A1") }, 300),
 		]);
 
-		const versions = await getFileHistory({ storage, key, path: "a.md" });
+		const versions = await getFileHistory({
+			storage,
+			key,
+			root: "",
+			path: "a.md",
+		});
 		// Same content, but two distinct lifetimes - neither may swallow the other.
 		expect(versions.map((v) => v.snapshotId)).toEqual(["s3", "s1"]);
 	});
@@ -267,7 +284,12 @@ describe("getFileHistory", () => {
 			manifest("s2", "s1", { "a.md": entry("A2") }, 1000),
 		]);
 
-		const versions = await getFileHistory({ storage, key, path: "a.md" });
+		const versions = await getFileHistory({
+			storage,
+			key,
+			root: "",
+			path: "a.md",
+		});
 		expect(versions.map((v) => v.hash)).toEqual(["A2", "A1"]);
 	});
 
@@ -283,13 +305,18 @@ describe("getFileHistory", () => {
 		// The pointer chain is intact, but s3's record was lost, so the walk stops
 		// there and must not claim to have covered s1.
 		const { s3: _dropped, ...changes } = log.changes;
-		await writeHistoryLog(storage, key, { ...log, changes });
+		await writeHistoryLog(storage, key, "", { ...log, changes });
 		await storage.put(
 			pinKey("s1"),
 			await encryptJson(key, chain[0] as Manifest),
 		);
 
-		const versions = await getFileHistory({ storage, key, path: "a.md" });
+		const versions = await getFileHistory({
+			storage,
+			key,
+			root: "",
+			path: "a.md",
+		});
 		expect(versions.map((v) => v.hash)).toEqual(["A3", "A1"]);
 		expect(versions[1]?.pinned).toBe(true);
 	});
@@ -304,7 +331,7 @@ describe("getFileHistory", () => {
 		await publishManifest(storage, key, chain[2] as Manifest);
 		const log = logOf(chain, ["s1"]);
 		// GC evicted s2, so s1 is only reachable through its pin manifest.
-		await writeHistoryLog(storage, key, {
+		await writeHistoryLog(storage, key, "", {
 			...log,
 			snapshots: log.snapshots.filter((s) => s.id !== "s2"),
 		});
@@ -313,7 +340,12 @@ describe("getFileHistory", () => {
 			await encryptJson(key, chain[0] as Manifest),
 		);
 
-		const versions = await getFileHistory({ storage, key, path: "a.md" });
+		const versions = await getFileHistory({
+			storage,
+			key,
+			root: "",
+			path: "a.md",
+		});
 		expect(versions.map((v) => v.hash)).toEqual(["A3", "A1"]);
 		expect(versions[1]?.pinned).toBe(true);
 	});
@@ -326,9 +358,14 @@ describe("getFileHistory", () => {
 		];
 		await publishManifest(storage, key, chain[1] as Manifest);
 		// A best-effort log update was lost, so the log still ends at s1.
-		await writeHistoryLog(storage, key, logOf(chain.slice(0, 1)));
+		await writeHistoryLog(storage, key, "", logOf(chain.slice(0, 1)));
 
-		const versions = await getFileHistory({ storage, key, path: "a.md" });
+		const versions = await getFileHistory({
+			storage,
+			key,
+			root: "",
+			path: "a.md",
+		});
 		expect(versions.map((v) => v.hash)).toEqual(["A2"]);
 		expect(versions[0]?.snapshotId).toBe("s2");
 	});

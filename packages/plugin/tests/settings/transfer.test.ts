@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-
+import { sealLink } from "@/crypto/sealed-link";
 import { DEFAULT_SETTINGS, type ObsyncSettings } from "@/settings/model";
 import {
 	createSettingsTransferPackage,
@@ -9,7 +9,6 @@ import {
 	readSettingsTransfer,
 	type SettingsTransferExportOptions,
 } from "@/settings/transfer";
-import { sealTransferToken } from "@/settings/transfer-token";
 import {
 	defaultS3Config,
 	defaultWebDAVConfig,
@@ -298,20 +297,20 @@ describe("settings transfer", () => {
 		const short = [version, encoding, "AAAA", ciphertext].join(".");
 
 		await expect(readSettingsTransfer(short, PASSPHRASE)).rejects.toThrow(
-			/Invalid Obsync settings transfer token/,
+			/Invalid Obsync link/,
 		);
 	});
 
 	it("rejects unsupported transfer tokens", async () => {
 		const v4Token = "obsidian://obsync?d=4.p.AAAA.BBBB";
 		await expect(readSettingsTransfer(v4Token, PASSPHRASE)).rejects.toThrow(
-			/Unsupported Obsync settings transfer token/,
+			/Unsupported Obsync link/,
 		);
 	});
 
 	it("rejects a bool field that repeats its default", async () => {
 		const defaultBit = DEFAULT_SETTINGS.autoSyncEnabled ? 1 : 0;
-		const token = await sealTransferToken(
+		const token = await sealLink(
 			new TextEncoder().encode(JSON.stringify({ a: { x: defaultBit } })),
 			PASSPHRASE,
 		);

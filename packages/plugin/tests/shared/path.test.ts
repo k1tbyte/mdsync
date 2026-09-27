@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	folderName,
 	hasDotSegment,
 	normalizeKeyPrefix,
 	normalizePath,
@@ -27,5 +28,13 @@ describe("path normalisation", () => {
 	it("normalises a key prefix to a single trailing slash", () => {
 		expect(normalizeKeyPrefix("/vaults/mine/")).toBe("vaults/mine/");
 		expect(normalizeKeyPrefix("")).toBe("");
+	});
+});
+
+describe("folder names", () => {
+	it("keep a name to one folder that every platform accepts", () => {
+		expect(folderName("Team/2024: plans?")).toBe("Team-2024- plans-");
+		expect(folderName("..\\hidden.")).toBe("-hidden");
+		expect(folderName(" . ")).toBe("");
 	});
 });
