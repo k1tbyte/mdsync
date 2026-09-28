@@ -127,8 +127,44 @@ places to change later:
   the ciphertext. Checking it against the hub's `who` needs trusted names and
   signatures, since compaction snapshots come from clients.
 
+## Presence
+
+- Each device announces `{key, name, note, idle}` on every space channel it
+  holds, sealed whole with that space's frame key: a device with no note of a
+  share open still sees who is in which one, and the relay sees no names or
+  paths. `note` is the path inside the root, so each mount maps it onto its own.
+- The key groups and colours: the person in a share, the device in the vault
+  (one person). One colour per key everywhere (`shared/colors.ts`): cursors,
+  author tint, avatars.
+- A file counts only while a tab shows it (Obsidian keeps naming a closed one
+  active); away after 5 minutes without input or with the window hidden.
+- The header menu's "go to cursor" reads the doc awareness `user.key`.
+- Each manifest entry names its publisher: `by` indexes the manifest's
+  `authors` (`{key, name}`: the person in a share, the device in the vault).
+  The table only grows, so an unchanged entry stays byte-identical; the merged
+  UI result drops it, each space indexing its own.
+- A live note marks others' cursors on its scrollbar (`live/scroll-marks.ts`);
+  a tick scrolls there, never follows.
+- A read-only share's notes take no typing (`editor/read-only.ts`: CodeMirror
+  `editable`/`readOnly` by the editor's file), with a lock in the note header.
+- The tree's "new" dot: a pull (or auto-merge) that lands content another key
+  published, past the space's first sync, marks those share files unseen on
+  this device (`presence/unseen.ts`, vault localStorage) unless active; opening
+  clears it, renames and deletions follow.
+
 ## Accepted limitations
 
+- Every share owner is the key `owner` named "Owner": two shares of different
+  owners show them alike. A remote cursor moves only while its window has
+  focus (y-codemirror), so "go to cursor" goes where they last were there.
+- The read-only lock is the editor's: Properties, renames and other plugins
+  still change files there, which then wait unpushed as before. A note moved
+  into a read-only root while open locks on reopening.
+- The "new" dot knows only what this device pulled: a file changed and seen
+  on another of the same person's devices is still new here. Deletions mark
+  nothing.
+- The vault's device list needs the vault key: until a sync knows the
+  passphrase, settings say so instead of listing devices.
 - Revocation is not automatic: a broker `unauthorized` stays the share's error
   and the participant leaves. The broker's KV is eventually consistent (~60 s,
   negative answers cached): a fresh token can look revoked. For the same reason

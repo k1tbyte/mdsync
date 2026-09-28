@@ -91,3 +91,38 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
+
+/* Who is in a note, and a share root's kind and headcount, at the row's end. */
+.obsync-people-badge,
+.obsync-share-badge {
+	width: auto;
+	gap: var(--size-2-1);
+}
+
+.obsync-people-badge {
+	--obsync-avatar: 16px;
+}
+
+.obsync-share-badge.has-people {
+	padding: 0 var(--size-4-1);
+	border-radius: var(--obsync-radius-pill);
+	background: var(--background-modifier-hover);
+	color: var(--interactive-accent);
+}
+
+.obsync-share-badge.is-paused {
+	color: var(--text-faint);
+}
+
+.obsync-share-count {
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+}
+
+.obsync-unseen-dot::before {
+	content: "";
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--interactive-accent);
+}

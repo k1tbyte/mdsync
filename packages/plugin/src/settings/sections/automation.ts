@@ -9,6 +9,7 @@ import {
 	FILE_HISTORY_MIN_SNAPSHOTS,
 } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
+import type { People } from "@/presence/people";
 import {
 	type FieldContext,
 	renderFields,
@@ -145,26 +146,16 @@ function renderConnectedDevices(
 ): () => void {
 	const devicesSetting = new Setting(parent).setName("Connected devices");
 	devicesSetting.settingEl.addClass(SUB_SETTING_CLASS);
-	let connected = plugin.realtime.hub.isConnected();
-	let devices = [...plugin.realtime.presence.getDevices()];
-
+	const { hub, people } = plugin.realtime;
 	const render = (): void => {
 		devicesSetting.setDesc(
-			describeConnectedDevices(plugin, connected, devices),
+			describeConnectedDevices(plugin, hub.isConnected(), people.devices()),
 		);
 	};
 	render();
 
-	const unsubscribeStatus = plugin.realtime.hub.listen({
-		onConnectionChange: (value) => {
-			connected = value;
-			render();
-		},
-	});
-	const unsubscribeDevices = plugin.realtime.presence.subscribe((value) => {
-		devices = [...value];
-		render();
-	});
+	const unsubscribeStatus = hub.listen({ onConnectionChange: render });
+	const unsubscribeDevices = people.subscribe(render);
 	return () => {
 		unsubscribeStatus();
 		unsubscribeDevices();
@@ -187,7 +178,7 @@ function clampAutoSyncMinutes(raw: string): number {
 function describeConnectedDevices(
 	plugin: PluginHost,
 	connected: boolean,
-	devices: readonly { name: string }[],
+	{ locked, devices }: ReturnType<People["devices"]>,
 ): string {
 	if (!isRelayConfigured(plugin.settings)) {
 		return "Set up the relay server under Connection.";
@@ -195,6 +186,7 @@ function describeConnectedDevices(
 	if (!connected) {
 		return "Not connected to the relay.";
 	}
+	if (locked) return "Sync once to unlock the device list.";
 	if (devices.length === 0) {
 		return "No other devices connected.";
 	}

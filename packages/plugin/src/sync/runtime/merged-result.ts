@@ -42,6 +42,8 @@ function mergeRemotes(results: readonly CompareResult[]): Manifest | null {
 	if (!head) return null;
 	return {
 		...head,
+		// Each space indexes its own table: a merged one would name the wrong people.
+		authors: undefined,
 		files: sortedByPath(
 			Object.assign({}, ...results.map((r) => r.remote?.files ?? {})),
 		),

@@ -82,6 +82,29 @@ async function readOnly(owner: Obsidian, friend: Obsidian): Promise<void> {
 		await mounted(friend, MOUNTED),
 		"plan v1\n",
 	);
+	await friend.evaluate(async (target) => {
+		await app.workspace
+			.getLeaf(false)
+			.openFile(app.vault.getFileByPath(target));
+	}, MOUNTED);
+	check(
+		"the reader's editor is locked, with a lock in its header",
+		await friend.waitFor(
+			"the locked editor",
+			() => {
+				const { view } = app.workspace.getLeavesOfType("markdown")[0];
+				return [
+					view.editor.cm.state.readOnly,
+					view.editor.cm.contentDOM.contentEditable,
+					Boolean(view.containerEl.querySelector(".obsync-note-lock")),
+				];
+			},
+			([readOnly, editable, lock]) =>
+				readOnly === true && editable === "false" && lock === true,
+		),
+		[true, "false", true],
+	);
+	await friend.shot("read-only", ".workspace-leaf.mod-active");
 
 	await write(friend, MOUNTED, "the reader's edit\n");
 	await write(friend, "mine.md", "mine, edited\n");
@@ -138,29 +161,26 @@ async function revoke(owner: Obsidian, friend: Obsidian): Promise<void> {
 	]);
 }
 
-/** Opens People from the settings (unless open) and reads it once loaded, as [name, access]. */
+/** Opens the share's window from the settings (unless open) and reads who has access once loaded, as [name, access]. */
 async function people(owner: Obsidian): Promise<string[][]> {
-	const open = await owner.evaluate(() =>
-		[...activeDocument.querySelectorAll(".modal-title")].some((title) =>
-			title.textContent?.startsWith("People in"),
-		),
+	const open = await owner.evaluate(
+		() => activeDocument.querySelector(".obsync-share-access") !== null,
 	);
 	if (!open) {
 		await openSettings(owner, "Sync");
-		await press(owner, "People");
+		await press(owner, "Manage");
 	}
 	return poll("the people", () =>
 		owner.evaluate(() => {
-			const modal = [...activeDocument.querySelectorAll(".modal")].find(
-				(each) =>
-					each
-						.querySelector(".modal-title")
-						?.textContent?.startsWith("People in"),
-			);
-			if (!modal || modal.textContent?.includes("Loading…")) return undefined;
-			return [...modal.querySelectorAll(".setting-item")].map((row) => [
-				row.querySelector(".setting-item-name")?.textContent ?? "",
-				row.querySelector(".setting-item-description")?.textContent ?? "",
+			const list = activeDocument.querySelector(".obsync-share-access");
+			if (!list || list.textContent?.includes("Loading…")) return undefined;
+			return [...list.querySelectorAll(".setting-item")].map((row) => [
+				row.querySelector(".setting-item-name span:not(.obsync-avatar)")
+					?.textContent ?? "",
+				// The role, without whether they are here now.
+				row
+					.querySelector(".setting-item-description")
+					?.textContent?.split(",")[0] ?? "",
 			]);
 		}),
 	);

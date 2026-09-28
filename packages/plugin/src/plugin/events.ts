@@ -9,7 +9,6 @@ import type { StatePersister } from "@/core";
 import type { PluginHost } from "@/plugin/host";
 import {
 	addIgnoreMenuItem,
-	addInviteMenuItem,
 	addPushMenuItem,
 	addShareMenuItem,
 	openSourceControlDeleted,
@@ -28,7 +27,6 @@ export function registerWorkspaceMenus(plugin: Plugin & PluginHost): void {
 			addPushMenuItem(menu, plugin, file.path, file instanceof TFolder);
 			if (file instanceof TFolder && !file.isRoot()) {
 				addShareMenuItem(menu, plugin, file.path);
-				addInviteMenuItem(menu, plugin, file.path);
 			}
 			if (plugin.settings.fileHistoryEnabled) {
 				if (file instanceof TFile) addHistoryItem(menu, plugin, file.path);

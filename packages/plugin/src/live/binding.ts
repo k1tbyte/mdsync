@@ -10,6 +10,7 @@ import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 
 import { authorMarks } from "./author-marks";
 import { USERS } from "./authors";
+import { scrollMarks } from "./scroll-marks";
 import type { LiveSession } from "./session";
 
 export interface BoundEditor {
@@ -54,6 +55,7 @@ export function bindEditor(
 				// Obsidian's own undo would also revert what other devices typed.
 				Prec.high(keymap.of(yUndoManagerKeymap)),
 				marks.of(tint(me)),
+				scrollMarks(session),
 			]),
 		),
 	});

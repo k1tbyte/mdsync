@@ -1,6 +1,7 @@
 import { ESyncLogOperation } from "@/logs/store";
 import type { SettingsSyncCategories } from "@/settings/model";
 import { writeBinary } from "@/vault/io";
+import { authorOf, type LastEdit } from "./authors";
 import { autoMergeOp } from "./auto-merge";
 import { selectAutoPushPaths } from "./auto-push";
 import { clearRemoteTextCache, textToBytes } from "./content";
@@ -61,6 +62,8 @@ export interface SyncControllerHost {
 	getState(): LocalState;
 	/** Another device may want the space now: its channel is signalled. */
 	onPushComplete?(space: Space): void;
+	/** Content others published landed here, past the space's first sync. */
+	onTheirsPulled?(space: Space, paths: readonly string[]): void;
 	/** The space compared fine in a refresh: its storage answers this device. */
 	onSpaceRefreshed?(space: Space): void;
 	logInfo(
@@ -148,6 +151,14 @@ export class SyncController {
 		return this.runtimeState.subscribe(listener);
 	}
 
+	/** Who last published the file, as its space's remote head says. */
+	lastEdit(path: string): LastEdit | null {
+		const remote = this.runtimeState.resultOf(this.spaceFor(path))?.remote;
+		const entry = remote?.files[path];
+		const author = authorOf(remote ?? null, entry);
+		return entry && author ? { ...author, at: entry.mtime } : null;
+	}
+
 	dispose(): void {
 		this.runtimeState.dispose();
 		this.fileDiffs.clear();
@@ -218,7 +229,7 @@ export class SyncController {
 			if ((conflicts?.length ?? 0) === 0) continue;
 			await this.operations.runOperation(
 				space,
-				ESyncLogOperation.Compare,
+				ESyncLogOperation.Pull,
 				autoMergeOp,
 			);
 		}

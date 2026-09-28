@@ -2,16 +2,19 @@ import { MarkdownView, type Plugin } from "obsidian";
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import type { Rotation } from "@/live/session";
 import type { PluginHost } from "@/plugin/host";
+import { spaceOf, VAULT_SPACE } from "@/sync/space";
 import {
 	deepCleanOrphanedObjects,
 	notifyError,
 	notifyInfo,
 	openDiffView,
+	openShareWindow,
 	openSourceControlDeleted,
 	openSourceControlHistory,
 	openSourceControlView,
 	resetRemoteStorage,
 	runWithNotice,
+	shareAt,
 	verifyRemoteIntegrity,
 } from "@/ui";
 
@@ -128,6 +131,20 @@ export function registerCommands(plugin: Plugin & PluginHost): void {
 					? "Text others typed in live notes is tinted by author."
 					: "Authors hidden.",
 			),
+	});
+
+	plugin.addCommand({
+		id: "manage-shared-folder",
+		name: "Manage shared folder",
+		checkCallback: (checking) => {
+			const path = plugin.app.workspace.getActiveFile()?.path;
+			if (path === undefined) return false;
+			const { id, root } = spaceOf(plugin.spaces.partition(), path);
+			const record = id === VAULT_SPACE.id ? undefined : shareAt(plugin, root);
+			if (!record) return false;
+			if (!checking) openShareWindow(plugin, record);
+			return true;
+		},
 	});
 
 	plugin.addCommand({

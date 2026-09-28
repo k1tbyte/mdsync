@@ -13,7 +13,9 @@ import {
 } from "@codemirror/view";
 import type * as Y from "yjs";
 
-import { type Author, authorColors, authorRanges } from "./authors";
+import { personColors } from "@/shared/colors";
+
+import { type Author, authorRanges } from "./authors";
 
 /** Typing and scrolling recompute the tint at most this often; in between it is only mapped. */
 const REDRAW_MS = 250;
@@ -84,7 +86,7 @@ export function authorMarks(
 				mark = Decoration.mark({
 					attributes: {
 						title: name,
-						style: `background-color: ${authorColors(person).colorLight}`,
+						style: `background-color: ${personColors(person).colorLight}`,
 					},
 				});
 				this.marks.set(key, mark);

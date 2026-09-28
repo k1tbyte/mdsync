@@ -209,6 +209,7 @@ export function buildManifest(
 		deviceName: deviceName?.trim() || defaultDeviceName(),
 		files: snapshot.files,
 		resetGenerations: parent?.resetGenerations,
+		authors: parent?.authors,
 		folders:
 			snapshot.emptyFolders.length > 0 ? snapshot.emptyFolders : undefined,
 	};

@@ -1,12 +1,8 @@
-import { type Menu, TFile, TFolder } from "obsidian";
+import { TFile, TFolder } from "obsidian";
 
 import { randomId } from "@/crypto";
 import type { PluginHost } from "@/plugin/host";
-import {
-	isRelayConfigured,
-	isStorageConfigured,
-	ownerStorage,
-} from "@/settings/model";
+import { isStorageConfigured, ownerStorage } from "@/settings/model";
 import { normalizePath, stripTrailingSlash } from "@/shared/path";
 import {
 	acceptInvite,
@@ -25,70 +21,9 @@ import {
 	revokeParticipant,
 } from "@/storage";
 
-import {
-	AcceptInviteModal,
-	type CreatedInvite,
-	InviteModal,
-	ParticipantsModal,
-} from "./modals";
+import { AcceptInviteModal, type CreatedInvite } from "./modals";
 import { notifyInfo, runWithNotice } from "./notices";
 import { scopedPaths } from "./push-action";
-import { openConfirmModal } from "./source-control/modals";
-
-/** Folder right-click entry on a share this person owns. */
-export function addInviteMenuItem(
-	menu: Menu,
-	plugin: PluginHost,
-	root: string,
-): void {
-	const record = plugin.spaces
-		.list()
-		.find(
-			(each) =>
-				each.root === root && each.access.kind === "owner" && !each.closed,
-		);
-	if (!record) return;
-	menu.addItem((item) =>
-		item
-			.setTitle("Obsync: Invite to shared folder")
-			.setIcon("user-plus")
-			.onClick(() => {
-				if (!isRelayConfigured(plugin.settings)) {
-					return notifyInfo("Set up the relay first: invites go through it.");
-				}
-				new InviteModal(plugin.app, record.name, (person, readOnly) =>
-					createInvite(plugin, record, person, readOnly),
-				).open();
-			}),
-	);
-}
-
-/** Who can open a share this person owns, with revoke. */
-export function openParticipants(
-	plugin: PluginHost,
-	record: SpaceRecord,
-): void {
-	const { relayUrl, relaySecret } = plugin.settings;
-	const admin = { relayUrl, secret: relaySecret };
-	new ParticipantsModal(
-		plugin.app,
-		record.name,
-		() => listParticipants(admin, record.id),
-		async (person) => {
-			const confirmed = await openConfirmModal({
-				app: plugin.app,
-				title: `Revoke ${person.label || "this person"}?`,
-				body: [
-					`They can no longer open "${record.name}". The files they already have stay with them.`,
-				],
-				confirmLabel: "Revoke",
-				confirmClass: "mod-warning",
-			});
-			if (confirmed) await revokeParticipant(admin, record.id, person.id);
-			return confirmed;
-		},
-	).open();
-}
 
 /** The `obsidian://obsync-share` link a participant opens. */
 export function openInvite(plugin: PluginHost, link: string): void {
@@ -107,7 +42,7 @@ export function openInvite(plugin: PluginHost, link: string): void {
 }
 
 /** Registered again on every invite, so the relay signs with current credentials. */
-async function createInvite(
+export async function createInvite(
 	plugin: PluginHost,
 	record: SpaceRecord,
 	person: string,

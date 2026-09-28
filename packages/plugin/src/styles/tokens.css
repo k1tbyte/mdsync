@@ -22,6 +22,9 @@ body {
 	--obsync-bar-strong: 3px;
 
 	--obsync-radius-pill: 999px;
+
+	/* A person's ring with their initial: header, status bar, menus. */
+	--obsync-avatar: 18px;
 }
 
 /*

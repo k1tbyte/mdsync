@@ -1,5 +1,3 @@
-import type { Menu } from "obsidian";
-
 import type { PluginHost } from "@/plugin/host";
 import { isRelayConfigured, ownerStorage } from "@/settings/model";
 import { createShare } from "@/spaces/owner";
@@ -12,42 +10,37 @@ import { notifyError, notifyInfo } from "./notices";
 import { pushScope } from "./push-action";
 import { openConfirmModal } from "./source-control/modals";
 
-/** Folder right-click entry: the folder becomes a space of its own, beside the vault. */
-export function addShareMenuItem(
-	menu: Menu,
+/** The folder becomes a space of its own, beside the vault; null when it cannot. */
+export async function shareFolder(
 	plugin: PluginHost,
 	root: string,
-): void {
-	if (!ownerStorage(plugin.settings)) return;
-	menu.addItem((item) =>
-		item
-			.setTitle("Obsync: Share folder")
-			.setIcon("folder-symlink")
-			.onClick(() => void shareFolder(plugin, root)),
-	);
-}
-
-async function shareFolder(plugin: PluginHost, root: string): Promise<void> {
+): Promise<SpaceRecord | null> {
 	const storage = ownerStorage(plugin.settings);
-	if (!storage) return;
+	if (!storage) return null;
 	const error = mountError(root, plugin.spaces.partition());
-	if (error) return notifyInfo(error);
-	if (!(await carryVaultIgnores(plugin, root))) return;
+	if (error) {
+		notifyInfo(error);
+		return null;
+	}
+	if (!(await carryVaultIgnores(plugin, root))) return null;
 	const device = plugin.controller.currentDevice().id;
-	await plugin.spaces.add(createShare(root, device, storage));
+	const record = createShare(root, device, storage);
+	await plugin.spaces.add(record);
 	await plugin.ignoreState.refresh();
 	notifyInfo(`"${root}" is now a shared folder.`);
-	await pushScope(plugin, root, true);
+	void pushScope(plugin, root, true);
+	return record;
 }
 
 /**
- * The owner stops sharing, or a participant leaves. Files stay: the folder
- * syncs with this vault again from the next refresh, on every device of this person.
+ * The owner stops sharing, or a participant leaves; true once it is closed.
+ * Files stay: the folder syncs with this vault again from the next refresh, on
+ * every device of this person.
  */
 export async function closeShare(
 	plugin: PluginHost,
 	record: SpaceRecord,
-): Promise<void> {
+): Promise<boolean> {
 	const { access } = record;
 	const owner = access.kind === "owner";
 	const action = owner ? "Stop sharing" : "Leave";
@@ -63,14 +56,15 @@ export async function closeShare(
 		confirmLabel: action,
 		confirmClass: "mod-warning",
 	});
-	if (!confirmed) return;
+	if (!confirmed) return false;
 	// Tokens left live would keep writing where nobody reads.
 	if (owner && isRelayConfigured(plugin.settings)) {
 		const { relayUrl, relaySecret } = plugin.settings;
 		try {
 			await endShare({ relayUrl, secret: relaySecret }, record.id);
 		} catch (err) {
-			return notifyError("Could not stop sharing", err);
+			notifyError("Could not stop sharing", err);
+			return false;
 		}
 	}
 	// Leaving never waits on the owner's relay: the token is the owner's to end too.
@@ -90,4 +84,5 @@ export async function closeShare(
 		.catch((err) =>
 			notifyError("The shared folder's copy stayed in your storage", err),
 		);
+	return true;
 }

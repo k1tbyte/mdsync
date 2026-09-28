@@ -9,9 +9,6 @@ import type * as Y from "yjs";
 /** Client id -> Author; keyed by client, so concurrent registrations never overwrite each other. */
 export const USERS = "users";
 
-/** Cursor hue per person (or device), so the same one keeps its colour on every screen. */
-const HUE_STEPS = 12;
-
 export interface Author {
 	/** Who the relay knows them as. */
 	person: string;
@@ -32,19 +29,6 @@ export function authorOf(users: Y.Map<unknown>, client: number): Author | null {
 	return typeof person === "string" && typeof name === "string"
 		? { person, name }
 		: null;
-}
-
-export function authorColors(key: string): {
-	color: string;
-	colorLight: string;
-} {
-	let hash = 0;
-	for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-	const hue = (hash % HUE_STEPS) * (360 / HUE_STEPS);
-	return {
-		color: `hsl(${hue}, 70%, 50%)`,
-		colorLight: `hsla(${hue}, 70%, 50%, 0.2)`,
-	};
 }
 
 /**

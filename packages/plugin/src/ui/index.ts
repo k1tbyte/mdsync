@@ -3,11 +3,8 @@ export { registerFileContextIndicators } from "./file-context-indicators";
 export { registerFileExplorerIndicators } from "./file-explorer-indicators";
 export { addIgnoreMenuItem } from "./ignore-action";
 export type { IndicatorHandle } from "./indicator-handle";
-export {
-	addInviteMenuItem,
-	openInvite,
-	openParticipants,
-} from "./invite-action";
+export { openInvite } from "./invite-action";
+export { registerLiveStatusBar } from "./live-status-bar";
 export {
 	deepCleanOrphanedObjects,
 	resetLocalState,
@@ -23,6 +20,7 @@ export {
 	openPromiseModal,
 	showSettingsTransferExport,
 } from "./modals";
+export { registerNotePresence } from "./note-presence";
 export {
 	notifyError,
 	notifyInfo,
@@ -32,7 +30,7 @@ export {
 export { openInEditor, revealInFileExplorer } from "./obsidian-helpers";
 export { addPushMenuItem } from "./push-action";
 export { registerRibbon } from "./ribbon";
-export { addShareMenuItem, closeShare } from "./share-action";
+export { addShareMenuItem, openShareWindow, shareAt } from "./share-window";
 export {
 	confirmAdoptNewVault,
 	confirmBatchResolve,

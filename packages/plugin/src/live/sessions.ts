@@ -54,6 +54,7 @@ export class LiveSessions {
 	private readonly bound = new Map<WorkspaceLeaf, Binding>();
 	/** Open notes whose room moved somewhere that is not their next generation. */
 	private readonly stranded = new Set<string>();
+	private readonly listeners = new Set<() => void>();
 	/** Who typed what, tinted in every bound editor; this app session only. */
 	private authors = false;
 	private running = false;
@@ -78,10 +79,18 @@ export class LiveSessions {
 		} finally {
 			this.running = false;
 		}
+		for (const listener of this.listeners) listener();
+	}
+
+	/** Told after every refresh: a room joined, bound or left. */
+	subscribe(listener: () => void): () => void {
+		this.listeners.add(listener);
+		return () => this.listeners.delete(listener);
 	}
 
 	dispose(): void {
 		this.disposed = true;
+		this.listeners.clear();
 		this.closeAll();
 		void this.deps.agreed.flush();
 	}

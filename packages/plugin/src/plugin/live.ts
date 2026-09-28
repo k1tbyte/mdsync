@@ -1,43 +1,27 @@
-import { OWNER } from "@obsync/protocol";
 import type { App, EventRef } from "obsidian";
 
-import type { PassphraseManager } from "@/core";
-import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
 import type { HubConnection } from "@/hub/connection";
 import { AgreedTexts } from "@/live/agreed-texts";
-import { authorColors } from "@/live/authors";
 import { LiveColdSync } from "@/live/cold-sync";
 import { LiveSessions } from "@/live/sessions";
-import type { LiveSpace, LiveUser } from "@/live/space";
-import {
-	activeStorage,
-	isStorageConfigured,
-	type ObsyncSettings,
-} from "@/settings/model";
-import { reportWarning } from "@/shared/diagnostics";
-import { createStorageAdapter } from "@/storage";
-import type { SyncController } from "@/sync/controller";
+import type { LiveSpace } from "@/live/space";
+import { personColors } from "@/shared/colors";
 import type { LiveNotes } from "@/sync/live-notes";
-import { type Space, spaceOf, VAULT_SPACE } from "@/sync/space";
-import { base64ToBytes } from "@/utils/base64";
+import { type Space, spaceOf } from "@/sync/space";
 
-export interface LiveHost {
+import type { SpaceAccess, SpaceAccessHost } from "./space-access";
+
+export interface LiveHost extends SpaceAccessHost {
 	app: App;
-	passphrase: PassphraseManager;
-	controller: SyncController;
-	settings(): ObsyncSettings;
 	/** The spaces as the records have them now, ahead of the next refresh. */
 	partition(): readonly Space[];
 }
-
-/** How a share names its owner, and a participant invited without a name. */
-const OWNER_NAME = "Owner";
-const UNNAMED = "Participant";
 
 /** Live editing wired to the workspace: which notes are open decides which rooms are joined. */
 export function createLive(
 	host: LiveHost,
 	hub: HubConnection,
+	access: (space: Space) => Promise<SpaceAccess | null>,
 ): {
 	sessions: LiveSessions;
 	notes(space: Space): LiveNotes;
@@ -46,7 +30,7 @@ export function createLive(
 	const { workspace, vault } = host.app;
 	const agreed = new AgreedTexts(vault.adapter, vault.configDir);
 	void agreed.prune();
-	const liveSpace = createLiveSpaces(host);
+	const liveSpace = createLiveSpaces(host, access);
 	const sessions = new LiveSessions({
 		app: host.app,
 		hub,
@@ -84,60 +68,20 @@ export function createLive(
 	};
 }
 
-/**
- * The vault goes live under the passphrase's keys, a share under its own record's
- * key. Paused and read-only shares stay cold: the hub refuses a read-only person's writes.
- */
+/** Live editing on top of the space's access. Paused and read-only shares stay cold: the hub refuses a read-only person's writes. */
 function createLiveSpaces(
 	host: LiveHost,
+	access: (space: Space) => Promise<SpaceAccess | null>,
 ): (space: Space) => Promise<LiveSpace | null> {
-	const shareKeys = new Map<string, Promise<LiveKeys>>();
 	return async (space) => {
-		const settings = host.settings();
-		if (!settings.realtimeSync || !settings.liveEditing) return null;
-		if (space.paused || space.readOnly) return null;
-		if (space.root === VAULT_SPACE.root) {
-			const keys = await liveKeys(host);
-			// One person across the vault: each device is told apart by its own name and colour.
-			const { id, name } = host.controller.currentDevice();
-			const user = userOf(id, name);
-			return (
-				keys && { id: space.id, root: space.root, keys, person: OWNER, user }
-			);
+		if (!host.settings().liveEditing || space.paused || space.readOnly) {
+			return null;
 		}
-		const record = settings.spaces.find((each) => each.id === space.id);
-		if (!record || record.closed) return null;
-		const memo = `${record.id}|${record.key}`;
-		const keys =
-			shareKeys.get(memo) ?? deriveLiveKeys(base64ToBytes(record.key));
-		shareKeys.set(memo, keys);
-		const { access } = record;
-		const invited = access.kind === "participant";
-		const person = invited ? access.participantId : OWNER;
-		const name = invited ? access.personName || UNNAMED : OWNER_NAME;
-		// Coloured by person, so a cursor matches the tint of that person's text.
-		const user = userOf(person, name);
-		return { id: space.id, root: space.root, keys: await keys, person, user };
+		const at = await access(space);
+		if (!at) return null;
+		const { keys, person, key, name } = at;
+		// Coloured by key, so a cursor matches the tint of that person's text.
+		const user = { key, name, ...personColors(key) };
+		return { id: space.id, root: space.root, keys, person, user };
 	};
-}
-
-/** Never prompts: live editing waits for a passphrase the sync already knows. */
-async function liveKeys(host: LiveHost): Promise<LiveKeys | null> {
-	const settings = host.settings();
-	if (!settings.realtimeSync || !settings.liveEditing) return null;
-	if (!isStorageConfigured(settings)) return null;
-	const { passphrase } = host;
-	const cached = passphrase.liveKeys();
-	if (cached || !passphrase.has()) return cached;
-	try {
-		await passphrase.resolveKey(createStorageAdapter(activeStorage(settings)));
-	} catch (err) {
-		reportWarning("Live editing could not unlock the vault key.", err);
-		return null;
-	}
-	return passphrase.liveKeys();
-}
-
-function userOf(colorKey: string, name: string): LiveUser {
-	return { name, ...authorColors(colorKey) };
 }

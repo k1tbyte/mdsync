@@ -89,6 +89,8 @@ async function scenario(
 		() => app.plugins.plugins.obsync.settings.spaces[0]?.id,
 		(value: string | undefined) => value !== undefined,
 	);
+	// Sharing opens the share's window for the first invite.
+	await closeModals(laptop);
 	const manifest = `vault/shares/${id}/manifest.json.enc`;
 	await poll("the share pushed", async () =>
 		s3.keys().includes(manifest) ? true : undefined,
@@ -136,7 +138,7 @@ async function scenario(
 		[true, frozen],
 	);
 
-	await pauseHere(desktop, "Pause here", 1);
+	await pauseHere(desktop, "Pause on this device", 1);
 	await write(laptop, PLAN, "plan v4\n");
 	check("the laptop pushes to the paused desktop", await sync(laptop), CLEAN);
 	const todo = await vaultEntry(desktop, TODO);
@@ -151,7 +153,7 @@ async function scenario(
 		await vaultEntry(desktop, TODO),
 		todo,
 	);
-	await pauseHere(desktop, "Resume here", 0);
+	await pauseHere(desktop, "Resume on this device", 0);
 	check("the desktop resumes", await sync(desktop), CLEAN);
 	check("the laptop pulls the paused edit", await sync(laptop), CLEAN);
 	check(
@@ -237,13 +239,14 @@ function vaultEntry(device: Obsidian, path: string): Promise<string | null> {
 	);
 }
 
-/** Pause here or Resume here on the only share, from the settings. */
+/** Pause or resume the only share on this device, from its window in the settings. */
 async function pauseHere(
 	device: Obsidian,
 	action: string,
 	paused: number,
 ): Promise<void> {
 	await openSettings(device, "Sync");
+	await press(device, "Manage");
 	await press(device, action);
 	await device.waitFor(
 		`${action} saved`,

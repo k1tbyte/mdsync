@@ -23,7 +23,8 @@ re-injected only on reload.
 - `pnpm e2e:hub` - the relay hub under `wrangler dev`, driven by scripted peers;
   its last run sets `HUB_STALE_MS` low to watch the stale-socket sweep.
 - `pnpm e2e:realtime` - builds, then runs the plugin in a throwaway Obsidian
-  (own `--user-data-dir` and temp vault, trust modal clicked) against the relay.
+  (own `--user-data-dir` and temp vault, trust modal clicked) against the relay;
+  a scripted peer reads and writes its sealed presence under a handed-in key.
   `E2E_SOAK_MS=130000` adds an idle stretch past the link's silence timeout.
 - `pnpm e2e:live` - two Obsidians type into one note through the relay; the
   shared key lives on an in-memory WebDAV (`startWebDav`).
@@ -33,12 +34,18 @@ re-injected only on reload.
 - `pnpm e2e:invite` - an owner and a participant with separate vaults: invite
   through the relay's broker, accept through the protocol handler; each
   side's edit reaches the other on the share channel's signal alone.
-- `pnpm e2e:people` - a read-only participant, a re-invite that kills the old
-  link, the owner's rotated S3 key (`s3.revoke`) reaching the broker, People
-  and Revoke.
+- `pnpm e2e:people` - a read-only participant (its editor locked), a re-invite that kills the old
+  link, the owner's rotated S3 key (`s3.revoke`) reaching the broker, who has
+  access and Revoke in the share's window.
 - `pnpm e2e:live-share` - an owner and a participant type into one note of a
   share, in the share's room on the owner's relay; the cursor carries the
-  invited name, authors tint the other's text, and the sync after is clean.
+  invited name, authors tint the other's text, and the sync after is clean;
+  presence reaches a device with no note open, the tree and the share's window
+  show who is where (a collapsed folder too), the header shows the other person
+  live, its cursor marks the scrollbar, "go to cursor" jumps there, and
+  closing the note leaves it; a note the other changed shows as new until
+  opened.
+  `E2E_SHOTS=1` saves screenshots of these under `artifacts/e2e-shots/`.
 
 `tools/e2e/device.ts` drives a device: sync, files, folder menus, modals.
 `tools/e2e/sharing.ts` holds the owner-and-participant setup and share steps.

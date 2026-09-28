@@ -12,6 +12,14 @@ export interface ManifestEntry {
 	kind: EFileKind;
 	/** The content is exactly this live room's text at `seq`. */
 	live?: LiveMark;
+	/** Who published this content: an index into the manifest's `authors`. */
+	by?: number;
+}
+
+/** A person in a share, a device in the vault. */
+export interface ManifestAuthor {
+	key: string;
+	name: string;
 }
 
 export interface LiveMark {
@@ -34,6 +42,8 @@ export interface Manifest {
 	folders?: string[];
 	/** Reset generations by config-directory/category; resets never delete local files. */
 	resetGenerations?: Record<string, number>;
+	/** Whom the entries' `by` indices name. */
+	authors?: ManifestAuthor[];
 }
 
 export interface HashCacheEntry {

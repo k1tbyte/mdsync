@@ -42,6 +42,8 @@ export interface Obsidian {
 		fn: () => T,
 		accept: (value: T) => boolean,
 	): Promise<T>;
+	/** With `E2E_SHOTS` set, a PNG of the window or one element under `artifacts/e2e-shots/`. */
+	shot(name: string, selector?: string): Promise<void>;
 	stop(): Promise<void>;
 }
 
@@ -106,6 +108,11 @@ export async function launchObsidian(options: {
 					const value = (await page.evaluate(fn)) as T;
 					return accept(value) ? value : undefined;
 				}),
+			shot: async (name, selector) => {
+				if (!process.env.E2E_SHOTS) return;
+				const target = selector ? page.locator(selector).first() : page;
+				await target.screenshot({ path: `artifacts/e2e-shots/${name}.png` });
+			},
 			stop: async () => {
 				await browser.close().catch(() => undefined);
 				await stopProcess();

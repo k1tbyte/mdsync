@@ -39,6 +39,7 @@
 @import "./editor/hunk-popup.css";
 @import "./source-control/restore.css";
 @import "./source-control/timeline.css";
+@import "./presence.css";
 
 /* Last: phone overrides win on specificity, but stay last as documented. */
 @import "./mobile.css";

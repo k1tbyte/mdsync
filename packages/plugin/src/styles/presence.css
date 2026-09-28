@@ -1,0 +1,146 @@
+/* People and live state: note header, status bar, menus. */
+
+.obsync-avatars {
+	display: inline-flex;
+	align-items: center;
+}
+
+.obsync-avatar {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: var(--obsync-avatar);
+	height: var(--obsync-avatar);
+	border: 2px solid var(--obsync-person, var(--text-muted));
+	border-radius: 50%;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-size: calc(var(--obsync-avatar) * 0.55);
+	font-weight: var(--font-semibold);
+	line-height: 1;
+}
+
+/* Overlap with a gap ring in the background colour, as faces do in a stack. */
+.obsync-avatars .obsync-avatar + .obsync-avatar {
+	margin-left: calc(var(--size-4-1) * -1);
+	box-shadow: 0 0 0 1px var(--background-primary);
+}
+
+.obsync-avatar.is-idle {
+	opacity: 0.45;
+}
+
+.obsync-avatar.is-more {
+	width: auto;
+	min-width: var(--obsync-avatar);
+	padding-inline: 2px;
+	border-color: var(--background-modifier-border);
+	color: var(--text-muted);
+}
+
+.obsync-note-presence,
+.obsync-live-status {
+	display: inline-flex;
+	gap: var(--size-4-2);
+	align-items: center;
+}
+
+.obsync-note-presence.obsync-hidden,
+.obsync-live-status.obsync-hidden {
+	display: none;
+}
+
+.obsync-note-lock {
+	display: inline-flex;
+	color: var(--text-muted);
+}
+
+.obsync-note-lock svg {
+	width: var(--icon-xs);
+	height: var(--icon-xs);
+}
+
+.obsync-live-dot {
+	flex: none;
+	box-sizing: border-box;
+	width: var(--size-4-2);
+	height: var(--size-4-2);
+	border-radius: 50%;
+}
+
+.obsync-live-dot.is-live {
+	background: var(--color-green);
+}
+
+.obsync-live-dot.is-joining {
+	background: var(--color-yellow);
+	animation: obsync-pulse 0.8s ease-in-out infinite alternate;
+}
+
+.obsync-live-dot.is-offline {
+	border: 1px solid var(--text-muted);
+}
+
+.obsync-live-dot.is-cold {
+	border: 1px dashed var(--text-faint);
+}
+
+.menu-item-title .obsync-avatar,
+.setting-item-name .obsync-avatar {
+	margin-right: var(--size-4-2);
+	vertical-align: middle;
+}
+
+.obsync-person-state {
+	margin-left: var(--size-4-2);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+/* The share window: quiet section labels over Obsidian's setting rows. */
+.obsync-share-section {
+	margin-top: var(--size-4-5);
+	padding-bottom: var(--size-4-1);
+	border-bottom: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+}
+
+.obsync-share-footer {
+	margin-top: var(--size-4-4);
+}
+
+@keyframes obsync-pulse {
+	to {
+		opacity: 0.4;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.obsync-live-dot.is-joining {
+		animation: none;
+	}
+}
+
+.obsync-scroll-marks {
+	position: absolute;
+	inset-block: 0;
+	inset-inline-end: 0;
+	z-index: 1;
+	width: var(--size-4-2);
+	pointer-events: none;
+}
+
+.obsync-scroll-mark {
+	position: absolute;
+	inset-inline: 0;
+	height: 3px;
+	border-radius: 1px;
+	background: var(--obsync-person);
+	transform: translateY(-50%);
+	pointer-events: auto;
+	cursor: pointer;
+}

@@ -146,7 +146,7 @@ Obsync has no telemetry. Sync logs are local to the current device and are exclu
 
 Obsync works with nothing but your storage bucket. The optional services below are the only other places anything goes, and all of them are the same self-hosted Cloudflare Worker (`packages/relay`).
 
-**The relay** (optional, for instant propagation) never sees vault content, filenames or keys. It does see, for each room it carries: the room id, which is derived from the storage identity (`s3|<bucket>/<prefix>`); the device names and ids you set; and the timing of every sync.
+**The relay** (optional, for instant propagation) never sees vault content, filenames or keys. It does see, for each room it carries: the room id, which is derived from the storage identity (`s3|<bucket>/<prefix>`); a device id per connection; and the timing of every sync and of switching notes. Who is in which note travels sealed under the space's key, so names and paths stay hidden from it.
 
 ### Google Drive and the default auth server
 

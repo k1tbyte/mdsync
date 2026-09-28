@@ -1,9 +1,4 @@
-export {
-	AcceptInviteModal,
-	type CreatedInvite,
-	InviteModal,
-} from "./invite-modal";
-export { ParticipantsModal } from "./participants-modal";
+export { AcceptInviteModal } from "./invite-modal";
 export { askNewPassphrase, askPassphrase } from "./passphrase-modal";
 export { openPromiseModal } from "./promise-modal";
 export { confirmRemoteReset } from "./reset-modal";
@@ -12,3 +7,9 @@ export {
 	confirmSettingsTransferImport,
 	showSettingsTransferExport,
 } from "./settings-transfer-modal";
+export {
+	type CreatedInvite,
+	type ShareAccess,
+	ShareModal,
+	type ShareWindow,
+} from "./share-modal";

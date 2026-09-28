@@ -10,6 +10,7 @@ import type { VaultIndex } from "@/vault/file-index";
 import { deletePath, ensureDir, readBinary, removeEmptyDir } from "@/vault/io";
 import { scanVault } from "@/vault/scanner";
 import type { ScopePolicy } from "@/vault/scope";
+import { attribute, publisher } from "./authors";
 import { advanceBaselineForPaths, mergeFolderArrays } from "./baseline";
 import { throwIfCancelled } from "./cancel";
 import { reconcileBaselineResetGenerations } from "./config-reset";
@@ -31,6 +32,7 @@ import {
 	type LiveMark,
 	type LocalSnapshot,
 	type Manifest,
+	type ManifestAuthor,
 	type ManifestEntry,
 	type SessionState,
 } from "./types";
@@ -51,6 +53,8 @@ export interface EngineDependencies {
 	onScanProgress?: (scanned: number) => void;
 	history?: HistoryConfig;
 	live?: LiveNotes;
+	/** Whose the content this session publishes is; absent names the device. */
+	author?: ManifestAuthor;
 }
 
 export interface CompareResult {
@@ -339,13 +343,18 @@ export async function publishFileMap(
 	compareResult: CompareResult,
 	files: Record<string, ManifestEntry>,
 ): Promise<Manifest> {
+	const attributed = attribute(
+		files,
+		compareResult.remote,
+		publisher(deps.state, deps.author),
+	);
 	const manifest = buildManifest(
 		deps.state.deviceId,
 		deps.state.deviceName,
 		deps.state.vaultId ?? compareResult.remote?.vaultId ?? deps.state.deviceId,
 		compareResult.remote,
 		{
-			files,
+			files: attributed.files,
 			emptyFolders: mergeFolderArrays(
 				compareResult.remote?.folders,
 				compareResult.snapshot.emptyFolders,
@@ -355,6 +364,7 @@ export async function publishFileMap(
 			),
 		},
 	);
+	manifest.authors = attributed.authors;
 	await publishManifestWithHistory(
 		deps.storage,
 		deps.key,

@@ -111,6 +111,8 @@ export async function shareFolder(
 		async () =>
 			s3.keys().includes(`owner/shares/${id}/manifest.json.enc`) || undefined,
 	);
+	// Sharing opens the share's window for the first invite.
+	await closeModals(owner);
 	return id;
 }
 
@@ -120,7 +122,7 @@ export async function invite(
 	person: string,
 	readOnly = false,
 ): Promise<SentInvite> {
-	await clickMenuItem(owner, folder, "Obsync: Invite to shared folder");
+	await clickMenuItem(owner, folder, "Obsync: Manage sharing");
 	await fill(owner, "Name", person);
 	if (readOnly) await toggle(owner, "Read-only");
 	await press(owner, "Create invite");
@@ -156,12 +158,13 @@ export function mounted(device: Obsidian, path: string): Promise<string> {
 	);
 }
 
-/** Stop sharing or Leave on the only open share, from the settings. */
+/** Stop sharing or Leave on the only open share, from its window in the settings. */
 export async function closeFromSettings(
 	device: Obsidian,
 	action: string,
 ): Promise<void> {
 	await openSettings(device, "Sync");
+	await press(device, "Manage");
 	await press(device, action);
 	await confirm(device, action);
 	await device.waitFor(

@@ -15,6 +15,7 @@ import {
 	renderDecoration,
 	sameStringMap,
 } from "./file-explorer-decorations";
+import { openShareFromBadge } from "./file-explorer-presence";
 import type { IndicatorHandle } from "./indicator-handle";
 
 const LINK_SCAN_BATCH = 64;
@@ -56,7 +57,12 @@ export function registerFileExplorerIndicators(
 			scanAfterApply = true;
 		}
 
-		const next = computeDecorations(plugin, controller, directLinks);
+		const next = computeDecorations(
+			plugin,
+			controller,
+			directLinks,
+			explorer.collapsed,
+		);
 		const paths = new Set([...applied.keys(), ...next.keys()]);
 		const updated = new Map<string, AppliedDecoration>();
 		for (const path of paths) {
@@ -191,6 +197,15 @@ export function registerFileExplorerIndicators(
 	const unsub = controller.subscribe(() => schedule());
 	plugin.register(unsub);
 	plugin.register(plugin.ignoreState.subscribe(() => schedule()));
+	plugin.register(plugin.realtime.people.subscribe(() => schedule()));
+	plugin.register(plugin.unseen.subscribe(() => schedule()));
+	// Capturing: the explorer would fold the folder before a bubbling handler ran.
+	plugin.registerDomEvent(
+		document,
+		"click",
+		(event) => openShareFromBadge(plugin, event),
+		{ capture: true },
+	);
 	plugin.registerEvent(plugin.app.vault.on("create", resetLinks));
 	plugin.registerEvent(plugin.app.vault.on("delete", resetLinks));
 	plugin.registerEvent(plugin.app.vault.on("rename", resetLinks));

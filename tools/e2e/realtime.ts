@@ -4,9 +4,9 @@
  * must not cost a reconnect (the hub answers keepalives without waking).
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
-import { deriveChannelGrant, EFrame } from "@obsync/protocol";
+import { CHANNEL_DOC, deriveChannelGrant, EFrame } from "@obsync/protocol";
 
 import { check, runScenario, sleep } from "./harness";
 import { launchObsidian, type Obsidian } from "./obsidian";
@@ -35,6 +35,9 @@ const CHANNEL = createHash("sha256")
 	)
 	.digest("hex");
 const PEER = { id: "node-peer", name: "Node Peer" };
+/** Stands in for the vault's frame key: presence is sealed under it. */
+const FRAME_KEY = randomBytes(32);
+const IV_BYTES = 12;
 /** Longer than two reconnect backoffs (2 s + 4 s). */
 const REFUSED_SETTLE_MS = 7_000;
 const SOAK_MS = Number(process.env.E2E_SOAK_MS ?? 0);
@@ -87,6 +90,38 @@ async function scenario(obsidian: Obsidian, url: string): Promise<void> {
 	const counter = (name: "__pulls" | "__sockets") =>
 		obsidian.evaluate((key) => app.plugins.plugins.obsync[key] as number, name);
 
+	// The vault here has no passphrase: its frame key is handed in instead.
+	await obsidian.evaluate(
+		async (raw) => {
+			const plugin = app.plugins.plugins.obsync;
+			const key = new Uint8Array(raw);
+			const frames = await crypto.subtle.importKey(
+				"raw",
+				key,
+				"AES-GCM",
+				false,
+				["encrypt", "decrypt"],
+			);
+			const docIds = await crypto.subtle.importKey(
+				"raw",
+				key,
+				{ name: "HMAC", hash: "SHA-256" },
+				false,
+				["sign"],
+			);
+			plugin.passphrase.liveKeys = () => ({ frames, docIds });
+			plugin.realtime.refresh();
+		},
+		[...FRAME_KEY],
+	);
+	const frames = await crypto.subtle.importKey(
+		"raw",
+		FRAME_KEY,
+		"AES-GCM",
+		false,
+		["encrypt", "decrypt"],
+	);
+
 	const grant = await deriveChannelGrant(SECRET, CHANNEL);
 	const peer = await connectPeer(url, [[CHANNEL, grant]], PEER.id);
 	const hello = await peer.next(EFrame.Peer);
@@ -94,15 +129,34 @@ async function scenario(obsidian: Obsidian, url: string): Promise<void> {
 		app.plugins.plugins.obsync.controller.currentDevice(),
 	);
 	check(
-		"plugin announces itself to a newcomer",
-		JSON.parse(new TextDecoder().decode(hello.payload)),
-		me,
+		"the relay sees no device name",
+		new TextDecoder().decode(hello.payload).includes(me.name),
+		false,
+	);
+	const { key, name } = (await opened(frames, hello.payload)) as {
+		key: string;
+		name: string;
+	};
+	check(
+		"plugin announces itself, sealed, to a newcomer",
+		{ key, name },
+		{ key: me.id, name: me.name },
 	);
 
-	peer.announce(PEER);
+	peer.send({
+		type: EFrame.Awareness,
+		slot: 0,
+		doc: CHANNEL_DOC,
+		payload: await sealed(frames, {
+			key: PEER.id,
+			name: PEER.name,
+			note: null,
+			idle: false,
+		}),
+	});
 	await obsidian.waitFor(
 		"peer in the device list",
-		() => app.plugins.plugins.obsync.realtime.presence.getDevices(),
+		() => app.plugins.plugins.obsync.realtime.people.devices().devices,
 		(devices: { id: string }[]) =>
 			devices.some((device) => device.id === PEER.id),
 	);
@@ -134,7 +188,7 @@ async function scenario(obsidian: Obsidian, url: string): Promise<void> {
 	peer.close();
 	await obsidian.waitFor(
 		"peer gone from the device list",
-		() => app.plugins.plugins.obsync.realtime.presence.getDevices(),
+		() => app.plugins.plugins.obsync.realtime.people.devices().devices,
 		(devices: unknown[]) => devices.length === 0,
 	);
 
@@ -163,4 +217,28 @@ async function scenario(obsidian: Obsidian, url: string): Promise<void> {
 	await watcher.next(EFrame.Peer);
 	watcher.close();
 	console.log("ok   fixed settings reconnect and re-announce");
+}
+
+async function sealed(key: CryptoKey, value: unknown): Promise<Uint8Array> {
+	const iv = randomBytes(IV_BYTES);
+	const body = new Uint8Array(
+		await crypto.subtle.encrypt(
+			{ name: "AES-GCM", iv },
+			key,
+			new TextEncoder().encode(JSON.stringify(value)),
+		),
+	);
+	const frame = new Uint8Array(IV_BYTES + body.length);
+	frame.set(iv);
+	frame.set(body, IV_BYTES);
+	return frame;
+}
+
+async function opened(key: CryptoKey, frame: Uint8Array): Promise<unknown> {
+	const plain = await crypto.subtle.decrypt(
+		{ name: "AES-GCM", iv: frame.subarray(0, IV_BYTES) as BufferSource },
+		key,
+		frame.subarray(IV_BYTES) as BufferSource,
+	);
+	return JSON.parse(new TextDecoder().decode(plain));
 }

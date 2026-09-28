@@ -3,6 +3,11 @@ import type { PluginHost } from "@/plugin/host";
 import type { SyncController } from "@/sync/controller";
 import type { EChangeType } from "@/sync/types";
 import { type ChangeAction, changeActionOf } from "./change-action";
+import {
+	type PresenceMarks,
+	presenceMarks,
+	renderPresenceMarks,
+} from "./file-explorer-presence";
 import { setIndicatorTooltip } from "./indicator-tooltip";
 
 type ChangeIndicatorClass =
@@ -11,7 +16,7 @@ type ChangeIndicatorClass =
 	| "obsync-changed-deleted"
 	| "obsync-changed-conflict";
 
-interface PathDecoration {
+interface PathDecoration extends PresenceMarks {
 	change?: ChangeIndicatorClass;
 	linkRoot?: string;
 	ignored?: boolean;
@@ -38,6 +43,7 @@ export function computeDecorations(
 	plugin: PluginHost,
 	controller: SyncController,
 	directLinks: ReadonlyMap<string, string>,
+	collapsed: (folder: string) => boolean,
 ): Map<string, PathDecoration> {
 	const out = new Map<string, PathDecoration>();
 	for (const [path, status] of controller.fileDiffs.getChangedPathStatuses()) {
@@ -49,6 +55,9 @@ export function computeDecorations(
 	}
 	for (const path of plugin.ignoreState.ignoredPaths()) {
 		patchDecoration(out, path, { ignored: true });
+	}
+	for (const [path, marks] of presenceMarks(plugin, collapsed)) {
+		patchDecoration(out, path, marks);
 	}
 	return out;
 }
@@ -63,10 +72,16 @@ export function renderDecoration(
 ): void {
 	if (decoration.change) target.addClass(decoration.change);
 	if (decoration.ignored) target.addClass("obsync-explorer-ignored");
-	if (decoration.linkRoot) {
+	if (
+		decoration.linkRoot ||
+		decoration.people ||
+		decoration.share ||
+		decoration.unseen
+	) {
 		target.addClass("obsync-has-path-badge");
-		renderLinkBadge(target, decoration.linkRoot);
 	}
+	if (decoration.linkRoot) renderLinkBadge(target, decoration.linkRoot);
+	renderPresenceMarks(target, decoration);
 }
 
 export function clearDecoration(target: HTMLElement): void {

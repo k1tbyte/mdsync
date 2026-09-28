@@ -6,14 +6,15 @@
 - `plugin/` - composition root: host.ts, bootstrap, one register*() per concern
 - `core/` - long-lived services: LogService, PassphraseManager, StatePersister, DeviceName
 - `sync/` - the engine: manifest, diff, operations, history, projection. No UI.
-- `hub/` - the relay hub: socket link, one socket per relay (`channels.ts`: the vault and owned shares on the own relay, joined shares on their owner's), a per-space facade (`space(id)`) routing frames by slot, presence
+- `hub/` - the relay hub: socket link, one socket per relay (`channels.ts`: the vault and owned shares on the own relay, joined shares on their owner's), a per-space facade (`space(id)`) routing frames by slot
+- `presence/` - who is where: each device announces its open file on every space channel it holds, sealed with that space's key (`people.ts`, `channel.ts`, `announcement.ts`); `here.ts` tracks the active file and idleness; `unseen.ts` the files others changed that this device has not opened. Keys and identity per space come from `plugin/space-access.ts`, shared with live editing
 - `spaces/` - space records (`settings.spaces`, one object each under `spaces/` in the vault storage), the partition (`spacesOf`, `mountError`), the owner's share (`owner.ts`), invites (`invite.ts`), how a device reaches a share (`access.ts`). No network and no settings: the relay broker client is `storage/adapters/share-broker.ts`, the flows are `ui/share-action.ts` and `ui/invite-action.ts`. `sync/` never imports it; `core/session-factory.ts` opens a share's session from its record
 - `live/` - live documents: the Y.Doc session per note in its space's room (`space.ts`), sealing, merge and patch into Y.Text, and the file sync's `LiveNotes` port (declared in `sync/live-notes.ts`, so `sync/` never imports `live/`)
 - `storage/` - remote backends behind StorageAdapter, plus the registry
 - `vault/` - Obsidian filesystem access, scanning, ignore rules
 - `settings/` - settings model, transfer, and the settings tab sections
 - `ui/` - views, modals, indicators, notices
-- `editor/` - CodeMirror gutter signs
+- `editor/` - CodeMirror gutter signs, the read-only share lock
 - `shared/`, `utils/` - app-aware helpers vs. generic algorithms
 - `styles/` - the stylesheet, one slice per feature (see Styles)
 

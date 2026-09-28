@@ -68,6 +68,11 @@ export class HubConnection {
 		return this.spaceConnected(VAULT_SPACE.id);
 	}
 
+	/** Whether a socket is meant to carry the space: the relay is on and reaches it. */
+	carries(spaceId: string): boolean {
+		return this.slotOf(spaceId) !== null;
+	}
+
 	listen(listener: HubListener): () => void {
 		this.listeners.add(listener);
 		return () => this.listeners.delete(listener);

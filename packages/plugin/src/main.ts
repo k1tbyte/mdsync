@@ -7,7 +7,9 @@ import {
 	type PassphraseManager,
 	type StatePersister,
 } from "@/core";
+import { registerReadOnlyLock } from "@/editor/read-only";
 import { registerEditorSigns, type SignsHandle } from "@/editor/signs";
+import type { Unseen } from "@/presence/unseen";
 import {
 	DEFAULT_SETTINGS,
 	isStorageConfigured,
@@ -45,6 +47,7 @@ import {
 	refreshOpenSourceControlViews,
 	registerPluginUi,
 } from "./plugin/ui";
+import { markTheirs, registerUnseen } from "./plugin/unseen";
 import { registerVaultAdoptionPrompt } from "./plugin/vault-adoption";
 
 const SCOPE_REFRESH_DEBOUNCE_MS = 800;
@@ -68,6 +71,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 	transfer!: SettingsTransferController;
 	ignoreState!: IgnoreStateHandle;
 	spaces!: SpaceRecords;
+	unseen!: Unseen;
 	private settingsTab?: ObsyncSettingTab;
 	private statePersister!: StatePersister;
 	private scopeRefreshTimer: number | null = null;
@@ -85,6 +89,8 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 				refreshOpenHistoryViewsAfterPush(this);
 			},
 			onSpaceRefreshed: createShareRegistration(this),
+			onTheirsPulled: (space, paths) =>
+				markTheirs(this, this.unseen, space, paths),
 			persistSettings: () => this.saveSettings(),
 			liveNotes: (space) => this.realtime?.liveNotes(space),
 		});
@@ -100,6 +106,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 		this.spaces = runtime.spaces;
 		this.passphrase = runtime.passphraseManager;
 		this.controller = runtime.controller;
+		this.unseen = registerUnseen(this);
 		this.realtime = createRealtime({
 			app: this.app,
 			passphrase: this.passphrase,
@@ -126,6 +133,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 		this.settingsTab = registeredUi.settingsTab;
 		this.fileIndicators = registeredUi.fileIndicators;
 		this.editorSigns = registerEditorSigns(this);
+		registerReadOnlyLock(this);
 
 		registerCommands(this);
 		registerScheduler(this, this.controller);
@@ -167,8 +175,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 		// Every settings write funnels through here, and any of them can change
 		// the room or the credentials the relay client is using, or which space a
 		// note is in: a record synced, accepted, closed, paused or moved.
-		this.realtime.hub.restartIfChanged();
-		void this.realtime.live.refresh();
+		this.realtime.refresh();
 	}
 
 	async resetLocalState(): Promise<void> {

@@ -18,7 +18,7 @@ vi.mock("@/live/binding", () => ({
 	bindEditor: vi.fn(() => ({ detach: vi.fn(), showAuthors: vi.fn() })),
 }));
 
-const USER = { name: "laptop", color: "red", colorLight: "pink" };
+const USER = { key: "d1", name: "laptop", color: "red", colorLight: "pink" };
 
 function editorOf(file: TFile, mode = "source"): MarkdownView {
 	return Object.assign(Object.create(MarkdownView.prototype), {

@@ -6,7 +6,7 @@ import {
 	isStorageConfigured,
 	type ObsyncSettings,
 } from "@/settings/model";
-import { shareKey, shareStorage } from "@/spaces/access";
+import { shareIdentity, shareKey, shareStorage } from "@/spaces/access";
 import { createStorageAdapter, type StorageAdapter } from "@/storage";
 import { clearRemoteTextCache } from "@/sync/content";
 import type { EngineDependencies } from "@/sync/engine";
@@ -14,6 +14,7 @@ import { PassphraseRotatedError } from "@/sync/keyfile";
 import type { LiveNotes } from "@/sync/live-notes";
 import { projectSession } from "@/sync/session-state";
 import { nestedRoots, type Space, VAULT_SPACE } from "@/sync/space";
+import type { ManifestAuthor } from "@/sync/types";
 import { createVaultIndex } from "@/vault/file-index";
 import {
 	createIgnoreMatcher,
@@ -90,6 +91,7 @@ export function createSessionOpener(deps: SessionFactoryDeps): SessionOpener {
 				? { maxSnapshots: settings.fileHistoryMaxSnapshots }
 				: undefined,
 			live: deps.liveNotes?.(space),
+			author: opened.author,
 		};
 	};
 }
@@ -98,6 +100,8 @@ interface OpenedStorage {
 	storage: StorageAdapter;
 	key: EncryptionKey;
 	concurrency: number;
+	/** Unset in the vault, which publishes as the device. */
+	author?: ManifestAuthor;
 }
 
 type AdapterCache = (
@@ -166,10 +170,12 @@ async function openShare(
 	if (!record || !storage) {
 		throw new Error("Shared folders you own need S3 storage.");
 	}
+	const { person, name } = shareIdentity(record);
 	return {
 		storage: getStorage(space.id, storage.memo, storage.create),
 		key: await shareKey(record),
 		concurrency: storage.concurrency,
+		author: { key: person, name },
 	};
 }
 

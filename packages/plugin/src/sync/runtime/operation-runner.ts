@@ -1,6 +1,7 @@
 import { ESyncLogOperation } from "@/logs/store";
 import { errorMessage } from "@/shared/errors";
 import { StorageRequestError } from "@/storage";
+import { publishedByOthers, publisher } from "@/sync/authors";
 import { advanceBaselineForPaths } from "@/sync/baseline";
 import { isCancellation } from "@/sync/cancel";
 import { reconcileBaselineResetGenerations } from "@/sync/config-reset";
@@ -262,6 +263,15 @@ export class OperationRunner {
 					session.scope,
 				);
 				this.applyResult(space, recomputed, epoch);
+				// A first sync brings everything: none of it is news.
+				if (operation === ESyncLogOperation.Pull && session.state.baseline) {
+					const theirs = publishedByOthers(
+						outcome.newRemote,
+						outcome.touchedPaths,
+						publisher(session.state, session.author).key,
+					);
+					if (theirs.length > 0) this.deps.host.onTheirsPulled?.(space, theirs);
+				}
 				if (outcome.cancelled) {
 					this.deps.runtimeState.setStaleReason(
 						outcome.touchedPaths.size === 0

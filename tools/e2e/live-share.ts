@@ -1,10 +1,11 @@
 /**
  * Live editing in a shared folder, in real Obsidians: the owner and a
  * participant type into one note of the share, each at its own path, in the
- * share's room on the owner's relay; a sync afterwards is no conflict.
+ * share's room on the owner's relay; a sync afterwards is no conflict. What
+ * one changes shows as new in the other's tree until opened.
  */
 
-import { CLEAN, read, sync } from "./device";
+import { CLEAN, clickMenuItem, closeModals, read, sync, write } from "./device";
 import { converged, open, textOn, type } from "./editor";
 import { check, poll } from "./harness";
 import type { Obsidian } from "./obsidian";
@@ -12,13 +13,14 @@ import { accept, invite, mounted, runSharing, shareFolder } from "./sharing";
 
 const PLAN = "Team/plan.md";
 const MOUNTED = "Shared/Team/plan.md";
+const NOTES = "Team/notes.md";
 
 // biome-ignore lint/suspicious/noExplicitAny: the renderer's app is untyped here.
 declare const app: any;
 
 await runSharing(
 	"live share e2e",
-	{ owner: { [PLAN]: "plan v1\n" }, friend: {} },
+	{ owner: { [PLAN]: "plan v1\n", [NOTES]: "notes v1\n" }, friend: {} },
 	async (owner, friend, s3) => {
 		const id = await shareFolder(owner, s3, "Team");
 		await accept(friend, await invite(owner, "Team", "Friend"));
@@ -30,7 +32,115 @@ await runSharing(
 		check("the friend settles", await sync(friend), CLEAN);
 
 		await open(owner, PLAN);
+		check(
+			"the friend sees the owner in the note without opening it",
+			await friend.waitFor(
+				"the owner in the note",
+				() =>
+					app.plugins.plugins.obsync.realtime.people
+						.inNote("Shared/Team/plan.md")
+						.map((person: { name: string }) => person.name),
+				(names) => names.length > 0,
+			),
+			["Owner"],
+		);
+		check(
+			"the friend's tree shows the owner on the note and a headcount on the share",
+			await friend.waitFor(
+				"tree presence",
+				() => {
+					const rows =
+						app.workspace.getLeavesOfType("file-explorer")[0].view.fileItems;
+					for (const folder of ["Shared", "Shared/Team"]) {
+						if (rows[folder].collapsed) rows[folder].setCollapsed(false, false);
+					}
+					const note = rows["Shared/Team/plan.md"].selfEl;
+					const root = rows["Shared/Team"].selfEl;
+					return [
+						note.querySelector(".obsync-people-badge .obsync-avatar")
+							?.textContent,
+						root.querySelector(".obsync-share-badge.is-joined")?.textContent,
+					];
+				},
+				([face, count]) => face === "O" && count === "1",
+			),
+			["O", "1"],
+		);
+		await friend.shot(
+			"tree-presence",
+			".workspace-leaf-content[data-type='file-explorer']",
+		);
+		check(
+			"a collapsed folder gathers the people inside it",
+			await friend.waitFor(
+				"people on the collapsed folder",
+				() => {
+					const rows =
+						app.workspace.getLeavesOfType("file-explorer")[0].view.fileItems;
+					rows["Shared/Team"].setCollapsed(true, false);
+					return rows["Shared/Team"].selfEl.querySelector(
+						".obsync-people-badge .obsync-avatar",
+					)?.textContent;
+				},
+				(face) => face === "O",
+			),
+			"O",
+		);
+		await friend.shot(
+			"tree-collapsed",
+			".workspace-leaf-content[data-type='file-explorer']",
+		);
+		check(
+			"the owner's tree marks the folder as shared by them",
+			await owner.waitFor(
+				"owned share badge",
+				() =>
+					Boolean(
+						app.workspace
+							.getLeavesOfType("file-explorer")[0]
+							.view.fileItems.Team.selfEl.querySelector(
+								".obsync-share-badge.is-owned",
+							),
+					),
+				(marked) => marked,
+			),
+			true,
+		);
 		await open(friend, MOUNTED);
+		check(
+			"the owner's header shows the friend in a live note",
+			await owner.waitFor(
+				"header presence",
+				() => {
+					const header = app.workspace
+						.getLeavesOfType("markdown")[0]
+						.view.containerEl.querySelector(".obsync-note-presence");
+					return [
+						header?.querySelector(".obsync-live-dot")?.className,
+						[...(header?.querySelectorAll(".obsync-avatar") ?? [])].map(
+							(face) => face.textContent,
+						),
+					];
+				},
+				([dot, faces]) => dot === "obsync-live-dot is-live" && faces.length > 0,
+			),
+			["obsync-live-dot is-live", ["F"]],
+		);
+		await clickMenuItem(owner, "Team", "Obsync: Manage sharing");
+		check(
+			"the owner's share window lists the friend here, in the note",
+			await owner.waitFor(
+				"the friend in the share window",
+				() =>
+					[...document.querySelectorAll(".obsync-share-modal .setting-item")]
+						.map((row) => row.textContent ?? "")
+						.find((text) => text.includes("In plan.md")),
+				(row) => row !== undefined,
+			),
+			"FFriendIn plan.md",
+		);
+		await owner.shot("share-window", ".obsync-share-modal");
+		await closeModals(owner);
 		check(
 			"both join the share's room, not their vault's",
 			[await roomSpace(owner, PLAN), await roomSpace(friend, MOUNTED)],
@@ -79,6 +189,78 @@ await runSharing(
 			),
 			"Friend",
 		);
+		await owner.shot(
+			"header-presence",
+			".workspace-leaf.mod-active .view-header",
+		);
+		await owner.shot("status-bar", ".status-bar");
+		// y-codemirror moves a cursor only while its window has focus, which typing here never gives.
+		await friend.evaluate(() => {
+			const end = { type: null, tname: "body", item: null, assoc: 0 };
+			app.plugins.plugins.obsync.realtime.live
+				.roomOf("Shared/Team/plan.md")
+				.awareness.setLocalStateField("cursor", { anchor: end, head: end });
+		});
+		await owner.waitFor(
+			"the friend's cursor at the end",
+			() =>
+				[
+					...app.plugins.plugins.obsync.realtime.live
+						.roomOf("Team/plan.md")
+						.awareness.getStates()
+						.values(),
+				].some(
+					(state) =>
+						state.user?.name === "Friend" && state.cursor?.head.item === null,
+				),
+			(there) => there,
+		);
+		check(
+			"the owner's scrollbar marks the friend's cursor",
+			await owner.waitFor(
+				"the scrollbar mark",
+				() =>
+					app.workspace
+						.getLeavesOfType("markdown")[0]
+						.view.containerEl.querySelector(".obsync-scroll-mark")
+						?.getAttribute("aria-label"),
+				(name) => name === "Friend",
+			),
+			"Friend",
+		);
+		await owner.shot("scroll-marks", ".workspace-leaf.mod-active");
+		if (process.env.E2E_SHOTS) {
+			await owner.evaluate(() =>
+				app.workspace
+					.getLeavesOfType("markdown")[0]
+					.view.containerEl.querySelector(".obsync-note-presence")
+					.click(),
+			);
+			await owner.shot("header-menu", ".menu");
+			await owner.evaluate(() =>
+				document.body.dispatchEvent(
+					new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+				),
+			);
+		}
+		check(
+			"go to cursor puts the owner where the friend is",
+			await owner.evaluate(() => {
+				const { editor, containerEl } =
+					app.workspace.getLeavesOfType("markdown")[0].view;
+				editor.setCursor(editor.offsetToPos(0));
+				containerEl.querySelector(".obsync-note-presence").click();
+				const item = [...document.querySelectorAll(".menu .menu-item")].find(
+					(each) => each.textContent?.includes("go to cursor"),
+				) as HTMLElement | undefined;
+				if (!item) throw new Error("no go to cursor in the header menu");
+				item.click();
+				return (
+					editor.posToOffset(editor.getCursor()) === editor.getValue().length
+				);
+			}),
+			true,
+		);
 		await friend.evaluate(() =>
 			app.commands.executeCommandById("obsync:toggle-live-authors"),
 		);
@@ -106,6 +288,60 @@ await runSharing(
 		]);
 		check("the owner pushes the room's text", await sync(owner), CLEAN);
 		check("the friend's copy is no conflict", await sync(friend), CLEAN);
+
+		await friend.evaluate(() =>
+			app.workspace.getLeavesOfType("markdown")[0].detach(),
+		);
+		check(
+			"closing the note takes the friend out of it",
+			await owner.waitFor(
+				"the friend gone from the note",
+				() =>
+					app.plugins.plugins.obsync.realtime.people.inNote("Team/plan.md")
+						.length,
+				(count) => count === 0,
+			),
+			0,
+		);
+
+		await write(friend, "Shared/Team/notes.md", "notes by the friend\n");
+		check("the friend pushes a note", await sync(friend), CLEAN);
+		check("the owner pulls it", await sync(owner), CLEAN);
+		check(
+			"the owner's tree marks the note new, by the friend",
+			await owner.waitFor(
+				"the new dot",
+				() => {
+					const rows =
+						app.workspace.getLeavesOfType("file-explorer")[0].view.fileItems;
+					if (rows.Team.collapsed) rows.Team.setCollapsed(false, false);
+					return rows["Team/notes.md"].selfEl
+						.querySelector(".obsync-unseen-dot")
+						?.getAttribute("aria-label");
+				},
+				(label) => label !== undefined,
+			),
+			"Changed by Friend, just now",
+		);
+		await owner.shot(
+			"tree-unseen",
+			".workspace-leaf-content[data-type='file-explorer']",
+		);
+		await open(owner, NOTES);
+		check(
+			"opening it clears the dot",
+			await owner.waitFor(
+				"the dot gone",
+				() =>
+					app.workspace
+						.getLeavesOfType("file-explorer")[0]
+						.view.fileItems["Team/notes.md"].selfEl.querySelector(
+							".obsync-unseen-dot",
+						) === null,
+				(gone) => gone,
+			),
+			true,
+		);
 	},
 );
 

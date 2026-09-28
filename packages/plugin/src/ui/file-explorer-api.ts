@@ -18,6 +18,8 @@ export interface FileExplorerRows {
 	row(path: string): HTMLElement | null;
 	/** Every path the explorer knows. Only the symlink scan wants them all. */
 	paths(): string[];
+	/** A folder whose rows below are hidden. */
+	collapsed(path: string): boolean;
 }
 
 export function readFileExplorer(
@@ -37,6 +39,9 @@ export function readFileExplorer(
 		row: (path) =>
 			Object.hasOwn(byPath, path) ? rowTarget(byPath[path]) : null,
 		paths: () => Object.keys(byPath),
+		collapsed: (path) =>
+			Object.hasOwn(byPath, path) &&
+			(byPath[path] as { collapsed?: unknown }).collapsed === true,
 	};
 }
 

@@ -8,6 +8,8 @@ import {
 	type IndicatorHandle,
 	registerFileContextIndicators,
 	registerFileExplorerIndicators,
+	registerLiveStatusBar,
+	registerNotePresence,
 	registerRibbon,
 	registerStatusBar,
 	SourceControlView,
@@ -33,7 +35,9 @@ export function registerPluginUi(
 
 	if (plugin.settings.showStatusBar) {
 		registerStatusBar(plugin, controller);
+		registerLiveStatusBar(plugin);
 	}
+	registerNotePresence(plugin);
 	if (plugin.settings.showRibbonIcon) {
 		registerRibbon(plugin, controller, plugin.realtime.hub);
 	}

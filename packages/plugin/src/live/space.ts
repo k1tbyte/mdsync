@@ -4,6 +4,8 @@ import { docIdFor } from "./seal";
 
 /** How this device shows up in a room: its cursor, and the name its text carries. */
 export interface LiveUser {
+	/** The presence key: whose cursor this is, for a jump to it. */
+	key: string;
 	name: string;
 	color: string;
 	colorLight: string;
