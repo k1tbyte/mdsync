@@ -1,6 +1,7 @@
 import * as Y from "yjs";
 
 import type { LiveSession } from "./session";
+import { TextModel } from "./text-model";
 
 interface CursorState {
 	user?: { key?: unknown; name?: unknown };
@@ -15,8 +16,10 @@ export interface RoomCursor {
 	at: number;
 }
 
-/** Every other device's cursor in the room. */
+/** Every other device's cursor in the room; none in a drawing. */
 export function cursorsIn(session: LiveSession): RoomCursor[] {
+	const { model } = session;
+	if (!(model instanceof TextModel)) return [];
 	const out: RoomCursor[] = [];
 	for (const [client, state] of session.awareness.getStates()) {
 		if (client === session.doc.clientID) continue;
@@ -26,7 +29,7 @@ export function cursorsIn(session: LiveSession): RoomCursor[] {
 			Y.createRelativePositionFromJSON(cursor.head),
 			session.doc,
 		);
-		if (at?.type !== session.text) continue;
+		if (!at || at.type !== model.text) continue;
 		out.push({ key: user.key, name: String(user.name ?? ""), at: at.index });
 	}
 	return out;

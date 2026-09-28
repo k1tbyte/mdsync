@@ -13,13 +13,14 @@ const BASE = ["one", "two", "three", "four", "five", "six", ""].join("\n");
 async function diverged(
 	localText: string,
 	remoteText: string,
+	base = BASE,
 ): Promise<[TestSession, TestSession]> {
 	const [a, b] = pairedSessions();
-	a.adapter.putText("note.md", BASE);
+	a.adapter.putText("note.md", base);
 	const first = await a.compare();
 	await pushPathsOp(a.deps(), first, ["note.md"], a.context());
 
-	b.adapter.putText("note.md", BASE);
+	b.adapter.putText("note.md", base);
 	await b.adoptRemote();
 
 	b.adapter.putText("note.md", remoteText);
@@ -75,6 +76,20 @@ describe("autoMergeOp", () => {
 		const entry = outcome.localEntries?.get("note.md");
 		expect(entry?.mtime).toBe(stat?.mtime);
 		expect(a.state.hashCache["note.md"]?.hash).toBe(entry?.hash);
+	});
+
+	it("never merges a drawing it cannot read by lines", async () => {
+		const drawing = `---\nexcalidraw-plugin: parsed\n---\n${BASE}`;
+		const [a] = await diverged(
+			drawing.replace("one", "ONE"),
+			drawing.replace("six", "SIX"),
+			drawing,
+		);
+		const result = await a.compare();
+
+		const outcome = await autoMergeOp(a.deps(), result, a.context());
+
+		expect(outcome.touchedPaths.size).toBe(0);
 	});
 
 	it("leaves an overlapping conflict for the user", async () => {

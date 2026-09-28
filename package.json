@@ -21,6 +21,7 @@
 		"e2e:shares": "pnpm build && jiti tools/e2e/shares.ts",
 		"e2e:invite": "pnpm build && jiti tools/e2e/invite.ts",
 		"e2e:people": "pnpm build && jiti tools/e2e/people.ts",
+		"e2e:live-drawing": "pnpm build && jiti tools/e2e/live-drawing.ts",
 		"prepare": "husky"
 	},
 	"devDependencies": {

@@ -142,7 +142,8 @@ export function mergeWrittenIntoCache(
 			delete next[path];
 			continue;
 		}
-		next[path] = { mtime: entry.mtime, size: entry.size, hash: entry.hash };
+		const { mtime, size, hash, scene } = entry;
+		next[path] = { mtime, size, hash, scene };
 	}
 	return next;
 }

@@ -6,6 +6,7 @@ import * as Y from "yjs";
 import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
 import { docIdFor, seal } from "@/live/seal";
 import { COMPACT_AFTER, LiveSession } from "@/live/session";
+import { TEXT, type TextModel } from "@/live/text-model";
 
 /** Longer than the session's batching window, so a typed edit has left. */
 const FLUSHED_MS = 400;
@@ -14,7 +15,7 @@ const OWNER = { person: "owner", name: "Laptop" };
 let hub: LiveHub;
 let keys: LiveKeys;
 let docId: string;
-const sessions: LiveSession[] = [];
+const sessions: LiveSession<TextModel>[] = [];
 
 beforeEach(async () => {
 	hub = new LiveHub();
@@ -28,7 +29,7 @@ afterEach(() => {
 
 interface Device {
 	connection: TestConnection;
-	session: LiveSession;
+	session: LiveSession<TextModel>;
 	agreed: { text: string; seq: number } | null;
 }
 
@@ -49,6 +50,7 @@ function device(
 	const opened: Device = {
 		connection,
 		session: new LiveSession(room.doc, room.generation, {
+			kind: TEXT,
 			keys,
 			hub: connection,
 			author: OWNER,
@@ -74,7 +76,8 @@ async function synced(disk: string, base = disk, room?: Room): Promise<Device> {
 
 /** Equal everywhere, and still equal once whatever was in flight has landed. */
 async function converge(expected: string, ...devices: Device[]) {
-	const texts = () => devices.map(({ session }) => session.text.toString());
+	const texts = () =>
+		devices.map(({ session }) => session.model.text.toString());
 	const all = devices.map(() => expected);
 	await vi.waitFor(() => expect(texts()).toEqual(all));
 	await sleep(50);
@@ -86,7 +89,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 function type(target: Device, at: number, text: string): void {
-	target.session.text.insert(at, text);
+	target.session.model.text.insert(at, text);
 }
 
 /** Another device's keystrokes, each landing in the room's log as its own delta. */
@@ -154,7 +157,7 @@ describe("live session", () => {
 	it("folds an offline edit into the room without undoing the room's", async () => {
 		const a = await synced("a\nb\nc");
 		type(a, 0, "A");
-		a.session.text.delete(1, 1);
+		a.session.model.text.delete(1, 1);
 		await sleep(FLUSHED_MS);
 
 		const b = await synced("a\nb\nC", "a\nb\nc");
@@ -164,7 +167,7 @@ describe("live session", () => {
 
 	it("keeps both sides of a conflict, the room's first", async () => {
 		const a = await synced("a\nb\nc");
-		a.session.text.delete(2, 1);
+		a.session.model.text.delete(2, 1);
 		type(a, 2, "X");
 		await sleep(FLUSHED_MS);
 
@@ -175,7 +178,7 @@ describe("live session", () => {
 
 	it("does not resurrect a note the room emptied", async () => {
 		const a = await synced("gone");
-		a.session.text.delete(0, 4);
+		a.session.model.text.delete(0, 4);
 		await sleep(FLUSHED_MS);
 
 		const b = await synced("gone");
@@ -190,7 +193,7 @@ describe("live session", () => {
 
 		type(a, 1, "y");
 		await sleep(FLUSHED_MS);
-		expect(b.session.text.toString()).toBe("x");
+		expect(b.session.model.text.toString()).toBe("x");
 
 		a.connection.disconnect();
 		a.connection.connect();
@@ -319,8 +322,8 @@ describe("live session compaction", () => {
 			});
 		});
 		const b = await synced("");
-		expect(b.session.text.toString()).toBe("z".repeat(COMPACT_AFTER));
-		expect(a.session.text.toString()).toBe("z".repeat(COMPACT_AFTER));
+		expect(b.session.model.text.toString()).toBe("z".repeat(COMPACT_AFTER));
+		expect(a.session.model.text.toString()).toBe("z".repeat(COMPACT_AFTER));
 	});
 
 	it("leaves the log alone while anything typed here is unacked", async () => {
@@ -382,7 +385,7 @@ describe("live session rotation", () => {
 
 		await vi.waitFor(() => expect(b.session.movedTo).toBe(target));
 		const c = await synced("hello world", "hello world", await successor());
-		expect(c.session.text.toString()).toBe("hello world");
+		expect(c.session.model.text.toString()).toBe("hello world");
 		expect(c.session.doc.getMap("users").toJSON()).toEqual({
 			[String(b.session.doc.clientID)]: OWNER,
 		});
@@ -413,8 +416,8 @@ describe("live session rotation", () => {
 
 		expect(await a.session.rotate(await next())).toBe("refused");
 
-		await vi.waitFor(() => expect(b.session.text.length).toBe(2));
-		await converge(b.session.text.toString(), a, b);
+		await vi.waitFor(() => expect(b.session.model.text.length).toBe(2));
+		await converge(b.session.model.text.toString(), a, b);
 		expect([a.session.movedTo, (await roomState()).type]).toEqual([
 			null,
 			EFrame.State,

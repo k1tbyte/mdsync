@@ -1,6 +1,6 @@
 import { type FileView, MarkdownView, type TFile } from "obsidian";
 
-import { isLiveDocument } from "@/live/doc-types";
+import { LIVE_VIEWS, liveKindOf } from "@/live/doc-types";
 import type { PluginHost } from "@/plugin/host";
 import { type Space, spaceOf } from "@/sync/space";
 
@@ -48,10 +48,11 @@ function coldReason(
 		return "Live editing is off: changes sync on the schedule";
 	}
 	if (space.readOnly) return "Read-only: changes arrive as they sync";
-	if (!(view instanceof MarkdownView) || !isLiveDocument(plugin.app, file)) {
+	const kind = liveKindOf(plugin.app, file);
+	if (!kind || view.getViewType() !== LIVE_VIEWS[kind]) {
 		return "Not a live note: changes sync on the schedule";
 	}
-	if (view.getMode() !== "source") {
+	if (view instanceof MarkdownView && view.getMode() !== "source") {
 		return "Live in the editor, not in reading view";
 	}
 	return "Waiting for the key: sync once to go live";

@@ -16,12 +16,9 @@ import * as Y from "yjs";
 import type { LiveKeys } from "@/crypto/live-keys";
 import type { SpaceFrame, SpaceHub, SpaceListener } from "@/hub/connection";
 import { reportWarning } from "@/shared/diagnostics";
-import { toLf } from "@/utils/eol";
 
 import { type Author, USERS } from "./authors";
-import { mergeThreeWay } from "./merge";
-import { patchYText } from "./patch";
-import { BODY, rebuild } from "./rebuild";
+import type { LiveKind, LiveModel } from "./model";
 import { seal, unseal } from "./seal";
 
 /** Edits and cursors batch this long: at 100 ms the envelope outweighed the content. */
@@ -46,7 +43,8 @@ interface AwarenessChanges {
 	removed: number[];
 }
 
-export interface LiveSessionDeps {
+export interface LiveSessionDeps<M extends LiveModel> {
+	kind: LiveKind<M>;
 	keys: LiveKeys;
 	/** The channel of the space the note is in. */
 	hub: SpaceHub;
@@ -55,28 +53,26 @@ export interface LiveSessionDeps {
 	/** Opened by following a moved room, which is never seeded from disk. */
 	follower?: boolean;
 	readDisk(): Promise<string>;
-	/** The text the disk last agreed on with everyone: the base of the merge. */
+	/** What the disk last agreed on with everyone: the base of the merge. */
 	readBase(): Promise<string>;
-	/** The room now holds all of `text`: nothing local is pending or unacked. */
-	onAgreed(text: string, seq: number): void;
+	/** The room now holds all of `agreed`: nothing local is pending or unacked. */
+	onAgreed(agreed: string, seq: number): void;
 	/** The room was rebuilt elsewhere and now points at its successor. */
 	onMoved(): void;
 }
 
-export class LiveSession implements SpaceListener {
+export class LiveSession<M extends LiveModel = LiveModel>
+	implements SpaceListener
+{
 	readonly doc = new Y.Doc();
-	readonly text = this.doc.getText(BODY);
+	readonly model: M;
 	readonly awareness = new Awareness(this.doc);
-	/** Bindings add their own origins: the merge on open is never undone by a keystroke. */
-	readonly undoManager = new Y.UndoManager(this.text, {
-		trackedOrigins: new Set(),
-	});
 	/** Resolves once the room answered and the disk is folded in; bind nothing before. */
 	readonly ready: Promise<void>;
 
 	private markReady!: () => void;
 	private inSync = false;
-	/** The disk text the open merged in, so `adopt` can tell what was typed since. */
+	/** The disk read the open merged in, so `adopt` can tell what changed since. */
 	private reconciledFrom: string | null = null;
 	/** Updates may go out on this socket: from its first State until it drops. */
 	private online = false;
@@ -118,8 +114,9 @@ export class LiveSession implements SpaceListener {
 	constructor(
 		readonly docId: string,
 		readonly generation: number,
-		private readonly deps: LiveSessionDeps,
+		private readonly deps: LiveSessionDeps<M>,
 	) {
+		this.model = deps.kind.model(this.doc);
 		this.ready = new Promise((resolve) => {
 			this.markReady = resolve;
 		});
@@ -156,25 +153,16 @@ export class LiveSession implements SpaceListener {
 
 	/** Folds in a version edited outside the room, three-way against the one it grew from. */
 	absorb(base: string, incoming: string): void {
-		patchYText(
-			this.doc,
-			this.text,
-			mergeThreeWay(toLf(base), toLf(incoming), this.text.toString()),
-		);
+		this.model.merge(base, incoming);
 	}
 
-	/** Folds in what the first bound editor gained since the disk read the open merged. */
-	adopt(editorText: string): void {
-		const typed = toLf(editorText);
+	/** Folds in what the first bound view gained since the disk read the open merged. */
+	adopt(current: string): void {
 		const from = this.reconciledFrom;
-		// A later editor may lag the room; merged against this old read it would duplicate.
+		// A later view may lag the room; merged against this old read it would duplicate.
 		this.reconciledFrom = null;
-		if (from === null || typed === from) return;
-		patchYText(
-			this.doc,
-			this.text,
-			mergeThreeWay(from, typed, this.text.toString()),
-		);
+		if (from === null || current === from) return;
+		this.model.merge(from, current);
 	}
 
 	/** Rebuilds the document into `target` and moves the room there, unless the log moved on meanwhile. */
@@ -185,7 +173,7 @@ export class LiveSession implements SpaceListener {
 					return resolve("busy");
 				}
 				const upto = this.lastSeq;
-				const payload = await seal(this.deps.keys, rebuild(this.doc));
+				const payload = await seal(this.deps.keys, this.model.rebuild());
 				if (!this.online) return resolve("busy");
 				this.rotation = resolve;
 				this.send({ type: EFrame.Rotate, target, upto, payload });
@@ -225,7 +213,7 @@ export class LiveSession implements SpaceListener {
 			if (rest) await this.sendUpdate(rest);
 			this.send({ type: EFrame.Unsub });
 			this.doc.off("update", this.onLocalUpdate);
-			this.undoManager.destroy();
+			this.model.dispose();
 			this.awareness.destroy();
 			this.doc.destroy();
 		});
@@ -273,11 +261,8 @@ export class LiveSession implements SpaceListener {
 	}
 
 	private async offerSeed(epoch: number): Promise<void> {
-		const disk = toLf(await this.deps.readDisk());
-		const scratch = new Y.Doc();
-		scratch.getText("body").insert(0, disk);
-		const seed = Y.encodeStateAsUpdate(scratch);
-		scratch.destroy();
+		const disk = await this.deps.readDisk();
+		const seed = this.deps.kind.seed(disk);
 		const payload = await seal(this.deps.keys, seed);
 		// An echo on a later socket must not be taken for this seed's.
 		if (epoch !== this.epoch) return;
@@ -293,12 +278,10 @@ export class LiveSession implements SpaceListener {
 	 */
 	private async reconcile(): Promise<void> {
 		// Base first: a file sync writes the disk before the base, so the pair read is never base-ahead.
-		const base = toLf(await this.deps.readBase());
-		const disk = toLf(await this.deps.readDisk());
+		const base = await this.deps.readBase();
+		const disk = await this.deps.readDisk();
 		this.reconciledFrom = disk;
-		const room = this.text.toString();
-		if (disk === room) return;
-		patchYText(this.doc, this.text, mergeThreeWay(base, disk, room));
+		this.model.merge(base, disk);
 	}
 
 	private markSynced(): void {
@@ -340,11 +323,11 @@ export class LiveSession implements SpaceListener {
 
 	/**
 	 * With nothing local outstanding the doc is exactly the room at `lastSeq`:
-	 * that text is agreed, and a snapshot of it can replace the log.
+	 * that content is agreed, and a snapshot of it can replace the log.
 	 */
 	private async settle(): Promise<void> {
 		if (!this.settled) return;
-		this.deps.onAgreed(this.text.toString(), this.lastSeq);
+		this.deps.onAgreed(this.model.agreed(), this.lastSeq);
 		if (this.lastSeq - this.compacted < COMPACT_AFTER || !this.leads()) return;
 		this.compacted = this.lastSeq;
 		const snapshot = Y.encodeStateAsUpdate(this.doc);

@@ -162,4 +162,25 @@ describe("diff", () => {
 			"note.md",
 		]);
 	});
+
+	it("takes saves of one drawing scene for the same content", () => {
+		const input: DiffInput = {
+			baseline: mockManifest("v1", { "d.md": { hash: "b", scene: "s1" } }),
+			remote: mockManifest("v2", { "d.md": { hash: "r", scene: "s2" } }),
+			local: mockLocal({ "d.md": { hash: "l", scene: "s2" } }),
+		};
+		expect(diff(input).converged).toEqual(["d.md"]);
+
+		const viewOnly: DiffInput = {
+			baseline: mockManifest("v1", { "d.md": { hash: "b", scene: "s1" } }),
+			remote: mockManifest("v1", { "d.md": { hash: "b", scene: "s1" } }),
+			local: mockLocal({ "d.md": { hash: "l", scene: "s1" } }),
+		};
+		const quiet = diff(viewOnly);
+		expect([quiet.localChanges, quiet.remoteChanges, quiet.converged]).toEqual([
+			[],
+			[],
+			[],
+		]);
+	});
 });

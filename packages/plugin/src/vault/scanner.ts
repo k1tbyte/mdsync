@@ -2,6 +2,7 @@ import type { DataAdapter } from "obsidian";
 import { Platform } from "obsidian";
 import { DEFAULT_CONCURRENCY } from "@/constants";
 import { sha256Hex } from "@/crypto";
+import { sceneOfBytes } from "@/drawing";
 import { stripTrailingSlash } from "@/shared/path";
 import { sortedByPath } from "@/shared/records";
 import type {
@@ -140,7 +141,9 @@ export async function scanVault(
 			files[path] = entry;
 			// The cache entry already holds these three fields; re-boxing them
 			// grows the old generation by one object per file for nothing.
-			updatedCache[path] = hit ? cached : { mtime, size, hash: entry.hash };
+			updatedCache[path] = hit
+				? cached
+				: { mtime, size, hash: entry.hash, scene: entry.scene };
 		} catch (err) {
 			skipped.push({ path, reason: `Could not read: ${String(err)}` });
 			return;
@@ -206,12 +209,12 @@ async function buildEntry(
 	/** Present for large files, to keep several of them out of memory at once. */
 	gate?: <T>(run: () => Promise<T>) => Promise<T>,
 ): Promise<ManifestEntry> {
-	if (hit) return { hash: hit.hash, size, mtime, kind };
+	if (hit) return { hash: hit.hash, size, mtime, kind, scene: hit.scene };
 	// Gated around the read alone: a cache hit reads nothing and must not queue.
 	const read = (): Promise<ArrayBuffer> => adapter.readBinary(path);
-	const buffer = await (gate ? gate(read) : read());
-	const hash = await sha256Hex(new Uint8Array(buffer));
-	return { hash, size, mtime, kind };
+	const bytes = new Uint8Array(await (gate ? gate(read) : read()));
+	const hash = await sha256Hex(bytes);
+	return { hash, size, mtime, kind, scene: await sceneOfBytes(path, bytes) };
 }
 
 /**

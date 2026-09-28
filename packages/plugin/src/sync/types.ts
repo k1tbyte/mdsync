@@ -14,6 +14,8 @@ export interface ManifestEntry {
 	live?: LiveMark;
 	/** Who published this content: an index into the manifest's `authors`. */
 	by?: number;
+	/** A drawing's scene fingerprint: saves of one scene differ only in view state. */
+	scene?: string;
 }
 
 /** A person in a share, a device in the vault. */
@@ -50,6 +52,7 @@ export interface HashCacheEntry {
 	mtime: number;
 	size: number;
 	hash: string;
+	scene?: string;
 }
 
 /**

@@ -5,6 +5,7 @@ import {
 	type FileChange,
 	type LocalSnapshot,
 	type Manifest,
+	type ManifestEntry,
 } from "./types";
 
 export interface DiffInput {
@@ -49,17 +50,20 @@ export function diff(input: DiffInput): DiffResult {
 		if (unreadable.has(path) || isUnderUnreadableDir(path, unreadableDirs)) {
 			continue;
 		}
-		const local = localFiles[path]?.hash ?? null;
-		const remote = remoteFiles[path]?.hash ?? null;
-		const baseline = baselineFiles[path]?.hash ?? null;
+		const localEntry = localFiles[path];
+		const remoteEntry = remoteFiles[path];
+		const baselineEntry = baselineFiles[path];
+		const local = localEntry?.hash ?? null;
+		const remote = remoteEntry?.hash ?? null;
+		const baseline = baselineEntry?.hash ?? null;
 
-		const localChanged = local !== baseline;
-		const remoteChanged = remote !== baseline;
+		const localChanged = !sameContent(localEntry, baselineEntry);
+		const remoteChanged = !sameContent(remoteEntry, baselineEntry);
 
 		if (!localChanged && !remoteChanged) continue;
 
 		if (localChanged && remoteChanged) {
-			if (local === remote) {
+			if (sameContent(localEntry, remoteEntry)) {
 				converged.push(path);
 				continue;
 			}
@@ -93,6 +97,15 @@ export function diff(input: DiffInput): DiffResult {
 		(input.baseline?.snapshotId ?? null) !== (input.remote?.snapshotId ?? null);
 
 	return { localChanges, remoteChanges, conflicts, converged, remoteMoved };
+}
+
+/** A drawing is its scene: saves of one scene differ only in the view state they carry. */
+function sameContent(
+	a: ManifestEntry | undefined,
+	b: ManifestEntry | undefined,
+): boolean {
+	if (!a || !b) return a === b;
+	return a.hash === b.hash || (a.scene !== undefined && a.scene === b.scene);
 }
 
 function classify(

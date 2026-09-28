@@ -45,6 +45,10 @@ re-injected only on reload.
   live, its cursor marks the scrollbar, "go to cursor" jumps there, and
   closing the note leaves it; a note the other changed shows as new until
   opened.
+- `pnpm e2e:live-drawing` - two Obsidians with the Excalidraw plugin (latest
+  release, fetched once into `temp/e2e-plugins/`) draw into one drawing: shapes,
+  concurrent edits and a deletion reach the other, the pointer shows, and the
+  file sync of drawings saved with different zoom settles clean.
   `E2E_SHOTS=1` saves screenshots of these under `artifacts/e2e-shots/`.
 
 `tools/e2e/device.ts` drives a device: sync, files, folder menus, modals.

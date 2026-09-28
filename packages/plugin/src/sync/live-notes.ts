@@ -94,7 +94,11 @@ export async function liveMarks(
 	const ready: string[] = [];
 	for (const path of paths) {
 		const local = entryAt(result.snapshot.files, path);
-		const mark = local ? await live.mark(path, local.hash) : null;
+		// A drawing converges by its scene, so its file may lag its room.
+		const mark =
+			local && local.scene === undefined
+				? await live.mark(path, local.hash)
+				: null;
 		if (mark === "later") continue;
 		if (mark) {
 			const remote = entryAt(result.remote?.files ?? {}, path)?.live;

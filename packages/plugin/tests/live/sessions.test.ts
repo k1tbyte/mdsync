@@ -13,6 +13,7 @@ import { docIdFor, seal } from "@/live/seal";
 import type { LiveSession } from "@/live/session";
 import { LiveSessions } from "@/live/sessions";
 import type { LiveSpace } from "@/live/space";
+import type { TextModel } from "@/live/text-model";
 
 vi.mock("@/live/binding", () => ({
 	bindEditor: vi.fn(() => ({ detach: vi.fn(), showAuthors: vi.fn() })),
@@ -63,7 +64,9 @@ afterEach(() => sessions.dispose());
 
 function fakeApp(): App {
 	return {
-		workspace: { getLeavesOfType: () => leaves },
+		workspace: {
+			getLeavesOfType: (type: string) => (type === "markdown" ? leaves : []),
+		},
 		vault: { getFileByPath: () => null, read: async () => "" },
 		metadataCache: { getFileCache: () => null },
 	} as unknown as App;
@@ -202,14 +205,14 @@ describe("live notes as the file sync sees them", () => {
 
 	/** Opens a.md, whose editor holds "text", and waits for its room. */
 	async function openRoom(): Promise<{
-		room: LiveSession;
+		room: LiveSession<TextModel>;
 		view: MarkdownView;
 	}> {
 		const view = editorOf(note("a.md"));
 		leaves = [{ view }];
 		await sessions.refresh();
 		await vi.waitFor(() => expect(bindEditor).toHaveBeenCalled());
-		return { room: sessions.roomOf("a.md") as LiveSession, view };
+		return { room: sessions.roomOf("a.md") as LiveSession<TextModel>, view };
 	}
 
 	it("marks a closed note's file that is its room's agreed text", async () => {
@@ -239,7 +242,7 @@ describe("live notes as the file sync sees them", () => {
 			seq: 1,
 		});
 
-		room.text.insert(0, "typed ");
+		room.model.text.insert(0, "typed ");
 
 		expect(await cold().mark("a.md", await hashOf("text"))).toBe("later");
 	});
@@ -253,7 +256,7 @@ describe("live notes as the file sync sees them", () => {
 		}));
 
 		expect(take).toBe("taken");
-		expect(room.text.toString()).toBe("text\nmore");
+		expect(room.model.text.toString()).toBe("text\nmore");
 		expect(view.save).toHaveBeenCalled();
 	});
 
@@ -272,7 +275,7 @@ describe("live notes as the file sync sees them", () => {
 
 		expect(takes).toEqual(["later", "later", "taken"]);
 		expect(texts).not.toHaveBeenCalled();
-		expect(room.text.toString()).toBe("text");
+		expect(room.model.text.toString()).toBe("text");
 	});
 
 	it("holds a note open in another space's room until this sync's partition catches up", async () => {
@@ -316,11 +319,11 @@ describe("live notes as the file sync sees them", () => {
 });
 
 describe("rebuilt rooms", () => {
-	async function bound(): Promise<LiveSession> {
+	async function bound(): Promise<LiveSession<TextModel>> {
 		leaves = [{ view: editorOf(note("a.md")) }];
 		await sessions.refresh();
 		await vi.waitFor(() => expect(sessions.roomOf("a.md")).not.toBeNull());
-		return sessions.roomOf("a.md") as LiveSession;
+		return sessions.roomOf("a.md") as LiveSession<TextModel>;
 	}
 
 	it("moves an open note's editor into the successor of its room", async () => {

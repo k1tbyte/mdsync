@@ -4,6 +4,7 @@ import { personColors } from "@/shared/colors";
 
 import { cursorsIn, type RoomCursor } from "./cursors";
 import type { LiveSession } from "./session";
+import type { TextModel } from "./text-model";
 
 interface Mark {
 	cursor: RoomCursor;
@@ -12,7 +13,7 @@ interface Mark {
 }
 
 /** Others' cursors as ticks on the scrollbar; a tick scrolls to its cursor, never follows it. */
-export function scrollMarks(session: LiveSession) {
+export function scrollMarks(session: LiveSession<TextModel>) {
 	return ViewPlugin.define((view) => new ScrollMarks(view, session));
 }
 
@@ -24,7 +25,7 @@ class ScrollMarks {
 
 	constructor(
 		private readonly view: EditorView,
-		private readonly session: LiveSession,
+		private readonly session: LiveSession<TextModel>,
 	) {
 		this.track = view.dom.createDiv({ cls: "obsync-scroll-marks" });
 		session.awareness.on("change", this.onAwareness);

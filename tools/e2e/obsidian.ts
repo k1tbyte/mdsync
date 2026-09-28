@@ -9,6 +9,7 @@ import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import {
 	copyFileSync,
+	cpSync,
 	mkdirSync,
 	mkdtempSync,
 	rmSync,
@@ -52,6 +53,8 @@ export async function launchObsidian(options: {
 	/** The plugin's data.json. */
 	settings: object;
 	files?: Record<string, string>;
+	/** Other community plugins' folders, each named by its plugin id. */
+	plugins?: string[];
 }): Promise<Obsidian> {
 	const root = mkdtempSync(join(tmpdir(), "obsync-e2e-"));
 	const userData = join(root, "userdata");
@@ -63,7 +66,16 @@ export async function launchObsidian(options: {
 		copyFileSync(join(REPO, file), join(pluginDir, basename(file)));
 	}
 	writeJson(join(pluginDir, "data.json"), options.settings);
-	writeJson(join(vault, ".obsidian", "community-plugins.json"), ["obsync"]);
+	const others = (options.plugins ?? []).map((dir) => {
+		cpSync(dir, join(vault, ".obsidian", "plugins", basename(dir)), {
+			recursive: true,
+		});
+		return basename(dir);
+	});
+	writeJson(join(vault, ".obsidian", "community-plugins.json"), [
+		"obsync",
+		...others,
+	]);
 	writeJson(join(userData, "obsidian.json"), {
 		vaults: {
 			[randomBytes(8).toString("hex")]: {

@@ -71,7 +71,6 @@ export function publishedByOthers(
 	});
 }
 
-function withoutAuthor(entry: ManifestEntry): ManifestEntry {
-	const { hash, size, mtime, kind, live } = entry;
-	return live ? { hash, size, mtime, kind, live } : { hash, size, mtime, kind };
+function withoutAuthor({ by: _, ...entry }: ManifestEntry): ManifestEntry {
+	return entry;
 }

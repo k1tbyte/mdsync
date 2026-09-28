@@ -10,14 +10,10 @@ import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 
 import { authorMarks } from "./author-marks";
 import { USERS } from "./authors";
+import type { BoundEditor } from "./model";
 import { scrollMarks } from "./scroll-marks";
 import type { LiveSession } from "./session";
-
-export interface BoundEditor {
-	/** Tints what anyone but `me` typed; null takes the tint off. */
-	showAuthors(me: string | null): void;
-	detach(): void;
-}
+import type { TextModel } from "./text-model";
 
 /**
  * Attaches a session to one leaf. `registerEditorExtension` reaches every
@@ -28,7 +24,7 @@ export interface BoundEditor {
  */
 export function bindEditor(
 	view: MarkdownView,
-	session: LiveSession,
+	session: LiveSession<TextModel>,
 	me: string | null,
 ): BoundEditor {
 	const cm = (view.editor as unknown as { cm?: EditorView }).cm;
@@ -36,7 +32,7 @@ export function bindEditor(
 
 	// Keystrokes typed while the room was answering go in before the editor follows it.
 	session.adopt(view.editor.getValue());
-	const text = session.text.toString();
+	const text = session.model.text.toString();
 	// Skipping the no-op keeps the cursor where the user left it.
 	if (view.editor.getValue() !== text) view.editor.setValue(text);
 
@@ -45,12 +41,12 @@ export function bindEditor(
 	const tint = (who: string | null): Extension =>
 		who === null
 			? []
-			: authorMarks(session.text, session.doc.getMap(USERS), who);
+			: authorMarks(session.model.text, session.doc.getMap(USERS), who);
 	cm.dispatch({
 		effects: StateEffect.appendConfig.of(
 			compartment.of([
-				yCollab(session.text, session.awareness, {
-					undoManager: session.undoManager,
+				yCollab(session.model.text, session.awareness, {
+					undoManager: session.model.undoManager,
 				}),
 				// Obsidian's own undo would also revert what other devices typed.
 				Prec.high(keymap.of(yUndoManagerKeymap)),

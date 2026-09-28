@@ -1,4 +1,6 @@
 import type { DataAdapter } from "obsidian";
+
+import { isDrawing, mergeDrawings } from "@/drawing";
 import {
 	loadLocalText,
 	loadRemoteText,
@@ -27,6 +29,9 @@ export async function tryAutoMergeConflict(
 	]);
 	if (baseText === null || remoteText === null || localText === null) {
 		return null;
+	}
+	if ([baseText, remoteText, localText].some(isDrawing)) {
+		return mergeDrawings(baseText, localText, remoteText);
 	}
 	// The same regions the merge editor shows, so a file it calls clean opens without conflicts.
 	const { text, changes } = buildMergeSession(baseText, localText, remoteText);

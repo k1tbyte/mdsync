@@ -118,7 +118,25 @@ places to change later:
   falling back to the cold baseline; the baseline as the main base duplicated
   lines not yet pushed.
 - Live document types are chosen by frontmatter, not suffix
-  (`excalidraw-plugin: parsed` also sits in plain `.md`).
+  (`excalidraw-plugin: parsed` also sits in plain `.md`): a drawing goes live
+  only in the Excalidraw view, never as text.
+- Each kind is a `LiveModel` behind one session (`live/model.ts`): a note is one
+  Y.Text, a drawing a Y.Map of whole elements settled by Excalidraw's own rule
+  (`live/drawing/`). `live/editors.ts` pairs each with the view that edits it.
+- A drawing binds through the Excalidraw plugin's undocumented `excalidrawAPI`
+  and `window.ExcalidrawLib` (checked against 2.x). `onChange` pushes elements
+  whose version moved; remote ones come in through `reconcileElements` and
+  `updateScene` with `captureUpdate: NEVER`, so undo stays local. Y.Map settles
+  concurrent sets by client id, so the element a view kept goes back into the
+  map; an edit made over a newer version is bumped past it. The room holds
+  copies: Excalidraw mutates elements in place.
+- Drawing pointers travel in awareness as scene coordinates from `pointermove`
+  (the API has no `onPointerUpdate`) and render as Excalidraw collaborators.
+  The view loads its API after `file-open`, so binding retries every 500 ms.
+- A view switched to another file names it a moment before it shows its
+  scene (`excalidrawData.file` lags `file`): a binding reads, takes and gives
+  elements only while the view `holds` its file, or one drawing pours into the
+  other's room.
 - The editor binding is a Compartment over the undocumented `editor.cm`, as
   Peerdraft and Relay do.
 - The lowest client id compacts once 200 deltas pile up; **Rebuild live note**
@@ -159,7 +177,10 @@ places to change later:
   focus (y-codemirror), so "go to cursor" goes where they last were there.
 - The read-only lock is the editor's: Properties, renames and other plugins
   still change files there, which then wait unpushed as before. A note moved
-  into a read-only root while open locks on reopening.
+  into a read-only root while open locks on reopening. The Excalidraw view is
+  not locked.
+- Excalidraw colours a drawing's pointers itself, from the person's key, so
+  they do not match that person's avatar.
 - The "new" dot knows only what this device pulled: a file changed and seen
   on another of the same person's devices is still new here. Deletions mark
   nothing.

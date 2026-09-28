@@ -1,25 +1,24 @@
 /**
- * Which notes are live: a session exists while its note is open in a
- * source-mode editor on this device, and every such leaf is bound to it once
- * the room answered. A room that moved hands its leaves to its successor.
- * Closed notes are the cold layer's business.
+ * Which files are live: a session exists while its file is open in a view
+ * that edits it live on this device (a note in source mode, a drawing in
+ * Excalidraw), and every such leaf is bound to it once the room answered. A
+ * room that moved hands its leaves to its successor. Closed files are the
+ * cold layer's business.
  */
 
-import {
-	type App,
-	MarkdownView,
-	type TFile,
-	type WorkspaceLeaf,
-} from "obsidian";
+import type { App, TFile, WorkspaceLeaf } from "obsidian";
 
 import type { HubConnection } from "@/hub/connection";
 import { reportWarning } from "@/shared/diagnostics";
 
 import type { AgreedTexts } from "./agreed-texts";
-import { type BoundEditor, bindEditor } from "./binding";
-import { isLiveDocument } from "./doc-types";
-import { LiveSession, type Rotation } from "./session";
+import { liveKindOf } from "./doc-types";
+import { EDITORS, type LiveEditor, type LiveRoom } from "./editors";
+import type { BoundEditor } from "./model";
+import type { LiveSession, Rotation } from "./session";
 import { docIdIn, type LiveSpace, sameSpace } from "./space";
+
+const LOADING_RETRY_MS = 500;
 
 export interface LiveSessionsDeps {
 	app: App;
@@ -31,14 +30,15 @@ export interface LiveSessionsDeps {
 	baseText(path: string): Promise<string | null>;
 }
 
-interface Room {
-	session: LiveSession;
+interface Room extends LiveRoom {
 	space: LiveSpace;
+	editor: LiveEditor;
 }
 
 interface OpenNote {
 	file: TFile;
 	space: LiveSpace;
+	editor: LiveEditor;
 }
 
 interface Binding {
@@ -60,6 +60,8 @@ export class LiveSessions {
 	private running = false;
 	private again = false;
 	private disposed = false;
+	/** A pass for views still loading: nothing announces when they are ready. */
+	private retry: number | null = null;
 
 	constructor(private readonly deps: LiveSessionsDeps) {}
 
@@ -90,6 +92,7 @@ export class LiveSessions {
 
 	dispose(): void {
 		this.disposed = true;
+		if (this.retry !== null) window.clearTimeout(this.retry);
 		this.listeners.clear();
 		this.closeAll();
 		void this.deps.agreed.flush();
@@ -139,11 +142,10 @@ export class LiveSessions {
 
 	/** Saves the note's bound editor now, so its file holds what the room has. */
 	async save(path: string): Promise<void> {
+		const editor = this.rooms.get(path)?.editor;
 		for (const [leaf, binding] of this.bound) {
-			if (binding.path !== path || !(leaf.view instanceof MarkdownView)) {
-				continue;
-			}
-			await leaf.view.save();
+			if (binding.path !== path || !editor) continue;
+			await editor.save(leaf.view);
 			return;
 		}
 	}
@@ -189,21 +191,29 @@ export class LiveSessions {
 		}
 		if (this.disposed) return;
 
-		for (const [leaf, { file, space }] of open) {
+		for (const [leaf, { file, space, editor }] of open) {
 			if (this.bound.has(leaf) || this.stranded.has(file.path)) continue;
-			const { session } =
-				this.rooms.get(file.path) ?? (await this.open(file.path, space));
+			const room =
+				this.rooms.get(file.path) ??
+				(await this.open(file.path, space, editor));
 			if (this.disposed) return;
 			// Binding before the room answered would publish this device's text as agreed.
-			if (!session.synced) continue;
-			const view = leaf.view;
-			if (!(view instanceof MarkdownView) || view.file !== file) continue;
+			if (!room.session.synced) continue;
+			if (room.editor.fileOf(leaf.view) !== file) continue;
 			const { person } = space;
+			const bound = room.bind(leaf.view, this.authors ? person : null);
+			if (!bound) {
+				this.retry ??= window.setTimeout(() => {
+					this.retry = null;
+					void this.refresh();
+				}, LOADING_RETRY_MS);
+				continue;
+			}
 			this.bound.set(leaf, {
 				path: file.path,
-				session,
+				session: room.session,
 				person,
-				editor: bindEditor(view, session, this.authors ? person : null),
+				editor: bound,
 			});
 		}
 	}
@@ -222,13 +232,14 @@ export class LiveSessions {
 			return;
 		}
 		if (this.disposed) return;
-		await this.open(path, from.space, generation);
+		await this.open(path, from.space, from.editor, generation);
 	}
 
 	/** `follows`: the generation a moved room pointed at, which is never seeded from disk. */
 	private async open(
 		path: string,
 		space: LiveSpace,
+		editor: LiveEditor,
 		follows?: number,
 	): Promise<Room> {
 		const note = await docIdIn(space, path, 0);
@@ -236,48 +247,45 @@ export class LiveSessions {
 		const generation = follows ?? (await agreed.get(note))?.gen ?? 0;
 		const docId =
 			generation === 0 ? note : await docIdIn(space, path, generation);
-		const session = new LiveSession(docId, generation, {
+		const opened = editor.open(docId, generation, {
 			keys: space.keys,
 			hub: hub.space(space.id),
 			author: { person: space.person, name: space.user.name },
 			follower: follows !== undefined,
-			readDisk: () => this.readDisk(path),
+			readDisk: () => this.readDisk(path, editor),
 			readBase: async () =>
 				(await agreed.get(note))?.text ?? (await baseText(path)) ?? "",
 			onAgreed: (text, seq) => agreed.put(note, { text, gen: generation, seq }),
 			onMoved: () => void this.refresh(),
 		});
-		session.awareness.setLocalStateField("user", space.user);
-		const room = { session, space };
+		opened.session.awareness.setLocalStateField("user", space.user);
+		const room = { ...opened, space, editor };
 		this.rooms.set(path, room);
-		void session.ready.then(() => this.refresh());
+		void opened.session.ready.then(() => this.refresh());
 		return room;
 	}
 
-	/** An open editor is newer than the file it saves a moment later. */
-	private async readDisk(path: string): Promise<string> {
+	/** An open view is newer than the file it saves a moment later. */
+	private async readDisk(path: string, editor: LiveEditor): Promise<string> {
 		const { workspace, vault } = this.deps.app;
-		for (const leaf of workspace.getLeavesOfType("markdown")) {
-			const view = leaf.view;
-			if (view instanceof MarkdownView && view.file?.path === path) {
-				return view.editor.getValue();
-			}
+		for (const leaf of workspace.getLeavesOfType(editor.viewType)) {
+			const text = editor.read(leaf.view, path);
+			if (text !== null) return text;
 		}
 		const file = vault.getFileByPath(path);
 		return file ? vault.read(file) : "";
 	}
 
 	private async openEditors(): Promise<Map<WorkspaceLeaf, OpenNote>> {
+		const { app, liveSpace } = this.deps;
 		const open = new Map<WorkspaceLeaf, OpenNote>();
-		for (const leaf of this.deps.app.workspace.getLeavesOfType("markdown")) {
-			const view = leaf.view;
-			if (!(view instanceof MarkdownView) || view.getMode() !== "source") {
-				continue;
+		for (const [kind, editor] of Object.entries(EDITORS)) {
+			for (const leaf of app.workspace.getLeavesOfType(editor.viewType)) {
+				const file = editor.fileOf(leaf.view);
+				if (!file || liveKindOf(app, file) !== kind) continue;
+				const space = await liveSpace(file.path);
+				if (space) open.set(leaf, { file, space, editor });
 			}
-			const file = view.file;
-			if (!file || !isLiveDocument(this.deps.app, file)) continue;
-			const space = await this.deps.liveSpace(file.path);
-			if (space) open.set(leaf, { file, space });
 		}
 		return open;
 	}
