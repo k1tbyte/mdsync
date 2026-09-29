@@ -1,6 +1,8 @@
+import { shareChannel } from "@obsync/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { fingerprint } from "../src/secret";
-import { EShareRole, handleShareRequest, type ShareEnv } from "../src/share";
+import { handleShareRequest } from "../src/share";
+import { EShareRole, type ShareEnv } from "../src/share-kv";
 import { FakeKV } from "./helpers/fake-kv";
 
 const ADMIN = "admin-secret";
@@ -15,16 +17,24 @@ const STORAGE = {
 	forcePathStyle: true,
 };
 
-type TestEnv = ShareEnv & { SHARE_TOKENS: FakeKV; dropped: string[] };
+type TestEnv = ShareEnv & {
+	SHARE_TOKENS: FakeKV;
+	dropped: string[];
+	purged: [channel: string, droppedBefore: number][];
+};
 
 function makeEnv(kv = new FakeKV()): TestEnv {
 	const dropped: string[] = [];
-	// The hub records which grants the broker asked it to cut.
+	const purged: TestEnv["purged"] = [];
+	// The hub records which grants the broker asked it to cut, and which channels to empty.
 	const hub = {
 		idFromName: (name: string) => ({ name }),
 		get: () => ({
 			dropGrant: async (grant: string) => {
 				dropped.push(grant);
+			},
+			purgeChannel: async (channel: string) => {
+				purged.push([channel, dropped.length]);
 			},
 		}),
 	};
@@ -33,6 +43,7 @@ function makeEnv(kv = new FakeKV()): TestEnv {
 		RELAY_SECRET: ADMIN,
 		HUB: hub,
 		dropped,
+		purged,
 	} as unknown as TestEnv;
 }
 
@@ -217,6 +228,30 @@ describe("ending a share", () => {
 		expect([...env.SHARE_TOKENS.map.keys()]).toEqual([]);
 		expect(env.dropped).toHaveLength(2);
 	});
+
+	it("empties the share's hub channel once every token is cut", async () => {
+		const env = await registeredEnv();
+		await issue(env, "p1");
+		await issue(env, "p2");
+
+		await call(env, `/share/shares/${SHARE}`, {
+			method: "DELETE",
+			admin: true,
+		});
+
+		expect(env.purged).toEqual([[shareChannel(SHARE), 2]]);
+	});
+
+	it("leaves the hub alone for a caller without the secret", async () => {
+		const env = await registeredEnv();
+
+		const ended = await call(env, `/share/shares/${SHARE}`, {
+			method: "DELETE",
+		});
+
+		expect(ended.status).toBe(401);
+		expect(env.purged).toEqual([]);
+	});
 });
 
 describe("token issuing", () => {
@@ -336,6 +371,17 @@ describe("token revocation", () => {
 		expect(response.status).toBe(400);
 	});
 
+	it("refuses a revoke without a well-formed share id", async () => {
+		const env = makeEnv();
+		for (const query of ["", "?shareId=../other", "?shareId=a%2Fb"]) {
+			const response = await call(env, `/share/tokens/p1${query}`, {
+				method: "DELETE",
+				admin: true,
+			});
+			expect(response.status, query).toBe(400);
+		}
+	});
+
 	it("lets a participant leave with only their own token", async () => {
 		const env = await registeredEnv();
 		const token = await issue(env, "p1");
@@ -373,6 +419,19 @@ describe("signing", () => {
 			body: JSON.stringify({ op: "get", key: "objects/abc" }),
 		});
 		expect(response.status).toBe(401);
+	});
+
+	it("refuses a token that cannot exist before it reaches KV", async () => {
+		const env = await registeredEnv();
+		const get = vi.spyOn(env.SHARE_TOKENS, "get");
+
+		for (const token of ["garbage", "a".repeat(42), "a".repeat(44)]) {
+			const response = await sign(env, token, { op: "get", key: "a" });
+			expect(response.status, token).toBe(401);
+			const left = await call(env, "/share/token", { method: "DELETE", token });
+			expect(await left.json(), token).toEqual({ revoked: false });
+		}
+		expect(get).not.toHaveBeenCalled();
 	});
 
 	it("confines the signed key to the share", async () => {

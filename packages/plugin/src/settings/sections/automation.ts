@@ -8,6 +8,7 @@ import {
 	FILE_HISTORY_MAX_SNAPSHOTS,
 	FILE_HISTORY_MIN_SNAPSHOTS,
 } from "@/constants";
+import type { RelayStatus } from "@/hub/status";
 import type { PluginHost } from "@/plugin/host";
 import type { People } from "@/presence/people";
 import {
@@ -16,9 +17,10 @@ import {
 	type SettingsField,
 	SUB_SETTING_CLASS,
 } from "@/settings/fields";
-import { isRelayConfigured } from "@/settings/model";
 import { EFieldKind } from "@/storage/field-spec";
 import { clampMaxSnapshots } from "@/sync/history";
+import { VAULT_SPACE } from "@/sync/space";
+import { RELAY_TEXT } from "@/ui/live/relay-text";
 
 const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 	{
@@ -106,8 +108,8 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 	},
 	{
 		kind: EFieldKind.Toggle,
-		name: "Real-time sync signals",
-		desc: "Notify other devices the moment you push, so they pull immediately: your own through the relay server (Connection tab), shared folders through their owner's.",
+		name: "Real-time sync",
+		desc: "Other devices pull the moment you push, and you see who is in which note. Turning it off also stops live editing. Your devices use the relay server (Connection tab), shared folders their owner's.",
 		get: (s) => s.realtimeSync,
 		set: (v) => ({ realtimeSync: v }),
 		after: restartRelay,
@@ -116,12 +118,21 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 	{
 		kind: EFieldKind.Toggle,
 		name: "Live editing",
-		desc: "Notes open in the editor on several of your devices edit together, keystroke by keystroke, through the relay.",
+		desc: "Notes open in the editor edit together, keystroke by keystroke, across your devices and with the people in shared folders, through the relay.",
 		when: (s) => s.realtimeSync,
 		sub: true,
 		get: (s) => s.liveEditing,
 		set: (v) => ({ liveEditing: v }),
 		after: (plugin) => plugin.realtime.live.refresh(),
+	},
+	{
+		kind: EFieldKind.Toggle,
+		name: "Show my open note to others",
+		desc: "Off, others see only that you are online. Live editing still shows you in a note you both have open.",
+		when: (s) => s.realtimeSync,
+		sub: true,
+		get: (s) => s.showOpenNote,
+		set: (v) => ({ showOpenNote: v }),
 	},
 ];
 
@@ -149,7 +160,10 @@ function renderConnectedDevices(
 	const { hub, people } = plugin.realtime;
 	const render = (): void => {
 		devicesSetting.setDesc(
-			describeConnectedDevices(plugin, hub.isConnected(), people.devices()),
+			describeConnectedDevices(
+				plugin.realtime.statusOf(VAULT_SPACE.id),
+				people.devices(),
+			),
 		);
 	};
 	render();
@@ -176,16 +190,10 @@ function clampAutoSyncMinutes(raw: string): number {
 }
 
 function describeConnectedDevices(
-	plugin: PluginHost,
-	connected: boolean,
+	status: RelayStatus,
 	{ locked, devices }: ReturnType<People["devices"]>,
 ): string {
-	if (!isRelayConfigured(plugin.settings)) {
-		return "Set up the relay server under Connection.";
-	}
-	if (!connected) {
-		return "Not connected to the relay.";
-	}
+	if (status !== "connected") return RELAY_TEXT[status];
 	if (locked) return "Sync once to unlock the device list.";
 	if (devices.length === 0) {
 		return "No other devices connected.";

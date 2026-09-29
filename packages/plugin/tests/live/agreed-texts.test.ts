@@ -1,6 +1,6 @@
 import { InMemoryAdapter } from "@tests/helpers/in-memory-adapter";
 import type { DataAdapter } from "obsidian";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AgreedTexts } from "@/live/agreed-texts";
 
@@ -45,6 +45,16 @@ describe("agreed texts", () => {
 
 		expect(await store(adapter).get("doc")).toBeNull();
 		expect(await store(adapter).get("missing")).toBeNull();
+	});
+
+	it("lists again after a listing failed", async () => {
+		const adapter = new InMemoryAdapter();
+		adapter.putText(`${DIR}/doc.json`, '{"text":"a","gen":0,"seq":1}');
+		vi.spyOn(adapter, "list").mockRejectedValueOnce(new Error("busy"));
+		const agreed = store(adapter);
+
+		expect(await agreed.get("doc")).toBeNull();
+		expect(await agreed.get("doc")).toEqual({ text: "a", gen: 0, seq: 1 });
 	});
 
 	it("keeps only the most recently agreed documents", async () => {

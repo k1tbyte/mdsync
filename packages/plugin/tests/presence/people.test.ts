@@ -174,6 +174,39 @@ describe("people", () => {
 		expect(phone.people.online(SHARE_ID)).toEqual([]);
 	});
 
+	it("flag someone they cannot read, until that device leaves", async () => {
+		const { relay, accessFor } = await setup();
+		const strangerKeys = await keys();
+		const laptop = relay.add(
+			spacesWith("Team"),
+			accessFor("d1", "owner", "Owner"),
+		);
+		const stranger = relay.add(spacesWith("Team"), async () => ({
+			keys: strangerKeys,
+			key: "d2",
+			name: "d2",
+		}));
+		const seen: boolean[] = [];
+		laptop.people.subscribe(() =>
+			seen.push(laptop.people.unreadable(VAULT_SPACE.id)),
+		);
+		relay.join(laptop);
+		relay.join(stranger);
+
+		await vi.waitFor(() =>
+			expect(laptop.people.unreadable(VAULT_SPACE.id)).toBe(true),
+		);
+		expect(laptop.people.online(VAULT_SPACE.id)).toEqual([]);
+		expect(seen).toContain(true);
+
+		relay.leave(stranger);
+
+		await vi.waitFor(() =>
+			expect(laptop.people.unreadable(VAULT_SPACE.id)).toBe(false),
+		);
+		expect(seen.at(-1)).toBe(false);
+	});
+
 	it("read announcements that came before the key once it is known", async () => {
 		const { relay, accessFor } = await setup();
 		const owner = relay.add(

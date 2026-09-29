@@ -19,8 +19,12 @@ import {
 } from "@obsync/protocol";
 import { requestUrl } from "obsidian";
 
+import type { LinkState } from "./status";
+
 const RECONNECT_BASE_MS = 2_000;
 const RECONNECT_MAX_MS = 60_000;
+/** A fresh share token can be refused for about a minute while the relay's KV catches up. */
+const UNAUTHORIZED_RETRIES = 6;
 const PING_INTERVAL_MS = 30_000;
 /** The hub answers every ping, so this much quiet means the link is gone. */
 const SILENCE_TIMEOUT_MS = 90_000;
@@ -43,19 +47,28 @@ export interface HubLinkOptions {
 
 export class HubLink {
 	private ws: WebSocket | null = null;
+	private status: LinkState = "connecting";
 	private reconnectAttempts = 0;
+	private unauthorizedCloses = 0;
 	private reconnectTimer: number | null = null;
 	private pingTimer: number | null = null;
+	private wake: AbortController | null = null;
 	private disposed = false;
 	private lastMessageAt = 0;
 
 	constructor(private readonly options: HubLinkOptions) {}
+
+	/** Why the link is or is not up; `unauthorized` once the relay kept refusing it. */
+	get state(): LinkState {
+		return this.status;
+	}
 
 	get connected(): boolean {
 		return this.ws?.readyState === WebSocket.OPEN;
 	}
 
 	connect(): void {
+		this.watchWake();
 		void this.openSocket();
 	}
 
@@ -81,25 +94,26 @@ export class HubLink {
 
 	dispose(): void {
 		this.disposed = true;
+		this.wake?.abort();
 		this.cleanup();
 	}
 
 	private async openSocket(): Promise<void> {
 		if (this.disposed) return;
-		this.cleanup();
 
 		let socket: WebSocket;
 		try {
 			// Settings hold the worker's https URL; the socket needs its ws twin.
 			const base = this.options.serverUrl.replace(/^http(s)?:/, "ws$1:");
-			socket = new WebSocket(await this.hubUrl(base));
+			const url = await this.hubUrl(base);
+			if (this.disposed) return;
+			// Replaced only now: a retry may have started another attempt meanwhile.
+			this.cleanup();
+			socket = new WebSocket(url);
 		} catch {
 			// A malformed server URL cannot be fixed by retrying.
+			this.status = "offline";
 			this.options.onConnectionChange?.(false);
-			return;
-		}
-		if (this.disposed) {
-			socket.close();
 			return;
 		}
 		socket.binaryType = "arraybuffer";
@@ -107,14 +121,16 @@ export class HubLink {
 
 		socket.addEventListener("open", () => {
 			if (this.ws !== socket) return;
-			this.reconnectAttempts = 0;
 			this.lastMessageAt = Date.now();
+			this.status = "connected";
 			this.startPing();
 			this.options.onConnectionChange?.(true);
 		});
 		socket.addEventListener("message", (event) => {
 			if (this.ws !== socket) return;
 			this.lastMessageAt = Date.now();
+			this.reconnectAttempts = 0;
+			this.unauthorizedCloses = 0;
 			// Text is only the keepalive's answer.
 			if (!(event.data instanceof ArrayBuffer)) return;
 			const frame = decodeServer(new Uint8Array(event.data));
@@ -124,12 +140,32 @@ export class HubLink {
 			if (this.ws !== socket) return;
 			this.stopPing();
 			this.ws = null;
+			const refused =
+				event.code === UNAUTHORIZED_CLOSE_CODE &&
+				++this.unauthorizedCloses > UNAUTHORIZED_RETRIES;
+			this.status = refused ? "unauthorized" : "offline";
 			this.options.onConnectionChange?.(false);
-			// No channel was granted; retrying with the same grants cannot help.
-			if (event.code === UNAUTHORIZED_CLOSE_CODE) return;
-			this.scheduleReconnect();
+			if (!refused) this.scheduleReconnect();
 		});
 		socket.addEventListener("error", () => socket.close());
+	}
+
+	/** After sleep or a network change the backoff may have grown long: try again at once. */
+	private watchWake(): void {
+		if (this.wake) return;
+		this.wake = new AbortController();
+		const { signal } = this.wake;
+		const retry = (): void => {
+			if (!this.connected) void this.openSocket();
+		};
+		window.addEventListener("online", retry, { signal });
+		document.addEventListener(
+			"visibilitychange",
+			() => {
+				if (document.visibilityState === "visible") retry();
+			},
+			{ signal },
+		);
 	}
 
 	private async signalOverHttp(slot: number): Promise<void> {
@@ -195,14 +231,16 @@ export class HubLink {
 
 	private scheduleReconnect(): void {
 		if (this.disposed || this.reconnectTimer !== null) return;
-		const delay = Math.min(
+		const ceiling = Math.min(
 			RECONNECT_BASE_MS * 2 ** this.reconnectAttempts,
 			RECONNECT_MAX_MS,
 		);
+		// Devices cut off by one relay restart would otherwise return in lockstep.
+		const delay = (ceiling / 2) * (1 + Math.random());
 		this.reconnectAttempts++;
 		this.reconnectTimer = window.setTimeout(() => {
 			this.reconnectTimer = null;
-			this.connect();
+			void this.openSocket();
 		}, delay);
 	}
 }

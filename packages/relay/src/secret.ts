@@ -1,5 +1,7 @@
 /** The one deployment secret: admin auth for shares and the root of every hub channel grant. */
 
+import { toHex } from "@obsync/protocol";
+
 export const ADMIN_HEADER = "X-Obsync-Admin";
 
 export interface SecretEnv {
@@ -44,8 +46,4 @@ async function digest(value: string): Promise<Uint8Array> {
 	return new Uint8Array(
 		await crypto.subtle.digest("SHA-256", encoder.encode(value)),
 	);
-}
-
-function toHex(bytes: Uint8Array): string {
-	return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }

@@ -1,12 +1,19 @@
-import { EFrame, type ServerFrame } from "@obsync/protocol";
-import { LiveHub, type TestConnection } from "@tests/helpers/live-hub";
+import {
+	EFrame,
+	ERefusal,
+	MAX_DOC_SUBS,
+	MAX_FRAME_BYTES,
+	type Refusal,
+	type ServerFrame,
+} from "@obsync/protocol";
+import { LiveHub, TestConnection } from "@tests/helpers/live-hub";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 
 import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
 import { docIdFor, seal } from "@/live/seal";
 import { COMPACT_AFTER, LiveSession } from "@/live/session";
-import { TEXT, type TextModel } from "@/live/text-model";
+import { TEXT, type TextModel } from "@/live/text/model";
 
 /** Longer than the session's batching window, so a typed edit has left. */
 const FLUSHED_MS = 400;
@@ -31,13 +38,14 @@ interface Device {
 	connection: TestConnection;
 	session: LiveSession<TextModel>;
 	agreed: { text: string; seq: number } | null;
+	refused: Refusal | null;
 }
 
-/** A room other than the note's first: a successor after a rotation. */
+/** A room other than the note's first, or one this device knew further along. */
 interface Room {
 	doc: string;
 	generation: number;
-	follower?: boolean;
+	knownSeq?: number;
 }
 
 function device(
@@ -54,15 +62,20 @@ function device(
 			keys,
 			hub: connection,
 			author: OWNER,
-			follower: room.follower,
+			knownSeq: room.knownSeq,
+			successor: () => docIdFor(keys, "note.md", room.generation + 1),
 			readDisk: async () => disk,
 			readBase: async () => base,
 			onAgreed: (text, seq) => {
 				opened.agreed = { text, seq };
 			},
 			onMoved: () => {},
+			onRefused: (reason) => {
+				opened.refused = reason;
+			},
 		}),
 		agreed: null,
+		refused: null,
 	};
 	sessions.push(opened.session);
 	return opened;
@@ -214,19 +227,122 @@ describe("live session", () => {
 		await converge("xyz", a, b);
 	});
 
-	it("puts the text back into a room that lost its log", async () => {
+	it("moves a room that lost its log on to its next generation", async () => {
 		const a = await synced("keep me");
 		const b = await synced("keep me");
+		const next = await docIdFor(keys, "note.md", 1);
 
 		hub.wipe();
 		a.connection.connect();
 		b.connection.connect();
-		await sleep(FLUSHED_MS);
-		// An empty disk: the text can only come from the room.
-		const c = await synced("");
+		await vi.waitFor(() => {
+			expect(a.session.movedTo).toBe(next);
+			expect(b.session.movedTo).toBe(next);
+		});
+		// An empty disk: the text can only come from the successor.
+		const c = await synced("", "", { doc: next, generation: 1, knownSeq: 1 });
 		type(c, 0, "still ");
 
-		await converge("still keep me", a, b, c);
+		const left = await synced("keep me", "keep me", {
+			doc: next,
+			generation: 1,
+			knownSeq: 1,
+		});
+		await converge("still keep me", c, left);
+	});
+
+	it("never takes a log that was lost and grew again past its seq", async () => {
+		const a = await synced("x");
+		const b = await synced("x");
+		type(a, 1, "A");
+		await converge("xA", a, b);
+		b.connection.disconnect();
+
+		hub.wipe();
+		// A device that never knew the room seeds it again and types past b.
+		const fresh = await synced("xA");
+		for (const typed of ["1", "2", "3"]) {
+			type(fresh, 0, typed);
+			await sleep(FLUSHED_MS);
+		}
+		b.connection.connect();
+
+		const next = await docIdFor(keys, "note.md", 1);
+		await vi.waitFor(() => expect(b.session.movedTo).toBe(next));
+		await vi.waitFor(() => expect(fresh.session.movedTo).toBe(next));
+		expect(b.session.model.text.toString()).toBe("xA");
+		expect(await roomState(next)).toMatchObject({ head: 1 });
+	});
+
+	it("moves on from an empty room it knew had a log", async () => {
+		const opened = device("from disk", "from disk", {
+			doc: docId,
+			generation: 0,
+			knownSeq: 3,
+		});
+		const next = await docIdFor(keys, "note.md", 1);
+
+		await vi.waitFor(() => expect(opened.session.movedTo).toBe(next));
+		const successor = await synced("", "", {
+			doc: next,
+			generation: 1,
+			knownSeq: 1,
+		});
+		expect(successor.session.model.text.toString()).toBe("from disk");
+	});
+
+	it("follows a successor that already has a log rather than seeding it", async () => {
+		const next = await docIdFor(keys, "note.md", 1);
+		await synced("theirs", "theirs", { doc: next, generation: 1 });
+
+		const late = device("mine", "mine", {
+			doc: docId,
+			generation: 0,
+			knownSeq: 5,
+		});
+
+		await vi.waitFor(() => expect(late.session.movedTo).toBe(next));
+		expect(await roomState(next)).toMatchObject({ head: 1 });
+	});
+
+	it("goes cold on a document too large for a frame, sending none of it", async () => {
+		const sent = vi.spyOn(TestConnection.prototype, "send");
+		const huge = device("x".repeat(MAX_FRAME_BYTES));
+
+		await vi.waitFor(() => expect(huge.refused).toBe(ERefusal.TooLarge));
+		expect(sent.mock.calls.map(([frame]) => frame.type)).toEqual([EFrame.Sub]);
+		expect(huge.session.synced).toBe(false);
+		sent.mockRestore();
+	});
+
+	it("goes cold when the hub refuses to follow one more document", async () => {
+		const full = hub.connection();
+		full.connect();
+		for (let at = 0; at < MAX_DOC_SUBS; at++) {
+			full.send({ type: EFrame.Sub, doc: `doc-${at}`, since: 0 });
+		}
+		const opened: Device = {
+			connection: full,
+			session: new LiveSession(docId, 0, {
+				kind: TEXT,
+				keys,
+				hub: full,
+				author: OWNER,
+				successor: () => docIdFor(keys, "note.md", 1),
+				readDisk: async () => "x",
+				readBase: async () => "x",
+				onAgreed: () => {},
+				onMoved: () => {},
+				onRefused: (reason) => {
+					opened.refused = reason;
+				},
+			}),
+			agreed: null,
+			refused: null,
+		};
+		sessions.push(opened.session);
+
+		await vi.waitFor(() => expect(opened.refused).toBe(ERefusal.TooManyDocs));
 	});
 
 	it("agrees on a text once the room holds all of it", async () => {
@@ -370,7 +486,7 @@ describe("live session rotation", () => {
 	const successor = async (): Promise<Room> => ({
 		doc: await next(),
 		generation: 1,
-		follower: true,
+		knownSeq: 1,
 	});
 
 	it("rebuilds the room as its successor and points every follower there", async () => {
@@ -424,12 +540,13 @@ describe("live session rotation", () => {
 		]);
 	});
 
-	it("never seeds a successor it was pointed at", async () => {
+	it("moves on from a successor it was pointed at but finds empty", async () => {
 		const c = device("from disk", "from disk", await successor());
-		await sleep(FLUSHED_MS);
+		const after = await docIdFor(keys, "note.md", 2);
 
+		await vi.waitFor(() => expect(c.session.movedTo).toBe(after));
 		expect(c.session.synced).toBe(false);
-		expect(await roomState(await next())).toMatchObject({ head: 0 });
+		expect(await roomState(after)).toMatchObject({ head: 1 });
 	});
 
 	it("carries an edit the old room never took into the successor", async () => {

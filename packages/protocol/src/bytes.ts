@@ -2,6 +2,12 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const MAX_TEXT_BYTES = 255;
 
+export function toHex(bytes: ArrayBuffer | Uint8Array): string {
+	return [...new Uint8Array(bytes)]
+		.map((byte) => byte.toString(16).padStart(2, "0"))
+		.join("");
+}
+
 export class Writer {
 	private readonly parts: Uint8Array[] = [];
 	private length = 0;
@@ -79,6 +85,11 @@ export class Reader {
 
 	rest(): Uint8Array {
 		return this.take(this.source.length - this.at);
+	}
+
+	/** Whether anything is left: a field added last is absent from an older writer's frames. */
+	more(): boolean {
+		return this.at < this.source.length;
 	}
 
 	private take(length: number): Uint8Array {

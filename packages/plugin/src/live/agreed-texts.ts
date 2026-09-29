@@ -100,18 +100,19 @@ export class AgreedTexts {
 		}
 	}
 
-	private files(): Promise<Set<string>> {
+	private async files(): Promise<Set<string>> {
 		this.stored ??= this.list();
-		return this.stored;
+		try {
+			return await this.stored;
+		} catch {
+			this.stored = null;
+			return new Set();
+		}
 	}
 
 	private async list(): Promise<Set<string>> {
-		try {
-			if (!(await this.adapter.exists(this.dir))) return new Set();
-			return new Set((await this.adapter.list(this.dir)).files);
-		} catch {
-			return new Set();
-		}
+		if (!(await this.adapter.exists(this.dir))) return new Set();
+		return new Set((await this.adapter.list(this.dir)).files);
 	}
 
 	private pathOf(docId: string): string {

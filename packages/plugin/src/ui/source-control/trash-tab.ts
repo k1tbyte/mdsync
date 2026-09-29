@@ -2,7 +2,7 @@ import { TFolder } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { errorMessage } from "@/shared/errors";
 import type { DeletedFilesResult } from "@/sync/history";
-import { notifyError, notifyInfo } from "@/ui/notices";
+import { notifyError, notifyInfo } from "@/ui/common/notices";
 
 import { openPromptModal } from "./modals";
 import { confirmBulkRestore, confirmRestore } from "./restore-modal";

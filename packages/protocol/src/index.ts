@@ -7,6 +7,7 @@
 
 import { Reader, Writer } from "./bytes";
 
+export { toHex } from "./bytes";
 export { deriveChannelGrant } from "./grant";
 export { shareChannel, sharePrefix } from "./share";
 
@@ -44,10 +45,23 @@ export const EFrame = {
 	Leave: 21,
 	Moved: 22,
 	Revoked: 23,
+	Refused: 24,
 } as const;
+
+/** Why the hub dropped a document frame: the client stops waiting on it. */
+export const ERefusal = {
+	TooLarge: 1,
+	TooManyDocs: 2,
+	ReadOnly: 3,
+} as const;
+export type Refusal = (typeof ERefusal)[keyof typeof ERefusal];
 
 /** Addresses the channel itself: presence and the cold-sync signal. */
 export const CHANNEL_DOC = "";
+/** Channels one socket may carry; the hub admits none past it. */
+export const MAX_SLOTS = 32;
+/** A blind hub cannot tell a large edit from abuse; it can only cap the frame. */
+export const MAX_FRAME_BYTES = 1024 * 1024;
 /** Documents one socket may follow: the hub keeps them in a 16 KB attachment. */
 export const MAX_DOC_SUBS = 64;
 /** A docId is 32 hex chars; anything much longer is not one. */
@@ -87,6 +101,8 @@ export type ServerFrame = Address &
 				head: number;
 				snapshot: Uint8Array | null;
 				deltas: Uint8Array[];
+				/** Names the log: one lost and grown again has another. "" from a relay without it. */
+				log: string;
 		  }
 		| {
 				type: typeof EFrame.Fanout;
@@ -100,6 +116,7 @@ export type ServerFrame = Address &
 		| { type: typeof EFrame.Leave; from: number }
 		| { type: typeof EFrame.Moved; target: string }
 		| { type: typeof EFrame.Revoked }
+		| { type: typeof EFrame.Refused; reason: Refusal }
 		| { type: typeof EFrame.Signal; from: number }
 	);
 
@@ -155,13 +172,21 @@ const SERVER: Codec<ServerFrame> = {
 				.block(f.snapshot ?? new Uint8Array())
 				.u32(f.deltas.length);
 			for (const delta of f.deltas) out.block(delta);
+			// Last, so an older reader never sees it.
+			out.text(f.log);
 		},
 		read: (input) => {
 			const head = input.u32();
 			const snapshot = input.block();
 			const deltas: Uint8Array[] = [];
 			for (let left = input.u32(); left > 0; left--) deltas.push(input.block());
-			return { head, snapshot: snapshot.length > 0 ? snapshot : null, deltas };
+			const log = input.more() ? input.text() : "";
+			return {
+				head,
+				snapshot: snapshot.length > 0 ? snapshot : null,
+				deltas,
+				log,
+			};
 		},
 	},
 	[EFrame.Fanout]: {
@@ -193,6 +218,10 @@ const SERVER: Codec<ServerFrame> = {
 		read: (input) => ({ target: input.text() }),
 	},
 	[EFrame.Revoked]: none,
+	[EFrame.Refused]: {
+		write: (f, out) => out.u8(f.reason),
+		read: (input) => ({ reason: input.u8() as Refusal }),
+	},
 	[EFrame.Signal]: {
 		write: (f, out) => out.u32(f.from),
 		read: (input) => ({ from: input.u32() }),

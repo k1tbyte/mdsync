@@ -1,3 +1,5 @@
+import { toHex } from "./bytes";
+
 const encoder = new TextEncoder();
 
 /** HMAC-SHA256(relay secret, channel) as lowercase hex: opens that channel and no other. */
@@ -13,7 +15,5 @@ export async function deriveChannelGrant(
 		["sign"],
 	);
 	const mac = await crypto.subtle.sign("HMAC", key, encoder.encode(channel));
-	return [...new Uint8Array(mac)]
-		.map((byte) => byte.toString(16).padStart(2, "0"))
-		.join("");
+	return toHex(mac);
 }

@@ -6,7 +6,7 @@ import {
 	renderField,
 } from "@/settings/fields";
 import { EFieldKind } from "@/storage/field-spec";
-import { notifyError, notifyInfo } from "@/ui/notices";
+import { notifyError, notifyInfo } from "@/ui/common/notices";
 import { bytesToBase64Url } from "@/utils/base64";
 
 import { testRelay } from "../connection-test";

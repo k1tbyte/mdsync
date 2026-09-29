@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 
 import { USERS } from "@/live/authors";
-import { BODY, rebuild } from "@/live/rebuild";
+import { BODY, rebuild } from "@/live/text/rebuild";
 
 function authored(doc: Y.Doc): [number, string][] {
 	const runs: [number, string][] = [];

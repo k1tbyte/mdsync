@@ -35,6 +35,12 @@ describe("mergeSettings", () => {
 		expect(mergeSettings({ showFileSizes: false }).showFileSizes).toBe(false);
 	});
 
+	it("shows the open note by default and preserves an explicit false", () => {
+		expect(mergeSettings(null).showOpenNote).toBe(true);
+		expect(mergeSettings({ liveEditing: false }).showOpenNote).toBe(true);
+		expect(mergeSettings({ showOpenNote: false }).showOpenNote).toBe(false);
+	});
+
 	it("keeps only folder paths in the pending share moves", () => {
 		const localRoots = { a: "Team", b: "", c: 3 } as unknown as Record<
 			string,

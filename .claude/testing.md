@@ -3,7 +3,7 @@
 - vitest covers core logic (diff, hunks, concurrency, ignore, etc.). Run with `pnpm test`, or `pnpm --filter obsync test:watch` while iterating.
 - ALL domain logic (diffs, merging, concurrency, hunks matching, baseline cache) must have complete unit-test coverage.
 - Tests mirror `src/`: `tests/<area>/<module>.test.ts`, helpers in `tests/helpers/`.
-- Live sessions run against the relay's own hub logic and SQLite store in-process (`tests/helpers/live-hub.ts`, via the `obsync-relay` devDependency), with switches for lost frames and reconnects.
+- Live sessions run against the relay's own hub logic and SQLite store in-process (`tests/helpers/live-hub.ts`, via the `obsync-relay` devDependency), with switches for lost frames and reconnects. `tests/live/chaos.test.ts` runs three devices through seeded edits, drops and half-open sockets and demands one text with every edit in it.
 
 ## Driving a real Obsidian
 
@@ -27,7 +27,8 @@ re-injected only on reload.
   a scripted peer reads and writes its sealed presence under a handed-in key.
   `E2E_SOAK_MS=130000` adds an idle stretch past the link's silence timeout.
 - `pnpm e2e:live` - two Obsidians type into one note through the relay; the
-  shared key lives on an in-memory WebDAV (`startWebDav`).
+  shared key lives on an in-memory WebDAV (`startWebDav`). Ends with a file
+  written under the open note from outside Obsidian.
 - `pnpm e2e:shares` - two Obsidians of one owner on an in-memory S3
   (`startS3`): one shares a folder through its menu, the other mounts it,
   pauses and resumes it; the first renames the folder and the other follows.
@@ -48,7 +49,8 @@ re-injected only on reload.
 - `pnpm e2e:live-drawing` - two Obsidians with the Excalidraw plugin (latest
   release, fetched once into `temp/e2e-plugins/`) draw into one drawing: shapes,
   concurrent edits and a deletion reach the other, the pointer shows, and the
-  file sync of drawings saved with different zoom settles clean.
+  file sync of drawings saved with different zoom settles clean; with live
+  off, a drawing view that saved takes what the sync writes under it.
   `E2E_SHOTS=1` saves screenshots of these under `artifacts/e2e-shots/`.
 
 `tools/e2e/device.ts` drives a device: sync, files, folder menus, modals.

@@ -177,10 +177,10 @@ async function people(owner: Obsidian): Promise<string[][]> {
 			return [...list.querySelectorAll(".setting-item")].map((row) => [
 				row.querySelector(".setting-item-name span:not(.obsync-avatar)")
 					?.textContent ?? "",
-				// The role, without whether they are here now.
+				// The role, without where they are now.
 				row
 					.querySelector(".setting-item-description")
-					?.textContent?.split(",")[0] ?? "",
+					?.textContent?.split(" - ")[0] ?? "",
 			]);
 		}),
 	);

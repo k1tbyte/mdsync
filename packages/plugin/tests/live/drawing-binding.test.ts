@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Awareness } from "y-protocols/awareness";
 import * as Y from "yjs";
 
@@ -28,6 +28,8 @@ const LIB: ExcalidrawLib = {
 	},
 	CaptureUpdateAction: { NEVER: "NEVER" },
 };
+
+const NO_STALE = () => {};
 
 function element(id: string, version = 1): SceneElement {
 	return { id, version, versionNonce: version, index: `a${id}` };
@@ -105,8 +107,8 @@ describe("bindDrawing", () => {
 		const session = room();
 		const left = fakeView([element("1")]);
 		const right = fakeView([element("1")]);
-		bindDrawing(left.view, session);
-		bindDrawing(right.view, session);
+		bindDrawing(left.view, session, NO_STALE);
+		bindDrawing(right.view, session, NO_STALE);
 
 		left.draw(element("2"));
 
@@ -116,7 +118,7 @@ describe("bindDrawing", () => {
 	it("lands an edit made over a newer version from elsewhere", () => {
 		const session = room();
 		const view = fakeView([element("1")]);
-		bindDrawing(view.view, session);
+		bindDrawing(view.view, session, NO_STALE);
 		// Another device's edit, which this view has not taken yet.
 		session.model.elements.set("1", element("1", 5));
 		view.draw({ ...element("1", 2), versionNonce: 7 });
@@ -129,7 +131,7 @@ describe("bindDrawing", () => {
 	it("neither takes nor gives elements once its view shows another file", () => {
 		const session = room();
 		const view = fakeView([element("1")]);
-		bindDrawing(view.view, session);
+		bindDrawing(view.view, session, NO_STALE);
 
 		view.switchTo("b.excalidraw.md", [element("b1")]);
 		view.draw(element("b2"));
@@ -142,13 +144,30 @@ describe("bindDrawing", () => {
 	it("binds nothing to a view still showing the file before", () => {
 		const view = fakeView([element("1")]);
 		view.view.excalidrawData = { file: null };
-		expect(bindDrawing(view.view, room())).toBeNull();
+		expect(bindDrawing(view.view, room(), NO_STALE)).toBeNull();
+	});
+
+	it("asks for a new binding once its view replaced the API it holds", () => {
+		const session = room();
+		const view = fakeView([element("1")]);
+		const stale = vi.fn();
+		const bound = bindDrawing(view.view, session, stale);
+		const reloaded = fakeView([element("1")]).view.excalidrawAPI;
+
+		view.view.excalidrawAPI = reloaded;
+		session.model.put(element("2"));
+
+		expect(bound?.stale?.()).toBe(true);
+		expect(stale).toHaveBeenCalled();
+		expect(reloaded?.getSceneElementsIncludingDeleted()).toEqual([
+			element("1"),
+		]);
 	});
 
 	it("stops following the room once detached", () => {
 		const session = room();
 		const view = fakeView([element("1")]);
-		bindDrawing(view.view, session)?.detach();
+		bindDrawing(view.view, session, NO_STALE)?.detach();
 
 		session.model.put(element("2"));
 

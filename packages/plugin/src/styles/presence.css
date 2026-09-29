@@ -52,12 +52,14 @@
 	display: none;
 }
 
-.obsync-note-lock {
+.obsync-note-lock,
+.obsync-note-state {
 	display: inline-flex;
 	color: var(--text-muted);
 }
 
-.obsync-note-lock svg {
+.obsync-note-lock svg,
+.obsync-note-state svg {
 	width: var(--icon-xs);
 	height: var(--icon-xs);
 }

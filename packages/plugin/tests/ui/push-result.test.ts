@@ -2,7 +2,7 @@ import { TestSession, useEncryptionKey } from "@tests/helpers/session";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PluginHost } from "@/plugin/host";
 import { SyncController } from "@/sync/controller";
-import { runWithNotice } from "@/ui/notices";
+import { runWithNotice } from "@/ui/common/notices";
 import { SourceControlActions } from "@/ui/source-control/actions";
 
 const notices: string[] = [];

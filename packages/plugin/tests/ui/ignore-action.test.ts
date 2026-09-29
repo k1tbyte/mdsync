@@ -9,7 +9,7 @@ import {
 	stopIgnoring,
 	toggleGlobalIgnore,
 	toggleLocalIgnore,
-} from "@/ui/ignore-action";
+} from "@/ui/actions/ignore-action";
 
 interface TestPlugin extends PluginHost {
 	calls: {

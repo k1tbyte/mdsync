@@ -1,8 +1,12 @@
 /**
  * Live editing between two real Obsidians: one relay, one in-memory WebDAV
  * storage for the shared key, one note typed into from both sides, a relay
- * restart in the middle of the typing, and a rebuild of the note's room.
+ * restart in the middle of the typing, a rebuild of the note's room, and a
+ * write under the open note from outside Obsidian.
  */
+
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { converged, editorText, open, textOn, type } from "./editor";
 import { check, runScenario, sleep } from "./harness";
@@ -136,6 +140,29 @@ async function scenario(
 
 	await coldSync(laptop, desktop);
 	await rebuild(laptop, desktop);
+	await externalWrite(laptop, desktop);
+}
+
+/** A write under an open note (git, another sync) joins the room, beside what the editor has not saved. */
+async function externalWrite(
+	laptop: Obsidian,
+	desktop: Obsidian,
+): Promise<void> {
+	const before = await saved(laptop, desktop);
+	await type(desktop, "end", " typed");
+	await textOn(laptop, (text) => text.endsWith(" typed"));
+	writeFileSync(join(laptop.vault, NOTE), `${before} written`);
+	await textOn(desktop, (text) => text.includes(" written"));
+	const after = await converged(laptop, desktop);
+	check(
+		"a write under an open note keeps the typing it did not see",
+		[
+			after.startsWith(before),
+			after.includes(" typed"),
+			after.includes(" written"),
+		],
+		[true, true, true],
+	);
 }
 
 /** One device rebuilds the room while the other types; both carry on in its successor. */

@@ -9,22 +9,31 @@ import {
 	type ClientFrame,
 	decodeClient,
 	EFrame,
+	ERefusal,
 	encodeServer,
-	type ServerFrame,
+	MAX_FRAME_BYTES,
 	UNAUTHORIZED_CLOSE_CODE,
 } from "@obsync/protocol";
-
-import { type DocStore, docHandlers, leaveDocs } from "./hub-docs";
+import { type DocStore, docHandlers, leaveDocs, refuse } from "./hub-docs";
+import {
+	addressed,
+	joinFrame,
+	leaveFrame,
+	peerFrame,
+	revokedFrame,
+	type ServerBody,
+	signalFrame,
+} from "./hub-frames";
 import {
 	broadcast,
+	type Grant,
 	type Handler,
 	type Handlers,
 	type HubPeer,
 	type Peers,
+	resolved,
 } from "./hub-peer";
 
-/** A blind hub cannot tell a large edit from abuse; it can only cap the frame. */
-const MAX_FRAME_BYTES = 1024 * 1024;
 /** Sender tag of a signal posted over HTTP, which no socket sent. */
 export const RELAY_TAG = 0;
 
@@ -35,12 +44,7 @@ const CHANNEL_HANDLERS: Handlers = {
 		toChannel(
 			peers,
 			grant.channel,
-			{
-				...channelAddress(),
-				type: EFrame.Peer,
-				from: peer.tag,
-				payload: frame.payload,
-			},
+			peerFrame(peer.tag, frame.payload),
 			peer.tag,
 		),
 };
@@ -50,7 +54,7 @@ export class HubCore {
 
 	constructor(
 		private readonly peers: Peers,
-		store: DocStore,
+		private readonly store: DocStore,
 	) {
 		this.docs = docHandlers(store);
 	}
@@ -71,21 +75,25 @@ export class HubCore {
 	}
 
 	handle(peer: HubPeer, bytes: Uint8Array): void {
-		if (bytes.length > MAX_FRAME_BYTES) return;
 		const frame = decodeClient(bytes);
 		if (!frame) return;
 		const grant = peer.slots[frame.slot];
 		if (!grant) return;
+		if (bytes.length > MAX_FRAME_BYTES) {
+			if (frame.doc !== CHANNEL_DOC) refuse(peer, frame, ERefusal.TooLarge);
+			return;
+		}
 		const handlers = frame.doc === CHANNEL_DOC ? CHANNEL_HANDLERS : this.docs;
 		const handler = handlers[frame.type] as Handler<ClientFrame> | undefined;
 		handler?.({ peers: this.peers, peer, grant }, frame);
 	}
 
 	leave(peer: HubPeer): void {
-		leaveDocs(this.peers, peer);
+		const peers = resolved(this.peers);
+		leaveDocs(peers, peer);
 		for (const grant of peer.slots) {
 			if (grant) {
-				toChannel(this.peers, grant.channel, leaveFrame(peer.tag), peer.tag);
+				toChannel(peers, grant.channel, leaveFrame(peer.tag), peer.tag);
 			}
 		}
 	}
@@ -95,21 +103,32 @@ export class HubCore {
 		broadcast(
 			this.peers,
 			channel,
-			signalFrame(RELAY_TAG),
+			addressed(signalFrame(RELAY_TAG)),
 			(peer) => !exceptDevice || peer.device !== exceptDevice,
 		);
 	}
 
 	/** Cuts one token everywhere it was admitted, leaving the sockets' other channels alone. */
 	dropGrant(fingerprint: string): void {
-		for (const peer of [...this.peers()]) {
+		this.drop((grant) => grant.grant === fingerprint);
+	}
+
+	/** Cuts every grant of a channel and deletes its documents: nothing can write it back. */
+	closeChannel(channel: string): void {
+		this.drop((grant) => grant.channel === channel);
+		this.store.purge(channel);
+	}
+
+	private drop(matches: (grant: Grant) => boolean): void {
+		const peers = resolved(this.peers);
+		for (const peer of peers()) {
 			let dropped = false;
 			peer.slots.forEach((grant, slot) => {
-				if (grant?.grant !== fingerprint) return;
-				leaveDocs(this.peers, peer, slot);
+				if (!grant || !matches(grant)) return;
+				leaveDocs(peers, peer, slot);
 				peer.revoke(slot);
 				peer.send(encodeServer(revokedFrame(slot)));
-				toChannel(this.peers, grant.channel, leaveFrame(peer.tag), peer.tag);
+				toChannel(peers, grant.channel, leaveFrame(peer.tag), peer.tag);
 				dropped = true;
 			});
 			if (dropped && peer.slots.every((grant) => grant === null)) {
@@ -122,28 +141,8 @@ export class HubCore {
 function toChannel(
 	peers: Peers,
 	channel: string,
-	frame: ServerFrame,
+	body: ServerBody,
 	exceptTag: number,
 ): void {
-	broadcast(peers, channel, frame, (peer) => peer.tag !== exceptTag);
-}
-
-function channelAddress(slot = 0) {
-	return { slot, doc: CHANNEL_DOC };
-}
-
-function signalFrame(from: number): ServerFrame {
-	return { ...channelAddress(), type: EFrame.Signal, from };
-}
-
-function joinFrame(from: number, who: string): ServerFrame {
-	return { ...channelAddress(), type: EFrame.Join, from, who };
-}
-
-function leaveFrame(from: number): ServerFrame {
-	return { ...channelAddress(), type: EFrame.Leave, from };
-}
-
-function revokedFrame(slot: number): ServerFrame {
-	return { ...channelAddress(slot), type: EFrame.Revoked };
+	broadcast(peers, channel, addressed(body), (peer) => peer.tag !== exceptTag);
 }

@@ -6,10 +6,15 @@
  */
 
 import { DurableObject } from "cloudflare:workers";
-import { KEEPALIVE_PING, KEEPALIVE_PONG } from "@obsync/protocol";
+import {
+	KEEPALIVE_PING,
+	KEEPALIVE_PONG,
+	UNAUTHORIZED_CLOSE_CODE,
+} from "@obsync/protocol";
 
 import { HubCore } from "./hub-core";
 import type { DocSub, Grant, HubPeer } from "./hub-peer";
+import { RevokedGrants } from "./hub-revoked";
 import { SqlDocStore } from "./hub-store";
 
 /** Carries the worker's admission to the hub; only the worker can reach the hub. */
@@ -29,6 +34,7 @@ interface Attachment extends Admission {
 	tag: number;
 	subs: DocSub[];
 	joinedAt: number;
+	left?: true;
 }
 
 export interface HubEnv {
@@ -42,7 +48,9 @@ export class Hub extends DurableObject<HubEnv> {
 		() => this.open().map(peerOf),
 		new SqlDocStore(this.ctx.storage.sql),
 	);
+	private readonly revoked = new RevokedGrants(this.ctx.storage.sql);
 	private readonly staleMs: number;
+	private readonly sweepMs: number;
 
 	constructor(ctx: DurableObjectState, env: HubEnv) {
 		super(ctx, env);
@@ -50,20 +58,25 @@ export class Hub extends DurableObject<HubEnv> {
 			new WebSocketRequestResponsePair(KEEPALIVE_PING, KEEPALIVE_PONG),
 		);
 		this.staleMs = Number(env.HUB_STALE_MS) || STALE_MS;
+		this.sweepMs = this.staleMs / 2;
 	}
 
 	async fetch(request: Request): Promise<Response> {
-		const admission = request.headers.get(HUB_ADMISSION_HEADER);
+		const header = request.headers.get(HUB_ADMISSION_HEADER);
 		const upgrade = request.headers.get("Upgrade")?.toLowerCase();
-		if (!admission || upgrade !== "websocket") {
+		if (!header || upgrade !== "websocket") {
 			return new Response("Obsync relay hub. Connect via WebSocket.", {
 				status: 426,
 			});
 		}
+		const admission = JSON.parse(header) as Admission;
+		const slots = this.revoked.refuse(admission.slots);
+		if (!slots.some((slot) => slot !== null)) return unauthorizedSocket();
 		const { 0: client, 1: server } = new WebSocketPair();
 		this.ctx.acceptWebSocket(server);
 		server.serializeAttachment({
-			...(JSON.parse(admission) as Admission),
+			...admission,
+			slots,
 			tag: newTag(),
 			subs: [],
 			joinedAt: Date.now(),
@@ -71,7 +84,7 @@ export class Hub extends DurableObject<HubEnv> {
 		this.core.join(peerOf(server));
 		// An alarm set under a longer window would leave this one's ghosts waiting.
 		const sweep = await this.ctx.storage.getAlarm();
-		if (sweep === null || sweep > Date.now() + this.staleMs) {
+		if (sweep === null || sweep > Date.now() + this.sweepMs) {
 			await this.sweepLater();
 		}
 		return new Response(null, { status: 101, webSocket: client });
@@ -92,7 +105,8 @@ export class Hub extends DurableObject<HubEnv> {
 
 	/**
 	 * Keepalives never wake the hub, so a half-open socket would stay in every
-	 * presence list until the runtime noticed. Its missing pings give it away.
+	 * presence list until the runtime noticed. Its missing pings give it away;
+	 * sweeping twice per window bounds a ghost's life at 1.5 windows.
 	 */
 	async alarm(): Promise<void> {
 		const cutoff = Date.now() - this.staleMs;
@@ -100,7 +114,7 @@ export class Hub extends DurableObject<HubEnv> {
 			const pinged = this.ctx.getWebSocketAutoResponseTimestamp(ws);
 			const state = ws.deserializeAttachment() as Attachment;
 			if (Math.max(pinged?.getTime() ?? 0, state.joinedAt) > cutoff) continue;
-			this.core.leave(peerOf(ws));
+			this.leave(ws);
 			ws.close(STALE_CLOSE_CODE, "Stale");
 		}
 		if (this.open().length > 0) await this.sweepLater();
@@ -108,7 +122,14 @@ export class Hub extends DurableObject<HubEnv> {
 
 	/** RPC from the broker when a share token is revoked or replaced. */
 	dropGrant(fingerprint: string): void {
+		this.revoked.add(fingerprint);
 		this.core.dropGrant(fingerprint);
+	}
+
+	/** RPC from the broker when a share ends: its rows go and its channel stays shut. */
+	purgeChannel(channel: string): void {
+		this.revoked.closeChannel(channel);
+		this.core.closeChannel(channel);
 	}
 
 	/** RPC from the worker's HTTP signal route. */
@@ -123,13 +144,17 @@ export class Hub extends DurableObject<HubEnv> {
 			.filter((ws) => ws.readyState === WebSocket.OPEN);
 	}
 
-	/** Closing drops the attachment; a socket the hub closed was announced gone then. */
+	/** Announces once: the close event of a socket the hub swept must not repeat it. */
 	private leave(ws: WebSocket): void {
-		if (ws.deserializeAttachment()) this.core.leave(peerOf(ws));
+		const state = attachmentOf(ws);
+		if (!state || state.left) return;
+		this.core.leave(peerOf(ws));
+		state.left = true;
+		ws.serializeAttachment(state);
 	}
 
 	private sweepLater(): Promise<void> {
-		return this.ctx.storage.setAlarm(Date.now() + this.staleMs);
+		return this.ctx.storage.setAlarm(Date.now() + this.sweepMs);
 	}
 }
 
@@ -137,8 +162,27 @@ export function hubStub(env: HubEnv): DurableObjectStub<Hub> {
 	return env.HUB.get(env.HUB.idFromName(HUB_NAME));
 }
 
+/** A socket must be accepted to carry a close code; a plain 401 would look like a network error. */
+export function unauthorizedSocket(): Response {
+	const { 0: client, 1: server } = new WebSocketPair();
+	server.accept();
+	server.close(UNAUTHORIZED_CLOSE_CODE, "Unauthorized");
+	return new Response(null, { status: 101, webSocket: client });
+}
+
+/** One object per socket: reading a 16 KB attachment for every socket on every frame was the hub's hot path. */
+const attachments = new WeakMap<WebSocket, Attachment>();
+
+function attachmentOf(ws: WebSocket): Attachment | null {
+	const known = attachments.get(ws);
+	if (known) return known;
+	const state = ws.deserializeAttachment() as Attachment | null;
+	if (state) attachments.set(ws, state);
+	return state;
+}
+
 function peerOf(ws: WebSocket): HubPeer {
-	const state = ws.deserializeAttachment() as Attachment;
+	const state = attachmentOf(ws) as Attachment;
 	const keepSubs = (keep: (sub: DocSub) => boolean) => {
 		state.subs = state.subs.filter(keep);
 		ws.serializeAttachment(state);

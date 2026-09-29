@@ -15,11 +15,15 @@ import type { LiveMark } from "@/sync/types";
 import { toLf } from "@/utils/eol";
 
 import type { AgreedTexts } from "./agreed-texts";
+import type { LiveSession } from "./session";
 import type { LiveSessions } from "./sessions";
 import { docIdIn, type LiveSpace } from "./space";
 
 export interface LiveColdSyncDeps {
-	rooms: Pick<LiveSessions, "roomOf" | "joining" | "save" | "spaceOf">;
+	rooms: Pick<
+		LiveSessions,
+		"roomOf" | "joining" | "save" | "spaceOf" | "expectWrite"
+	>;
 	agreed: AgreedTexts;
 	/** The space this sync session runs in. */
 	space: string;
@@ -60,19 +64,32 @@ export class LiveColdSync implements LiveNotes {
 		if (this.elsewhere(path)) return "later";
 		const room = this.deps.rooms.roomOf(path);
 		// Written now, the file would be read back as the open's disk and undo what came in.
-		if (!room) return this.deps.rooms.joining(path) ? "later" : "cold";
-		if (mark && mark.doc === (await this.docOf(path))) {
-			// A snapshot of this note: the room holds it once it has caught up that far.
-			const held = { gen: room.generation, seq: room.seq };
-			if (isNewerMark(mark, held)) return "later";
-		} else {
-			const incoming = await texts();
-			// A deletion leaves the open note be: edits outlive it.
-			if (incoming) room.absorb(incoming.base, incoming.incoming);
+		if (!room && this.deps.rooms.joining(path)) return "later";
+		if (!room) {
+			this.deps.rooms.expectWrite(path);
+			return "cold";
 		}
+		if (!(await this.foldInto(room, path, mark, texts))) return "later";
 		// The sync records the remote version as seen; the file must already hold it.
-		await this.deps.rooms.save(path);
-		return "taken";
+		return (await this.deps.rooms.save(path)) ? "taken" : "later";
+	}
+
+	/** False when the room is not there yet, or closed or moved while the incoming text was fetched. */
+	private async foldInto(
+		room: LiveSession,
+		path: string,
+		mark: LiveMark | undefined,
+		texts: () => Promise<IncomingText | null>,
+	): Promise<boolean> {
+		const snapshot = mark?.doc === (await this.docOf(path)) ? mark : undefined;
+		const incoming = snapshot ? null : await texts();
+		if (this.deps.rooms.roomOf(path) !== room) return false;
+		if (snapshot) {
+			return !isNewerMark(snapshot, { gen: room.generation, seq: room.seq });
+		}
+		// A deletion leaves the open note be: edits outlive it.
+		if (incoming) room.absorb(incoming.base, incoming.incoming);
+		return true;
 	}
 
 	async wrote(path: string, mark: LiveMark, text: string): Promise<void> {

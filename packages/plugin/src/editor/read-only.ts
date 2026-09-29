@@ -2,19 +2,32 @@ import { EditorState, type Extension, Prec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { editorInfoField, type Plugin } from "obsidian";
 
+import { LIVE_VIEWS } from "@/live/doc-types";
+import {
+	type ExcalidrawApi,
+	type ExcalidrawView,
+	isViewMode,
+	setViewMode,
+} from "@/live/drawing/excalidraw";
 import type { PluginHost } from "@/plugin/host";
 
-/** Notes of a read-only share take no typing: nothing typed there could sync. */
+const LOADING_RETRY_MS = 500;
+
+/** Notes and drawings of a read-only share take no edits: nothing made there could sync. */
 export function registerReadOnlyLock(plugin: Plugin & PluginHost): void {
 	const { vault, workspace } = plugin.app;
 	const mutable: Extension[] = [];
 	plugin.registerEditorExtension(mutable);
 	let roots: readonly string[] = [];
+	const lockDrawings = registerDrawingLock(plugin, (path) =>
+		under(roots, path),
+	);
 	// A fresh extension, or CodeMirror keeps the value computed for the same view.
 	const lock = (): void => {
 		mutable.length = 0;
 		if (roots.length > 0) mutable.push(lockIn(roots));
 		workspace.updateOptions();
+		lockDrawings();
 	};
 	plugin.register(
 		watchReadOnlyRoots(plugin, (now) => {
@@ -50,12 +63,14 @@ export function watchReadOnlyRoots(
 	return plugin.controller.subscribe(check);
 }
 
+function under(roots: readonly string[], path: string): boolean {
+	return roots.some((root) => path.startsWith(`${root}/`));
+}
+
 function lockIn(roots: readonly string[]): Extension {
 	const locked = (state: EditorState): boolean => {
 		const path = state.field(editorInfoField, false)?.file?.path;
-		return (
-			path !== undefined && roots.some((root) => path.startsWith(`${root}/`))
-		);
+		return path !== undefined && under(roots, path);
 	};
 	return [
 		Prec.highest([
@@ -69,4 +84,77 @@ function lockIn(roots: readonly string[]): Extension {
 		]),
 		EditorState.readOnly.compute([editorInfoField], locked),
 	];
+}
+
+/**
+ * Keeps locked drawings in Excalidraw's view mode, back on whenever it is
+ * switched off, and lets out only the views it put there. Returns the check.
+ */
+function registerDrawingLock(
+	plugin: Plugin,
+	locked: (path: string) => boolean,
+): () => void {
+	const { workspace } = plugin.app;
+	const watched = new Map<
+		ExcalidrawView,
+		{ api: ExcalidrawApi; off: () => void }
+	>();
+	const mine = new Set<ExcalidrawView>();
+	let retry: number | null = null;
+
+	const views = (): ExcalidrawView[] =>
+		workspace
+			.getLeavesOfType(LIVE_VIEWS.drawing)
+			.map(({ view }) => view as ExcalidrawView);
+	const lockedView = (view: ExcalidrawView): boolean => {
+		const path = view.file?.path;
+		return path !== undefined && locked(path);
+	};
+	const follow = (view: ExcalidrawView, viewMode: boolean): void => {
+		const lock = lockedView(view);
+		if (lock === viewMode || (!lock && !mine.has(view))) return;
+		if (lock) mine.add(view);
+		else mine.delete(view);
+		setViewMode(view, lock);
+	};
+
+	const check = (): void => {
+		const open = views();
+		for (const [view, { api, off }] of watched) {
+			if (open.includes(view) && view.excalidrawAPI === api) continue;
+			off();
+			watched.delete(view);
+		}
+		for (const view of mine) if (!open.includes(view)) mine.delete(view);
+		// Nothing announces a drawing done loading.
+		let loading = false;
+		for (const view of open) {
+			const api = view.excalidrawAPI;
+			if (!api) {
+				loading ||= lockedView(view);
+				continue;
+			}
+			if (!watched.has(view)) {
+				const off = api.onChange((_, appState) =>
+					follow(view, isViewMode(appState)),
+				);
+				watched.set(view, { api, off });
+			}
+			follow(view, isViewMode(api.getAppState()));
+		}
+		if (!loading) return;
+		retry ??= window.setTimeout(() => {
+			retry = null;
+			check();
+		}, LOADING_RETRY_MS);
+	};
+
+	plugin.registerEvent(workspace.on("file-open", check));
+	plugin.registerEvent(workspace.on("layout-change", check));
+	plugin.register(() => {
+		if (retry !== null) window.clearTimeout(retry);
+		for (const { off } of watched.values()) off();
+		for (const view of views()) if (mine.has(view)) setViewMode(view, false);
+	});
+	return check;
 }

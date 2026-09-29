@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { hubRoutes } from "@/hub/channels";
 import { HubConnection } from "@/hub/connection";
 import type { HubLinkOptions } from "@/hub/link";
+import type { LinkState } from "@/hub/status";
 import { DEFAULT_SETTINGS, type ObsyncSettings } from "@/settings/model";
 import type { SpaceRecord } from "@/spaces/record";
 
@@ -19,6 +20,7 @@ const { links, FakeLink } = vi.hoisted(() => {
 		readonly dispose = vi.fn();
 		readonly send = vi.fn();
 		readonly signal = vi.fn();
+		state: LinkState = "connecting";
 		constructor(readonly options: HubLinkOptions) {
 			links.push(this);
 		}
@@ -245,6 +247,7 @@ describe("HubConnection", () => {
 		hub.restart();
 		const [home] = links;
 
+		if (home) home.state = "connected";
 		home?.options.onConnectionChange?.(true);
 		expect(changes).toEqual([
 			["vault", true],
@@ -256,5 +259,32 @@ describe("HubConnection", () => {
 		expect(changes.at(-1)).toEqual(["mine", false]);
 		expect(hub.space("mine").isConnected()).toBe(false);
 		expect(hub.isConnected()).toBe(true);
+	});
+
+	it("tells why a space has no live channel, or how its socket stands", () => {
+		settings = {
+			...settingsWith([owned("mine"), joined("theirs", OTHER)]),
+			pausedSpaces: ["resting"],
+		};
+		const hub = connection();
+		expect(hub.statusOf("vault")).toBe("no-relay");
+
+		hub.restart();
+		const [home, other] = links;
+		expect(hub.statusOf("vault")).toBe("connecting");
+		expect(hub.statusOf("elsewhere")).toBe("no-relay");
+		expect(hub.statusOf("resting")).toBe("paused");
+
+		if (home) home.state = "connected";
+		if (other) other.state = "unauthorized";
+		expect(hub.statusOf("mine")).toBe("connected");
+		expect(hub.statusOf("theirs")).toBe("unauthorized");
+
+		home?.options.onFrame({ type: EFrame.Revoked, slot: 1, doc: "" });
+		expect(hub.statusOf("mine")).toBe("unauthorized");
+		expect(hub.statusOf("vault")).toBe("connected");
+
+		settings = { ...settings, realtimeSync: false };
+		expect(hub.statusOf("vault")).toBe("off");
 	});
 });

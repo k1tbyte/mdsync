@@ -110,9 +110,9 @@ export class People {
 		return sortByName([...byKey.values()]);
 	}
 
-	/** Whether the space's channel is up; a paused or unrouted space never is. */
-	connected(spaceId: string): boolean {
-		return this.channels.get(spaceId)?.hub.isConnected() ?? false;
+	/** Whether someone in the space's channel cannot be read: they hold another passphrase or key. */
+	unreadable(spaceId: string): boolean {
+		return this.channels.get(spaceId)?.presence.hasUnreadable() ?? false;
 	}
 
 	/** Who has this file open; idle only when all their devices on it are. */

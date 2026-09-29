@@ -15,6 +15,8 @@ export interface LiveModel {
 export interface BoundEditor {
 	/** Tints what anyone but `me` typed; null takes the tint off. */
 	showAuthors(me: string | null): void;
+	/** The view let go of what this binding holds: it binds again. */
+	stale?(): boolean;
 	detach(): void;
 }
 

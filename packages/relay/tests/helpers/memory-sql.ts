@@ -20,3 +20,21 @@ export function memorySql(): Sql {
 		},
 	};
 }
+
+/** A `sql` that remembers every statement, so a test can count what an operation costs. */
+export function loggedSql(sql: Sql = memorySql()): Sql & {
+	queries: string[];
+	writes: string[];
+} {
+	const queries: string[] = [];
+	const writes: string[] = [];
+	return {
+		queries,
+		writes,
+		exec(query, ...bindings) {
+			queries.push(query);
+			if (/^\s*(INSERT|UPDATE|DELETE)/i.test(query)) writes.push(query);
+			return sql.exec(query, ...bindings);
+		},
+	};
+}

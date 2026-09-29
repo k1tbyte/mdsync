@@ -1,7 +1,7 @@
 import type { PluginHost } from "@/plugin/host";
 import { EConflictStrategy, type SyncOperationResult } from "@/sync/controller";
 import { EDiffDirection, type FileDiffModel } from "@/sync/projection";
-import { notifyError, runWithNotice } from "@/ui/notices";
+import { notifyError, runWithNotice } from "@/ui/common/notices";
 import { confirmRestore } from "@/ui/source-control/restore-modal";
 import { EChoiceKind, type HunkChoices } from "./choices";
 import type { HistoryChange } from "./history-state";

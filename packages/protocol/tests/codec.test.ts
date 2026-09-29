@@ -6,6 +6,7 @@ import {
 	decodeClient,
 	decodeServer,
 	EFrame,
+	ERefusal,
 	encodeClient,
 	encodeServer,
 	type ServerFrame,
@@ -39,8 +40,9 @@ const SERVER_FRAMES: ServerFrame[] = [
 		head: 5,
 		snapshot: bytes(1),
 		deltas: [bytes(2), bytes(3, 4)],
+		log: "0f1e2d3c4b5a6978",
 	},
-	{ ...at, type: EFrame.State, head: 0, snapshot: null, deltas: [] },
+	{ ...at, type: EFrame.State, head: 0, snapshot: null, deltas: [], log: "" },
 	{ ...at, type: EFrame.Fanout, seq: 6, from: 0xdeadbeef, payload: bytes(8) },
 	{ ...at, type: EFrame.Echo, seq: 6 },
 	{ ...at, type: EFrame.Peer, from: 1, payload: bytes(7, 7) },
@@ -48,6 +50,7 @@ const SERVER_FRAMES: ServerFrame[] = [
 	{ ...at, type: EFrame.Leave, from: 1 },
 	{ ...at, type: EFrame.Moved, target: "next-doc-id" },
 	{ ...at, type: EFrame.Revoked },
+	{ ...at, type: EFrame.Refused, reason: ERefusal.TooLarge },
 	{ slot: 1, doc: CHANNEL_DOC, type: EFrame.Signal, from: 9 },
 ];
 
@@ -70,6 +73,16 @@ describe("codec", () => {
 				encodeServer(SERVER_FRAMES[0] as ServerFrame).subarray(0, 12),
 			),
 		).toBeNull();
+	});
+
+	it("reads a state from a relay that sends no log", () => {
+		const frame = SERVER_FRAMES[0] as ServerFrame;
+		const withLog = encodeServer(frame);
+		const logLength = 1 + "0f1e2d3c4b5a6978".length;
+
+		expect(
+			decodeServer(withLog.subarray(0, withLog.length - logLength)),
+		).toEqual({ ...frame, log: "" });
 	});
 
 	it("does not decode a server frame as a client one", () => {

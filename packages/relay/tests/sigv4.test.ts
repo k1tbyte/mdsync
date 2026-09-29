@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { presignS3, type S3Target } from "../src/sigv4";
 
 function target(overrides: Partial<S3Target> = {}): S3Target {
@@ -14,6 +14,44 @@ function target(overrides: Partial<S3Target> = {}): S3Target {
 }
 
 describe("presignS3", () => {
+	beforeEach(() => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(new Date("2013-05-24T00:00:00Z"));
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("matches the signature AWS documents for its presigned GET example", async () => {
+		const url = await presignS3(
+			target({
+				endpoint: "https://s3.amazonaws.com",
+				bucket: "examplebucket",
+				forcePathStyle: false,
+			}),
+			"GET",
+			"test.txt",
+			86400,
+		);
+		expect(signatureOf(url)).toBe(
+			"aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404",
+		);
+	});
+
+	it("signs with the secret it is given, so a rotated secret under the same key id takes effect at once", async () => {
+		const [before, after] = [
+			await presignS3(target(), "GET", "shares/abc/o", 120),
+			await presignS3(
+				target({ secretAccessKey: "rotated-secret" }),
+				"GET",
+				"shares/abc/o",
+				120,
+			),
+		];
+		expect(signatureOf(before)).not.toBe(signatureOf(after));
+	});
+
 	it("produces a signed URL with the required query parameters", async () => {
 		const url = new URL(
 			await presignS3(target(), "GET", "shares/abc/objects/deadbeef", 120),

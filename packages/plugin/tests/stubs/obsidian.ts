@@ -44,6 +44,7 @@ export class MarkdownView extends Stub {}
 export class ItemView extends Stub {}
 export class Menu extends Stub {}
 export class TFile extends Stub {}
+export class FileView extends Stub {}
 export class TFolder extends Stub {}
 export class TAbstractFile extends Stub {}
 

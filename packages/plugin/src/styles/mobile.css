@@ -124,3 +124,12 @@
 .obsync-diff-view.obsync-is-phone .obsync-rail-label {
 	display: inline;
 }
+
+body.is-phone .obsync-people-badge {
+	--obsync-avatar: var(--obsync-icon-lg);
+}
+
+body.is-phone .obsync-unseen-dot::before {
+	width: var(--size-4-2);
+	height: var(--size-4-2);
+}

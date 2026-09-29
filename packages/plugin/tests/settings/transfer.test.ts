@@ -157,6 +157,7 @@ describe("settings transfer", () => {
 			fileHistoryMaxSnapshots: DEFAULT_SETTINGS.fileHistoryMaxSnapshots + 7,
 			historyAutoRefresh: !DEFAULT_SETTINGS.historyAutoRefresh,
 			realtimeSync: !DEFAULT_SETTINGS.realtimeSync,
+			showOpenNote: !DEFAULT_SETTINGS.showOpenNote,
 			relayUrl: "https://relay.example.com",
 			relaySecret: "relay-secret",
 			storageConfigs: {
@@ -197,6 +198,7 @@ describe("settings transfer", () => {
 		);
 		expect(imported.historyAutoRefresh).toBe(settings.historyAutoRefresh);
 		expect(imported.realtimeSync).toBe(settings.realtimeSync);
+		expect(imported.showOpenNote).toBe(false);
 		expect(imported.relayUrl).toBe(settings.relayUrl);
 		expect(imported.relaySecret).toBe(settings.relaySecret);
 	});

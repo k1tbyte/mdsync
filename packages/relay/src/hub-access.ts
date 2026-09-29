@@ -8,19 +8,23 @@ import {
 	EHubParam,
 	HUB_PATH,
 	HUB_SIGNAL_PATH,
+	MAX_SLOTS,
 	OWNER,
 	shareChannel,
-	UNAUTHORIZED_CLOSE_CODE,
 } from "@obsync/protocol";
-import { type Admission, HUB_ADMISSION_HEADER, hubStub } from "./hub";
+import {
+	type Admission,
+	HUB_ADMISSION_HEADER,
+	hubStub,
+	unauthorizedSocket,
+} from "./hub";
 import type { Grant } from "./hub-peer";
 import { fingerprint, relaySecret, secretsEqual } from "./secret";
-import { EShareRole, type ShareEnv, shareGrantOf } from "./share";
+import { EShareRole, type ShareEnv, shareGrantOf } from "./share-kv";
 
 /** Room tokens are 64 hex chars and share tokens 43; KV rejects keys over 512 bytes. */
 const MAX_TOKEN_LENGTH = 128;
 const MAX_CHANNEL_LENGTH = 128;
-const MAX_SLOTS = 32;
 const MAX_DEVICE_LENGTH = 64;
 
 /** Returns null when the path is not a hub route, so index.ts can fall through. */
@@ -108,13 +112,9 @@ function deviceOf(params: URLSearchParams): string {
 		.slice(0, MAX_DEVICE_LENGTH);
 }
 
-/** A socket must be accepted to carry a close code; a plain 401 would look like a network error. */
 function unauthorized(request: Request): Response {
 	if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
 		return new Response("Unauthorized", { status: 401 });
 	}
-	const { 0: client, 1: server } = new WebSocketPair();
-	server.accept();
-	server.close(UNAUTHORIZED_CLOSE_CODE, "Unauthorized");
-	return new Response(null, { status: 101, webSocket: client });
+	return unauthorizedSocket();
 }

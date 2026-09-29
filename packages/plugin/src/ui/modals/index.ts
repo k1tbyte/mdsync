@@ -7,9 +7,3 @@ export {
 	confirmSettingsTransferImport,
 	showSettingsTransferExport,
 } from "./settings-transfer-modal";
-export {
-	type CreatedInvite,
-	type ShareAccess,
-	ShareModal,
-	type ShareWindow,
-} from "./share-modal";

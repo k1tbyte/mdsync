@@ -8,13 +8,13 @@
 - `sync/` - the engine: manifest, diff, operations, history, projection. No UI.
 - `hub/` - the relay hub: socket link, one socket per relay (`channels.ts`: the vault and owned shares on the own relay, joined shares on their owner's), a per-space facade (`space(id)`) routing frames by slot
 - `presence/` - who is where: each device announces its open file on every space channel it holds, sealed with that space's key (`people.ts`, `channel.ts`, `announcement.ts`); `here.ts` tracks the active file and idleness; `unseen.ts` the files others changed that this device has not opened. Keys and identity per space come from `plugin/space-access.ts`, shared with live editing
-- `spaces/` - space records (`settings.spaces`, one object each under `spaces/` in the vault storage), the partition (`spacesOf`, `mountError`), the owner's share (`owner.ts`), invites (`invite.ts`), how a device reaches a share (`access.ts`). No network and no settings: the relay broker client is `storage/adapters/share-broker.ts`, the flows are `ui/share-action.ts` and `ui/invite-action.ts`. `sync/` never imports it; `core/session-factory.ts` opens a share's session from its record
-- `live/` - live documents: the Y.Doc session per file in its space's room (`space.ts`), sealing, a model per kind (`text-model.ts`, `drawing/`) and the view that edits it (`editors.ts`), and the file sync's `LiveNotes` port (declared in `sync/live-notes.ts`, so `sync/` never imports `live/`)
+- `spaces/` - space records (`settings.spaces`, one object each under `spaces/` in the vault storage), the partition (`spacesOf`, `mountError`), the owner's share (`owner.ts`), invites (`invite.ts`), how a device reaches a share (`access.ts`). No network and no settings: the relay broker client is `storage/adapters/share-broker.ts`, the flows are `ui/shares/share-action.ts` and `ui/shares/invite-action.ts`. `sync/` never imports it; `core/session-factory.ts` opens a share's session from its record
+- `live/` - live documents: the Y.Doc session per file in its space's room (`space.ts`), sealing, a model per kind (`text/`, `drawing/`, each with the binding that attaches its view) and the view that edits it (`editors.ts`), who else is in a room (`room-awareness.ts`), and the file sync's `LiveNotes` port (declared in `sync/live-notes.ts`, so `sync/` never imports `live/`)
 - `drawing/` - Excalidraw files without Obsidian: reading the scene, its fingerprint, the merge by element. Pure; used by `sync/`, `vault/` and `live/`
 - `storage/` - remote backends behind StorageAdapter, plus the registry
 - `vault/` - Obsidian filesystem access, scanning, ignore rules
 - `settings/` - settings model, transfer, and the settings tab sections
-- `ui/` - views, modals, indicators, notices
+- `ui/` - views and modals at the top; `live/` (note header, live status), `shares/` (share window, share and invite flows), `explorer/` (file tree indicators and presence), `actions/` (menu actions), `common/` (notices, icon buttons, helpers)
 - `editor/` - CodeMirror gutter signs, the read-only share lock
 - `shared/`, `utils/` - app-aware helpers vs. generic algorithms
 - `styles/` - the stylesheet, one slice per feature (see Styles)

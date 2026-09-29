@@ -1,4 +1,4 @@
-import { EFrame } from "@obsync/protocol";
+import { EFrame, MAX_DOC_SUBS } from "@obsync/protocol";
 import { InMemoryAdapter } from "@tests/helpers/in-memory-adapter";
 import { LiveHub, type TestConnection } from "@tests/helpers/live-hub";
 import { type App, type DataAdapter, MarkdownView, TFile } from "obsidian";
@@ -7,15 +7,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sha256Hex } from "@/crypto";
 import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
 import { AgreedTexts } from "@/live/agreed-texts";
-import { bindEditor } from "@/live/binding";
 import { LiveColdSync } from "@/live/cold-sync";
 import { docIdFor, seal } from "@/live/seal";
 import type { LiveSession } from "@/live/session";
 import { LiveSessions } from "@/live/sessions";
 import type { LiveSpace } from "@/live/space";
-import type { TextModel } from "@/live/text-model";
+import { bindEditor } from "@/live/text/binding";
+import type { TextModel } from "@/live/text/model";
 
-vi.mock("@/live/binding", () => ({
+vi.mock("@/live/text/binding", () => ({
 	bindEditor: vi.fn(() => ({ detach: vi.fn(), showAuthors: vi.fn() })),
 }));
 
@@ -107,6 +107,51 @@ describe("live sessions", () => {
 		await vi.waitFor(() => expect(bindEditor).toHaveBeenCalledTimes(1));
 	});
 
+	it("calls a room unanswered once the hub has stayed silent for a good while", async () => {
+		vi.useFakeTimers();
+		try {
+			connection.dropIncoming();
+			leaves = [{ view: editorOf(note("a.md")) }];
+			const changed = vi.fn();
+			sessions.subscribe(changed);
+
+			await sessions.refresh();
+			expect(sessions.joining("a.md")).toBe(true);
+			expect(sessions.unanswered("a.md")).toBe(false);
+
+			changed.mockClear();
+			await vi.advanceTimersByTimeAsync(15_000);
+			expect(sessions.unanswered("a.md")).toBe(true);
+			expect(changed).toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("counts a room's silence from the hub coming back, not from when the note opened", async () => {
+		vi.useFakeTimers();
+		try {
+			connection.disconnect();
+			leaves = [{ view: editorOf(note("a.md")) }];
+			await sessions.refresh();
+			expect(sessions.spaceOf("a.md")).not.toBeNull();
+			await vi.advanceTimersByTimeAsync(60_000);
+
+			connection.listen({
+				onConnectionChange: (up) => up && connection.dropIncoming(),
+			});
+			connection.connect();
+			await sessions.refresh();
+			expect(sessions.joining("a.md")).toBe(true);
+			expect(sessions.unanswered("a.md")).toBe(false);
+
+			await vi.advanceTimersByTimeAsync(15_000);
+			expect(sessions.unanswered("a.md")).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("leaves reading view, other files, oversized and shared notes alone", async () => {
 		leaves = [
 			{ view: editorOf(note("read.md"), "preview") },
@@ -131,6 +176,23 @@ describe("live sessions", () => {
 
 		expect(detach).toHaveBeenCalled();
 		await vi.waitFor(() => expect(followed()).toEqual([]));
+	});
+
+	it("leaves a note the hub cannot carry to the file sync, saying why, until it closes", async () => {
+		for (let at = 0; at < MAX_DOC_SUBS; at++) {
+			connection.send({ type: EFrame.Sub, doc: `doc-${at}`, since: 0 });
+		}
+		leaves = [{ view: editorOf(note("a.md")) }];
+
+		await sessions.refresh();
+
+		await vi.waitFor(() => expect(sessions.coldCause("a.md")).toBe("too-many"));
+		await sessions.refresh();
+		expect(sessions.joining("a.md")).toBe(false);
+		expect(bindEditor).not.toHaveBeenCalled();
+		leaves = [];
+		await sessions.refresh();
+		expect(sessions.coldCause("a.md")).toBeNull();
 	});
 
 	it("tints other people's text in every bound editor while authors are shown", async () => {
@@ -260,6 +322,31 @@ describe("live notes as the file sync sees them", () => {
 		expect(view.save).toHaveBeenCalled();
 	});
 
+	it("leaves an incoming version for later when its view cannot save", async () => {
+		const { view } = await openRoom();
+		Object.assign(view, { getMode: () => "preview" });
+
+		const take = await cold().absorb("a.md", undefined, async () => ({
+			base: "text",
+			incoming: "text\nmore",
+		}));
+
+		expect(take).toBe("later");
+	});
+
+	it("leaves an incoming version for later when its room closed while it was fetched", async () => {
+		const { room } = await openRoom();
+
+		const take = await cold().absorb("a.md", undefined, async () => {
+			leaves = [];
+			await sessions.refresh();
+			return { base: "text", incoming: "text\nmore" };
+		});
+
+		expect(take).toBe("later");
+		expect(room.model.text.toString()).toBe("text");
+	});
+
 	it("waits for its own room to catch up with a snapshot of it", async () => {
 		const { room } = await openRoom();
 		const texts = vi.fn(async () => ({ base: "text", incoming: "text\nmore" }));
@@ -287,8 +374,11 @@ describe("live notes as the file sync sees them", () => {
 		expect(texts).not.toHaveBeenCalled();
 	});
 
-	it("leaves a closed note to the file sync", async () => {
+	it("leaves a closed note to the file sync, and its views ready for the write", async () => {
+		const expectWrite = vi.spyOn(sessions, "expectWrite");
+
 		expect(await cold().absorb("b.md", undefined, vi.fn())).toBe("cold");
+		expect(expectWrite).toHaveBeenCalledWith("b.md");
 	});
 
 	it("holds the file while an open note's room is still answering", async () => {
@@ -366,12 +456,37 @@ describe("rebuilt rooms", () => {
 		);
 	});
 
+	it("moves an open note on when the hub lost its room", async () => {
+		const first = await bound();
+		await vi.waitFor(() => expect(first.settled).toBe(true));
+
+		hub.wipe();
+		connection.connect();
+
+		const next = await docIdFor(keys as LiveKeys, "a.md", 1);
+		await vi.waitFor(() => expect(sessions.roomOf("a.md")?.docId).toBe(next));
+		expect(followed()).toEqual([next]);
+		await vi.waitFor(async () =>
+			expect(await agreed.get(await idOf("a.md"))).toMatchObject({ gen: 1 }),
+		);
+	});
+
 	it("reopens a note in the generation it last agreed on", async () => {
+		const third = await docIdFor(keys as LiveKeys, "a.md", 2);
 		agreed.put(await idOf("a.md"), { text: "text", gen: 2, seq: 1 });
+		const raw = hub.connection();
+		raw.connect();
+		raw.send({ type: EFrame.Sub, doc: third, since: 0 });
+		raw.send({
+			type: EFrame.Update,
+			doc: third,
+			payload: await seal(keys as LiveKeys, Uint8Array.of(0, 0)),
+		});
+		raw.disconnect();
 
 		await bound();
 
-		expect(followed()).toEqual([await docIdFor(keys as LiveKeys, "a.md", 2)]);
+		expect(followed()).toEqual([third]);
 	});
 
 	it("leaves a note to the file sync when its room points anywhere but its next generation", async () => {

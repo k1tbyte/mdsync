@@ -1,18 +1,22 @@
 import {
 	type ClientFrame,
 	EFrame,
+	ERefusal,
 	MAX_DOC_SUBS,
 	type ServerFrame,
 } from "@obsync/protocol";
 import { describe, expect, it } from "vitest";
 
-import type { HubCore } from "../src/hub-core";
+import { HubCore } from "../src/hub-core";
+import { type Sql, SqlDocStore } from "../src/hub-store";
 import { type FakePeer, grant, hub, peer, send, types } from "./helpers/hub";
+import { memorySql } from "./helpers/memory-sql";
 
 const VAULT = "vault-channel";
 const OTHER = "other-channel";
 const DOC = "a".repeat(32);
 const NEXT = "b".repeat(32);
+const LOG = expect.stringMatching(/^[0-9a-f]{16}$/);
 
 function frame(
 	type: ClientFrame["type"],
@@ -46,6 +50,19 @@ function rotate(target: string, upto: number, byte: number): ClientFrame {
 	return frame(EFrame.Rotate, { target, upto, payload: Uint8Array.of(byte) });
 }
 
+/** A hub over storage that outlives it, as a Durable Object's does across restarts. */
+function over(sql: Sql, ...peers: FakePeer[]): HubCore {
+	return new HubCore(() => peers, new SqlDocStore(sql));
+}
+
+function logOf(state: ServerFrame): string {
+	return (state as { log?: string }).log ?? "";
+}
+
+function refused(at: string, reason: number, slot = 0): ServerFrame {
+	return { type: EFrame.Refused, slot, doc: at, reason } as ServerFrame;
+}
+
 describe("hub documents", () => {
 	it("answers a subscription with the document's state", () => {
 		const device = peer(1, [grant(VAULT)]);
@@ -58,8 +75,29 @@ describe("hub documents", () => {
 			head: 0,
 			snapshot: null,
 			deltas: [],
+			log: "",
 		});
 		expect(device.subs).toEqual([[0, DOC]]);
+	});
+
+	it("names each log, and a log lost and grown again differently", () => {
+		const device = peer(1, [grant(VAULT)]);
+		const sql = memorySql();
+		const before = over(sql, device);
+		sub(before, device);
+		update(before, device, 1);
+		update(before, device, 2);
+		const named = sub(before, device);
+
+		const after = hub(device);
+		sub(after, device);
+		update(after, device, 3);
+		const regrown = sub(after, device);
+
+		expect(named).toMatchObject({ head: 2, log: LOG });
+		expect(regrown).toMatchObject({ head: 1, log: LOG });
+		expect(logOf(regrown)).not.toBe(logOf(named));
+		expect(sub(over(sql, device), device)).toEqual(named);
 	});
 
 	it("acks an update to its sender and fans it out to the document's followers only", () => {
@@ -112,7 +150,9 @@ describe("hub documents", () => {
 		send(core, viewer, frame(EFrame.Seed, { payload: Uint8Array.of(2) }));
 		send(core, viewer, rotate(NEXT, 0, 3));
 
-		expect(viewer.inbox).toEqual([]);
+		expect(viewer.inbox).toEqual(
+			Array.from({ length: 3 }, () => refused(DOC, ERefusal.ReadOnly)),
+		);
 		expect(sub(core, reader)).toMatchObject({ head: 0, deltas: [] });
 	});
 
@@ -336,6 +376,23 @@ describe("hub documents", () => {
 		expect(sub(core, device).type).toBe(EFrame.State);
 	});
 
+	it("moves a document that lost its log on from its empty state", () => {
+		const device = peer(1, [grant(VAULT)]);
+		const core = hub(device);
+		sub(core, device);
+
+		send(core, device, rotate(NEXT, 0, 9));
+
+		expect(device.inbox).toEqual([
+			{ type: EFrame.Moved, slot: 0, doc: DOC, target: NEXT },
+		]);
+		send(core, device, frame(EFrame.Sub, { since: 0 }, 0, NEXT));
+		expect(device.inbox.pop()).toMatchObject({
+			head: 1,
+			deltas: [Uint8Array.of(9)],
+		});
+	});
+
 	it("ignores a rotation that does not name another document", () => {
 		const device = peer(1, [grant(VAULT)]);
 		const core = hub(device);
@@ -380,7 +437,9 @@ describe("hub documents", () => {
 		send(core, device, frame(EFrame.Sub, { since: 0 }, 0, "one-too-many"));
 		send(core, device, frame(EFrame.Sub, { since: 0 }, 0, "x".repeat(65)));
 
-		expect(types(device)).toEqual([]);
+		expect(device.inbox).toEqual([
+			refused("one-too-many", ERefusal.TooManyDocs),
+		]);
 		expect(device.subs).toHaveLength(MAX_DOC_SUBS);
 	});
 

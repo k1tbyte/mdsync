@@ -11,7 +11,7 @@ import type {
 } from "@/sync/history";
 import type { HistoryVersionRef } from "@/sync/projection";
 import type { ManifestEntry } from "@/sync/types";
-import type { ChangeAction } from "@/ui/change-action";
+import type { ChangeAction } from "@/ui/common/change-action";
 import type { HistoryDiffTarget } from "@/ui/source-control-view";
 import { deviceText } from "./row-formatter";
 

@@ -1,16 +1,32 @@
-export { DiffView } from "./diff-view";
-export { registerFileContextIndicators } from "./file-context-indicators";
-export { registerFileExplorerIndicators } from "./file-explorer-indicators";
-export { addIgnoreMenuItem } from "./ignore-action";
-export type { IndicatorHandle } from "./indicator-handle";
-export { openInvite } from "./invite-action";
-export { registerLiveStatusBar } from "./live-status-bar";
+export { addIgnoreMenuItem } from "./actions/ignore-action";
 export {
 	deepCleanOrphanedObjects,
 	resetLocalState,
 	resetRemoteStorage,
 	verifyRemoteIntegrity,
-} from "./maintenance-actions";
+} from "./actions/maintenance-actions";
+export { addPushMenuItem } from "./actions/push-action";
+export {
+	notifyError,
+	notifyInfo,
+	reportError,
+	runWithNotice,
+} from "./common/notices";
+export {
+	openInEditor,
+	revealInFileExplorer,
+} from "./common/obsidian-helpers";
+export { DiffView } from "./diff-view";
+export { registerFileContextIndicators } from "./explorer/file-context-indicators";
+export { registerFileExplorerIndicators } from "./explorer/file-explorer-indicators";
+export type { IndicatorHandle } from "./explorer/indicator-handle";
+export {
+	rebuildLiveNote,
+	sharedFolderOf,
+	toggleAuthors,
+} from "./live/live-actions";
+export { registerLiveStatusBar } from "./live/live-status-bar";
+export { registerNotePresence } from "./live/note-presence";
 export {
 	askNewPassphrase,
 	askPassphrase,
@@ -20,17 +36,13 @@ export {
 	openPromiseModal,
 	showSettingsTransferExport,
 } from "./modals";
-export { registerNotePresence } from "./note-presence";
-export {
-	notifyError,
-	notifyInfo,
-	reportError,
-	runWithNotice,
-} from "./notices";
-export { openInEditor, revealInFileExplorer } from "./obsidian-helpers";
-export { addPushMenuItem } from "./push-action";
 export { registerRibbon } from "./ribbon";
-export { addShareMenuItem, openShareWindow, shareAt } from "./share-window";
+export { openInvite } from "./shares/invite-action";
+export {
+	addShareMenuItem,
+	openShareWindow,
+	shareAt,
+} from "./shares/share-window";
 export {
 	confirmAdoptNewVault,
 	confirmBatchResolve,

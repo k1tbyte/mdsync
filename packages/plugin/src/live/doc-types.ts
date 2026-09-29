@@ -15,14 +15,19 @@ const MAX_LIVE_BYTES: Record<LiveDocKind, number> = {
 };
 
 /**
- * How a file goes live, or null. The name does not say: an Excalidraw drawing
- * is a plain `.md` named by its front matter, and a text CRDT merging two edits
- * of its compressed scene yields a drawing that no longer opens.
+ * What a file is to live editing, size aside. The name does not say: an
+ * Excalidraw drawing is a plain `.md` named by its front matter, and a text
+ * CRDT merging two edits of its compressed scene yields a drawing that no
+ * longer opens.
  */
-export function liveKindOf(app: App, file: TFile): LiveDocKind | null {
+export function docKindOf(app: App, file: TFile): LiveDocKind | null {
 	if (file.extension !== "md") return null;
 	const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
-	const kind =
-		frontmatter && "excalidraw-plugin" in frontmatter ? "drawing" : "text";
-	return file.stat.size > MAX_LIVE_BYTES[kind] ? null : kind;
+	return frontmatter && "excalidraw-plugin" in frontmatter ? "drawing" : "text";
+}
+
+/** How a file goes live, or null: not a live kind, or too large. */
+export function liveKindOf(app: App, file: TFile): LiveDocKind | null {
+	const kind = docKindOf(app, file);
+	return kind && file.stat.size > MAX_LIVE_BYTES[kind] ? null : kind;
 }

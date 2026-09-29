@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 
 import { authorOf, authorRanges, USERS } from "@/live/authors";
-import { BODY } from "@/live/rebuild";
+import { BODY } from "@/live/text/rebuild";
 
 const OWNER = { person: "owner", name: "Owner" };
 const FRIEND = { person: "p1", name: "Friend" };

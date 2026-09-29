@@ -13,6 +13,8 @@ import { createStorageAdapter } from "@/storage";
 import type { SyncController } from "@/sync/controller";
 import { type Space, VAULT_SPACE } from "@/sync/space";
 
+const VAULT_UNLOCK_RETRY_MS = 30_000;
+
 export interface SpaceAccessHost {
 	passphrase: PassphraseManager;
 	controller: SyncController;
@@ -34,11 +36,12 @@ export function createSpaceAccess(
 	host: SpaceAccessHost,
 ): (space: Space) => Promise<SpaceAccess | null> {
 	const shareKeys = new Map<string, Promise<LiveKeys>>();
+	const vaultKeys = createVaultKeys(host);
 	return async (space) => {
 		const settings = host.settings();
 		if (!settings.realtimeSync) return null;
 		if (space.root === VAULT_SPACE.root) {
-			const keys = await vaultKeys(host);
+			const keys = await vaultKeys();
 			// One person across the vault: each device is told apart by its own name and colour.
 			const { id, name } = host.controller.currentDevice();
 			return keys && { keys, person: OWNER, key: id, name };
@@ -53,18 +56,38 @@ export function createSpaceAccess(
 	};
 }
 
-/** Never prompts: waits for a passphrase the sync already knows. */
-async function vaultKeys(host: SpaceAccessHost): Promise<LiveKeys | null> {
-	const settings = host.settings();
-	if (!isStorageConfigured(settings)) return null;
-	const { passphrase } = host;
-	const cached = passphrase.liveKeys();
-	if (cached || !passphrase.has()) return cached;
-	try {
-		await passphrase.resolveKey(createStorageAdapter(activeStorage(settings)));
-	} catch (err) {
-		reportWarning("The relay could not unlock the vault key.", err);
-		return null;
-	}
-	return passphrase.liveKeys();
+/**
+ * Never prompts: waits for a passphrase the sync already knows. Every caller
+ * shares one unlock, and a failed one is not tried again for a while: each try
+ * is a storage read and a key derivation.
+ */
+function createVaultKeys(
+	host: SpaceAccessHost,
+): () => Promise<LiveKeys | null> {
+	let unlocking: Promise<LiveKeys | null> | null = null;
+	let failedAt = Number.NEGATIVE_INFINITY;
+	const unlock = async (settings: ObsyncSettings) => {
+		try {
+			await host.passphrase.resolveKey(
+				createStorageAdapter(activeStorage(settings)),
+			);
+			return host.passphrase.liveKeys();
+		} catch (err) {
+			failedAt = Date.now();
+			reportWarning("The relay could not unlock the vault key.", err);
+			return null;
+		}
+	};
+	return async () => {
+		const settings = host.settings();
+		if (!isStorageConfigured(settings)) return null;
+		const { passphrase } = host;
+		const cached = passphrase.liveKeys();
+		if (cached || !passphrase.has()) return cached;
+		if (Date.now() - failedAt < VAULT_UNLOCK_RETRY_MS) return null;
+		unlocking ??= unlock(settings).finally(() => {
+			unlocking = null;
+		});
+		return unlocking;
+	};
 }

@@ -11,6 +11,7 @@ import { VAULT_SPACE } from "@/sync/space";
 
 import { type HubRoute, hubRoutes } from "./channels";
 import { HubLink } from "./link";
+import { type RelayStatus, relayStatus } from "./status";
 
 /** The relay's own state and the cold-sync ping; frames go to `SpaceListener`s. */
 export interface HubListener {
@@ -49,7 +50,6 @@ export interface HubConnectionOptions {
 interface OpenLink {
 	route: HubRoute;
 	link: HubLink;
-	connected: boolean;
 	/** Slots the relay refused or cut; the socket goes on for the rest. */
 	revoked: Set<number>;
 }
@@ -68,9 +68,16 @@ export class HubConnection {
 		return this.spaceConnected(VAULT_SPACE.id);
 	}
 
-	/** Whether a socket is meant to carry the space: the relay is on and reaches it. */
-	carries(spaceId: string): boolean {
-		return this.slotOf(spaceId) !== null;
+	/** The one answer to what the relay is doing for a space; every status display reads it. */
+	statusOf(spaceId: string): RelayStatus {
+		const { realtimeSync, pausedSpaces } = this.options.settings();
+		const at = this.slotOf(spaceId);
+		return relayStatus({
+			realtime: realtimeSync,
+			paused: pausedSpaces.includes(spaceId),
+			link: at?.open.link.state ?? null,
+			revoked: at?.open.revoked.has(at.slot) ?? false,
+		});
 	}
 
 	listen(listener: HubListener): () => void {
@@ -138,7 +145,6 @@ export class HubConnection {
 	private open(route: HubRoute): void {
 		const open: OpenLink = {
 			route,
-			connected: false,
 			revoked: new Set(),
 			link: new HubLink({
 				serverUrl: route.serverUrl,
@@ -170,7 +176,6 @@ export class HubConnection {
 
 	/** Every space of the socket hears it, the vault's listeners too when it leads. */
 	private setConnected(open: OpenLink, connected: boolean): void {
-		open.connected = connected;
 		// A new socket is admitted afresh: whatever is still refused says so again.
 		open.revoked.clear();
 		for (const space of open.route.spaces) {
@@ -200,7 +205,6 @@ export class HubConnection {
 	}
 
 	private spaceConnected(space: string): boolean {
-		const at = this.slotOf(space);
-		return at?.open.connected === true && !at.open.revoked.has(at.slot);
+		return this.statusOf(space) === "connected";
 	}
 }

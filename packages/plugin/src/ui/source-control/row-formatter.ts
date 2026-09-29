@@ -1,6 +1,6 @@
 import { deviceLabel } from "@/sync/device";
 import type { Conflict, FileChange } from "@/sync/types";
-import { type ChangeAction, changeActionOf } from "@/ui/change-action";
+import { type ChangeAction, changeActionOf } from "@/ui/common/change-action";
 import type { FileRow } from "./types";
 
 export const STATUS_LETTERS: Record<ChangeAction, string> = {

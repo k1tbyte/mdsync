@@ -1,4 +1,4 @@
-import { Setting } from "obsidian";
+import { debounce, Setting } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
 import { EFieldKind } from "@/storage/field-spec";
@@ -8,6 +8,8 @@ import type { ObsyncSettings } from "./model";
 
 export const SUB_SETTING_CLASS = "obsync-sub-setting";
 const ERROR_DESC_CLASS = "obsync-settings-error";
+/** A relay URL typed letter by letter must not open a socket, or send a grant, per prefix. */
+export const TYPING_SETTLE_MS = 800;
 
 export interface FieldContext {
 	plugin: PluginHost;
@@ -82,6 +84,11 @@ export function renderField(
 	const apply = (patch: Partial<ObsyncSettings>): void => {
 		applyPatch(ctx, patch, field);
 	};
+	const applyTyped = debounce(apply, TYPING_SETTLE_MS, true);
+	const type = (patch: Partial<ObsyncSettings>): void => {
+		Object.assign(ctx.plugin.settings, patch);
+		applyTyped(patch);
+	};
 
 	if (field.kind === EFieldKind.Toggle) {
 		return setting.addToggle((toggle) =>
@@ -95,7 +102,7 @@ export function renderField(
 		return setting.addText((text) =>
 			text
 				.setValue(field.get(ctx.plugin.settings))
-				.onChange((raw) => apply(field.set(field.parse(raw), ctx.plugin))),
+				.onChange((raw) => type(field.set(field.parse(raw), ctx.plugin))),
 		);
 	}
 
@@ -114,7 +121,7 @@ export function renderField(
 		if (field.placeholder) text.setPlaceholder(field.placeholder);
 		text
 			.setValue(field.get(ctx.plugin.settings))
-			.onChange((value) => apply(field.set(value, ctx.plugin)));
+			.onChange((value) => type(field.set(value, ctx.plugin)));
 	});
 }
 

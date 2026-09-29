@@ -103,6 +103,27 @@
 	--obsync-avatar: 16px;
 }
 
+.obsync-share-badge {
+	cursor: pointer;
+}
+
+.obsync-share-badge:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 1px;
+	border-radius: var(--radius-s);
+}
+
+/* Reaches the touch size without growing the row: the tree's row metrics are a contract. */
+body.is-phone .obsync-share-badge::after {
+	content: "";
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: max(100%, var(--obsync-touch));
+	height: var(--obsync-touch);
+	transform: translate(-50%, -50%);
+}
+
 .obsync-share-badge.has-people {
 	padding: 0 var(--size-4-1);
 	border-radius: var(--obsync-radius-pill);

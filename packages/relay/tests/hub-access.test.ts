@@ -11,6 +11,8 @@ import { memorySql } from "./helpers/memory-sql";
 const SECRET = "deployment-secret";
 const VAULT = "s3|bucket/prefix";
 const SHARE = "obsync-share-share1";
+const PARTICIPANT_TOKEN = "p".repeat(43);
+const VIEWER_TOKEN = "v".repeat(43);
 
 interface HubCalls {
 	admissions: unknown[];
@@ -45,11 +47,11 @@ function makeEnv(kv = new FakeKV(), secret: string | null = SECRET) {
 async function shareKv(): Promise<FakeKV> {
 	const kv = new FakeKV();
 	await kv.put(
-		"tok:participant",
+		`tok:${PARTICIPANT_TOKEN}`,
 		JSON.stringify({ shareId: "share1", participantId: "p1" }),
 	);
 	await kv.put(
-		"tok:viewer",
+		`tok:${VIEWER_TOKEN}`,
 		JSON.stringify({ shareId: "share1", participantId: "p2", role: "ro" }),
 	);
 	return kv;
@@ -102,15 +104,15 @@ describe("grants", () => {
 	it("opens a share channel to a live token of that share only, as its participant", async () => {
 		const { env } = makeEnv(await shareKv());
 
-		expect(await grantFor(env, SHARE, "participant")).toMatchObject({
+		expect(await grantFor(env, SHARE, PARTICIPANT_TOKEN)).toMatchObject({
 			channel: SHARE,
 			who: "p1",
 		});
 		expect(
-			await grantFor(env, "obsync-share-share2", "participant"),
+			await grantFor(env, "obsync-share-share2", PARTICIPANT_TOKEN),
 		).toBeNull();
-		expect(await grantFor(env, VAULT, "participant")).toBeNull();
-		expect(await grantFor(env, SHARE, "viewer")).toMatchObject({
+		expect(await grantFor(env, VAULT, PARTICIPANT_TOKEN)).toBeNull();
+		expect(await grantFor(env, SHARE, VIEWER_TOKEN)).toMatchObject({
 			who: "p2",
 			readOnly: true,
 		});
@@ -124,10 +126,29 @@ describe("grants", () => {
 		expect(get).not.toHaveBeenCalled();
 	});
 
+	it("refuses a token that cannot be a share token before it reaches KV", async () => {
+		const kv = new FakeKV();
+		const get = vi.spyOn(kv, "get");
+		const { env } = makeEnv(kv);
+		const malformed = [
+			"x",
+			"participant",
+			"p".repeat(42),
+			"p".repeat(44),
+			`${"p".repeat(42)}=`,
+			`${"p".repeat(42)}/`,
+		];
+
+		for (const token of malformed) {
+			expect(await grantFor(env, SHARE, token), token).toBeNull();
+		}
+		expect(get).not.toHaveBeenCalled();
+	});
+
 	it("never keeps the token itself in the grant", async () => {
 		const { env } = makeEnv(await shareKv());
-		const grant = await grantFor(env, SHARE, "participant");
-		expect(JSON.stringify(grant)).not.toContain('participant"');
+		const grant = await grantFor(env, SHARE, PARTICIPANT_TOKEN);
+		expect(JSON.stringify(grant)).not.toContain(PARTICIPANT_TOKEN);
 	});
 });
 
@@ -143,7 +164,7 @@ describe("hub routing", () => {
 		const response = await call(
 			hubPath([
 				[VAULT, vault],
-				[SHARE, "revoked"],
+				[SHARE, "r".repeat(43)],
 				[VAULT, vault],
 			]),
 			env,

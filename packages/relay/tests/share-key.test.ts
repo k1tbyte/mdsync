@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	InvalidShareKeyError,
+	isShareId,
 	shareBasePrefix,
 	shareListPrefix,
 	shareObjectKey,
@@ -8,6 +9,16 @@ import {
 
 const PREFIX = "my-vault";
 const SHARE = "abc123";
+
+describe("isShareId", () => {
+	it("accepts what shareBasePrefix accepts and nothing else", () => {
+		expect(isShareId(SHARE)).toBe(true);
+		expect(isShareId("a".repeat(64))).toBe(true);
+		for (const bad of ["..", "a/b", "a b", "", "a".repeat(65), "a.b"]) {
+			expect(isShareId(bad), bad).toBe(false);
+		}
+	});
+});
 
 describe("shareBasePrefix", () => {
 	it("roots the share under the configured prefix", () => {

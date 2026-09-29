@@ -80,16 +80,29 @@ as "Owner".
   opens up to 32 slots; the worker checks every grant before waking it. The
   vault's channel is `sha256(storageIdentity)`, so the relay never sees the
   endpoint or bucket. A read-only share token follows documents but never
-  writes.
+  writes: each write is answered `Refused(ReadOnly)`.
 - Per-socket state (slot -> channel, grant fingerprint, `who`) lives in the
   16 KB WebSocket attachment, not in tags (at most 10).
 - `ping` is auto-answered without waking the object; while sockets exist, an
-  alarm every 75 s closes those silent past the window and announces `LEAVE`.
+  alarm every half window (37 s of 75) closes those silent past the window and announces `LEAVE` once.
 - Revocation: broker -> `dropGrant` -> `REVOKED(slot)`; other slots live on, a
-  socket with none left closes with 4001 and never reconnects.
-- Storage is SQLite per `(channel, doc)`: deltas plus one row (head, snapshot,
-  forwarding pointer). A frame is at most 1 MB; live notes are markdown up to
-  256 KB, so a snapshot fits one frame and one row.
+  socket with none left closes with 4001. The client retries a refused socket
+  six times (a fresh share token can be refused for a minute while KV catches
+  up) and then reads `unauthorized` until the settings change or the device
+  wakes (`online`, page visible); its backoff is jittered and restarts on the
+  first message, not on open. The hub keeps a revoked fingerprint 5 minutes
+  (`hub-revoked.ts`) and refuses it on connect, while KV may still let it in.
+- Storage is SQLite per `(channel, doc)`, both tables WITHOUT ROWID: an update
+  writes its delta row only (the head is the last seq, or the snapshot's when
+  compaction left none), the document row (snapshot, forwarding pointer, log
+  name) changes on compaction and rotation. Ending a share deletes its rows
+  (`purgeChannel`) and shuts the channel for good (`closed`). A frame is at most 1 MiB; live notes are
+  markdown up to 256 KB, so a snapshot fits one frame and one row.
+- A room row created again gets a new log name, sent in `STATE`: a client
+  that sees another name, or a head behind what it knows, rotates the note on.
+- A frame past 1 MiB, a document past a socket's 64, or a write from a
+  read-only grant is answered `Refused{reason}` to its sender only; that note
+  stays with the file sync until it is closed, and its status says why.
 
 ## Protocol (`packages/protocol`)
 
@@ -139,6 +152,12 @@ places to change later:
   other's room.
 - The editor binding is a Compartment over the undocumented `editor.cm`, as
   Peerdraft and Relay do.
+- A write under an open note (git, another sync) needs nothing from live:
+  Obsidian merges it three-way with the editor, and the binding carries the
+  change. Excalidraw drops the first write after its own save as that save's
+  (2.27), so the file sync clears the flag first (`letWriteIn`).
+- A drawing view that reloads replaces its `excalidrawAPI`; its binding then
+  asks for a new one (`stale`).
 - The lowest client id compacts once 200 deltas pile up; **Rebuild live note**
   sheds tombstones (a note's document reached 3x its text after an hour).
 - Attribution is advisory: each client names its own client id in `users`, in
@@ -165,6 +184,8 @@ places to change later:
   a tick scrolls there, never follows.
 - A read-only share's notes take no typing (`editor/read-only.ts`: CodeMirror
   `editable`/`readOnly` by the editor's file), with a lock in the note header.
+  Its drawings stay in Excalidraw's view mode, set again if switched off; only
+  views put there by the lock are let out.
 - The tree's "new" dot: a pull (or auto-merge) that lands content another key
   published, past the space's first sync, marks those share files unseen on
   this device (`presence/unseen.ts`, vault localStorage) unless active; opening
@@ -177,8 +198,14 @@ places to change later:
   focus (y-codemirror), so "go to cursor" goes where they last were there.
 - The read-only lock is the editor's: Properties, renames and other plugins
   still change files there, which then wait unpushed as before. A note moved
-  into a read-only root while open locks on reopening. The Excalidraw view is
-  not locked.
+  into a read-only root while open locks on reopening. A drawing locks once
+  its view loaded (up to 500 ms), and scripts can still edit it.
+- A writer that started from a file older than the editor's last save (a
+  stale checkout) replaces what came between: Obsidian merges against that
+  save, and nothing knows the writer's base. Git or another sync writing under
+  an open drawing after its save is still dropped by Excalidraw.
+- A session that seeded a room learns the log's name from its next `STATE`: a
+  log lost before that shows only once the head falls behind.
 - Excalidraw colours a drawing's pointers itself, from the person's key, so
   they do not match that person's avatar.
 - The "new" dot knows only what this device pulled: a file changed and seen

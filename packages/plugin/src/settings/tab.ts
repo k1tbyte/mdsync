@@ -1,5 +1,6 @@
 import {
 	type App,
+	debounce,
 	type Plugin,
 	PluginSettingTab,
 	Setting,
@@ -26,6 +27,7 @@ import {
 	renderField,
 	renderFields,
 	type SettingsField,
+	TYPING_SETTLE_MS,
 } from "./fields";
 import { renderLogsView } from "./logs-view";
 import type { ObsyncSettings, SettingsSyncCategories } from "./model";
@@ -138,19 +140,21 @@ const INTERFACE_FIELDS: ReadonlyArray<SettingsField> = [
 	{
 		kind: EFieldKind.Toggle,
 		name: "Status bar indicator",
+		desc: "Applies after Obsidian restarts.",
 		get: (s) => s.showStatusBar,
 		set: (v) => ({ showStatusBar: v }),
 	},
 	{
 		kind: EFieldKind.Toggle,
 		name: "Ribbon icon",
+		desc: "Applies after Obsidian restarts.",
 		get: (s) => s.showRibbonIcon,
 		set: (v) => ({ showRibbonIcon: v }),
 	},
 	{
 		kind: EFieldKind.Toggle,
 		name: "File and folder indicators",
-		desc: "Show sync status, linked paths, and active-file context.",
+		desc: "Show change marks, linked and ignored paths, who is in a note and new-note dots in the file tree, and a linked or ignored label for the open note. Share badges always stay: they open the share window.",
 		get: (s) => s.showFileExplorerIndicators,
 		set: (v) => ({ showFileExplorerIndicators: v }),
 		after: (plugin) =>
@@ -414,7 +418,13 @@ export class ObsyncSettingTab extends PluginSettingTab {
 				t
 					.setPlaceholder(defaultDeviceName())
 					.setValue(this.plugin.device.current())
-					.onChange((v) => void this.plugin.device.rename(v)),
+					.onChange(
+						debounce(
+							(v) => void this.plugin.device.rename(v),
+							TYPING_SETTLE_MS,
+							true,
+						),
+					),
 			);
 	}
 

@@ -2,8 +2,8 @@ import { Menu, setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { errorMessage } from "@/shared/errors";
 import type { FileVersion } from "@/sync/history";
-import { appendIconButton, appendLabeledButton } from "@/ui/icon-button";
-import { notifyError, notifyInfo } from "@/ui/notices";
+import { appendIconButton, appendLabeledButton } from "@/ui/common/icon-button";
+import { notifyError, notifyInfo } from "@/ui/common/notices";
 import type { HistoryDiffTarget } from "@/ui/source-control-view";
 
 import { makeActivatable } from "./change-rows";

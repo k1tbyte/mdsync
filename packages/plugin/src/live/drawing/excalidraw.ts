@@ -26,10 +26,13 @@ export interface ExcalidrawApi {
 	updateScene(scene: {
 		elements?: readonly SceneElement[];
 		collaborators?: Map<string, Collaborator>;
+		appState?: AppState;
 		captureUpdate: string;
 	}): void;
 	/** Every render, with deleted elements; returns the unsubscribe. */
-	onChange(listener: (elements: readonly SceneElement[]) => void): () => void;
+	onChange(
+		listener: (elements: readonly SceneElement[], appState: AppState) => void,
+	): () => void;
 }
 
 export interface ExcalidrawView extends TextFileView {
@@ -37,6 +40,12 @@ export interface ExcalidrawView extends TextFileView {
 	excalidrawAPI?: ExcalidrawApi;
 	/** Names the file whose scene the view holds. */
 	excalidrawData?: { file?: TFile | null };
+	/** Set by each save, cleared by the next modify: that write is taken for the save's own. */
+	semaphores?: { preventReload?: boolean };
+	/** The plugin's own toolbar, which shows the view mode apart from the scene. */
+	toolsPanelRef?: {
+		current?: { setExcalidrawViewMode?(on: boolean): void } | null;
+	};
 	save(preventReload?: boolean, force?: boolean): Promise<void>;
 }
 
@@ -87,4 +96,28 @@ export function readDrawing(view: ExcalidrawView): string | null {
 /** Forced: a scene the room just changed may not have marked the view dirty yet. */
 export function saveDrawing(view: ExcalidrawView): Promise<void> {
 	return view.save(true, true);
+}
+
+/**
+ * The flag a save sets outlives it (checked against 2.27), so the next write
+ * under the view is dropped as that save's and its next save overwrites it.
+ * Cleared, Excalidraw folds the write into the scene.
+ */
+export function letWriteIn(view: ExcalidrawView): void {
+	if (view.semaphores) view.semaphores.preventReload = false;
+}
+
+export function isViewMode(appState: AppState): boolean {
+	return appState.viewModeEnabled === true;
+}
+
+/** As Excalidraw's own toggle does it. */
+export function setViewMode(view: ExcalidrawView, on: boolean): void {
+	const lib = excalidrawLib();
+	if (!lib) return;
+	view.excalidrawAPI?.updateScene({
+		appState: { viewModeEnabled: on },
+		captureUpdate: lib.CaptureUpdateAction.NEVER,
+	});
+	view.toolsPanelRef?.current?.setExcalidrawViewMode?.(on);
 }

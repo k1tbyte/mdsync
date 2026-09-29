@@ -1,8 +1,9 @@
 /**
  * Live drawing between two real Obsidians with the Excalidraw plugin: shapes
  * drawn on either side reach the other, concurrent edits keep both, a deletion
- * spreads, pointers show, and the file sync of the saved drawings settles
- * although each device saves its own view state into the file.
+ * spreads, pointers show, the file sync of the saved drawings settles
+ * although each device saves its own view state into the file, and a drawing
+ * open but not live takes what the file sync writes.
  */
 
 import { excalidrawPlugin } from "./excalidraw";
@@ -106,6 +107,7 @@ await runScenario("live drawing e2e", async () => {
 		await switchDrawings(laptop, desktop);
 		await pointers(laptop, desktop);
 		await fileSync(laptop, desktop);
+		await coldWrite(laptop, desktop);
 	} finally {
 		relay.stop();
 		dav.stop();
@@ -232,6 +234,36 @@ async function fileSync(laptop: Obsidian, desktop: Obsidian): Promise<void> {
 		"the room still holds everything after the sync",
 		await converged(laptop, desktop),
 		["D1", "r1"],
+	);
+}
+
+/** Excalidraw takes a save's own write for the next one: what the file sync writes must still show. */
+async function coldWrite(laptop: Obsidian, desktop: Obsidian): Promise<void> {
+	await laptop.evaluate(async () => {
+		const obsync = app.plugins.plugins.obsync;
+		obsync.settings.liveEditing = false;
+		await obsync.realtime.live.refresh();
+		// Plain JSON, so the file can be searched for a shape.
+		app.plugins.plugins["obsidian-excalidraw-plugin"].settings.compress = false;
+	});
+	await save(laptop);
+	await draw(desktop, "C1", 600);
+	await save(desktop);
+	await sync(desktop);
+	await sync(laptop);
+	check(
+		"a drawing open but not live shows what the file sync wrote under it",
+		await shapesOn(laptop, (shapes) => shapes.includes("C1")),
+		["C1", "D1", "r1"],
+	);
+	await save(laptop);
+	check(
+		"and its next save keeps it",
+		await laptop.evaluate(
+			async (path) => (await app.vault.adapter.read(path)).includes('"C1"'),
+			DRAWING,
+		),
+		true,
 	);
 }
 

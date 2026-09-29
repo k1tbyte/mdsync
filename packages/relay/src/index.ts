@@ -6,7 +6,8 @@ import {
 import { Hub } from "./hub";
 import { handleHubRequest } from "./hub-access";
 import { ADMIN_HEADER, isAdmin } from "./secret";
-import { handleShareRequest, type ShareEnv } from "./share";
+import { handleShareRequest } from "./share";
+import type { ShareEnv } from "./share-kv";
 
 export interface Env extends ShareEnv, GoogleOAuthEnv {}
 

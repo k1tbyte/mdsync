@@ -1,8 +1,7 @@
 import { MarkdownView, type Plugin } from "obsidian";
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
-import type { Rotation } from "@/live/session";
 import type { PluginHost } from "@/plugin/host";
-import { spaceOf, VAULT_SPACE } from "@/sync/space";
+import { spaceOf } from "@/sync/space";
 import {
 	deepCleanOrphanedObjects,
 	notifyError,
@@ -12,17 +11,13 @@ import {
 	openSourceControlDeleted,
 	openSourceControlHistory,
 	openSourceControlView,
+	rebuildLiveNote,
 	resetRemoteStorage,
 	runWithNotice,
-	shareAt,
+	sharedFolderOf,
+	toggleAuthors,
 	verifyRemoteIntegrity,
 } from "@/ui";
-
-const REBUILT: Record<Rotation, string> = {
-	moved: "Live note rebuilt from its text.",
-	refused: "The note changed meanwhile. Try again.",
-	busy: "Still sending edits. Try again in a moment.",
-};
 
 export function registerCommands(plugin: Plugin & PluginHost): void {
 	plugin.addCommand({
@@ -115,9 +110,7 @@ export function registerCommands(plugin: Plugin & PluginHost): void {
 			const path = view?.file?.path;
 			if (!path || !plugin.realtime.live.roomOf(path)) return false;
 			if (checking) return true;
-			void plugin.realtime.live
-				.rotate(path)
-				.then((outcome) => notifyInfo(REBUILT[outcome]));
+			rebuildLiveNote(plugin, path);
 			return true;
 		},
 	});
@@ -125,12 +118,7 @@ export function registerCommands(plugin: Plugin & PluginHost): void {
 	plugin.addCommand({
 		id: "toggle-live-authors",
 		name: "Toggle authors in live notes",
-		callback: () =>
-			notifyInfo(
-				plugin.realtime.live.toggleAuthors()
-					? "Text others typed in live notes is tinted by author."
-					: "Authors hidden.",
-			),
+		callback: () => toggleAuthors(plugin),
 	});
 
 	plugin.addCommand({
@@ -139,8 +127,8 @@ export function registerCommands(plugin: Plugin & PluginHost): void {
 		checkCallback: (checking) => {
 			const path = plugin.app.workspace.getActiveFile()?.path;
 			if (path === undefined) return false;
-			const { id, root } = spaceOf(plugin.spaces.partition(), path);
-			const record = id === VAULT_SPACE.id ? undefined : shareAt(plugin, root);
+			const space = spaceOf(plugin.spaces.partition(), path);
+			const record = sharedFolderOf(plugin, space);
 			if (!record) return false;
 			if (!checking) openShareWindow(plugin, record);
 			return true;

@@ -2,7 +2,7 @@ import { EditorState } from "@codemirror/state";
 import { EditorView, lineNumbers } from "@codemirror/view";
 import { setIcon } from "obsidian";
 import { EDiffDirection, type FileDiffModel } from "@/sync/projection";
-import { appendIconButton } from "../icon-button";
+import { appendIconButton } from "@/ui/common/icon-button";
 import { ChangeOverlay } from "./change-overlay";
 import { CHOICE_ICON, EChoiceKind, HunkChoices } from "./choices";
 import {

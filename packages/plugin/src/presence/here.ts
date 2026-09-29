@@ -9,15 +9,25 @@ const IDLE_CHECK_MS = 30_000;
 const SETTLE_MS = 400;
 const ACTIVITY = ["keydown", "pointerdown", "pointermove", "wheel"] as const;
 
-/** Reports this device's open file and whether its person is at it; returns the stop. */
-export function watchHere(app: App, report: (here: Here) => void): () => void {
+export interface HereWatch {
+	/** After the note setting changed: reports again if what is shown differs. */
+	refresh(): void;
+	stop(): void;
+}
+
+/** Reports this device's open file (unless `showNote` says to hide it) and whether its person is at it. */
+export function watchHere(
+	app: App,
+	report: (here: Here) => void,
+	showNote: () => boolean,
+): HereWatch {
 	const { workspace } = app;
 	let lastInput = Date.now();
 	let sent: Here | null = null;
 	let timer: number | null = null;
 
 	const current = (): Here => ({
-		path: openActivePath(workspace),
+		path: showNote() ? openActivePath(workspace) : null,
 		idle:
 			document.visibilityState === "hidden" ||
 			Date.now() - lastInput > IDLE_AFTER_MS,
@@ -51,13 +61,16 @@ export function watchHere(app: App, report: (here: Here) => void): () => void {
 	const check = window.setInterval(send, IDLE_CHECK_MS);
 	workspace.onLayoutReady(send);
 
-	return () => {
-		for (const ref of refs) workspace.offref(ref);
-		app.vault.offref(renamed);
-		for (const type of ACTIVITY) window.removeEventListener(type, onInput);
-		document.removeEventListener("visibilitychange", send);
-		window.clearInterval(check);
-		if (timer !== null) window.clearTimeout(timer);
+	return {
+		refresh: send,
+		stop() {
+			for (const ref of refs) workspace.offref(ref);
+			app.vault.offref(renamed);
+			for (const type of ACTIVITY) window.removeEventListener(type, onInput);
+			document.removeEventListener("visibilitychange", send);
+			window.clearInterval(check);
+			if (timer !== null) window.clearTimeout(timer);
+		},
 	};
 }
 

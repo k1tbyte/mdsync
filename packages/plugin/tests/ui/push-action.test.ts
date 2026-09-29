@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { scopedPaths } from "@/ui/push-action";
+import { scopedPaths } from "@/ui/actions/push-action";
 
 describe("scopedPaths", () => {
 	const changes = [

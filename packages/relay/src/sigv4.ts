@@ -6,10 +6,11 @@
  * on WebCrypto because the AWS SDK is far too heavy for a Worker bundle.
  */
 
+import { toHex } from "@obsync/protocol";
+
 const ALGORITHM = "AWS4-HMAC-SHA256";
 const SERVICE = "s3";
 const UNSIGNED_PAYLOAD = "UNSIGNED-PAYLOAD";
-const SIGNING_KEY_CACHE_LIMIT = 8;
 
 export interface S3Target {
 	endpoint: string;
@@ -23,9 +24,6 @@ export interface S3Target {
 export type PresignMethod = "GET" | "PUT" | "DELETE" | "HEAD";
 
 const encoder = new TextEncoder();
-
-/** Derived signing keys are stable per (key, day, region); reuse across requests. */
-const signingKeys = new Map<string, CryptoKey>();
 
 export async function presignS3(
 	target: S3Target,
@@ -96,18 +94,12 @@ async function signingKey(
 	target: S3Target,
 	dateStamp: string,
 ): Promise<CryptoKey> {
-	const cacheKey = `${target.accessKeyId}|${dateStamp}|${target.region}`;
-	const cached = signingKeys.get(cacheKey);
-	if (cached) return cached;
-
 	let key = await importHmacKey(
 		encoder.encode(`AWS4${target.secretAccessKey}`),
 	);
 	for (const part of [dateStamp, target.region, SERVICE, "aws4_request"]) {
 		key = await importHmacKey(await hmac(key, part));
 	}
-	if (signingKeys.size >= SIGNING_KEY_CACHE_LIMIT) signingKeys.clear();
-	signingKeys.set(cacheKey, key);
 	return key;
 }
 
@@ -127,12 +119,6 @@ function hmac(key: CryptoKey, data: string): Promise<ArrayBuffer> {
 
 function sha256(data: string): Promise<ArrayBuffer> {
 	return crypto.subtle.digest("SHA-256", encoder.encode(data));
-}
-
-function toHex(buffer: ArrayBuffer): string {
-	return [...new Uint8Array(buffer)]
-		.map((byte) => byte.toString(16).padStart(2, "0"))
-		.join("");
 }
 
 function encodeRfc3986(value: string): string {

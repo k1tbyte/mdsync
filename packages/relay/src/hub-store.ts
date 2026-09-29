@@ -1,6 +1,8 @@
 /**
  * The hub's document logs in the Durable Object's SQLite: one row per delta and
- * one per document (head, snapshot, forwarding pointer). All of it ciphertext.
+ * one per document (snapshot, forwarding pointer, log name). All of it
+ * ciphertext. An update writes its delta row only: the head is the last delta's
+ * seq, so the document row changes on compaction and rotation alone.
  */
 
 import type { DocState, DocStore } from "./hub-docs";
@@ -20,20 +22,50 @@ interface DocRow {
 	head: number;
 	snapSeq: number;
 	moved: string | null;
+	log: string;
 }
 
+/** A fresh log id, drawn per row. */
+const NEW_LOG = "lower(hex(randomblob(8)))";
+
+/** `movedTo` is asked on every frame and a pointer never changes once set, so answers are kept, oldest out first. */
+export const MOVED_CACHE_MAX = 1024;
+
+const cacheKey = (channel: string, doc: string) =>
+	`${channel.length}:${channel}${doc}`;
+
 export class SqlDocStore implements DocStore {
+	private readonly moved = new Map<string, string | null>();
+
 	constructor(private readonly sql: Sql) {
 		sql.exec(
-			"CREATE TABLE IF NOT EXISTS docs(channel TEXT, doc TEXT, head INTEGER NOT NULL, snap_seq INTEGER NOT NULL DEFAULT 0, moved TEXT, snap BLOB, PRIMARY KEY(channel, doc))",
+			"CREATE TABLE IF NOT EXISTS docs(channel TEXT, doc TEXT, snap_seq INTEGER NOT NULL DEFAULT 0, moved TEXT, snap BLOB, log TEXT, PRIMARY KEY(channel, doc)) WITHOUT ROWID",
 		);
 		sql.exec(
-			"CREATE TABLE IF NOT EXISTS deltas(channel TEXT, doc TEXT, seq INTEGER, blob BLOB NOT NULL, PRIMARY KEY(channel, doc, seq))",
+			"CREATE TABLE IF NOT EXISTS deltas(channel TEXT, doc TEXT, seq INTEGER, blob BLOB NOT NULL, PRIMARY KEY(channel, doc, seq)) WITHOUT ROWID",
 		);
 	}
 
 	movedTo(channel: string, doc: string): string | null {
-		return this.row(channel, doc)?.moved ?? null;
+		const key = cacheKey(channel, doc);
+		const known = this.moved.get(key);
+		if (known !== undefined) return known;
+		const target = this.row(channel, doc)?.moved ?? null;
+		this.remember(key, target);
+		return target;
+	}
+
+	private remember(key: string, target: string | null): void {
+		if (this.moved.size >= MOVED_CACHE_MAX && !this.moved.has(key)) {
+			this.moved.delete(this.moved.keys().next().value as string);
+		}
+		this.moved.set(key, target);
+	}
+
+	purge(channel: string): void {
+		this.sql.exec("DELETE FROM deltas WHERE channel = ?", channel);
+		this.sql.exec("DELETE FROM docs WHERE channel = ?", channel);
+		this.moved.clear();
 	}
 
 	rotate(
@@ -44,7 +76,10 @@ export class SqlDocStore implements DocStore {
 		payload: Uint8Array,
 	): boolean {
 		const row = this.row(channel, doc);
-		if (row?.moved !== null || row.head !== upto) return false;
+		// No row is an empty log: a room that lost its log moves on from there.
+		if ((row?.moved ?? null) !== null || (row?.head ?? 0) !== upto) {
+			return false;
+		}
 		if (this.seed(channel, target, payload) === null) return false;
 		this.markMoved(channel, doc, target);
 		return true;
@@ -53,7 +88,7 @@ export class SqlDocStore implements DocStore {
 	/** Drops the log: from here the pointer is the only answer. */
 	private markMoved(channel: string, doc: string, target: string): void {
 		this.sql.exec(
-			"INSERT INTO docs(channel, doc, head, moved) VALUES(?, ?, 0, ?) ON CONFLICT(channel, doc) DO UPDATE SET head = 0, snap_seq = 0, snap = NULL, moved = excluded.moved",
+			"INSERT INTO docs(channel, doc, moved) VALUES(?, ?, ?) ON CONFLICT(channel, doc) DO UPDATE SET snap_seq = 0, snap = NULL, moved = excluded.moved",
 			channel,
 			doc,
 			target,
@@ -63,37 +98,33 @@ export class SqlDocStore implements DocStore {
 			channel,
 			doc,
 		);
+		this.remember(cacheKey(channel, doc), target);
 	}
 
 	append(channel: string, doc: string, payload: Uint8Array): number {
-		return this.log(
-			channel,
-			doc,
-			payload,
-			"DO UPDATE SET head = head + 1",
-		) as number;
+		return this.log(channel, doc, payload, false) as number;
 	}
 
 	seed(channel: string, doc: string, payload: Uint8Array): number | null {
-		return this.log(channel, doc, payload, "DO NOTHING");
+		return this.log(channel, doc, payload, true);
 	}
 
-	/** RETURNING yields no row when the conflict clause did nothing. */
 	private log(
 		channel: string,
 		doc: string,
 		payload: Uint8Array,
-		onConflict: string,
+		seedOnly: boolean,
 	): number | null {
-		const [row] = this.sql
-			.exec(
-				`INSERT INTO docs(channel, doc, head) VALUES(?, ?, 1) ON CONFLICT(channel, doc) ${onConflict} RETURNING head`,
+		const row = this.row(channel, doc);
+		if (row && seedOnly) return null;
+		if (!row) {
+			this.sql.exec(
+				`INSERT INTO docs(channel, doc, log) VALUES(?, ?, ${NEW_LOG})`,
 				channel,
 				doc,
-			)
-			.toArray();
-		if (!row) return null;
-		const seq = Number(row.head);
+			);
+		}
+		const seq = (row?.head ?? 0) + 1;
 		this.sql.exec(
 			"INSERT INTO deltas(channel, doc, seq, blob) VALUES(?, ?, ?, ?)",
 			channel,
@@ -106,7 +137,7 @@ export class SqlDocStore implements DocStore {
 
 	state(channel: string, doc: string, since: number): DocState {
 		const row = this.row(channel, doc);
-		if (!row) return { head: 0, snapshot: null, deltas: [] };
+		if (!row) return { head: 0, snapshot: null, deltas: [], log: "" };
 		const withSnapshot = since < row.snapSeq;
 		const deltas = this.sql
 			.exec(
@@ -121,6 +152,7 @@ export class SqlDocStore implements DocStore {
 			head: row.head,
 			snapshot: withSnapshot ? this.snapshot(channel, doc) : null,
 			deltas,
+			log: row.log,
 		};
 	}
 
@@ -152,16 +184,19 @@ export class SqlDocStore implements DocStore {
 	private row(channel: string, doc: string): DocRow | null {
 		const [row] = this.sql
 			.exec(
-				"SELECT head, snap_seq, moved FROM docs WHERE channel = ? AND doc = ?",
+				"SELECT snap_seq, moved, log, (SELECT max(seq) FROM deltas WHERE channel = docs.channel AND doc = docs.doc) AS last FROM docs WHERE channel = ? AND doc = ?",
 				channel,
 				doc,
 			)
 			.toArray();
 		if (!row) return null;
+		const snapSeq = Number(row.snap_seq);
 		return {
-			head: Number(row.head),
-			snapSeq: Number(row.snap_seq),
+			// Compaction can leave no delta, and a moved log has neither.
+			head: Math.max(Number(row.last), snapSeq),
+			snapSeq,
 			moved: typeof row.moved === "string" ? row.moved : null,
+			log: typeof row.log === "string" ? row.log : "",
 		};
 	}
 

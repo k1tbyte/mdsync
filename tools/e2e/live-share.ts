@@ -137,7 +137,7 @@ await runSharing(
 						.find((text) => text.includes("In plan.md")),
 				(row) => row !== undefined,
 			),
-			"FFriendIn plan.md",
+			"FFriendCan edit - In plan.mdRevoke",
 		);
 		await owner.shot("share-window", ".obsync-share-modal");
 		await closeModals(owner);

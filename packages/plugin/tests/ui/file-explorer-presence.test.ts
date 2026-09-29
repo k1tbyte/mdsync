@@ -3,8 +3,14 @@ import { describe, expect, it } from "vitest";
 import type { PluginHost } from "@/plugin/host";
 import type { Person } from "@/presence/people";
 import { Unseen } from "@/presence/unseen";
+import type { SyncController } from "@/sync/controller";
 import { type Space, VAULT_SPACE } from "@/sync/space";
-import { presenceMarks } from "@/ui/file-explorer-presence";
+import { EChangeType } from "@/sync/types";
+import { computeDecorations } from "@/ui/explorer/file-explorer-decorations";
+import {
+	presenceMarks,
+	shareMarks,
+} from "@/ui/explorer/file-explorer-presence";
 
 const ALEX: Person = {
 	key: "p1",
@@ -34,6 +40,7 @@ function host(
 		controller: {
 			lastEdit: () => ({ key: "p1", name: "Alex", at: Date.now() }),
 		},
+		ignoreState: { ignoredPaths: () => [] },
 		unseen: new Unseen({ load: () => unseen, save: () => {} }),
 		spaces: { partition: () => spaces },
 		settings: {
@@ -105,5 +112,26 @@ describe("presence in the file explorer", () => {
 		const marks = presenceMarks(host(spaces, [LAPTOP]), () => false);
 
 		expect(marks.has("notes/x.md")).toBe(false);
+	});
+
+	it("keeps the share badges alone when indicators are off", () => {
+		const plugin = host(spaces, [ALEX], ["Team/a.md"]);
+		const controller = {
+			fileDiffs: {
+				getChangedPathStatuses: () =>
+					new Map([[ALEX.note as string, EChangeType.LocalAdd]]),
+			},
+		} as unknown as SyncController;
+		const args = [plugin, controller, new Map(), () => false] as const;
+
+		const off = computeDecorations(...args, false);
+		const on = computeDecorations(...args, true);
+
+		expect([...off.keys()]).toEqual([...shareMarks(plugin).keys()]);
+		expect([...off.values()].every(({ share }) => share)).toBe(true);
+		expect(on.get(ALEX.note as string)?.people).toEqual([ALEX]);
+		expect(on.get(ALEX.note as string)?.change).toBe("obsync-changed-added");
+		expect(on.get("Team/a.md")?.unseen).toBeDefined();
+		expect(off.get("Team/a.md")?.unseen).toBeUndefined();
 	});
 });

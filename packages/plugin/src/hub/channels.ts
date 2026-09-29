@@ -4,7 +4,7 @@
  * it joined. One socket per relay, however many channels it carries.
  */
 
-import { deriveChannelGrant, shareChannel } from "@obsync/protocol";
+import { deriveChannelGrant, MAX_SLOTS, shareChannel } from "@obsync/protocol";
 
 import { sha256Hex } from "@/crypto";
 import {
@@ -39,7 +39,9 @@ export function hubRoutes(settings: ObsyncSettings): HubRoute[] {
 	const routes = new Map<string, Slot[]>();
 	const add = (url: string, slot: Slot) => {
 		const serverUrl = url.replace(/\/+$/, "");
-		routes.set(serverUrl, [...(routes.get(serverUrl) ?? []), slot]);
+		const slots = routes.get(serverUrl) ?? [];
+		// The hub admits no more: a space past them is not carried, rather than waiting forever.
+		if (slots.length < MAX_SLOTS) routes.set(serverUrl, [...slots, slot]);
 	};
 	if (isRelayConfigured(settings) && isStorageConfigured(settings)) {
 		const { relayUrl, relaySecret } = settings;

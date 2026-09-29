@@ -6,6 +6,7 @@
  * cold layer's business.
  */
 
+import { ERefusal, type Refusal } from "@obsync/protocol";
 import type { App, TFile, WorkspaceLeaf } from "obsidian";
 
 import type { HubConnection } from "@/hub/connection";
@@ -19,6 +20,17 @@ import type { LiveSession, Rotation } from "./session";
 import { docIdIn, type LiveSpace, sameSpace } from "./space";
 
 const LOADING_RETRY_MS = 500;
+/** A room answers in well under a second: past this it may never. */
+const JOIN_PATIENCE_MS = 15_000;
+
+/** Why an open note stays cold until it is closed. */
+export type ColdCause = "moved-away" | "too-large" | "too-many" | "read-only";
+
+const REFUSED: Record<Refusal, ColdCause> = {
+	[ERefusal.TooLarge]: "too-large",
+	[ERefusal.TooManyDocs]: "too-many",
+	[ERefusal.ReadOnly]: "read-only",
+};
 
 export interface LiveSessionsDeps {
 	app: App;
@@ -52,8 +64,8 @@ interface Binding {
 export class LiveSessions {
 	private readonly rooms = new Map<string, Room>();
 	private readonly bound = new Map<WorkspaceLeaf, Binding>();
-	/** Open notes whose room moved somewhere that is not their next generation. */
-	private readonly stranded = new Set<string>();
+	/** Open notes left to the file sync: their room moved elsewhere, or the hub cannot carry them. */
+	private readonly cold = new Map<string, ColdCause>();
 	private readonly listeners = new Set<() => void>();
 	/** Who typed what, tinted in every bound editor; this app session only. */
 	private authors = false;
@@ -62,6 +74,7 @@ export class LiveSessions {
 	private disposed = false;
 	/** A pass for views still loading: nothing announces when they are ready. */
 	private retry: number | null = null;
+	private patience: number | null = null;
 
 	constructor(private readonly deps: LiveSessionsDeps) {}
 
@@ -81,7 +94,8 @@ export class LiveSessions {
 		} finally {
 			this.running = false;
 		}
-		for (const listener of this.listeners) listener();
+		this.notify();
+		this.notifyWhenPatienceRunsOut();
 	}
 
 	/** Told after every refresh: a room joined, bound or left. */
@@ -93,6 +107,7 @@ export class LiveSessions {
 	dispose(): void {
 		this.disposed = true;
 		if (this.retry !== null) window.clearTimeout(this.retry);
+		if (this.patience !== null) window.clearTimeout(this.patience);
 		this.listeners.clear();
 		this.closeAll();
 		void this.deps.agreed.flush();
@@ -118,9 +133,24 @@ export class LiveSessions {
 		);
 	}
 
+	/** Joining for longer than a room takes to answer: the hub is up but the room is silent. */
+	unanswered(path: string): boolean {
+		const room = this.rooms.get(path);
+		return (
+			room !== undefined &&
+			this.joining(path) &&
+			Date.now() - room.session.subscribedAt >= JOIN_PATIENCE_MS
+		);
+	}
+
 	/** The space whose room holds the note, open or joining; null while it is cold. */
 	spaceOf(path: string): string | null {
 		return this.rooms.get(path)?.space.id ?? null;
+	}
+
+	/** Why an open note was left to the file sync; null unless it was. */
+	coldCause(path: string): ColdCause | null {
+		return this.cold.get(path) ?? null;
 	}
 
 	/** Returns whether authors are now shown. */
@@ -132,6 +162,10 @@ export class LiveSessions {
 		return this.authors;
 	}
 
+	authorsShown(): boolean {
+		return this.authors;
+	}
+
 	/** Rebuilds an open note's room as its next generation, which everyone then follows. */
 	async rotate(path: string): Promise<Rotation> {
 		const room = this.roomOf(path);
@@ -140,13 +174,22 @@ export class LiveSessions {
 		return room.rotate(await docIdIn(space, path, room.generation + 1));
 	}
 
-	/** Saves the note's bound editor now, so its file holds what the room has. */
-	async save(path: string): Promise<void> {
+	/** Saves the note's bound editor now, so its file holds what the room has; false when nothing could. */
+	async save(path: string): Promise<boolean> {
 		const editor = this.rooms.get(path)?.editor;
 		for (const [leaf, binding] of this.bound) {
-			if (binding.path !== path || !editor) continue;
-			await editor.save(leaf.view);
-			return;
+			if (binding.path === path && editor) return editor.save(leaf.view);
+		}
+		return false;
+	}
+
+	/** The file sync writes `path` next: every view showing it, live or not, takes the write in. */
+	expectWrite(path: string): void {
+		const { workspace } = this.deps.app;
+		for (const editor of Object.values(EDITORS)) {
+			for (const leaf of workspace.getLeavesOfType(editor.viewType)) {
+				editor.expectWrite(leaf.view, path);
+			}
 		}
 	}
 
@@ -162,7 +205,8 @@ export class LiveSessions {
 			return (
 				space !== undefined &&
 				sameSpace(space, room.space) &&
-				room.session.movedTo === null
+				room.session.movedTo === null &&
+				!this.cold.has(path)
 			);
 		};
 
@@ -172,7 +216,8 @@ export class LiveSessions {
 			if (
 				open.get(leaf)?.file.path === path &&
 				room?.session === session &&
-				stays(path, room)
+				stays(path, room) &&
+				!binding.editor.stale?.()
 			) {
 				continue;
 			}
@@ -184,15 +229,19 @@ export class LiveSessions {
 			this.rooms.delete(path);
 			room.session.dispose();
 			const space = shown.get(path);
-			if (space && sameSpace(space, room.space)) await this.follow(path, room);
+			const moved = room.session.movedTo !== null;
+			if (moved && space && sameSpace(space, room.space)) {
+				await this.follow(path, room);
+			}
 		}
-		for (const path of this.stranded) {
-			if (!shown.has(path)) this.stranded.delete(path);
+		// Closed, a note tries again on its next open.
+		for (const path of this.cold.keys()) {
+			if (!shown.has(path)) this.cold.delete(path);
 		}
 		if (this.disposed) return;
 
 		for (const [leaf, { file, space, editor }] of open) {
-			if (this.bound.has(leaf) || this.stranded.has(file.path)) continue;
+			if (this.bound.has(leaf) || this.cold.has(file.path)) continue;
 			const room =
 				this.rooms.get(file.path) ??
 				(await this.open(file.path, space, editor));
@@ -201,7 +250,11 @@ export class LiveSessions {
 			if (!room.session.synced) continue;
 			if (room.editor.fileOf(leaf.view) !== file) continue;
 			const { person } = space;
-			const bound = room.bind(leaf.view, this.authors ? person : null);
+			const bound = room.bind(
+				leaf.view,
+				this.authors ? person : null,
+				() => void this.refresh(),
+			);
 			if (!bound) {
 				this.retry ??= window.setTimeout(() => {
 					this.retry = null;
@@ -228,14 +281,14 @@ export class LiveSessions {
 			from.session.movedTo !== (await docIdIn(from.space, path, generation))
 		) {
 			reportWarning("A live note moved to a room that is not its own.", path);
-			this.stranded.add(path);
+			this.cold.set(path, "moved-away");
 			return;
 		}
 		if (this.disposed) return;
 		await this.open(path, from.space, from.editor, generation);
 	}
 
-	/** `follows`: the generation a moved room pointed at, which is never seeded from disk. */
+	/** `follows`: the generation a moved room pointed at, filled by whoever moved it. */
 	private async open(
 		path: string,
 		space: LiveSpace,
@@ -244,25 +297,49 @@ export class LiveSessions {
 	): Promise<Room> {
 		const note = await docIdIn(space, path, 0);
 		const { agreed, baseText, hub } = this.deps;
-		const generation = follows ?? (await agreed.get(note))?.gen ?? 0;
+		const last = await agreed.get(note);
+		const generation = follows ?? last?.gen ?? 0;
 		const docId =
 			generation === 0 ? note : await docIdIn(space, path, generation);
 		const opened = editor.open(docId, generation, {
 			keys: space.keys,
 			hub: hub.space(space.id),
 			author: { person: space.person, name: space.user.name },
-			follower: follows !== undefined,
+			// A successor starts from its rebuild: empty, it lost its log like any room behind what was agreed.
+			knownSeq: Math.max(
+				last?.gen === generation ? last.seq : 0,
+				follows === undefined ? 0 : 1,
+			),
+			successor: () => docIdIn(space, path, generation + 1),
 			readDisk: () => this.readDisk(path, editor),
 			readBase: async () =>
 				(await agreed.get(note))?.text ?? (await baseText(path)) ?? "",
 			onAgreed: (text, seq) => agreed.put(note, { text, gen: generation, seq }),
 			onMoved: () => void this.refresh(),
+			onRefused: (reason) => {
+				this.cold.set(path, REFUSED[reason]);
+				void this.refresh();
+			},
 		});
 		opened.session.awareness.setLocalStateField("user", space.user);
 		const room = { ...opened, space, editor };
 		this.rooms.set(path, room);
 		void opened.session.ready.then(() => this.refresh());
 		return room;
+	}
+
+	/** A joining room turns "unanswered" with no event of its own: look again once its patience is over. */
+	private notifyWhenPatienceRunsOut(): void {
+		const waiting = [...this.rooms.keys()].some((path) => this.joining(path));
+		if (this.patience !== null || !waiting) return;
+		this.patience = window.setTimeout(() => {
+			this.patience = null;
+			this.notify();
+		}, JOIN_PATIENCE_MS);
+	}
+
+	private notify(): void {
+		for (const listener of this.listeners) listener();
 	}
 
 	/** An open view is newer than the file it saves a moment later. */
@@ -295,6 +372,6 @@ export class LiveSessions {
 		this.bound.clear();
 		for (const { session } of this.rooms.values()) session.dispose();
 		this.rooms.clear();
-		this.stranded.clear();
+		this.cold.clear();
 	}
 }

@@ -33,10 +33,10 @@ await runScenario("hub e2e", async () => {
 	let relay: Relay | null = await startRelay(PORT, SECRET);
 	try {
 		await scenario(relay.url);
-		await documents(relay.url);
+		const log = await documents(relay.url);
 		relay.stop();
 		relay = await startRelay(PORT, SECRET);
-		await afterRestart(relay.url);
+		await afterRestart(relay.url, log);
 		relay.stop();
 		relay = await startRelay(PORT, SECRET, {
 			HUB_STALE_MS: String(STALE_MS),
@@ -80,7 +80,8 @@ async function sweep(url: string): Promise<void> {
 	alive.close();
 }
 
-async function documents(url: string): Promise<void> {
+/** Returns the name of the document's log. */
+async function documents(url: string): Promise<string> {
 	const grant = await deriveChannelGrant(SECRET, VAULT);
 	const laptop = await connectPeer(url, [[VAULT, grant]], "laptop");
 	const phone = await connectPeer(url, [[VAULT, grant]], "phone");
@@ -107,6 +108,7 @@ async function documents(url: string): Promise<void> {
 		[room.head, room.deltas.map((delta) => [...delta])],
 		[1, [[1]]],
 	);
+	check("the log is named", /^[0-9a-f]{16}$/.test(room.log), true);
 	doc(laptop, { type: EFrame.Update, payload: Uint8Array.of(2) });
 	await laptop.next(EFrame.Echo);
 	doc(laptop, { type: EFrame.Snapshot, upto: 1, payload: Uint8Array.of(11) });
@@ -125,17 +127,23 @@ async function documents(url: string): Promise<void> {
 		DOC,
 	);
 	laptop.close();
+	return room.log;
 }
 
-async function afterRestart(url: string): Promise<void> {
+async function afterRestart(url: string, log: string): Promise<void> {
 	const grant = await deriveChannelGrant(SECRET, VAULT);
 	const tablet = await connectPeer(url, [[VAULT, grant]], "tablet");
 	tablet.send({ type: EFrame.Sub, slot: 0, doc: DOC, since: 0 });
 	const state = await tablet.next(EFrame.State);
 	check(
-		"log survives a relay restart",
-		[state.head, [...(state.snapshot ?? [])], state.deltas.map((d) => [...d])],
-		[2, [11], [[2]]],
+		"log survives a relay restart, under its name",
+		[
+			state.head,
+			[...(state.snapshot ?? [])],
+			state.deltas.map((d) => [...d]),
+			state.log,
+		],
+		[2, [11], [[2]], log],
 	);
 
 	tablet.send({

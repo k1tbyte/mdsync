@@ -1,5 +1,5 @@
 import { setIcon } from "obsidian";
-import { appendIconButton } from "../icon-button";
+import { appendIconButton } from "@/ui/common/icon-button";
 import type { SourceControlActions } from "./actions";
 import type { ConflictPreviewManager } from "./conflict-preview-manager";
 import { renderPath, renderSize } from "./row-parts";

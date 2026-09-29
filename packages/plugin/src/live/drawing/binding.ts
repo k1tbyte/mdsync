@@ -3,6 +3,7 @@ import type * as Y from "yjs";
 import { type SceneElement, wins } from "@/drawing";
 
 import type { BoundEditor } from "../model";
+import { LOCAL_AWARENESS } from "../room-awareness";
 import type { LiveSession } from "../session";
 import {
 	type Collaborator,
@@ -14,23 +15,27 @@ import {
 import type { DrawingModel } from "./model";
 
 /** The origin y-protocols gives this device's own awareness changes. */
-const LOCAL_AWARENESS = "local";
 
 interface PointerState {
 	user?: { key?: unknown; name?: unknown };
 	pointer?: { x: number; y: number } | null;
 }
 
-/** Keeps one Excalidraw view and its room in step, element by element, with everyone's pointers; null while it loads. */
+/**
+ * Keeps one Excalidraw view and its room in step, element by element, with
+ * everyone's pointers; null while it loads. A view that reloads replaces its
+ * API: the first event after that calls `onStale` instead.
+ */
 export function bindDrawing(
 	view: ExcalidrawView,
 	session: LiveSession<DrawingModel>,
+	onStale: () => void,
 ): BoundEditor | null {
 	const api = view.excalidrawAPI;
 	const file = view.file;
 	if (!api || !holds(view)) return null;
 	const lib = excalidrawLib();
-	if (!lib) return { showAuthors() {}, detach() {} };
+	if (!lib) return null;
 	const { model, awareness, doc } = session;
 	const NEVER = lib.CaptureUpdateAction.NEVER;
 	/** Each element's version as the view last had it: a different one is an edit made here. */
@@ -75,8 +80,14 @@ export function bindDrawing(
 		push(edited);
 	};
 
+	const stale = () => view.excalidrawAPI !== api;
+	const alive = (): boolean => {
+		if (stale()) onStale();
+		return !stale();
+	};
+
 	const onRoom = (_: unknown, tx: Y.Transaction) => {
-		if (tx.origin !== origin) showRoom();
+		if (tx.origin !== origin && alive()) showRoom();
 	};
 
 	const showPointers = () =>
@@ -85,13 +96,15 @@ export function bindDrawing(
 			captureUpdate: NEVER,
 		});
 	const onPeers = (_: unknown, origin: unknown) => {
-		if (origin !== LOCAL_AWARENESS) showPointers();
+		if (origin !== LOCAL_AWARENESS && alive()) showPointers();
 	};
-	const onMove = (event: PointerEvent) =>
+	const onMove = (event: PointerEvent) => {
+		if (!alive()) return;
 		awareness.setLocalStateField(
 			"pointer",
 			lib.viewportCoordsToSceneCoords(event, api.getAppState()),
 		);
+	};
 	const onLeave = () => awareness.setLocalStateField("pointer", null);
 
 	// Strokes drawn while the room was answering go in before the view follows it.
@@ -106,6 +119,7 @@ export function bindDrawing(
 
 	return {
 		showAuthors() {},
+		stale,
 		detach() {
 			offChange();
 			model.elements.unobserve(onRoom);

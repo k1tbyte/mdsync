@@ -109,13 +109,14 @@ export function patchTaken(taken: Taken, patch: TakenPatch): Taken {
 
 /**
  * Groups both sides' hunks by overlapping-or-touching base lines, the way diff3
- * does, and reports all three ranges for every region: the side that did not
- * change still owns the base-equal lines the region maps onto.
+ * does (`groupTouching`), and reports all three ranges for every region: the
+ * side that did not change still owns the base-equal lines the region maps onto.
  */
 export function threeWayRegions(
 	base: string[],
 	local: string[],
 	remote: string[],
+	groupTouching = true,
 ): MergeRegion[] {
 	const hunks = [
 		...sideHunks(base, local, "local"),
@@ -130,7 +131,8 @@ export function threeWayRegions(
 		let end = start;
 		for (; i < hunks.length; i++) {
 			const hunk = hunks[i];
-			if (!hunk || (group.length > 0 && hunk.base[0] > end)) break;
+			if (!hunk) break;
+			if (group.length > 0 && !joins(hunk, start, end, groupTouching)) break;
 			end = Math.max(end, hunk.base[1]);
 			group.push(hunk);
 		}
@@ -165,6 +167,17 @@ export function threeWayRegions(
 		cursor.remote = region.remote[1];
 	}
 	return regions;
+}
+
+function joins(
+	hunk: SideHunk,
+	start: number,
+	end: number,
+	groupTouching: boolean,
+): boolean {
+	if (hunk.base[0] !== end) return hunk.base[0] < end;
+	const insertsAtSamePoint = start === end && hunk.base[1] === end;
+	return groupTouching || insertsAtSamePoint;
 }
 
 /**

@@ -42,6 +42,12 @@ export interface HubPeer {
 
 export type Peers = () => Iterable<HubPeer>;
 
+/** Resolves the sockets once, for an operation that broadcasts several times. */
+export function resolved(peers: Peers): Peers {
+	const all = [...peers()];
+	return () => all;
+}
+
 export interface HandlerContext {
 	peers: Peers;
 	peer: HubPeer;

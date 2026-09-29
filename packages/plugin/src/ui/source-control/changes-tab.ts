@@ -3,7 +3,7 @@ import type { PluginHost } from "@/plugin/host";
 import { formatRelativeTime } from "@/shared/format";
 import type { SyncStatusSnapshot } from "@/sync/controller";
 import type { DiffResult, ManifestEntry } from "@/sync/types";
-import { notifyError } from "@/ui/notices";
+import { notifyError } from "@/ui/common/notices";
 
 import type { SourceControlActions } from "./actions";
 import { ChangesSection, type ChangesSectionDeps } from "./changes-section";

@@ -52,6 +52,7 @@ const TRANSFER_FIELDS = {
 	l: {
 		realtimeSync: "e",
 		liveEditing: "v",
+		showOpenNote: "o",
 		relayUrl: "u",
 		relaySecret: "t",
 	},

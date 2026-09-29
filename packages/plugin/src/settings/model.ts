@@ -62,6 +62,7 @@ export interface ObsyncSettings {
 	realtimeSync: boolean;
 	/** Notes open in the editor edit together across devices, over the relay. */
 	liveEditing: boolean;
+	showOpenNote: boolean;
 	/** This device's copy of the shared folders it syncs; see `spaces/`. */
 	spaces: SpaceRecord[];
 	/** Shares this device holds out of sync; never published, unlike `spaces`. */
@@ -103,6 +104,7 @@ export const DEFAULT_SETTINGS: ObsyncSettings = {
 	historyAutoRefresh: true,
 	realtimeSync: false,
 	liveEditing: true,
+	showOpenNote: true,
 	spaces: [],
 	pausedSpaces: [],
 	localRoots: {},

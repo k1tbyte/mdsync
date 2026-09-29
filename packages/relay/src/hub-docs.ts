@@ -7,12 +7,22 @@
 import {
 	type ClientFrame,
 	EFrame,
+	ERefusal,
 	encodeServer,
 	MAX_DOC_ID_LENGTH,
 	MAX_DOC_SUBS,
-	type ServerFrame,
+	type Refusal,
 } from "@obsync/protocol";
 
+import {
+	addressed,
+	joinFrame,
+	leaveFrame,
+	movedFrame,
+	peerFrame,
+	refusedFrame,
+	type ServerBody,
+} from "./hub-frames";
 import {
 	broadcast,
 	follows,
@@ -28,6 +38,8 @@ export interface DocState {
 	head: number;
 	snapshot: Uint8Array | null;
 	deltas: Uint8Array[];
+	/** Drawn when the log's first row is: a lost log grows again under another. */
+	log: string;
 }
 
 export interface DocStore {
@@ -44,6 +56,8 @@ export interface DocStore {
 		upto: number,
 		payload: Uint8Array,
 	): boolean;
+	/** Deletes every document of the channel, pointers included. */
+	purge(channel: string): void;
 	append(channel: string, doc: string, payload: Uint8Array): number;
 	/** Appends only to a document with no log; null when it has one. */
 	seed(channel: string, doc: string, payload: Uint8Array): number | null;
@@ -79,7 +93,9 @@ export function docHandlers(store: DocStore): Handlers {
 	/** Frames that change a document; a read-only grant only follows. */
 	const write = <F extends ClientFrame>(handler: Handler<F>): Handler<F> =>
 		live((context, frame) => {
-			if (!context.grant.readOnly) handler(context, frame);
+			const { grant, peer } = context;
+			if (!grant.readOnly) handler(context, frame);
+			else refuse(peer, frame, ERefusal.ReadOnly);
 		});
 	const sendState = (
 		peer: HubPeer,
@@ -106,22 +122,27 @@ export function docHandlers(store: DocStore): Handlers {
 				return;
 			}
 			const fresh = !follows(peer, slot, doc);
-			if (fresh && peer.subs.length >= MAX_DOC_SUBS) return;
+			if (fresh && peer.subs.length >= MAX_DOC_SUBS) {
+				refuse(peer, { slot, doc }, ERefusal.TooManyDocs);
+				return;
+			}
 			if (fresh) peer.subscribe(slot, doc);
 			sendState(peer, grant, slot, doc, since);
 			// Awareness is never stored, so followers re-announce for the newcomer.
 			if (fresh) {
-				toFollowers(peers, grant.channel, doc, peer, {
-					type: EFrame.Join,
-					from: peer.tag,
-					who: grant.who,
-				});
+				toFollowers(
+					peers,
+					grant.channel,
+					doc,
+					peer,
+					joinFrame(peer.tag, grant.who),
+				);
 			}
 		},
 		[EFrame.Unsub]: ({ peers, peer, grant }, { slot, doc }) => {
 			if (!follows(peer, slot, doc)) return;
 			peer.unsubscribe(slot, doc);
-			toFollowers(peers, grant.channel, doc, peer, leaveFrame(peer));
+			toFollowers(peers, grant.channel, doc, peer, leaveFrame(peer.tag));
 		},
 		[EFrame.Update]: write((context, frame) =>
 			logged(
@@ -138,11 +159,13 @@ export function docHandlers(store: DocStore): Handlers {
 			else logged(context, frame, seq);
 		}),
 		[EFrame.Awareness]: live(({ peers, peer, grant }, { doc, payload }) =>
-			toFollowers(peers, grant.channel, doc, peer, {
-				type: EFrame.Peer,
-				from: peer.tag,
-				payload,
-			}),
+			toFollowers(
+				peers,
+				grant.channel,
+				doc,
+				peer,
+				peerFrame(peer.tag, payload),
+			),
 		),
 		[EFrame.Snapshot]: write(({ grant }, { doc, upto, payload }) =>
 			store.compact(grant.channel, doc, payload, upto),
@@ -170,8 +193,17 @@ export function leaveDocs(peers: Peers, peer: HubPeer, slot?: number): void {
 	for (const [at, doc] of peer.subs) {
 		const grant = peer.slots[at];
 		if (!grant || (slot !== undefined && at !== slot)) continue;
-		toFollowers(peers, grant.channel, doc, peer, leaveFrame(peer));
+		toFollowers(peers, grant.channel, doc, peer, leaveFrame(peer.tag));
 	}
+}
+
+/** Unanswered, a dropped frame looks like a slow one: the client would wait forever. */
+export function refuse(
+	peer: HubPeer,
+	{ slot, doc }: { slot: number; doc: string },
+	reason: Refusal,
+): void {
+	peer.send(encodeServer(refusedFrame(slot, doc, reason)));
 }
 
 /** The echo is the sender's ack; resending unacked updates is safe in Yjs. */
@@ -189,27 +221,17 @@ function logged(
 	});
 }
 
-type Unaddressed<F> = F extends ServerFrame ? Omit<F, "slot" | "doc"> : never;
-
 function toFollowers(
 	peers: Peers,
 	channel: string,
 	doc: string,
 	sender: HubPeer,
-	frame: Unaddressed<ServerFrame>,
+	body: ServerBody,
 ): void {
 	broadcast(
 		peers,
 		channel,
-		{ ...frame, slot: 0, doc } as ServerFrame,
+		addressed(body, doc),
 		(peer, slot) => peer.tag !== sender.tag && follows(peer, slot, doc),
 	);
-}
-
-function movedFrame(slot: number, doc: string, target: string): ServerFrame {
-	return { type: EFrame.Moved, slot, doc, target };
-}
-
-function leaveFrame(peer: HubPeer): Unaddressed<ServerFrame> {
-	return { type: EFrame.Leave, from: peer.tag };
 }

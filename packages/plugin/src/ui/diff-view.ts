@@ -14,6 +14,7 @@ import {
 	type FileDiffModel,
 	type HistoryVersionRef,
 } from "@/sync/projection";
+import { notifyError } from "@/ui/common/notices";
 import {
 	ComparePanel,
 	MergeEditorPanel,
@@ -29,7 +30,6 @@ import {
 } from "./diff/history-state";
 import { DiffOperations } from "./diff/operations";
 import { PreviewPanel } from "./diff/preview-panel";
-import { notifyError } from "./notices";
 import { openSourceControlView } from "./source-control-view";
 
 interface DiffViewState {

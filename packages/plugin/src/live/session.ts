@@ -4,13 +4,13 @@
  * acks updates in the order they were sent.
  */
 
-import { EFrame, type ServerFrame } from "@obsync/protocol";
 import {
-	Awareness,
-	applyAwarenessUpdate,
-	encodeAwarenessUpdate,
-	removeAwarenessStates,
-} from "y-protocols/awareness";
+	EFrame,
+	ERefusal,
+	MAX_FRAME_BYTES,
+	type Refusal,
+	type ServerFrame,
+} from "@obsync/protocol";
 import * as Y from "yjs";
 
 import type { LiveKeys } from "@/crypto/live-keys";
@@ -19,6 +19,7 @@ import { reportWarning } from "@/shared/diagnostics";
 
 import { type Author, USERS } from "./authors";
 import type { LiveKind, LiveModel } from "./model";
+import { RoomAwareness } from "./room-awareness";
 import { seal, unseal } from "./seal";
 
 /** Edits and cursors batch this long: at 100 ms the envelope outweighed the content. */
@@ -27,8 +28,8 @@ const FLUSH_MS = 250;
 export const COMPACT_AFTER = 200;
 /** Marks what came off the wire, so it is never sent back. */
 const REMOTE = Symbol("remote");
-/** The origin y-protocols gives this device's own awareness changes. */
-const LOCAL_AWARENESS = "local";
+/** A payload past this cannot fit a frame with its header: the hub would drop it. */
+const MAX_PAYLOAD_BYTES = MAX_FRAME_BYTES - 1024;
 
 /** "busy": not now - edits still unacked, offline, or the answer was lost. */
 export type Rotation = "moved" | "refused" | "busy";
@@ -37,12 +38,6 @@ type Frame<T> = Extract<ServerFrame, { type: T }>;
 type Unaddressed<F = SpaceFrame> = F extends SpaceFrame
 	? Omit<F, "doc">
 	: never;
-interface AwarenessChanges {
-	added: number[];
-	updated: number[];
-	removed: number[];
-}
-
 export interface LiveSessionDeps<M extends LiveModel> {
 	kind: LiveKind<M>;
 	keys: LiveKeys;
@@ -50,8 +45,10 @@ export interface LiveSessionDeps<M extends LiveModel> {
 	hub: SpaceHub;
 	/** Who this device types as: attribution maps its client id to them. */
 	author: Author;
-	/** Opened by following a moved room, which is never seeded from disk. */
-	follower?: boolean;
+	/** The seq this device knew the room at; a room behind it lost its log. A successor starts at 1. */
+	knownSeq?: number;
+	/** The docId of the next generation, where a room that lost its log moves on. */
+	successor(): Promise<string>;
 	readDisk(): Promise<string>;
 	/** What the disk last agreed on with everyone: the base of the merge. */
 	readBase(): Promise<string>;
@@ -59,6 +56,8 @@ export interface LiveSessionDeps<M extends LiveModel> {
 	onAgreed(agreed: string, seq: number): void;
 	/** The room was rebuilt elsewhere and now points at its successor. */
 	onMoved(): void;
+	/** The hub cannot carry this document: it goes cold. */
+	onRefused(reason: Refusal): void;
 }
 
 export class LiveSession<M extends LiveModel = LiveModel>
@@ -66,7 +65,6 @@ export class LiveSession<M extends LiveModel = LiveModel>
 {
 	readonly doc = new Y.Doc();
 	readonly model: M;
-	readonly awareness = new Awareness(this.doc);
 	/** Resolves once the room answered and the disk is folded in; bind nothing before. */
 	readonly ready: Promise<void>;
 
@@ -78,6 +76,7 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	private online = false;
 	/** Bumped per socket, so nothing queued for a dead one acts on the next. */
 	private epoch = 0;
+	private lastSubAt = 0;
 	private disposed = false;
 	private lastSeq = 0;
 	/** The seq the room's snapshot covers, as far as this device knows. */
@@ -88,14 +87,16 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	/** Disk text offered to an empty room, applied here only once the hub takes it. */
 	private seed: Uint8Array | null = null;
 	private moved: string | null = null;
+	/** Names the room's log once a State did. */
+	private log: string | null = null;
+	/** The lost log this socket asked to move on from. */
+	private lost: { upto: number; log: string } | null = null;
 	/** Settles the rotation this device asked the hub for. */
 	private rotation: ((outcome: Rotation) => void) | null = null;
 	private attributed = false;
-	/** Hub socket tag -> the awareness clients it announced, so its Leave clears them. */
-	private readonly peers = new Map<number, Set<number>>();
+	private readonly presence: RoomAwareness;
 	private queue: Promise<void> = Promise.resolve();
 	private updateTimer: number | null = null;
-	private awarenessTimer: number | null = null;
 	private readonly unlisten: () => void;
 
 	private readonly handlers: {
@@ -104,11 +105,11 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		[EFrame.State]: (frame, epoch) => this.onState(frame, epoch),
 		[EFrame.Fanout]: (frame) => this.onFanout(frame),
 		[EFrame.Echo]: (frame) => this.onEcho(frame.seq),
-		[EFrame.Peer]: (frame) => this.onPeer(frame),
-		// Awareness is never stored, so a newcomer only learns about us from this.
-		[EFrame.Join]: () => this.sendAwareness(),
-		[EFrame.Leave]: (frame) => this.onLeave(frame.from),
+		[EFrame.Peer]: (frame) => this.presence.receive(frame.payload, frame.from),
+		[EFrame.Join]: () => this.presence.announce(),
+		[EFrame.Leave]: (frame) => this.presence.depart(frame.from),
 		[EFrame.Moved]: (frame) => this.onMoved(frame.target),
+		[EFrame.Refused]: (frame) => this.onRefused(frame.reason),
 	};
 
 	constructor(
@@ -120,10 +121,24 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		this.ready = new Promise((resolve) => {
 			this.markReady = resolve;
 		});
+		this.presence = new RoomAwareness(this.doc, {
+			keys: deps.keys,
+			canSend: () => this.online,
+			send: (payload) => this.send({ type: EFrame.Awareness, payload }),
+			enqueue: (step) => this.enqueue(step),
+		});
 		this.doc.on("update", this.onLocalUpdate);
-		this.awareness.on("update", this.onAwareness);
 		this.unlisten = deps.hub.listen(this);
 		if (deps.hub.isConnected()) this.subscribe();
+	}
+
+	get awareness() {
+		return this.presence.awareness;
+	}
+
+	/** When the room last asked the hub for its state: the wait for an answer counts from here. */
+	get subscribedAt(): number {
+		return this.lastSubAt;
 	}
 
 	/** A moved room takes nothing more: its successor does. */
@@ -186,8 +201,10 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		this.endRotation("busy");
 		this.epoch++;
 		this.online = false;
+		// A request lost with its socket is no answer: the next State asks again.
+		this.lost = null;
 		if (connected) this.subscribe();
-		else this.enqueue(() => this.dropPeers());
+		else this.enqueue(() => this.presence.dropAll());
 	}
 
 	onFrame(frame: ServerFrame): void {
@@ -214,12 +231,13 @@ export class LiveSession<M extends LiveModel = LiveModel>
 			this.send({ type: EFrame.Unsub });
 			this.doc.off("update", this.onLocalUpdate);
 			this.model.dispose();
-			this.awareness.destroy();
+			this.presence.dispose();
 			this.doc.destroy();
 		});
 	}
 
 	private subscribe(): void {
+		this.lastSubAt = Date.now();
 		this.send({ type: EFrame.Sub, since: this.lastSeq });
 	}
 
@@ -227,15 +245,8 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		frame: Frame<typeof EFrame.State>,
 		epoch: number,
 	): Promise<void> {
-		if (frame.head < this.lastSeq) {
-			// The room lost its log (a redeploy, wiped storage): fetch what it has
-			// now and put back everything this device holds.
-			this.online = false;
-			this.lastSeq = 0;
-			this.unacked = [Y.encodeStateAsUpdate(this.doc)];
-			this.subscribe();
-			return;
-		}
+		if (this.lostLog(frame)) return this.moveOn(frame, epoch);
+		if (frame.log !== "") this.log = frame.log;
 		if (frame.snapshot) await this.apply(frame.snapshot);
 		for (const delta of frame.deltas) await this.apply(delta);
 		// From 0 or from a snapshot, the deltas are everything the snapshot does not cover.
@@ -246,10 +257,8 @@ export class LiveSession<M extends LiveModel = LiveModel>
 
 		if (!this.inSync) {
 			// Only a room with no history is seeded: an empty one with a log is a
-			// deleted note, and a successor is filled by whoever rebuilt it.
-			if (frame.head === 0) {
-				return this.deps.follower ? undefined : this.offerSeed(epoch);
-			}
+			// deleted note, and one this device knew had a log lost it (above).
+			if (frame.head === 0) return this.offerSeed(epoch);
 			this.seed = null;
 			await this.reconcile();
 			this.markSynced();
@@ -258,6 +267,37 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		if (this.online) this.endRotation("refused");
 		else if (epoch === this.epoch) await this.goOnline();
 		await this.settle();
+	}
+
+	/** A log other than the one this device knew: the hub lost it, and it may have grown again since. */
+	private lostLog({ head, log }: Frame<typeof EFrame.State>): boolean {
+		if (log !== "" && this.log !== null && log !== this.log) return true;
+		return head < Math.max(this.lastSeq, this.deps.knownSeq ?? 0);
+	}
+
+	/**
+	 * Rebuilds a room that lost its log as its next generation. Refilled in
+	 * place, its seq would restart under marks ordered by it; and a log grown
+	 * again from another device's disk would double the text applied here.
+	 */
+	private async moveOn(
+		frame: Frame<typeof EFrame.State>,
+		epoch: number,
+	): Promise<void> {
+		this.online = false;
+		const target = await this.deps.successor();
+		const { head: upto, log } = frame;
+		if (this.lost?.upto === upto && this.lost.log === log) {
+			// Refused with the log unchanged: the successor has one, so the note continued there.
+			return this.onMoved(target);
+		}
+		const content = this.inSync
+			? this.model.rebuild()
+			: this.deps.kind.seed(await this.deps.readDisk());
+		const payload = await seal(this.deps.keys, content);
+		if (epoch !== this.epoch) return;
+		this.lost = { upto, log };
+		this.send({ type: EFrame.Rotate, target, upto, payload });
 	}
 
 	private async offerSeed(epoch: number): Promise<void> {
@@ -297,12 +337,13 @@ export class LiveSession<M extends LiveModel = LiveModel>
 			this.unacked = [];
 			await this.sendUpdate(resend);
 		}
-		await this.sendAwareness();
+		await this.presence.announce();
 	}
 
 	private async onFanout(frame: Frame<typeof EFrame.Fanout>): Promise<void> {
-		// A pending seed is answered by its echo or by the whole room, so these add nothing.
-		if (!this.inSync) return;
+		// A pending seed is answered by its echo or by the whole room, so these add nothing;
+		// a lost log's are another history.
+		if (!this.inSync || this.lost) return;
 		this.lastSeq = frame.seq;
 		await this.apply(frame.payload);
 		await this.settle();
@@ -328,7 +369,12 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	private async settle(): Promise<void> {
 		if (!this.settled) return;
 		this.deps.onAgreed(this.model.agreed(), this.lastSeq);
-		if (this.lastSeq - this.compacted < COMPACT_AFTER || !this.leads()) return;
+		if (
+			this.lastSeq - this.compacted < COMPACT_AFTER ||
+			!this.presence.leads()
+		) {
+			return;
+		}
 		this.compacted = this.lastSeq;
 		const snapshot = Y.encodeStateAsUpdate(this.doc);
 		const payload = await seal(this.deps.keys, snapshot);
@@ -337,23 +383,16 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		}
 	}
 
-	/** The lowest client id compacts, so the room gets one snapshot rather than one per device. */
-	private leads(): boolean {
-		for (const id of this.awareness.getStates().keys()) {
-			if (id < this.doc.clientID) return false;
-		}
-		return true;
-	}
-
-	private async onPeer(frame: Frame<typeof EFrame.Peer>): Promise<void> {
-		const update = await unseal(this.deps.keys, frame.payload);
-		if (update) applyAwarenessUpdate(this.awareness, update, frame.from);
-	}
-
 	private onMoved(target: string): void {
 		this.moved = target;
 		this.endRotation("moved");
 		this.deps.onMoved();
+	}
+
+	private onRefused(reason: Refusal): void {
+		this.online = false;
+		this.endRotation("refused");
+		this.deps.onRefused(reason);
 	}
 
 	private endRotation(outcome: Rotation): void {
@@ -366,19 +405,6 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		if (this.attributed) return;
 		this.attributed = true;
 		this.doc.getMap(USERS).set(String(this.doc.clientID), this.deps.author);
-	}
-
-	private onLeave(from: number): void {
-		const clients = this.peers.get(from);
-		this.peers.delete(from);
-		if (clients) removeAwarenessStates(this.awareness, [...clients], REMOTE);
-	}
-
-	private dropPeers(): void {
-		const clients: number[] = [];
-		for (const ids of this.peers.values()) clients.push(...ids);
-		this.peers.clear();
-		removeAwarenessStates(this.awareness, clients, REMOTE);
 	}
 
 	private async apply(payload: Uint8Array): Promise<void> {
@@ -394,13 +420,11 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		if (this.online) this.send({ type: EFrame.Update, payload });
 	}
 
-	private async sendAwareness(): Promise<void> {
-		const update = encodeAwarenessUpdate(this.awareness, [this.doc.clientID]);
-		const payload = await seal(this.deps.keys, update);
-		if (this.online) this.send({ type: EFrame.Awareness, payload });
-	}
-
 	private send(frame: Unaddressed): void {
+		if ("payload" in frame && frame.payload.length > MAX_PAYLOAD_BYTES) {
+			this.onRefused(ERefusal.TooLarge);
+			return;
+		}
 		this.deps.hub.send({ ...frame, doc: this.docId } as SpaceFrame);
 	}
 
@@ -436,29 +460,9 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		}, FLUSH_MS);
 	};
 
-	private readonly onAwareness = (
-		{ added, updated, removed }: AwarenessChanges,
-		origin: unknown,
-	): void => {
-		if (origin === LOCAL_AWARENESS) {
-			if (this.disposed) return;
-			this.awarenessTimer ??= window.setTimeout(() => {
-				this.awarenessTimer = null;
-				this.enqueue(() => this.sendAwareness());
-			}, FLUSH_MS);
-			return;
-		}
-		if (typeof origin !== "number") return;
-		const clients = this.peers.get(origin) ?? new Set<number>();
-		for (const id of [...added, ...updated]) clients.add(id);
-		for (const id of removed) clients.delete(id);
-		this.peers.set(origin, clients);
-	};
-
 	private clearTimers(): void {
 		if (this.updateTimer !== null) window.clearTimeout(this.updateTimer);
-		if (this.awarenessTimer !== null) window.clearTimeout(this.awarenessTimer);
 		this.updateTimer = null;
-		this.awarenessTimer = null;
+		this.presence.stopTimer();
 	}
 }

@@ -10,7 +10,7 @@ const { confirmRestore, notifyError, notifyInfo } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/ui/source-control/restore-modal", () => ({ confirmRestore }));
-vi.mock("@/ui/notices", () => ({ notifyError, notifyInfo }));
+vi.mock("@/ui/common/notices", () => ({ notifyError, notifyInfo }));
 
 const before = { hash: "before", label: "Before push", size: 100 };
 const after = { hash: "after", label: "After push", size: 120 };
