@@ -14,6 +14,12 @@ export class StorageRequestError extends Error {
 	}
 }
 
+/** An object as a listing reports it. A null `etag` means the backend offered no validator. */
+export interface ListedObject {
+	key: string;
+	etag: string | null;
+}
+
 export interface ObjectStorage {
 	exists(key: string): Promise<boolean>;
 	/** Bytes, or null only when genuinely absent. Any other failure throws, preventing mistaking outage for empty remote. */
@@ -36,6 +42,18 @@ export interface ObjectStorage {
 	delete(key: string): Promise<void>;
 	/** List all object keys matching the prefix. Returned keys are guaranteed to start with the prefix. */
 	list(prefix: string): Promise<string[]>;
+	/**
+	 * {@link list} with each object's validator, from the same request. A
+	 * validator that is unchanged means the bytes are. Optional: a backend that
+	 * lists no validators leaves it out and callers read every object.
+	 */
+	listWithEtags?(prefix: string): Promise<ListedObject[]>;
+	/**
+	 * A hint that these objects are about to be read, in this order, so a backend
+	 * that signs each request may sign them in batches. Never needed for
+	 * correctness; replaces an earlier hint.
+	 */
+	prepareReads?(keys: string[]): void;
 }
 
 export interface StorageAdapter extends ObjectStorage {

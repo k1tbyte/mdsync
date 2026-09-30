@@ -36,10 +36,12 @@
 	font-weight: 600;
 }
 
-.obsync-diff-view.obsync-is-phone
+body.is-phone
+	.obsync-diff-view
 	.obsync-compare-panel.is-combined
 	.obsync-source-head,
-.obsync-diff-view.obsync-is-phone
+body.is-phone
+	.obsync-diff-view
 	.obsync-merge-panel.is-combined
 	.obsync-source-head {
 	position: sticky;

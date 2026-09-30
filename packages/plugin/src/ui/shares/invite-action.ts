@@ -7,6 +7,7 @@ import { normalizePath, stripTrailingSlash } from "@/shared/path";
 import {
 	acceptInvite,
 	type Invite,
+	inviteAccess,
 	inviteLink,
 	invitePassword,
 	readInvite,
@@ -40,6 +41,10 @@ export function openInvite(plugin: PluginHost, link: string): void {
 	new AcceptInviteModal(
 		plugin.app,
 		(password) => readInvite(link, password),
+		(invite) => {
+			const known = recordOf(plugin, invite);
+			return known && !known.closed ? known.root : null;
+		},
 		(invite, root) =>
 			mount(plugin, invite, stripTrailingSlash(normalizePath(root))),
 	).open();
@@ -75,6 +80,8 @@ export async function createInvite(
 		readOnly,
 	});
 	for (const each of older) await revokeParticipant(admin, record.id, each.id);
+	const device = plugin.controller.currentDevice().id;
+	await plugin.spaces.invitedVia(record.id, relayUrl, device);
 	const password = invitePassword();
 	const { id, name, key } = record;
 	const link = await inviteLink(
@@ -99,9 +106,16 @@ async function mount(
 	invite: Invite,
 	root: string,
 ): Promise<string | null> {
-	const known = plugin.spaces.list().find((record) => record.id === invite.id);
+	const known = recordOf(plugin, invite);
+	// Closed too: accepted, the owner's record would turn into a participant's.
+	if (known?.access.kind === "owner") return "This shared folder is yours.";
+	const device = plugin.controller.currentDevice().id;
 	if (known && !known.closed) {
-		return "This shared folder is already in this vault.";
+		// A new link, as after the owner's relay moved: same folder and sync state.
+		await plugin.spaces.renew(invite.id, inviteAccess(invite), device);
+		notifyInfo(`"${invite.name}" now syncs through the new link.`);
+		void plugin.controller.refresh();
+		return null;
 	}
 	const error = mountError(root, plugin.spaces.partition());
 	if (error) return error;
@@ -112,7 +126,6 @@ async function mount(
 		return "This folder is not empty.";
 	}
 	if (!existing) await plugin.app.vault.createFolder(root);
-	const device = plugin.controller.currentDevice().id;
 	await plugin.spaces.add(acceptInvite(invite, root, device, known));
 	await plugin.controller.forgetSpace({ id: invite.id, root });
 	notifyInfo(`"${invite.name}" is now shared into "${root}".`);
@@ -130,6 +143,10 @@ async function pullFolder(plugin: PluginHost, root: string): Promise<void> {
 		`Pulled ${paths.length} file(s) into "${root}".`,
 		"Could not pull the shared folder",
 	);
+}
+
+function recordOf(plugin: PluginHost, invite: Invite): SpaceRecord | undefined {
+	return plugin.spaces.list().find((record) => record.id === invite.id);
 }
 
 function sameName(a: string, b: string): boolean {

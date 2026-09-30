@@ -109,7 +109,6 @@
 }
 
 .obsync-timeline-actions .obsync-icon-btn {
-	min-width: 0;
 	border-radius: var(--radius-s);
 	color: var(--text-muted);
 	background: transparent;
@@ -119,6 +118,11 @@
 .obsync-timeline-actions .obsync-icon-btn:hover {
 	color: var(--text-normal);
 	background: var(--background-modifier-hover);
+}
+
+.obsync-timeline-actions .obsync-icon-btn:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: -2px;
 }
 
 /*
@@ -137,10 +141,17 @@
 	pointer-events: none;
 }
 
-.obsync-timeline-file:hover .obsync-timeline-actions,
-.obsync-timeline-file:focus-within .obsync-timeline-actions {
+.obsync-timeline-file:focus-visible .obsync-timeline-actions,
+.obsync-timeline-file:has(:focus-visible) .obsync-timeline-actions {
 	opacity: 1;
 	pointer-events: auto;
+}
+
+@media (hover: hover) {
+	.obsync-timeline-file:hover .obsync-timeline-actions {
+		opacity: 1;
+		pointer-events: auto;
+	}
 }
 
 /* Base card colour plus the row's hover tint: opaque, so it masks cleanly. */

@@ -11,6 +11,7 @@ import {
 	compare,
 	type EngineDependencies,
 } from "@/sync/engine";
+import { forgetDroppedForeign } from "@/sync/foreign";
 import { ConcurrentPushError } from "@/sync/manifest";
 import type {
 	OperationContext,
@@ -127,8 +128,12 @@ export class OperationRunner {
 		const result = await compare(depsWithProgress);
 		const identity = session.storage.identity();
 		const baseline = result.remote
-			? reconcileBaselineResetGenerations(
-					session.state.baseline,
+			? forgetDroppedForeign(
+					reconcileBaselineResetGenerations(
+						session.state.baseline,
+						result.remote,
+						session.scope,
+					),
 					result.remote,
 					session.scope,
 				)
@@ -317,7 +322,8 @@ export class OperationRunner {
 		});
 	}
 
-	private openSession(space: Space): Promise<EngineDependencies | null> {
+	/** Every session, reads too: a paused share asks its storage nothing. */
+	openSession(space: Space): Promise<EngineDependencies | null> {
 		if (space.paused) {
 			throw new Error(`"${space.root}" is paused on this device.`);
 		}

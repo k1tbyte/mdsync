@@ -1,8 +1,8 @@
-import type { FileView, TFile } from "obsidian";
+import { FileView, type TFile, type WorkspaceLeaf } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
 import type { Person } from "@/presence/people";
-import { spaceOf } from "@/sync/space";
+import { type Space, spaceOf } from "@/sync/space";
 
 import { type LiveStatus, liveStatusOf } from "./live-status";
 
@@ -13,14 +13,35 @@ export interface HeaderState {
 	locked: boolean;
 }
 
-export function headerStateOf(
+interface Header {
+	view: FileView;
+	file: TFile;
+	space: Space;
+	state: HeaderState;
+}
+
+export function headerOf(
 	plugin: PluginHost,
-	view: FileView,
-	file: TFile,
-): HeaderState {
+	leaf: WorkspaceLeaf,
+): Header | null {
+	const { view } = leaf;
+	if (!(view instanceof FileView) || !view.navigation || !view.file) {
+		return null;
+	}
+	const { file } = view;
+	const space = spaceOf(plugin.spaces.partition(), file.path);
 	return {
-		status: liveStatusOf(plugin, view, file),
-		here: plugin.realtime.people.inNote(file.path),
-		locked: spaceOf(plugin.spaces.partition(), file.path).readOnly === true,
+		view,
+		file,
+		space,
+		state: {
+			status: liveStatusOf(plugin, view, file),
+			here: plugin.realtime.people.inNote(file.path),
+			locked: space.readOnly === true,
+		},
 	};
+}
+
+export function showsHeader({ status, here, locked }: HeaderState): boolean {
+	return status !== null || here.length > 0 || locked;
 }

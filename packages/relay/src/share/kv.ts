@@ -1,0 +1,176 @@
+/**
+ * The broker's KV records: a token per participant, a pointer to each
+ * participant's current token, and each share's registered storage. The key
+ * layout stays in this file.
+ */
+
+import { type HubEnv, hubStub } from "../hub/durable-object";
+import { fingerprint, type SecretEnv } from "../secret";
+import type { S3Target } from "./sigv4";
+
+export interface ShareEnv extends Cloudflare.Env, SecretEnv, HubEnv {
+	SHARE_TOKENS: KVNamespace;
+}
+
+export const EShareRole = {
+	ReadWrite: "rw",
+	ReadOnly: "ro",
+} as const;
+export type EShareRole = (typeof EShareRole)[keyof typeof EShareRole];
+
+export interface TokenRecord {
+	shareId: string;
+	participantId: string;
+	role: EShareRole;
+	label?: string;
+	createdAt: number;
+}
+
+/** `prefix` is the base prefix; key.ts appends `shares/<shareId>/`. */
+export type ShareStorage = S3Target & { prefix: string };
+
+const TOKEN_BYTES = 32;
+/** TOKEN_BYTES as unpadded base64url; anything else cannot be a token, so KV is never asked. */
+const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+
+const tokenKey = (token: string) => `tok:${token}`;
+const storageKey = (shareId: string) => `storage:${shareId}`;
+const pointerKey = (shareId: string, participantId: string) =>
+	`pt:${shareId}:${participantId}`;
+
+/**
+ * Whose live token this is and for which share; null once it is revoked or
+ * replaced. Current means the participant's pointer names it: two re-invites
+ * at once each drop the same predecessor, and the token whose pointer lost
+ * would otherwise live on where no revoke finds it.
+ */
+export async function shareGrantOf(
+	env: ShareEnv,
+	token: string,
+): Promise<TokenRecord | null> {
+	if (!TOKEN_PATTERN.test(token)) return null;
+	const record = (await env.SHARE_TOKENS.get(
+		tokenKey(token),
+		"json",
+	)) as TokenRecord | null;
+	if (!record) return null;
+	const pointer = pointerKey(record.shareId, record.participantId);
+	return (await env.SHARE_TOKENS.get(pointer)) === token ? record : null;
+}
+
+export async function readStorage(
+	env: ShareEnv,
+	shareId: string,
+): Promise<ShareStorage | null> {
+	return (await env.SHARE_TOKENS.get(
+		storageKey(shareId),
+		"json",
+	)) as ShareStorage | null;
+}
+
+/** The plugin re-registers on every start, and KV's free tier allows 1k writes a day. */
+export async function saveStorage(
+	env: ShareEnv,
+	shareId: string,
+	storage: ShareStorage,
+): Promise<void> {
+	const key = storageKey(shareId);
+	const next = JSON.stringify(storage);
+	if ((await env.SHARE_TOKENS.get(key)) === next) return;
+	await env.SHARE_TOKENS.put(key, next);
+}
+
+export async function saveToken(
+	env: ShareEnv,
+	grant: Omit<TokenRecord, "createdAt">,
+): Promise<TokenRecord & { token: string }> {
+	const token = base64Url(crypto.getRandomValues(new Uint8Array(TOKEN_BYTES)));
+	const record: TokenRecord = { ...grant, createdAt: Date.now() };
+	const pointer = pointerKey(record.shareId, record.participantId);
+	// Re-inviting replaces a person's token, so the previous one must be destroyed to avoid leaving unrevocable tokens.
+	const previous = await env.SHARE_TOKENS.get(pointer);
+	await env.SHARE_TOKENS.put(tokenKey(token), JSON.stringify(record));
+	await env.SHARE_TOKENS.put(pointer, token);
+	if (previous) await dropToken(env, previous);
+	return { token, ...record };
+}
+
+export async function listParticipants(env: ShareEnv, shareId: string) {
+	return Promise.all(
+		(await participantIds(env, shareId)).map(async (participantId) => {
+			const token = await env.SHARE_TOKENS.get(
+				pointerKey(shareId, participantId),
+			);
+			const record = token ? await shareGrantOf(env, token) : null;
+			return { participantId, label: record?.label ?? "", role: record?.role };
+		}),
+	);
+}
+
+/** A participant leaving revokes the token they hold, never one issued after it. */
+export async function revokeHeldToken(
+	env: ShareEnv,
+	token: string,
+	record: TokenRecord,
+): Promise<void> {
+	const pointer = pointerKey(record.shareId, record.participantId);
+	if ((await env.SHARE_TOKENS.get(pointer)) === token) {
+		await env.SHARE_TOKENS.delete(pointer);
+	}
+	await dropToken(env, token);
+}
+
+export async function revokeParticipant(
+	env: ShareEnv,
+	shareId: string,
+	participantId: string,
+): Promise<boolean> {
+	const pointer = pointerKey(shareId, participantId);
+	const token = await env.SHARE_TOKENS.get(pointer);
+	await env.SHARE_TOKENS.delete(pointer);
+	if (!token) return false;
+	await dropToken(env, token);
+	return true;
+}
+
+/** Revokes before forgetting the storage, so no token outlives the share. */
+export async function revokeShare(
+	env: ShareEnv,
+	shareId: string,
+): Promise<number> {
+	let revoked = 0;
+	for (const participantId of await participantIds(env, shareId)) {
+		if (await revokeParticipant(env, shareId, participantId)) revoked++;
+	}
+	await env.SHARE_TOKENS.delete(storageKey(shareId));
+	return revoked;
+}
+
+async function participantIds(
+	env: ShareEnv,
+	shareId: string,
+): Promise<string[]> {
+	const prefix = pointerKey(shareId, "");
+	const ids: string[] = [];
+	let cursor: string | undefined;
+	// KV lists max 1000 keys per call; must paginate to avoid silent truncation.
+	do {
+		const listed = await env.SHARE_TOKENS.list({ prefix, cursor });
+		for (const entry of listed.keys) ids.push(entry.name.slice(prefix.length));
+		cursor = listed.list_complete ? undefined : listed.cursor;
+	} while (cursor);
+	return ids;
+}
+
+/** Deletes the token, then cuts any hub socket it admitted. */
+async function dropToken(env: ShareEnv, token: string): Promise<void> {
+	await env.SHARE_TOKENS.delete(tokenKey(token));
+	await hubStub(env).dropGrant(await fingerprint(token));
+}
+
+function base64Url(bytes: Uint8Array): string {
+	return btoa(String.fromCharCode(...bytes))
+		.replace(/\+/g, "-")
+		.replace(/\//g, "_")
+		.replace(/=+$/, "");
+}

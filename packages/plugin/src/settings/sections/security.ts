@@ -63,7 +63,7 @@ export function renderSecuritySection(
 	new Setting(parent)
 		.setName("Rotate passphrase")
 		.setDesc(
-			"Switch to a new passphrase. Re-wraps the data key only — notes are not re-encrypted, so it is instant. All other devices must enter the new passphrase afterwards.",
+			"Switch to a new passphrase. Re-wraps the data key only. Notes are not re-encrypted, so it is instant. All other devices must enter the new passphrase afterwards.",
 		)
 		.addButton((b) =>
 			b.setButtonText("Change…").onClick(async () => {

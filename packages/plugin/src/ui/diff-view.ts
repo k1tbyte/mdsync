@@ -15,6 +15,7 @@ import {
 	type HistoryVersionRef,
 } from "@/sync/projection";
 import { notifyError } from "@/ui/common/notices";
+import { redrawOnPhoneChange } from "@/ui/common/phone-change";
 import {
 	ComparePanel,
 	MergeEditorPanel,
@@ -153,7 +154,6 @@ export class DiffView extends ItemView {
 	async onOpen(): Promise<void> {
 		this.contentEl.empty();
 		this.contentEl.addClass("obsync-diff-view");
-		this.contentEl.toggleClass("obsync-is-phone", Platform.isPhone);
 		this.headerEl = this.contentEl.createDiv({ cls: "obsync-diff-header" });
 		this.bodyEl = this.contentEl.createDiv({ cls: "obsync-diff-body" });
 		const handleStatus = debounce(
@@ -168,6 +168,7 @@ export class DiffView extends ItemView {
 		this.cancelStatusDebounce = () => handleStatus.cancel();
 
 		this.renderShell();
+		redrawOnPhoneChange(this, () => this.redrawForPlatform());
 	}
 
 	async onClose(): Promise<void> {
@@ -256,6 +257,15 @@ export class DiffView extends ItemView {
 		this.destroyViews();
 		this.bodyEl.empty();
 		this.bodyEl.createDiv({ cls: "obsync-diff-empty", text });
+	}
+
+	private redrawForPlatform(): void {
+		if (this.mergePanel.isEditing) {
+			this.renderHeader();
+			return;
+		}
+		this.destroyViews();
+		this.renderShell();
 	}
 
 	private renderShell(): void {

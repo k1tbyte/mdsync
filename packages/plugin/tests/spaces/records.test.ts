@@ -1,9 +1,10 @@
 import { FakeStorage } from "@tests/helpers/fake-storage";
+import { device, record } from "@tests/helpers/space-records";
 import { beforeAll, describe, expect, it } from "vitest";
 import { deriveKey, type EncryptionKey, encryptJson } from "@/crypto";
 import { mountError, spacesOf } from "@/spaces/partition";
 import { isNewer, isSpaceRecord, type SpaceRecord } from "@/spaces/record";
-import { SpaceRecords } from "@/spaces/records";
+import type { SpaceRecords } from "@/spaces/records";
 import { VAULT_SPACE } from "@/sync/space";
 
 let key: EncryptionKey;
@@ -11,42 +12,6 @@ let key: EncryptionKey;
 beforeAll(async () => {
 	key = await deriveKey("vault", new Uint8Array(16));
 });
-
-function record(
-	id: string,
-	root: string,
-	rev = 1,
-	author = "laptop",
-): SpaceRecord {
-	return {
-		id,
-		name: id,
-		root,
-		rev,
-		author,
-		key: "",
-		access: { kind: "owner", location: LOCATION },
-	};
-}
-
-const LOCATION = {
-	endpoint: "https://s3.example",
-	region: "auto",
-	bucket: "notes",
-	prefix: "vault",
-	forcePathStyle: true,
-};
-
-/** One device's records, persisted into its own settings object. */
-function device(spaces: SpaceRecord[] = []) {
-	const settings = {
-		spaces,
-		pausedSpaces: [] as string[],
-		localRoots: {} as Record<string, string>,
-		spacesVault: null as string | null,
-	};
-	return { settings, records: new SpaceRecords(settings, async () => {}) };
-}
 
 describe("space records", () => {
 	it("lets the higher revision win, then the larger author", () => {
@@ -170,6 +135,41 @@ describe("paused shares", () => {
 	});
 });
 
+describe("invites", () => {
+	it("remember the relay they went through, as a new revision only when it changes", async () => {
+		const laptop = device([record("a", "Team")]);
+
+		await laptop.records.invitedVia("a", "https://relay.example", "phone");
+		await laptop.records.invitedVia("a", "https://relay.example", "laptop");
+
+		const [invited] = laptop.records.list();
+		expect(invited?.access).toMatchObject({
+			relayUrl: "https://relay.example",
+		});
+		expect([invited?.rev, invited?.author]).toEqual([2, "phone"]);
+		expect(isSpaceRecord(invited)).toBe(true);
+	});
+
+	it("renew a share's access at its stored root, not where a move has not reached here", async () => {
+		const phone = device([record("a", "Shared/New", 2)]);
+		phone.settings.localRoots = { a: "Shared/Old" };
+		const access = {
+			kind: "participant",
+			relayUrl: "https://other.example",
+			token: "t",
+			participantId: "p",
+			personName: "Alex",
+		} as const;
+
+		await phone.records.renew("a", access, "phone");
+
+		expect(phone.settings.spaces).toEqual([
+			{ ...record("a", "Shared/New", 3, "phone"), access },
+		]);
+		expect(phone.records.list()[0]?.root).toBe("Shared/Old");
+	});
+});
+
 describe("records through the vault storage", () => {
 	it("reach another device of the same person", async () => {
 		const storage = new FakeStorage();
@@ -184,6 +184,44 @@ describe("records through the vault storage", () => {
 		expect(await published(laptop.records)).toBe(false);
 
 		expect(phone.records.list()).toEqual([record("a", "Shared/a")]);
+	});
+
+	it("unpause a share another device closed", async () => {
+		const storage = new FakeStorage();
+		const laptop = device([record("a", "Shared/a")]);
+		const phone = device();
+		await laptop.records.sync(storage, key);
+		await phone.records.sync(storage, key);
+		await phone.records.setPaused("a", true);
+
+		await laptop.records.close("a", "laptop");
+		await laptop.records.sync(storage, key);
+		await phone.records.sync(storage, key);
+
+		expect(phone.settings.pausedSpaces).toEqual([]);
+	});
+
+	it("arrive paused on a device that asks so, only when new there", async () => {
+		const storage = new FakeStorage();
+		const laptop = device([record("a", "Shared/a")]);
+		const phone = device();
+		phone.settings.pauseArrivingShares = true;
+		await laptop.records.sync(storage, key);
+		await phone.records.sync(storage, key);
+		expect(phone.settings.pausedSpaces).toEqual(["a"]);
+
+		await phone.records.setPaused("a", false);
+		await laptop.records.add(record("a", "Shared/a", 2));
+		await laptop.records.add(record("b", "Shared/b"));
+		await laptop.records.sync(storage, key);
+		await phone.records.sync(storage, key);
+
+		expect(phone.settings.pausedSpaces).toEqual(["b"]);
+		expect(phone.records.partition()).toContainEqual({
+			id: "b",
+			root: "Shared/b",
+			paused: true,
+		});
 	});
 
 	it("stay with the vault storage they were traded with", async () => {

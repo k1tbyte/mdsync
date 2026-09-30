@@ -9,6 +9,7 @@ import {
 	deriveChannelGrant,
 	EFrame,
 	KEEPALIVE_PING,
+	shareChannel,
 } from "@obsync/protocol";
 
 import { check, runScenario } from "./harness";
@@ -34,9 +35,16 @@ await runScenario("hub e2e", async () => {
 	try {
 		await scenario(relay.url);
 		const log = await documents(relay.url);
+		const ended = await endShare(relay.url);
 		relay.stop();
 		relay = await startRelay(PORT, SECRET);
 		await afterRestart(relay.url, log);
+		check(
+			"an ended share stays shut after a restart",
+			(await (await connectPeer(relay.url, [ended], "late-pc")).next("close"))
+				.code,
+			4001,
+		);
 		relay.stop();
 		relay = await startRelay(PORT, SECRET, {
 			HUB_STALE_MS: String(STALE_MS),
@@ -130,6 +138,36 @@ async function documents(url: string): Promise<string> {
 	return room.log;
 }
 
+/** Ending a share cuts its channel and deletes its rows; returns its channel and grant. */
+async function endShare(url: string): Promise<[string, string]> {
+	const shareId = `e2eend${Date.now()}`;
+	const channel = shareChannel(shareId);
+	const grant = await deriveChannelGrant(SECRET, channel);
+	const owner = await connectPeer(url, [[channel, grant]], "owner-pc");
+	owner.send({ type: EFrame.Sub, slot: 0, doc: DOC, since: 0 });
+	await owner.next(EFrame.State);
+	owner.send({
+		type: EFrame.Seed,
+		slot: 0,
+		doc: DOC,
+		payload: Uint8Array.of(7),
+	});
+	await owner.next(EFrame.Echo);
+
+	const ended = await fetch(`${url}/share/shares/${shareId}`, {
+		method: "DELETE",
+		headers: { "X-Obsync-Admin": SECRET },
+	});
+	check("share ended", ended.status, 200);
+	check("its channel is cut", (await owner.next(EFrame.Revoked)).slot, 0);
+	check(
+		"the owner's socket with nothing left closes 4001",
+		(await owner.next("close")).code,
+		4001,
+	);
+	return [channel, grant];
+}
+
 async function afterRestart(url: string, log: string): Promise<void> {
 	const grant = await deriveChannelGrant(SECRET, VAULT);
 	const tablet = await connectPeer(url, [[VAULT, grant]], "tablet");
@@ -152,6 +190,7 @@ async function afterRestart(url: string, log: string): Promise<void> {
 		doc: DOC,
 		target: NEXT,
 		upto: state.head,
+		note: new Uint8Array(),
 		payload: Uint8Array.of(21),
 	});
 	check(

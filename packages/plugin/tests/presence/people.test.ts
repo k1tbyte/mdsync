@@ -1,131 +1,32 @@
-import { EFrame, type ServerFrame } from "@obsync/protocol";
+import { OWNER } from "@obsync/protocol";
+import {
+	keys,
+	SHARE_ID,
+	setup,
+	spacesWith,
+} from "@tests/helpers/presence-relay";
 import { describe, expect, it, vi } from "vitest";
 
-import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
-import type { SpaceFrame, SpaceListener } from "@/hub/connection";
 import { openAnnouncement, sealAnnouncement } from "@/presence/announcement";
-import { People, type PresenceAccess } from "@/presence/people";
-import { type Space, VAULT_SPACE } from "@/sync/space";
-
-interface Device {
-	tag: number;
-	people: People;
-	listeners: Map<SpaceListener, string>;
-	connected: boolean;
-}
-
-/** Forwards channel awareness to every other device in the channel, as the hub does. */
-class Relay {
-	private readonly devices: Device[] = [];
-
-	add(
-		spaces: Space[],
-		access: (space: Space) => Promise<PresenceAccess | null>,
-	): Device {
-		const device: Device = {
-			tag: this.devices.length + 1,
-			listeners: new Map(),
-			connected: false,
-			people: null as unknown as People,
-		};
-		device.people = new People({
-			hub: {
-				space: (id) => ({
-					send: (frame) => this.forward(device, id, frame),
-					isConnected: () => device.connected,
-					listen: (listener) => {
-						device.listeners.set(listener, id);
-						return () => device.listeners.delete(listener);
-					},
-				}),
-			},
-			spaces: () => spaces,
-			access,
-		});
-		device.people.refresh();
-		this.devices.push(device);
-		return device;
-	}
-
-	join(device: Device): void {
-		device.connected = true;
-		for (const listener of device.listeners.keys()) {
-			listener.onConnectionChange?.(true);
-		}
-		this.toOthers(device, () => ({
-			type: EFrame.Join,
-			slot: 0,
-			doc: "",
-			from: device.tag,
-			who: "",
-		}));
-	}
-
-	leave(device: Device): void {
-		device.connected = false;
-		for (const listener of device.listeners.keys()) {
-			listener.onConnectionChange?.(false);
-		}
-		this.toOthers(device, () => ({
-			type: EFrame.Leave,
-			slot: 0,
-			doc: "",
-			from: device.tag,
-		}));
-	}
-
-	private forward(from: Device, space: string, frame: SpaceFrame): void {
-		if (frame.type !== EFrame.Awareness) return;
-		this.toOthers(
-			from,
-			() => ({
-				type: EFrame.Peer,
-				slot: 0,
-				doc: "",
-				from: from.tag,
-				payload: frame.payload,
-			}),
-			space,
-		);
-	}
-
-	private toOthers(
-		from: Device,
-		frame: () => ServerFrame,
-		space?: string,
-	): void {
-		for (const device of this.devices) {
-			if (device === from || !device.connected) continue;
-			for (const [listener, id] of device.listeners) {
-				if (space === undefined || id === space) listener.onFrame?.(frame());
-			}
-		}
-	}
-}
-
-const SHARE_ID = "s1";
-
-function keys(): Promise<LiveKeys> {
-	return deriveLiveKeys(crypto.getRandomValues(new Uint8Array(32)));
-}
-
-function spacesWith(root: string): Space[] {
-	return [VAULT_SPACE, { id: SHARE_ID, root }];
-}
-
-async function setup() {
-	const vaultKeys = await keys();
-	const shareKeys = await keys();
-	const relay = new Relay();
-	const accessFor =
-		(device: string, person: string, name: string) => async (space: Space) =>
-			space.id === SHARE_ID
-				? { keys: shareKeys, key: person, name }
-				: { keys: vaultKeys, key: device, name: device };
-	return { relay, accessFor, vaultKeys, shareKeys };
-}
+import { People } from "@/presence/people";
+import { VAULT_SPACE } from "@/sync/space";
 
 describe("people", () => {
+	it("open no channel once disposed", () => {
+		const space = vi.fn(() => ({ listen: () => () => {} }));
+		const people = new People({
+			hub: { space } as never,
+			spaces: () => [VAULT_SPACE],
+			access: async () => null,
+		});
+
+		people.dispose();
+		people.refresh();
+
+		expect(space).not.toHaveBeenCalled();
+		expect(people.online(VAULT_SPACE.id)).toEqual([]);
+	});
+
 	it("see who has a shared note open, on their own mount of the folder", async () => {
 		const { relay, accessFor } = await setup();
 		const owner = relay.add(
@@ -148,6 +49,44 @@ describe("people", () => {
 		);
 		expect(friend.people.online(SHARE_ID)).toHaveLength(1);
 		expect(owner.people.inNote("Team/a.md")).toEqual([]);
+	});
+
+	it("name a participant as the relay vouches, and hide one claiming another's key", async () => {
+		const { relay, accessFor } = await setup();
+		const vouched = (who: string) => (space: string) =>
+			space === SHARE_ID ? { who, name: "Alex" } : { who: OWNER, name: "" };
+		const owner = relay.add(
+			spacesWith("Team"),
+			accessFor("d1", "owner", "Owner"),
+		);
+		relay.join(owner);
+		const alex = relay.add(
+			spacesWith("Shared/Team"),
+			accessFor("d8", "p1", "Not Alex"),
+			vouched("p1"),
+		);
+		const impostor = relay.add(
+			spacesWith("Shared/Team"),
+			accessFor("d9", "p1", "Alex"),
+			vouched("p2"),
+		);
+		relay.join(alex);
+		relay.join(impostor);
+
+		alex.people.setHere({ path: "Shared/Team/a.md", idle: false });
+		impostor.people.setHere({ path: "Shared/Team/b.md", idle: false });
+
+		await vi.waitFor(() =>
+			expect(owner.people.inNote("Team/a.md")).toMatchObject([
+				{ key: "p1", name: "Alex" },
+			]),
+		);
+		expect(owner.people.inNote("Team/b.md")).toEqual([]);
+		expect(owner.people.nameOf(SHARE_ID, "p1")).toBe("Alex");
+		expect(owner.people.nameOf(SHARE_ID, OWNER)).toBeNull();
+		expect(alex.people.online(SHARE_ID)).toMatchObject([
+			{ key: "owner", name: "Owner" },
+		]);
 	});
 
 	it("leave a person's own devices out of a share, not out of the vault", async () => {

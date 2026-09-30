@@ -1,5 +1,7 @@
 import { setIcon } from "obsidian";
+import { makeActivatable } from "@/ui/common/activatable";
 import { appendIconButton } from "@/ui/common/icon-button";
+import { onLongPress } from "@/ui/common/long-press";
 import type { SourceControlActions } from "./actions";
 import type { ConflictPreviewManager } from "./conflict-preview-manager";
 import { renderPath, renderSize } from "./row-parts";
@@ -18,25 +20,6 @@ export interface RowContext {
 	isSelected: (path: string) => boolean;
 	setSelected: (path: string, selected: boolean) => void;
 	toggleFolder: (path: string) => void;
-}
-
-/** Gives a clickable non-button the semantics a keyboard user needs. */
-export function makeActivatable(
-	el: HTMLElement,
-	label: string,
-	activate: () => void,
-): void {
-	el.setAttr("role", "button");
-	el.setAttr("tabindex", "0");
-	el.setAttr("aria-label", label);
-	el.addEventListener("click", () => activate());
-	el.addEventListener("keydown", (event: KeyboardEvent) => {
-		// A key pressed on a control inside the element belongs to that control.
-		if (event.target !== el) return;
-		if (event.key !== "Enter" && event.key !== " ") return;
-		event.preventDefault();
-		activate();
-	});
 }
 
 export function renderFolderRow(
@@ -58,6 +41,9 @@ export function renderFolderRow(
 		text: visual.name,
 	});
 	folder.setAttr("aria-expanded", String(!collapsed));
+	onLongPress(folder, (event) =>
+		ctx.actions.showFolderContextMenu(event, folderPath),
+	);
 	makeActivatable(folder, folderPath, () => ctx.toggleFolder(folderPath));
 	folder.addEventListener("contextmenu", (event) => {
 		event.preventDefault();
@@ -84,6 +70,7 @@ export function renderFileRow(
 		item.setAttr("aria-current", "true");
 	}
 	item.setAttr("data-obsync-path", row.path);
+	onLongPress(item, (event) => showFileMenu(event, row, ctx));
 	makeActivatable(item, `Open diff for ${row.path}`, () =>
 		ctx.openFileDiff(item, row.path),
 	);

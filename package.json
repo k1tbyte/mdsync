@@ -18,10 +18,12 @@
 		"e2e:realtime": "pnpm build && jiti tools/e2e/realtime.ts",
 		"e2e:live": "pnpm build && jiti tools/e2e/live.ts",
 		"e2e:live-share": "pnpm build && jiti tools/e2e/live-share.ts",
+		"e2e:live-into-share": "pnpm build && jiti tools/e2e/live-into-share.ts",
 		"e2e:shares": "pnpm build && jiti tools/e2e/shares.ts",
 		"e2e:invite": "pnpm build && jiti tools/e2e/invite.ts",
 		"e2e:people": "pnpm build && jiti tools/e2e/people.ts",
 		"e2e:live-drawing": "pnpm build && jiti tools/e2e/live-drawing.ts",
+		"bench:share-pull": "jiti tools/bench/share-pull.ts",
 		"prepare": "husky"
 	},
 	"devDependencies": {

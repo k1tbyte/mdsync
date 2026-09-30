@@ -1,0 +1,62 @@
+body.is-phone .obsync-diff-view .obsync-diff-title {
+	display: flex;
+	flex: 1 1 100%;
+	align-items: center;
+	gap: var(--size-4-2);
+	min-width: 0;
+}
+
+body.is-phone .obsync-diff-view .obsync-diff-title .obsync-diff-path {
+	flex: 1 1 0;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0;
+}
+
+body.is-phone .obsync-diff-view .obsync-diff-path .obsync-file-name,
+body.is-phone .obsync-diff-view .obsync-diff-path .obsync-file-parent {
+	flex: 0 0 auto;
+}
+
+body.is-phone .obsync-diff-view .obsync-diff-file-actions > button {
+	flex: 1 1 auto;
+}
+
+body.is-phone
+	.obsync-diff-view
+	.obsync-diff-file-actions:not(:has(> button)):not(
+		:has(.obsync-pending:not(:empty))
+	) {
+	display: none;
+}
+
+body.is-phone .obsync-diff-view .obsync-merge-toolbar select {
+	min-height: var(--obsync-touch);
+}
+
+body.is-phone .obsync-diff-view .obsync-merge-pane-head,
+body.is-phone .obsync-diff-view .obsync-compare-head,
+body.is-phone .obsync-diff-view .obsync-source-head {
+	display: flex;
+	align-items: center;
+	min-height: var(--obsync-touch);
+	box-sizing: border-box;
+	font-size: var(--font-ui-small);
+}
+
+body.is-phone .obsync-diff-view .obsync-rail-btn {
+	width: var(--obsync-touch);
+	min-width: var(--obsync-touch);
+	height: var(--obsync-touch);
+	padding: 0;
+}
+
+body.is-phone .obsync-diff-view .obsync-rail-btn.has-label {
+	width: auto;
+	padding-inline: var(--size-4-2);
+	gap: var(--size-4-1);
+}
+
+body.is-phone .obsync-diff-view .obsync-rail-label {
+	display: inline;
+}

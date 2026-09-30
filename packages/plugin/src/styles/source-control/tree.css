@@ -91,3 +91,11 @@
 	box-sizing: border-box;
 	height: var(--obsync-row-height, auto);
 }
+
+@media (pointer: coarse) {
+	.obsync-file-row,
+	.obsync-tree-folder {
+		-webkit-touch-callout: none;
+		user-select: none;
+	}
+}

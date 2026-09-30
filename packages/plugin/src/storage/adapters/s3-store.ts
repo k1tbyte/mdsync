@@ -2,6 +2,7 @@ import { requestUrl } from "obsidian";
 
 import {
 	type ConditionalRead,
+	type ListedObject,
 	type StorageAdapter,
 	StorageRequestError,
 } from "@/storage/types";
@@ -73,6 +74,40 @@ export function createS3Store(transport: S3Transport): StorageAdapter {
 		};
 	};
 
+	const listObjects = async (keyPrefix: string): Promise<ListedObject[]> => {
+		const objects: ListedObject[] = [];
+		const seenTokens = new Set<string>();
+		let token: string | undefined;
+		do {
+			const query: Record<string, string> = {
+				"list-type": "2",
+				prefix: transport.key(keyPrefix),
+			};
+			if (token) query["continuation-token"] = token;
+			// A listing addresses the bucket itself, so it carries no key.
+			const res = await send({ method: "GET", key: "", query });
+			assertOk(res, "list", keyPrefix);
+			const page = parseListObjects(res.text);
+			for (const { key, etag } of page.objects) {
+				const relative = transport.relative(key);
+				// A folder marker under the prefix relativises to "", which is not
+				// an object any caller can ask for.
+				if (relative) objects.push({ key: relative, etag });
+			}
+			token = page.nextToken;
+			// A backend that hands back a token it already gave would keep the
+			// listing going forever. Stopping would answer with a partial list,
+			// which is what decides whether an object gets deleted.
+			if (token && seenTokens.has(token)) {
+				throw new Error(
+					`S3 repeated a continuation token while listing "${keyPrefix}", so the object list cannot be completed.`,
+				);
+			}
+			if (token) seenTokens.add(token);
+		} while (token);
+		return objects;
+	};
+
 	return {
 		identity() {
 			return transport.identity;
@@ -97,8 +132,8 @@ export function createS3Store(transport: S3Transport): StorageAdapter {
 				);
 			}
 			assertOk(res, "check", key);
-			return parseListObjects(res.text).keys.some(
-				(listed) => transport.relative(listed) === key,
+			return parseListObjects(res.text).objects.some(
+				(listed) => transport.relative(listed.key) === key,
 			);
 		},
 		async get(key) {
@@ -126,38 +161,9 @@ export function createS3Store(transport: S3Transport): StorageAdapter {
 			assertOk(res, "delete", key);
 		},
 		async list(keyPrefix) {
-			const keys: string[] = [];
-			const seenTokens = new Set<string>();
-			let token: string | undefined;
-			do {
-				const query: Record<string, string> = {
-					"list-type": "2",
-					prefix: transport.key(keyPrefix),
-				};
-				if (token) query["continuation-token"] = token;
-				// A listing addresses the bucket itself, so it carries no key.
-				const res = await send({ method: "GET", key: "", query });
-				assertOk(res, "list", keyPrefix);
-				const page = parseListObjects(res.text);
-				for (const key of page.keys) {
-					const relative = transport.relative(key);
-					// A folder marker under the prefix relativises to "", which is not
-					// an object any caller can ask for.
-					if (relative) keys.push(relative);
-				}
-				token = page.nextToken;
-				// A backend that hands back a token it already gave would keep the
-				// listing going forever. Stopping would answer with a partial list,
-				// which is what decides whether an object gets deleted.
-				if (token && seenTokens.has(token)) {
-					throw new Error(
-						`S3 repeated a continuation token while listing "${keyPrefix}", so the object list cannot be completed.`,
-					);
-				}
-				if (token) seenTokens.add(token);
-			} while (token);
-			return keys;
+			return (await listObjects(keyPrefix)).map((object) => object.key);
 		},
+		listWithEtags: listObjects,
 	};
 }
 

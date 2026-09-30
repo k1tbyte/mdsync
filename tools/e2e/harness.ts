@@ -37,15 +37,25 @@ export function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Shell-spawned tools are grandchildren; only a tree kill reaches them on Windows. */
+const WINDOWS = process.platform === "win32";
+
+/** Spawn option for `killTree`: elsewhere the child must lead its own process group. */
+export const OWN_GROUP = { detached: !WINDOWS };
+
+/** Shell-spawned tools are grandchildren: a tree kill on Windows, the group elsewhere. */
 export function killTree(child: ChildProcess): void {
-	if (process.platform === "win32" && child.pid) {
+	if (!child.pid) return;
+	if (WINDOWS) {
 		spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
 			stdio: "ignore",
 		});
 		return;
 	}
-	child.kill();
+	try {
+		process.kill(-child.pid, "SIGKILL");
+	} catch {
+		child.kill("SIGKILL");
+	}
 }
 
 /** Open sockets and child processes would keep node alive, so this exits. */

@@ -1,6 +1,6 @@
 import { type FileView, MarkdownView, type TFile } from "obsidian";
 
-import { isLinkState } from "@/hub/status";
+import { isLinkState, type LinkState } from "@/hub/status";
 import { docKindOf, LIVE_VIEWS, liveKindOf } from "@/live/doc-types";
 import type { ColdCause } from "@/live/sessions";
 import type { PluginHost } from "@/plugin/host";
@@ -9,6 +9,13 @@ import { type Space, spaceOf } from "@/sync/space";
 import { RELAY_TEXT, UNREADABLE_TEXT } from "./relay-text";
 
 export type LiveState = "live" | "joining" | "offline" | "cold";
+
+export const LINK_LIVE_STATE: Record<LinkState, LiveState> = {
+	connected: "live",
+	connecting: "joining",
+	offline: "offline",
+	unauthorized: "offline",
+};
 
 export const STATE_ICONS: Record<LiveState, string> = {
 	live: "radio",
@@ -24,6 +31,9 @@ const COLD_CAUSES: Record<ColdCause, string> = {
 	"too-many": "Too many notes open live: this one syncs on the schedule",
 	"read-only": READ_ONLY,
 	"moved-away": "Its live room moved away: changes sync on the schedule",
+	empty: "Read-only, and nobody edits it live yet: reopen it to follow them",
+	diverged:
+		"Read-only, and this copy differs from the live one: changes sync on the schedule",
 };
 
 export interface LiveStatus {
@@ -46,22 +56,25 @@ export function liveStatusOf(
 			: null;
 	}
 	if (relay !== "connected") {
-		const state = relay === "connecting" ? "joining" : "offline";
-		return { state, label: RELAY_TEXT[relay] };
+		return { state: LINK_LIVE_STATE[relay], label: RELAY_TEXT[relay] };
 	}
 	if (people.unreadable(space.id)) {
 		return { state: "offline", label: UNREADABLE_TEXT };
 	}
 	if (live.roomOf(file.path)) {
-		return { state: "live", label: "Live: edits reach everyone as you type" };
+		const label = space.readOnly
+			? "Live, read-only: edits arrive as others type"
+			: "Live: edits reach everyone as you type";
+		return { state: "live", label };
 	}
 	if (live.joining(file.path)) {
-		return live.unanswered(file.path)
-			? {
-					state: "offline",
-					label: "The live room is not answering: reopen the note to retry",
-				}
-			: { state: "joining", label: "Joining live editing…" };
+		return { state: "joining", label: "Joining live editing…" };
+	}
+	if (live.unanswered(file.path)) {
+		return {
+			state: "offline",
+			label: "The live room is not answering: reopen the note to retry",
+		};
 	}
 	return { state: "cold", label: coldReason(plugin, view, file, space) };
 }
@@ -75,9 +88,9 @@ function coldReason(
 	if (!plugin.settings.liveEditing) {
 		return "Live editing is off: changes sync on the schedule";
 	}
-	if (space.readOnly) return READ_ONLY;
 	const cause = plugin.realtime.live.coldCause(file.path);
 	if (cause) return COLD_CAUSES[cause];
+	if (space.readOnly) return READ_ONLY;
 	const kind = docKindOf(plugin.app, file);
 	if (!kind || view.getViewType() !== LIVE_VIEWS[kind]) {
 		return "Not a live note: changes sync on the schedule";

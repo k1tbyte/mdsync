@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 
 import { chromium, type Page } from "playwright-core";
 
-import { killTree, poll } from "./harness";
+import { killTree, OWN_GROUP, poll } from "./harness";
 
 const REPO = fileURLToPath(new URL("../..", import.meta.url));
 const PLUGIN_FILES = [
@@ -93,7 +93,7 @@ export async function launchObsidian(options: {
 	const child = spawn(
 		EXE,
 		[`--remote-debugging-port=${options.port}`, `--user-data-dir=${userData}`],
-		{ stdio: "ignore" },
+		{ stdio: "ignore", ...OWN_GROUP },
 	);
 	const exited = once(child, "exit");
 	const stopProcess = async () => {

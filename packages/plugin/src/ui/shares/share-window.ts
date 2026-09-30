@@ -5,9 +5,10 @@ import { isRelayConfigured, ownerStorage } from "@/settings/model";
 import type { SpaceRecord } from "@/spaces/record";
 import { listParticipants, revokeParticipant } from "@/storage";
 import type { Space } from "@/sync/space";
-import { openConfirmModal } from "@/ui/source-control/modals";
+import { notifyError } from "@/ui/common/notices";
+import { openConfirmModal } from "@/ui/modals";
 import { createInvite } from "./invite-action";
-import { closeShare, shareFolder } from "./share-action";
+import { closeShare, shareFolder, strandedInvites } from "./share-action";
 import { type ShareAccess, ShareModal } from "./share-modal";
 import { presenceNote } from "./share-people";
 
@@ -38,8 +39,12 @@ export function addShareMenuItem(
 			.setIcon("folder-symlink")
 			.setDisabled(!sharable)
 			.onClick(async () => {
-				const record = await shareFolder(plugin, root);
-				if (record) openShareWindow(plugin, record);
+				try {
+					const record = await shareFolder(plugin, root);
+					if (record) openShareWindow(plugin, record);
+				} catch (err) {
+					notifyError("Could not share the folder", err);
+				}
 			}),
 	);
 }
@@ -57,6 +62,7 @@ export function openShareWindow(
 	new ShareModal(plugin.app, {
 		name: record.name,
 		summary: summaryOf(record, space),
+		warning: strandedWarning(strandedInvites(plugin, record)),
 		here: () => people.online(record.id),
 		note: () => presenceNote(statusOf(record.id), people.unreadable(record.id)),
 		subscribe: (listener) => people.subscribe(listener),
@@ -99,6 +105,12 @@ function summaryOf(record: SpaceRecord, space: Space | undefined): string {
 			? "Yours"
 			: `Shared with you${access.readOnly ? ", read-only" : ""}`;
 	return `${whose}, in "${record.root}".`;
+}
+
+function strandedWarning(stranded: string | null): string | null {
+	return stranded
+		? `People were invited through ${stranded}, which this vault no longer uses: invite them again, and the new link takes over the folder they have.`
+		: null;
 }
 
 function ownerAccess(plugin: PluginHost, record: SpaceRecord): ShareAccess {

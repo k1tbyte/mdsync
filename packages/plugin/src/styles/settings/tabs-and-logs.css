@@ -8,7 +8,8 @@
 	background-color: var(--interactive-normal);
 }
 
-.obsync-settings-tab-button.is-active {
+.obsync-settings-tab-button.is-active,
+.obsync-settings-tab-button.is-active:hover {
 	background-color: var(--interactive-accent);
 	color: var(--text-on-accent);
 }
@@ -19,6 +20,11 @@
 
 .obsync-settings-nav .obsync-settings-tab-button {
 	flex: 0 1 auto;
+}
+
+body.is-phone .obsync-settings-nav .obsync-settings-tab-button {
+	flex-grow: 1;
+	border: 1px solid var(--background-modifier-border);
 }
 
 .obsync-log-list {

@@ -24,16 +24,22 @@ const plugin = (live: object): PluginHost =>
 	({
 		realtime: { live },
 		spaces: { list: () => [record] },
+		settings: { showLiveAuthors: false },
+		saveSettings: vi.fn(async () => {}),
 	}) as unknown as PluginHost;
 
 beforeEach(() => vi.mocked(notifyInfo).mockClear());
 
 describe("live note actions", () => {
-	it("tells whether authors are tinted after the toggle", () => {
-		let shown = false;
-		const host = plugin({ toggleAuthors: () => (shown = !shown) });
+	it("remembers whether authors are tinted and repaints on each toggle", () => {
+		const repaintAuthors = vi.fn();
+		const host = plugin({ repaintAuthors });
 		toggleAuthors(host);
+		expect(host.settings.showLiveAuthors).toBe(true);
 		toggleAuthors(host);
+		expect(host.settings.showLiveAuthors).toBe(false);
+		expect(repaintAuthors).toHaveBeenCalledTimes(2);
+		expect(host.saveSettings).toHaveBeenCalledTimes(2);
 		expect(vi.mocked(notifyInfo).mock.calls).toEqual([
 			["Text others typed in live notes is tinted by author."],
 			["Authors hidden."],

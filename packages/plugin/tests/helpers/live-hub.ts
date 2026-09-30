@@ -1,7 +1,7 @@
 import { type ClientFrame, decodeServer, encodeClient } from "@obsync/protocol";
-import { HubCore } from "obsync-relay/src/hub-core";
-import type { DocSub, HubPeer } from "obsync-relay/src/hub-peer";
-import { SqlDocStore } from "obsync-relay/src/hub-store";
+import { HubCore } from "obsync-relay/src/hub/core";
+import type { DocSub, HubPeer } from "obsync-relay/src/hub/peer";
+import { SqlDocStore } from "obsync-relay/src/hub/store";
 import { memorySql } from "obsync-relay/tests/helpers/memory-sql";
 
 import type { SpaceFrame, SpaceHub, SpaceListener } from "@/hub/connection";
@@ -15,8 +15,9 @@ export class LiveHub {
 	private core = this.freshCore();
 	private nextTag = 1;
 
-	connection(): TestConnection {
-		return new TestConnection(this);
+	/** A read-only one is refused every write, as a read-only share token is. */
+	connection(readOnly = false): TestConnection {
+		return new TestConnection(this, readOnly);
 	}
 
 	/** A wiped Durable Object: logs gone, every socket closed. */
@@ -25,12 +26,17 @@ export class LiveHub {
 		this.core = this.freshCore();
 	}
 
-	attach(receive: (bytes: Uint8Array) => void, close: () => void): HubPeer {
+	attach(
+		receive: (bytes: Uint8Array) => void,
+		close: () => void,
+		readOnly = false,
+	): HubPeer {
 		let subs: DocSub[] = [];
+		const grant = { channel: "vault", grant: "grant", who: "owner" };
 		const peer: HubPeer = {
 			tag: this.nextTag++,
 			device: "device",
-			slots: [{ channel: "vault", grant: "grant", who: "owner" }],
+			slots: [readOnly ? { ...grant, readOnly } : grant],
 			get subs() {
 				return subs;
 			},
@@ -73,7 +79,10 @@ export class TestConnection implements SpaceHub {
 	private deaf = false;
 	private mute = false;
 
-	constructor(private readonly hub: LiveHub) {}
+	constructor(
+		private readonly hub: LiveHub,
+		private readonly readOnly: boolean,
+	) {}
 
 	isConnected(): boolean {
 		return this.peer !== null;
@@ -102,6 +111,7 @@ export class TestConnection implements SpaceHub {
 		this.peer = this.hub.attach(
 			(bytes) => this.receive(bytes),
 			() => this.disconnect(),
+			this.readOnly,
 		);
 		for (const listener of this.listeners) {
 			listener.onConnectionChange?.(true);

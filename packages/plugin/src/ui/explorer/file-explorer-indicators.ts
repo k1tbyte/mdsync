@@ -1,170 +1,59 @@
 import type { Plugin } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import type { SyncController } from "@/sync/controller";
-import { createSymlinkDetector } from "@/vault/symlinks";
 import {
-	type FileExplorerRows,
 	readFileExplorer,
 	readFileExplorerContainer,
 } from "./file-explorer-api";
-import {
-	type AppliedDecoration,
-	clearDecoration,
-	computeDecorations,
-	decorationKey,
-	renderDecoration,
-	sameStringMap,
-} from "./file-explorer-decorations";
-import { openShareFromBadge } from "./file-explorer-presence";
+import { badgeActivation } from "./file-explorer-presence";
 import type { IndicatorHandle } from "./indicator-handle";
-
-const LINK_SCAN_BATCH = 64;
+import { LinkScan } from "./link-scan";
+import { RowDecorator } from "./row-decorator";
 
 export function registerFileExplorerIndicators(
 	plugin: Plugin & PluginHost,
 	controller: SyncController,
 ): IndicatorHandle {
-	let applied = new Map<string, AppliedDecoration>();
-	let directLinks = new Map<string, string>();
-	let detector = createSymlinkDetector(
-		plugin.app.vault.adapter,
-		plugin.settings.ignoreSymlinks,
-	);
-	let detectorEnabled = plugin.settings.ignoreSymlinks;
-	let checkedLinkPaths = new Set<string>();
+	const decorator = new RowDecorator(plugin, controller);
 	let indicators = false;
 	let disposed = false;
 	let renderFrame: number | null = null;
-	let scanAfterApply = false;
-	let scanFrame: number | null = null;
-	let scanAgain = false;
-	let scanGeneration = 0;
+	let rowsChanged = false;
 	let observer: MutationObserver | null = null;
 	let observedContainer: HTMLElement | null = null;
+	const links = new LinkScan(plugin.app.vault.adapter, {
+		enabled: () => plugin.settings.ignoreSymlinks,
+		explorer: () =>
+			indicators ? readFileExplorer(plugin.app.workspace) : null,
+		linksChanged: () => schedule(),
+	});
 
 	const apply = (): void => {
 		if (disposed) return;
 		const explorer = readFileExplorer(plugin.app.workspace);
 		if (!explorer) return;
-		if (detectorEnabled !== plugin.settings.ignoreSymlinks) {
-			detectorEnabled = plugin.settings.ignoreSymlinks;
-			detector = createSymlinkDetector(
-				plugin.app.vault.adapter,
-				detectorEnabled,
-			);
-			directLinks = new Map();
-			checkedLinkPaths = new Set();
-			scanAfterApply = true;
-		}
-
-		const next = computeDecorations(
-			plugin,
-			controller,
-			directLinks,
-			explorer.collapsed,
-			indicators,
-		);
-		const paths = new Set([...applied.keys(), ...next.keys()]);
-		const updated = new Map<string, AppliedDecoration>();
-		for (const path of paths) {
-			const previous = applied.get(path);
-			const decoration = next.get(path);
-			const target = explorer.row(path);
-			if (!decoration || !target) {
-				if (previous) clearDecoration(previous.target);
-				continue;
-			}
-			const key = decorationKey(decoration);
-			if (previous?.target === target && previous.key === key) {
-				updated.set(path, previous);
-				continue;
-			}
-			if (previous) clearDecoration(previous.target);
-			renderDecoration(target, decoration);
-			updated.set(path, { key, target });
-		}
-		applied = updated;
+		if (links.followSetting()) rowsChanged = true;
+		decorator.apply(explorer, links.links, indicators, rowsChanged);
 	};
 
 	const schedule = (scanLinks = false): void => {
 		if (disposed) return;
-		scanAfterApply ||= scanLinks;
+		rowsChanged ||= scanLinks;
 		if (renderFrame !== null) return;
 		renderFrame = window.requestAnimationFrame(() => {
 			renderFrame = null;
 			if (disposed) return;
 			apply();
-			if (scanAfterApply) {
-				scanAfterApply = false;
-				const rows = readFileExplorer(plugin.app.workspace);
-				if (rows) startLinkScan(rows);
+			if (rowsChanged) {
+				rowsChanged = false;
+				links.scan();
 			}
 		});
 	};
 
-	const startLinkScan = (explorer: FileExplorerRows): void => {
-		if (!indicators || disposed) return;
-		if (scanFrame !== null) {
-			scanAgain = true;
-			return;
-		}
-		if (!detectorEnabled) {
-			directLinks = new Map();
-			return;
-		}
-		const paths = explorer.paths();
-		const visible = new Set(paths);
-		const found = new Map(
-			[...directLinks].filter(([path]) => visible.has(path)),
-		);
-		const pending = paths.filter((path) => !checkedLinkPaths.has(path));
-		if (pending.length === 0) {
-			if (!sameStringMap(found, directLinks)) {
-				directLinks = found;
-				schedule();
-			}
-			return;
-		}
-		const generation = ++scanGeneration;
-		let index = 0;
-		const scanBatch = (): void => {
-			if (generation !== scanGeneration) return;
-			const end = Math.min(index + LINK_SCAN_BATCH, pending.length);
-			for (; index < end; index++) {
-				const path = pending[index];
-				if (!path) continue;
-				checkedLinkPaths.add(path);
-				const linkRoot = detector.findLink(path);
-				if (linkRoot === path) found.set(path, linkRoot);
-			}
-			if (index < pending.length) {
-				scanFrame = window.requestAnimationFrame(scanBatch);
-				return;
-			}
-			scanFrame = null;
-			if (!sameStringMap(found, directLinks)) {
-				directLinks = found;
-				schedule();
-			}
-			if (scanAgain) {
-				scanAgain = false;
-				const current = readFileExplorer(plugin.app.workspace);
-				if (current) startLinkScan(current);
-			}
-		};
-		scanFrame = window.requestAnimationFrame(scanBatch);
-	};
-
 	const resetLinks = (): void => {
 		if (disposed) return;
-		scanGeneration++;
-		if (scanFrame !== null) window.cancelAnimationFrame(scanFrame);
-		scanFrame = null;
-		scanAgain = false;
-		detectorEnabled = plugin.settings.ignoreSymlinks;
-		detector = createSymlinkDetector(plugin.app.vault.adapter, detectorEnabled);
-		checkedLinkPaths = new Set();
-		directLinks = new Map();
+		links.reset();
 		schedule(true);
 	};
 
@@ -181,33 +70,28 @@ export function registerFileExplorerIndicators(
 		observer.observe(container, { childList: true, subtree: true });
 	};
 
-	const clearAll = (): void => {
-		for (const entry of applied.values()) clearDecoration(entry.target);
-		applied = new Map();
-	};
-
 	plugin.register(() => {
 		disposed = true;
-		scanGeneration++;
 		if (renderFrame !== null) window.cancelAnimationFrame(renderFrame);
-		if (scanFrame !== null) window.cancelAnimationFrame(scanFrame);
+		links.stop();
 		observer?.disconnect();
-		clearAll();
+		decorator.clear();
 	});
 
 	const unsub = controller.subscribe(() => schedule());
 	plugin.register(unsub);
-	plugin.register(plugin.ignoreState.subscribe(() => schedule()));
+	plugin.register(
+		plugin.ignoreState.subscribe(() => {
+			decorator.ignoredChanged();
+			schedule();
+		}),
+	);
 	plugin.register(plugin.realtime.people.subscribe(() => schedule()));
 	plugin.register(plugin.unseen.subscribe(() => schedule()));
 	// Capturing: the explorer would fold the folder before a bubbling handler ran.
+	const onBadge = badgeActivation(plugin);
 	for (const type of ["click", "keydown"] as const) {
-		plugin.registerDomEvent(
-			document,
-			type,
-			(event) => openShareFromBadge(plugin, event),
-			{ capture: true },
-		);
+		plugin.registerDomEvent(document, type, onBadge, { capture: true });
 	}
 	plugin.registerEvent(plugin.app.vault.on("create", resetLinks));
 	plugin.registerEvent(plugin.app.vault.on("delete", resetLinks));

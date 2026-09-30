@@ -3,8 +3,10 @@ import type { StorageAdapter } from "@/storage/types";
 /** In-memory StorageAdapter. */
 export class FakeStorage implements StorageAdapter {
 	readonly map = new Map<string, Uint8Array>();
-	/** Counts existence probes for test assertions. */
+	/** Count requests for test assertions. */
 	existsCalls = 0;
+	getCalls = 0;
+	listCalls = 0;
 
 	constructor(private readonly name = "fake") {}
 
@@ -18,6 +20,7 @@ export class FakeStorage implements StorageAdapter {
 	}
 
 	get(key: string): Promise<Uint8Array | null> {
+		this.getCalls++;
 		return Promise.resolve(this.map.get(key) ?? null);
 	}
 
@@ -38,6 +41,7 @@ export class FakeStorage implements StorageAdapter {
 	}
 
 	list(prefix: string): Promise<string[]> {
+		this.listCalls++;
 		return Promise.resolve(
 			[...this.map.keys()].filter((k) => k.startsWith(prefix)),
 		);

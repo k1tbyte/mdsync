@@ -3,20 +3,31 @@
  * stores ciphertext, so neither the path nor the keystrokes leave the device.
  */
 
+import { toHex } from "@obsync/protocol";
+
 import type { LiveKeys } from "@/crypto/live-keys";
 
 const IV_BYTES = 12;
 /** 16 bytes of HMAC: collision-free at any vault size, short on the wire. */
 const DOC_ID_BYTES = 16;
+const encoder = new TextEncoder();
+
+/** Sealed in as additional data: the relay cannot move a frame to another document, or a cursor or rename note into one. */
+export type SealedFor =
+	| `doc:${string}`
+	| `awareness:${string}`
+	| `moved:${string}`
+	| "presence";
 
 export async function seal(
 	keys: LiveKeys,
 	data: Uint8Array,
+	sealedFor: SealedFor,
 ): Promise<Uint8Array> {
 	const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
 	const sealed = new Uint8Array(
 		await crypto.subtle.encrypt(
-			{ name: "AES-GCM", iv },
+			{ name: "AES-GCM", iv, additionalData: encoder.encode(sealedFor) },
 			keys.frames,
 			data as BufferSource,
 		),
@@ -27,16 +38,21 @@ export async function seal(
 	return frame;
 }
 
-/** Null for anything this key cannot open: a stale key must not throw per keystroke. */
+/** Null for anything this key cannot open, or sealed for elsewhere: a stale key must not throw per keystroke. */
 export async function unseal(
 	keys: LiveKeys,
 	frame: Uint8Array,
+	sealedFor: SealedFor,
 ): Promise<Uint8Array | null> {
 	if (frame.length <= IV_BYTES) return null;
 	try {
 		return new Uint8Array(
 			await crypto.subtle.decrypt(
-				{ name: "AES-GCM", iv: frame.subarray(0, IV_BYTES) as BufferSource },
+				{
+					name: "AES-GCM",
+					iv: frame.subarray(0, IV_BYTES) as BufferSource,
+					additionalData: encoder.encode(sealedFor),
+				},
 				keys.frames,
 				frame.subarray(IV_BYTES) as BufferSource,
 			),
@@ -59,12 +75,8 @@ export async function docIdFor(
 		await crypto.subtle.sign(
 			"HMAC",
 			keys.docIds,
-			new TextEncoder().encode(`${path}#${generation}`),
+			encoder.encode(`${path}#${generation}`),
 		),
 	);
-	let hex = "";
-	for (const byte of mac.subarray(0, DOC_ID_BYTES)) {
-		hex += byte.toString(16).padStart(2, "0");
-	}
-	return hex;
+	return toHex(mac.subarray(0, DOC_ID_BYTES));
 }

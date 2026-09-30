@@ -4,11 +4,18 @@
  * see them only through `LiveEditor`, which hides the model behind the room.
  */
 
-import { type FileView, MarkdownView, type TFile, type View } from "obsidian";
+import {
+	type App,
+	type FileView,
+	MarkdownView,
+	type TFile,
+	type View,
+	type WorkspaceLeaf,
+} from "obsidian";
 
 import { bindEditor } from "@/live/text/binding";
 import { TEXT } from "@/live/text/model";
-import { LIVE_VIEWS, type LiveDocKind } from "./doc-types";
+import { LIVE_VIEWS, type LiveDocKind, liveKindOf } from "./doc-types";
 import { bindDrawing } from "./drawing/binding";
 import {
 	drawingView,
@@ -17,8 +24,11 @@ import {
 	saveDrawing,
 } from "./drawing/excalidraw";
 import { DRAWING } from "./drawing/model";
+import { FollowerSession } from "./follower-session";
 import type { BoundEditor, LiveKind, LiveModel } from "./model";
-import { LiveSession, type LiveSessionDeps } from "./session";
+import { LiveSession } from "./session";
+import type { LiveSessionDeps } from "./session-deps";
+import type { LiveSpace } from "./space";
 
 /** A room, and how a view of its file binds to it. */
 export interface LiveRoom {
@@ -42,6 +52,13 @@ export interface LiveEditor {
 		generation: number,
 		deps: Omit<LiveSessionDeps<LiveModel>, "kind">,
 	): LiveRoom;
+}
+
+/** A file a view edits live now, and the space it goes live in. */
+export interface OpenNote {
+	file: TFile;
+	space: LiveSpace;
+	editor: LiveEditor;
 }
 
 interface EditorSpec<V extends FileView, M extends LiveModel> {
@@ -104,10 +121,14 @@ function liveEditor<V extends FileView, M extends LiveModel>(
 			if (editing?.file?.path === path) spec.expectWrite?.(editing);
 		},
 		open(docId, generation, deps) {
-			const session = new LiveSession(docId, generation, {
-				...deps,
-				kind: spec.kind,
-			});
+			const { follower } = deps;
+			const session = follower
+				? new FollowerSession(docId, generation, {
+						...deps,
+						kind: spec.kind,
+						follower,
+					})
+				: new LiveSession(docId, generation, { ...deps, kind: spec.kind });
 			return {
 				session,
 				bind(view, me, onStale) {
@@ -117,4 +138,37 @@ function liveEditor<V extends FileView, M extends LiveModel>(
 			};
 		},
 	};
+}
+
+export async function openNotes(
+	app: App,
+	liveSpace: (path: string) => Promise<LiveSpace | null>,
+): Promise<Map<WorkspaceLeaf, OpenNote>> {
+	const open = new Map<WorkspaceLeaf, OpenNote>();
+	for (const [kind, editor] of Object.entries(EDITORS)) {
+		for (const leaf of app.workspace.getLeavesOfType(editor.viewType)) {
+			const file = editor.fileOf(leaf.view);
+			if (!file || liveKindOf(app, file) !== kind) continue;
+			const space = await liveSpace(file.path);
+			// Readers follow notes only: a drawing's binding writes what its view reports.
+			if (!space || (space.readOnly && kind !== "text")) continue;
+			open.set(leaf, { file, space, editor });
+		}
+	}
+	return open;
+}
+
+/** An open view is newer than the file it saves a moment later. */
+export async function readOpen(
+	app: App,
+	path: string,
+	editor: LiveEditor,
+): Promise<string> {
+	const { workspace, vault } = app;
+	for (const leaf of workspace.getLeavesOfType(editor.viewType)) {
+		const text = editor.read(leaf.view, path);
+		if (text !== null) return text;
+	}
+	const file = vault.getFileByPath(path);
+	return file ? vault.read(file) : "";
 }

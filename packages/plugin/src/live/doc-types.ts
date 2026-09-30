@@ -18,12 +18,15 @@ const MAX_LIVE_BYTES: Record<LiveDocKind, number> = {
  * What a file is to live editing, size aside. The name does not say: an
  * Excalidraw drawing is a plain `.md` named by its front matter, and a text
  * CRDT merging two edits of its compressed scene yields a drawing that no
- * longer opens.
+ * longer opens. Null until Obsidian has indexed the file.
  */
 export function docKindOf(app: App, file: TFile): LiveDocKind | null {
 	if (file.extension !== "md") return null;
-	const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
-	return frontmatter && "excalidraw-plugin" in frontmatter ? "drawing" : "text";
+	const cache = app.metadataCache.getFileCache(file);
+	if (!cache) return null;
+	return cache.frontmatter && "excalidraw-plugin" in cache.frontmatter
+		? "drawing"
+		: "text";
 }
 
 /** How a file goes live, or null: not a live kind, or too large. */

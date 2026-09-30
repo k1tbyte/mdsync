@@ -1,6 +1,6 @@
 import { type RequestUrlParam, requestUrl } from "obsidian";
 import type { GoogleDriveStorageConfig } from "@/storage/config";
-import type { StorageAdapter } from "@/storage/types";
+import type { ListedObject, StorageAdapter } from "@/storage/types";
 import { toArrayBuffer } from "@/utils/bytes";
 import { computeExpiresAt, googleDriveIdentity } from "./google-drive-auth";
 import {
@@ -22,7 +22,7 @@ const TOKEN_REFRESH_MARGIN_MS = 60_000;
 const NOT_FOUND = 404;
 
 interface GoogleDriveListResponse {
-	files?: { id?: string; name?: string }[];
+	files?: { id?: string; name?: string; md5Checksum?: string }[];
 	nextPageToken?: string;
 }
 
@@ -190,6 +190,49 @@ export function createGoogleDriveAdapter(
 		if (id) fileIdCache.set(key, id);
 	};
 
+	const listObjects = async (
+		prefix: string,
+		withEtags: boolean,
+	): Promise<ListedObject[]> => {
+		const objects: ListedObject[] = [];
+		let pageToken: string | undefined;
+		const folderId = await getFolderId();
+
+		// Drive queries cannot express "starts with", so the folder is listed
+		// whole and filtered here.
+		const q = `'${escapeDriveQueryValue(folderId)}' in parents and trashed = false`;
+
+		do {
+			const url = new URL(DRIVE_API);
+			url.searchParams.set("q", q);
+			url.searchParams.set("pageSize", DRIVE_PAGE_SIZE);
+			url.searchParams.set(
+				"fields",
+				`nextPageToken, files(id,name${withEtags ? ",md5Checksum" : ""})`,
+			);
+			if (pageToken) url.searchParams.set("pageToken", pageToken);
+
+			const res = await authorized({
+				url: url.toString(),
+				method: "GET",
+			});
+			assertOk(res, "list", prefix);
+
+			const data = res.json as GoogleDriveListResponse;
+			for (const f of data.files ?? []) {
+				if (!f.name) continue;
+				// Prime the id cache so later exists()/put() avoid a lookup.
+				if (f.id) fileIdCache.set(f.name, f.id);
+				if (f.name.startsWith(prefix)) {
+					objects.push({ key: f.name, etag: f.md5Checksum ?? null });
+				}
+			}
+			pageToken = data.nextPageToken;
+		} while (pageToken);
+
+		return objects;
+	};
+
 	return {
 		identity: () => googleDriveIdentity(config),
 
@@ -236,39 +279,9 @@ export function createGoogleDriveAdapter(
 		},
 
 		async list(prefix: string): Promise<string[]> {
-			const files: string[] = [];
-			let pageToken: string | undefined;
-			const folderId = await getFolderId();
-
-			// Drive queries cannot express "starts with", so the folder is listed
-			// whole and filtered here.
-			const q = `'${escapeDriveQueryValue(folderId)}' in parents and trashed = false`;
-
-			do {
-				const url = new URL(DRIVE_API);
-				url.searchParams.set("q", q);
-				url.searchParams.set("pageSize", DRIVE_PAGE_SIZE);
-				url.searchParams.set("fields", "nextPageToken, files(id,name)");
-				if (pageToken) url.searchParams.set("pageToken", pageToken);
-
-				const res = await authorized({
-					url: url.toString(),
-					method: "GET",
-				});
-				assertOk(res, "list", prefix);
-
-				const data = res.json as GoogleDriveListResponse;
-				for (const f of data.files ?? []) {
-					if (!f.name) continue;
-					// Prime the id cache so later exists()/put() avoid a lookup.
-					if (f.id) fileIdCache.set(f.name, f.id);
-					if (f.name.startsWith(prefix)) files.push(f.name);
-				}
-				pageToken = data.nextPageToken;
-			} while (pageToken);
-
-			return files;
+			return (await listObjects(prefix, false)).map((object) => object.key);
 		},
+		listWithEtags: (prefix: string) => listObjects(prefix, true),
 	};
 }
 

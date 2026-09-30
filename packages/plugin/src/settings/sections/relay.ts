@@ -6,7 +6,7 @@ import {
 	renderField,
 } from "@/settings/fields";
 import { EFieldKind } from "@/storage/field-spec";
-import { notifyError, notifyInfo } from "@/ui/common/notices";
+import { runWithNotice } from "@/ui/common/notices";
 import { bytesToBase64Url } from "@/utils/base64";
 
 import { testRelay } from "../connection-test";
@@ -49,7 +49,12 @@ export function renderRelaySection(
 					await plugin.saveSettings();
 					ctx.rerender();
 				}
-				await copySecret(plugin.settings.relaySecret);
+				const { relaySecret } = plugin.settings;
+				await runWithNotice(
+					() => navigator.clipboard.writeText(relaySecret),
+					"Relay secret copied. Save it as the RELAY_SECRET repository secret.",
+					"Could not copy the relay secret",
+				);
 			}),
 	);
 
@@ -59,15 +64,4 @@ export function renderRelaySection(
 		"Checks that the URL reaches your relay and the secret matches.",
 		() => testRelay(plugin.settings),
 	);
-}
-
-async function copySecret(secret: string): Promise<void> {
-	try {
-		await navigator.clipboard.writeText(secret);
-		notifyInfo(
-			"Relay secret copied. Save it as the RELAY_SECRET repository secret.",
-		);
-	} catch {
-		notifyError("Could not copy the relay secret. Try again.");
-	}
 }

@@ -13,7 +13,12 @@ export interface ShareLocation {
 
 /** How this person reaches a share's objects. */
 export type ShareAccess =
-	| { kind: "owner"; location: ShareLocation }
+	| {
+			kind: "owner";
+			location: ShareLocation;
+			/** Where the last invite went: participants' tokens live on that relay. */
+			relayUrl?: string;
+	  }
 	/** Through the owner's relay, which presigns each request under `token`. */
 	| {
 			kind: "participant";
@@ -83,7 +88,12 @@ export function isSpaceRecord(value: unknown): value is SpaceRecord {
 function isAccess(value: unknown): value is ShareAccess {
 	if (typeof value !== "object" || value === null) return false;
 	const access = value as Record<string, unknown>;
-	if (access.kind === "owner") return isLocation(access.location);
+	if (access.kind === "owner") {
+		return (
+			isLocation(access.location) &&
+			(access.relayUrl === undefined || typeof access.relayUrl === "string")
+		);
+	}
 	return (
 		access.kind === "participant" &&
 		typeof access.relayUrl === "string" &&

@@ -13,18 +13,8 @@ import {
 } from "@/sync/content";
 import { objectKey } from "@/sync/manifest";
 
-/** Counts reads so a cache hit is visible. */
-class CountingStorage extends FakeStorage {
-	getCalls = 0;
-
-	override get(key: string): Promise<Uint8Array | null> {
-		this.getCalls++;
-		return super.get(key);
-	}
-}
-
 async function seed(
-	storage: CountingStorage,
+	storage: FakeStorage,
 	key: EncryptionKey,
 	bytes: Uint8Array,
 ): Promise<string> {
@@ -35,12 +25,12 @@ async function seed(
 
 describe("remote text cache", () => {
 	let key: EncryptionKey;
-	let storage: CountingStorage;
+	let storage: FakeStorage;
 
 	beforeEach(async () => {
 		clearRemoteTextCache();
 		key = await deriveKey("passphrase", new Uint8Array(16));
-		storage = new CountingStorage();
+		storage = new FakeStorage();
 	});
 
 	it("downloads an object once however often it is asked for", async () => {
@@ -88,7 +78,7 @@ describe("remote text cache", () => {
 			"private content",
 		);
 
-		const share = new CountingStorage();
+		const share = new FakeStorage();
 		expect(await loadRemoteText({ storage: share, key }, hash)).toBeNull();
 		expect(share.getCalls).toBe(1);
 	});

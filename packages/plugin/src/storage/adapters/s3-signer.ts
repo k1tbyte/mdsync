@@ -1,3 +1,5 @@
+import { toHex } from "@obsync/protocol";
+
 import { sha256Hex } from "@/crypto";
 import type { S3StorageConfig } from "@/storage/config";
 
@@ -220,12 +222,6 @@ function importHmacKey(raw: BufferSource): Promise<CryptoKey> {
 
 function hmac(key: CryptoKey, data: string): Promise<ArrayBuffer> {
 	return crypto.subtle.sign("HMAC", key, encoder.encode(data));
-}
-
-function toHex(buffer: ArrayBuffer): string {
-	return [...new Uint8Array(buffer)]
-		.map((byte) => byte.toString(16).padStart(2, "0"))
-		.join("");
 }
 
 /** `encodeURIComponent` leaves these, and SigV4 requires them encoded. */

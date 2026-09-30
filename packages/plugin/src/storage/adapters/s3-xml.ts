@@ -6,8 +6,10 @@
  * its close is exact for any well-formed document.
  */
 
+import type { ListedObject } from "@/storage/types";
+
 export interface ListPage {
-	keys: string[];
+	objects: ListedObject[];
 	/** Present while the listing has more pages. */
 	nextToken?: string;
 }
@@ -23,12 +25,13 @@ export function parseListObjects(xml: string): ListPage {
 			"S3 listing response was not a ListBucketResult; something between the plugin and the bucket answered instead.",
 		);
 	}
-	const keys: string[] = [];
+	const objects: ListedObject[] = [];
 	for (const match of xml.matchAll(CONTENTS)) {
+		const entry = match[1] ?? "";
 		// A key may legitimately begin or end with a space, so it is never trimmed.
-		const key = tagValue(match[1] ?? "", "Key");
+		const key = tagValue(entry, "Key");
 		if (!key) throw new Error("S3 listing contained an object without a key.");
-		keys.push(key);
+		objects.push({ key, etag: tagValue(entry, "ETag")?.trim() || null });
 	}
 	const nextToken = tagValue(xml, "NextContinuationToken")?.trim();
 	// S3 always names the token alongside a truncated listing. A backend that
@@ -38,7 +41,7 @@ export function parseListObjects(xml: string): ListPage {
 			"S3 reported a truncated listing without a continuation token, so the object list would be incomplete.",
 		);
 	}
-	return nextToken ? { keys, nextToken } : { keys };
+	return nextToken ? { objects, nextToken } : { objects };
 }
 
 /** The `Code` of an S3 error document, e.g. `NoSuchBucket`. */

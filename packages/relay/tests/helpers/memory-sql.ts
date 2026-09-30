@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 
-import type { Sql, SqlValue } from "../../src/hub-store";
+import type { Sql, SqlValue } from "../../src/hub/store";
 
 /** node:sqlite behind the Durable Object's `sql.exec` shape; the plugin's tests use it too. */
 export function memorySql(): Sql {

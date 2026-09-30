@@ -1,19 +1,14 @@
-import type { Chunk } from "@codemirror/merge";
-import type { Text } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
-import { type App, Modal, Platform, setIcon } from "obsidian";
+import { type App, Modal, Platform } from "obsidian";
 
-import type { SyncHunk } from "@/sync/hunks";
-
-import { findSyncHunkForLine, presentChunk } from "./helpers";
+import { findChunkForLine, findSyncHunkForLine } from "./helpers";
+import { installDismissHandlers } from "./popup-dismiss";
+import { positionPopup } from "./popup-placement";
+import { buildPopup, type HunkTarget } from "./popup-view";
 import type { SignsProvider } from "./provider";
 import { chunksField, compareTextField } from "./state";
 
-const POPUP_CLASS = "obsync-hunk-popup";
-const POPUP_MAX_LINES = 30;
-
-let activePopup: HTMLElement | null = null;
-let activeCleanup: (() => void) | null = null;
+let activePopup: { element: HTMLElement; cleanup: () => void } | null = null;
 let activeDrawer: HunkDrawer | null = null;
 
 export function showHunkPopupAt(
@@ -25,39 +20,34 @@ export function showHunkPopupAt(
 	const baseline = view.state.field(compareTextField, false);
 	const data = view.state.field(chunksField, false);
 	if (!baseline || !data || data.chunks.length === 0) return false;
-
-	const chunk = findChunkForLine(
-		data.chunks,
-		baseline,
-		view.state.doc,
-		lineNumber,
-	);
+	const chunk = findChunkForLine(data.chunks, view.state.doc, lineNumber);
 	if (!chunk) return false;
-	const path = provider.getViewPath(view);
-	const syncHunk =
-		path === null
-			? null
-			: findSyncHunkForLine(lineNumber, baseline, view.state.doc);
 
+	const path = provider.getViewPath(view);
+	const target: HunkTarget = {
+		view,
+		chunk,
+		baseline,
+		provider,
+		path,
+		syncHunk:
+			path === null
+				? null
+				: findSyncHunkForLine(lineNumber, baseline, view.state.doc),
+	};
 	dismissPopup();
 	if (Platform.isPhone) {
-		activeDrawer = new HunkDrawer(
-			provider.app,
-			view,
-			chunk,
-			baseline,
-			provider,
-			path,
-			syncHunk,
-		);
+		activeDrawer = new HunkDrawer(provider.app, target);
 		activeDrawer.open();
 		return true;
 	}
-	const popup = buildPopup(view, chunk, baseline, provider, path, syncHunk);
-	document.body.appendChild(popup);
-	positionPopup(popup, event);
-	activePopup = popup;
-	activeCleanup = installDismissHandlers(view, popup);
+	const element = buildPopup(target, dismissPopup);
+	document.body.appendChild(element);
+	positionPopup(element, event);
+	activePopup = {
+		element,
+		cleanup: installDismissHandlers(view, element, dismissPopup),
+	};
 	return true;
 }
 
@@ -65,21 +55,15 @@ export function dismissPopup(): void {
 	const drawer = activeDrawer;
 	activeDrawer = null;
 	drawer?.close();
-	if (activeCleanup) activeCleanup();
-	activeCleanup = null;
-	if (activePopup?.parentElement) activePopup.remove();
+	activePopup?.cleanup();
+	activePopup?.element.remove();
 	activePopup = null;
 }
 
 class HunkDrawer extends Modal {
 	constructor(
 		app: App,
-		private readonly view: EditorView,
-		private readonly chunk: Chunk,
-		private readonly baseline: Text,
-		private readonly provider: SignsProvider,
-		private readonly path: string | null,
-		private readonly syncHunk: SyncHunk | null,
+		private readonly target: HunkTarget,
 	) {
 		super(app);
 	}
@@ -89,273 +73,11 @@ class HunkDrawer extends Modal {
 		this.modalEl.addClass("obsync-hunk-drawer");
 		this.contentEl.addClass("obsync-hunk-drawer-content");
 		this.contentEl.empty();
-		this.contentEl.appendChild(
-			buildPopup(
-				this.view,
-				this.chunk,
-				this.baseline,
-				this.provider,
-				this.path,
-				this.syncHunk,
-			),
-		);
+		this.contentEl.appendChild(buildPopup(this.target, dismissPopup));
 	}
 
 	onClose(): void {
 		if (activeDrawer === this) activeDrawer = null;
 		this.contentEl.empty();
 	}
-}
-
-function findChunkForLine(
-	chunks: readonly Chunk[],
-	baseline: Text,
-	current: Text,
-	lineNumber: number,
-): Chunk | null {
-	for (const chunk of chunks) {
-		if (chunk.fromB === chunk.toB) {
-			const at = current.lineAt(clamp(chunk.fromB, current.length)).number;
-			if (at === lineNumber) return chunk;
-			continue;
-		}
-		const from = current.lineAt(chunk.fromB).number;
-		const to = current.lineAt(clamp(chunk.endB, current.length)).number;
-		if (lineNumber >= from && lineNumber <= to) return chunk;
-	}
-	void baseline;
-	return null;
-}
-
-function buildPopup(
-	view: EditorView,
-	chunk: Chunk,
-	baseline: Text,
-	provider: SignsProvider,
-	path: string | null,
-	syncHunk: SyncHunk | null,
-): HTMLElement {
-	// Show the sync hunk when one exists, or finer CodeMirror chunk if there is nothing to push.
-	const presentation = syncHunk
-		? presentSyncHunk(syncHunk)
-		: presentChunk(chunk, baseline, view.state.doc);
-	const popup = document.createElement("div");
-	popup.className = POPUP_CLASS;
-	popup.setAttribute("role", "dialog");
-
-	const header = popup.createDiv({ cls: "obsync-hunk-popup-header" });
-	header.createSpan({
-		cls: "obsync-hunk-popup-title",
-		text: titleFor(
-			presentation.removedLines.length,
-			presentation.addedLines.length,
-		),
-	});
-	const controls = header.createDiv({ cls: "obsync-hunk-popup-controls" });
-	const wrapBtn = controls.createEl("button", {
-		cls: "obsync-hunk-popup-wrap",
-	});
-	wrapBtn.type = "button";
-	setIcon(wrapBtn, "wrap-text");
-	wrapBtn.createSpan({ text: "Wrap" });
-	if (!Platform.isPhone) {
-		const closeBtn = controls.createEl("button", {
-			cls: "obsync-hunk-popup-close",
-			text: "×",
-		});
-		closeBtn.type = "button";
-		closeBtn.addEventListener("click", () => dismissPopup());
-	}
-
-	const body = popup.createDiv({ cls: "obsync-hunk-popup-body" });
-	let wrapped = Platform.isPhone;
-	const renderWrap = () => {
-		body.toggleClass("is-wrapped", wrapped);
-		wrapBtn.setAttr("aria-pressed", String(wrapped));
-		wrapBtn.setAttr(
-			"aria-label",
-			wrapped ? "Disable line wrapping" : "Enable line wrapping",
-		);
-	};
-	wrapBtn.addEventListener("click", () => {
-		wrapped = !wrapped;
-		renderWrap();
-	});
-	renderWrap();
-	if (presentation.removedLines.length > 0) {
-		renderLines(
-			body,
-			presentation.removedLines,
-			"obsync-hunk-popup-line-removed",
-			"-",
-		);
-	}
-	if (presentation.addedLines.length > 0) {
-		renderLines(
-			body,
-			presentation.addedLines,
-			"obsync-hunk-popup-line-added",
-			"+",
-		);
-	}
-
-	const footer = popup.createDiv({ cls: "obsync-hunk-popup-footer" });
-	if (path !== null && syncHunk !== null) {
-		const pushBtn = footer.createEl("button", {
-			cls: "obsync-hunk-popup-push mod-cta",
-			text: "Push hunk",
-		});
-		pushBtn.type = "button";
-		pushBtn.addEventListener("click", () => {
-			void provider.pushHunk(path, syncHunk, view.state.doc.toString());
-			dismissPopup();
-		});
-	}
-	const revertBtn = footer.createEl("button", {
-		cls: "obsync-hunk-popup-revert mod-warning",
-		text: "Revert hunk",
-	});
-	revertBtn.type = "button";
-	revertBtn.addEventListener("click", () => {
-		// Reverting a finer CodeMirror chunk undoes less than the presented sync hunk.
-		if (syncHunk) {
-			revertSyncHunk(view, syncHunk, baseline);
-		} else {
-			revertHunk(view, chunk, baseline);
-		}
-		dismissPopup();
-	});
-	return popup;
-}
-
-function presentSyncHunk(hunk: SyncHunk): {
-	removedLines: string[];
-	addedLines: string[];
-} {
-	const removedLines: string[] = [];
-	const addedLines: string[] = [];
-	for (const line of hunk.lines) {
-		if (line.startsWith("-")) removedLines.push(line.slice(1));
-		else if (line.startsWith("+")) addedLines.push(line.slice(1));
-	}
-	return { removedLines, addedLines };
-}
-
-function renderLines(
-	parent: HTMLElement,
-	lines: string[],
-	cls: string,
-	prefix: string,
-): void {
-	const display = lines.slice(0, POPUP_MAX_LINES);
-	for (const line of display) {
-		const row = parent.createDiv({ cls });
-		row.createSpan({ cls: "obsync-hunk-popup-prefix", text: prefix });
-		row.createSpan({ cls: "obsync-hunk-popup-text", text: line });
-	}
-	if (lines.length > POPUP_MAX_LINES) {
-		parent.createDiv({
-			cls: "obsync-hunk-popup-truncated",
-			text: `… ${lines.length - POPUP_MAX_LINES} more line(s)`,
-		});
-	}
-}
-
-/** Replaces new-side lines with old-side lines using computeHunks numbering. */
-function revertSyncHunk(
-	view: EditorView,
-	hunk: SyncHunk,
-	baseline: Text,
-): void {
-	const from = lineStart(view.state.doc, hunk.newStart);
-	const to = lineStart(view.state.doc, hunk.newStart + hunk.newLines);
-	const insertFrom = lineStart(baseline, hunk.oldStart);
-	const insertTo = lineStart(baseline, hunk.oldStart + hunk.oldLines);
-	let insert = baseline.sliceString(insertFrom, insertTo);
-	// Slicing to the next line carries its newline, but the last line has none. Explicitly adding it prevents merging lines.
-	if (to > from && insertTo === baseline.length && !insert.endsWith("\n")) {
-		insert += "\n";
-	}
-	view.dispatch({ changes: { from, to, insert } });
-}
-
-/** Offset of `line`'s first character, or the end of the text past the last. */
-function lineStart(text: Text, line: number): number {
-	if (line < 1) return 0;
-	if (line > text.lines) return text.length;
-	return text.line(line).from;
-}
-
-function revertHunk(view: EditorView, chunk: Chunk, baseline: Text): void {
-	const insert = baseline.sliceString(
-		clamp(chunk.fromA, baseline.length),
-		clamp(chunk.toA, baseline.length),
-	);
-	view.dispatch({
-		changes: {
-			from: clamp(chunk.fromB, view.state.doc.length),
-			to: clamp(chunk.toB, view.state.doc.length),
-			insert,
-		},
-	});
-}
-
-function titleFor(removedCount: number, addedCount: number): string {
-	const removed = removedCount > 0;
-	const added = addedCount > 0;
-	if (added && removed) return "Changes since last sync";
-	if (added) return "Added since last sync";
-	return "Removed since last sync";
-}
-
-function positionPopup(popup: HTMLElement, event: MouseEvent): void {
-	popup.style.position = "fixed";
-	popup.style.visibility = "hidden";
-	popup.style.left = "0px";
-	popup.style.top = "0px";
-	requestAnimationFrame(() => {
-		const rect = popup.getBoundingClientRect();
-		const margin = 8;
-		const winW = window.innerWidth;
-		const winH = window.innerHeight;
-		let x = event.clientX + margin;
-		let y = event.clientY + margin;
-		if (x + rect.width > winW - margin) {
-			x = Math.max(margin, winW - rect.width - margin);
-		}
-		if (y + rect.height > winH - margin) {
-			y = Math.max(margin, event.clientY - rect.height - margin);
-		}
-		popup.style.left = `${x}px`;
-		popup.style.top = `${y}px`;
-		popup.style.visibility = "visible";
-	});
-}
-
-function installDismissHandlers(
-	view: EditorView,
-	popup: HTMLElement,
-): () => void {
-	const onPointerDown = (ev: MouseEvent) => {
-		if (popup.contains(ev.target as Node)) return;
-		dismissPopup();
-	};
-	const onKey = (ev: KeyboardEvent) => {
-		if (ev.key === "Escape") dismissPopup();
-	};
-	const onScroll = () => dismissPopup();
-	document.addEventListener("mousedown", onPointerDown, true);
-	document.addEventListener("keydown", onKey, true);
-	view.scrollDOM.addEventListener("scroll", onScroll, true);
-	return () => {
-		document.removeEventListener("mousedown", onPointerDown, true);
-		document.removeEventListener("keydown", onKey, true);
-		view.scrollDOM.removeEventListener("scroll", onScroll, true);
-	};
-}
-
-function clamp(pos: number, limit: number): number {
-	if (pos < 0) return 0;
-	if (pos > limit) return limit;
-	return pos;
 }

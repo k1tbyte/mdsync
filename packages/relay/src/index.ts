@@ -3,11 +3,11 @@ import {
 	handleAuthCallback,
 	handleTokenRefresh,
 } from "./google-oauth";
-import { Hub } from "./hub";
-import { handleHubRequest } from "./hub-access";
+import { handleHubRequest } from "./hub/access";
+import { Hub } from "./hub/durable-object";
 import { ADMIN_HEADER, isAdmin } from "./secret";
-import { handleShareRequest } from "./share";
-import type { ShareEnv } from "./share-kv";
+import { handleShareRequest } from "./share/broker";
+import type { ShareEnv } from "./share/kv";
 
 export interface Env extends ShareEnv, GoogleOAuthEnv {}
 

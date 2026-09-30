@@ -13,18 +13,19 @@ import {
 } from "@codemirror/view";
 import type * as Y from "yjs";
 import { type Author, authorRanges } from "@/live/authors";
-import { personColors } from "@/shared/colors";
+import { personTint } from "@/shared/colors";
 
 /** Typing and scrolling recompute the tint at most this often; in between it is only mapped. */
 const REDRAW_MS = 250;
 
 const redraw = StateEffect.define<null>();
 
-/** Tints what anyone but `me` typed in the visible part of the note; hovering names them. */
+/** Tints what anyone but `me` typed in the visible part of the note; hovering names them, as the relay does while they are here. */
 export function authorMarks(
 	text: Y.Text,
 	users: Y.Map<unknown>,
 	me: string,
+	nameOf: (person: string) => string | null,
 ): Extension {
 	class AuthorMarks implements PluginValue {
 		decorations: DecorationSet;
@@ -78,13 +79,14 @@ export function authorMarks(
 		}
 
 		private markOf({ person, name }: Author): Decoration {
-			const key = `${person}\n${name}`;
+			const title = nameOf(person) ?? name;
+			const key = `${person}\n${title}`;
 			let mark = this.marks.get(key);
 			if (!mark) {
 				mark = Decoration.mark({
 					attributes: {
-						title: name,
-						style: `background-color: ${personColors(person).colorLight}`,
+						title,
+						style: `background-color: ${personTint(person)}`,
 					},
 				});
 				this.marks.set(key, mark);

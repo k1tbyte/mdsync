@@ -66,6 +66,14 @@ describe("note header menu", () => {
 		]);
 	});
 
+	it("offers a reader no rebuild: they never write the room", () => {
+		const facts = { ...NONE, liveText: true, shared: true, locked: true };
+		expect(titles(actionItems(facts))).toEqual([
+			"Show who typed what",
+			"Manage shared folder",
+		]);
+	});
+
 	it("offers authors, the folder and a rebuild for a live note of a share", () => {
 		const facts = { ...NONE, liveText: true, shared: true };
 		expect(titles(actionItems(facts))).toEqual([
@@ -100,7 +108,8 @@ describe("note header menu", () => {
 
 	it("words a person's cursor by what can be followed", () => {
 		const here = { idle: false };
-		expect(personState(here, true, true)).toBe("go to cursor");
+		expect(personState(here, true, true)).toBe("follow cursor");
+		expect(personState({ idle: true }, true, true, true)).toBe("following");
 		expect(personState(here, false, true)).toBe("no cursor here");
 		expect(personState(here, false, false)).toBe("Cursor not shared");
 		expect(personState({ idle: true }, false, false)).toBe("away");

@@ -38,6 +38,8 @@ const PEER = { id: "node-peer", name: "Node Peer" };
 /** Stands in for the vault's frame key: presence is sealed under it. */
 const FRAME_KEY = randomBytes(32);
 const IV_BYTES = 12;
+/** The plugin seals announcements for presence alone, as AES-GCM additional data. */
+const PRESENCE = new TextEncoder().encode("presence");
 /** Longer than two reconnect backoffs (2 s + 4 s). */
 const REFUSED_SETTLE_MS = 7_000;
 const SOAK_MS = Number(process.env.E2E_SOAK_MS ?? 0);
@@ -205,7 +207,9 @@ async function scenario(obsidian: Obsidian, url: string): Promise<void> {
 		(connected) => !connected,
 	);
 	await sleep(REFUSED_SETTLE_MS);
-	check("a refused grant is not retried", await counter("__sockets"), 1);
+	// A fresh share token can be refused while KV catches up: a few retries, backing off.
+	const refused = await counter("__sockets");
+	check("a refused grant backs off", refused >= 2 && refused <= 4, true);
 
 	const watcher = await connectPeer(url, [[CHANNEL, grant]], PEER.id);
 	await obsidian.evaluate((secret) => {
@@ -223,7 +227,7 @@ async function sealed(key: CryptoKey, value: unknown): Promise<Uint8Array> {
 	const iv = randomBytes(IV_BYTES);
 	const body = new Uint8Array(
 		await crypto.subtle.encrypt(
-			{ name: "AES-GCM", iv },
+			{ name: "AES-GCM", iv, additionalData: PRESENCE },
 			key,
 			new TextEncoder().encode(JSON.stringify(value)),
 		),
@@ -236,7 +240,11 @@ async function sealed(key: CryptoKey, value: unknown): Promise<Uint8Array> {
 
 async function opened(key: CryptoKey, frame: Uint8Array): Promise<unknown> {
 	const plain = await crypto.subtle.decrypt(
-		{ name: "AES-GCM", iv: frame.subarray(0, IV_BYTES) as BufferSource },
+		{
+			name: "AES-GCM",
+			iv: frame.subarray(0, IV_BYTES) as BufferSource,
+			additionalData: PRESENCE,
+		},
 		key,
 		frame.subarray(IV_BYTES) as BufferSource,
 	);

@@ -1,6 +1,7 @@
 import {
 	deriveChannelGrant,
 	EFrame,
+	grantExpiry,
 	type ServerFrame,
 	shareChannel,
 } from "@obsync/protocol";
@@ -108,10 +109,15 @@ describe("hubRoutes", () => {
 		const [home, other] = await Promise.all(
 			routes.map((route) => route.channels()),
 		);
-		expect(home?.[1]).toEqual({
-			channel: shareChannel("mine"),
-			token: await deriveChannelGrant("secret", shareChannel("mine")),
-		});
+		const mine = home?.[1];
+		expect(mine?.channel).toBe(shareChannel("mine"));
+		expect(mine?.token).toBe(
+			await deriveChannelGrant(
+				"secret",
+				shareChannel("mine"),
+				grantExpiry(mine?.token ?? "") ?? 0,
+			),
+		);
 		expect(home?.[2]).toEqual({
 			channel: shareChannel("near"),
 			token: "token-near",
@@ -174,6 +180,24 @@ describe("HubConnection", () => {
 		expect(home?.dispose).toHaveBeenCalledOnce();
 		expect(links[1]?.dispose).not.toHaveBeenCalled();
 		expect(onConnectionChange.mock.calls).toEqual([[false]]);
+	});
+
+	it("reconnects only the socket carrying the space", () => {
+		settings = settingsWith([owned("mine"), joined("theirs", OTHER)]);
+		const hub = connection();
+		hub.restart();
+		const [home, other] = links;
+
+		hub.reconnect("theirs");
+
+		expect(home?.dispose).not.toHaveBeenCalled();
+		expect(other?.dispose).toHaveBeenCalledOnce();
+		expect(links.map((link) => link.options.serverUrl)).toEqual([
+			HOME,
+			OTHER,
+			OTHER,
+		]);
+		expect(links[2]?.connect).toHaveBeenCalledOnce();
 	});
 
 	it("signals a space on its own socket and slot", () => {

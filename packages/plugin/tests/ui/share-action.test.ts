@@ -5,12 +5,16 @@ import type { SpaceRecord } from "@/spaces/record";
 import { EStorageBackend, type S3StorageConfig } from "@/storage";
 import { notifyInfo } from "@/ui/common/notices";
 import { RELAY_TEXT } from "@/ui/live/relay-text";
-import { shareFolder } from "@/ui/shares/share-action";
+import { openConfirmModal } from "@/ui/modals";
+import { closeShare, shareFolder } from "@/ui/shares/share-action";
 
 vi.mock("@/ui/actions/ignore-action", () => ({
 	carryVaultIgnores: vi.fn(async () => true),
 }));
 vi.mock("@/ui/actions/push-action", () => ({ pushScope: vi.fn() }));
+vi.mock("@/ui/modals", () => ({
+	openConfirmModal: vi.fn(async () => false),
+}));
 vi.mock("@/ui/common/notices", () => ({
 	notifyInfo: vi.fn(),
 	notifyError: vi.fn(),
@@ -73,5 +77,52 @@ describe("shareFolder", () => {
 			expect.stringContaining(RELAY_TEXT["no-relay"]),
 		);
 		expect(added).toHaveLength(1);
+	});
+});
+
+describe("closeShare", () => {
+	const shared = (relayUrl?: string): SpaceRecord => ({
+		id: "s1",
+		name: "Team",
+		root: "Team",
+		rev: 1,
+		author: "laptop",
+		key: "",
+		access: {
+			kind: "owner",
+			location: {
+				endpoint: S3.endpoint,
+				region: S3.region,
+				bucket: S3.bucket,
+				prefix: "vault",
+				forcePathStyle: true,
+			},
+			...(relayUrl ? { relayUrl } : {}),
+		},
+	});
+	const warned = () =>
+		vi
+			.mocked(openConfirmModal)
+			.mock.calls.at(-1)?.[0]
+			.body.some((line) => line.includes("keep working there"));
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("warns when the relay the invites went through is not this vault's", async () => {
+		await closeShare(host(false).plugin, shared("https://relay.example"));
+		expect(warned()).toBe(true);
+
+		await closeShare(host(true).plugin, shared("https://old.example"));
+		expect(warned()).toBe(true);
+	});
+
+	it("says nothing more when the relay can end the tokens or none went out", async () => {
+		await closeShare(host(true).plugin, shared("https://relay.example/"));
+		expect(warned()).toBe(false);
+
+		await closeShare(host(false).plugin, shared());
+		expect(warned()).toBe(false);
 	});
 });

@@ -107,11 +107,17 @@ export class HubConnection {
 
 	/** Called after every settings save; unchanged sockets are left alone. */
 	restartIfChanged(): void {
-		this.update(false);
+		this.update(() => false);
 	}
 
 	restart(): void {
-		this.update(true);
+		this.update(() => true);
+	}
+
+	/** Restarts only the socket carrying the space: other relays' rooms stay joined. */
+	reconnect(spaceId: string): void {
+		const url = this.slotOf(spaceId)?.open.route.serverUrl;
+		this.update((at) => at === url);
 	}
 
 	dispose(): void {
@@ -122,7 +128,7 @@ export class HubConnection {
 		this.spaceListeners.clear();
 	}
 
-	private update(force: boolean): void {
+	private update(force: (url: string) => boolean): void {
 		if (this.disposed) return;
 		const routes = new Map(
 			hubRoutes(this.options.settings()).map((route) => [
@@ -131,7 +137,7 @@ export class HubConnection {
 			]),
 		);
 		for (const [url, open] of this.links) {
-			if (!force && routes.get(url)?.key === open.route.key) {
+			if (!force(url) && routes.get(url)?.key === open.route.key) {
 				routes.delete(url);
 				continue;
 			}
@@ -148,7 +154,7 @@ export class HubConnection {
 			revoked: new Set(),
 			link: new HubLink({
 				serverUrl: route.serverUrl,
-				channels: route.channels(),
+				channels: route.channels,
 				deviceId: this.options.deviceId(),
 				onFrame: (frame) => this.onFrame(open, frame),
 				onConnectionChange: (connected) => this.setConnected(open, connected),

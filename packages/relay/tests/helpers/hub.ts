@@ -5,9 +5,9 @@ import {
 	type ServerFrame,
 } from "@obsync/protocol";
 
-import { HubCore } from "../../src/hub-core";
-import type { DocSub, Grant, HubPeer } from "../../src/hub-peer";
-import { SqlDocStore } from "../../src/hub-store";
+import { HubCore } from "../../src/hub/core";
+import type { DocSub, Grant, HubPeer } from "../../src/hub/peer";
+import { SqlDocStore } from "../../src/hub/store";
 
 import { memorySql } from "./memory-sql";
 
@@ -23,8 +23,15 @@ export function grant(
 	token = `${channel}-token`,
 	who = "owner",
 	readOnly = false,
+	name?: string,
 ): Grant {
-	return { channel, grant: token, who, ...(readOnly ? { readOnly } : {}) };
+	return {
+		channel,
+		grant: token,
+		who,
+		...(readOnly ? { readOnly } : {}),
+		...(name ? { name } : {}),
+	};
 }
 
 export function peer(

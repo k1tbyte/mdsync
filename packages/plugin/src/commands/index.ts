@@ -11,6 +11,7 @@ import {
 	openSourceControlDeleted,
 	openSourceControlHistory,
 	openSourceControlView,
+	openWhereMenu,
 	rebuildLiveNote,
 	resetRemoteStorage,
 	runWithNotice,
@@ -119,6 +120,12 @@ export function registerCommands(plugin: Plugin & PluginHost): void {
 		id: "toggle-live-authors",
 		name: "Toggle authors in live notes",
 		callback: () => toggleAuthors(plugin),
+	});
+
+	plugin.addCommand({
+		id: "show-live-status",
+		name: "Show live status",
+		callback: () => openWhereMenu(plugin),
 	});
 
 	plugin.addCommand({

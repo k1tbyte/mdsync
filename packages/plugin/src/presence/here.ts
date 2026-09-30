@@ -25,11 +25,13 @@ export function watchHere(
 	let lastInput = Date.now();
 	let sent: Here | null = null;
 	let timer: number | null = null;
+	/** The main window and every popout: input in any of them is presence. */
+	const windows = new Set<Window>();
 
 	const current = (): Here => ({
 		path: showNote() ? openActivePath(workspace) : null,
 		idle:
-			document.visibilityState === "hidden" ||
+			[...windows].every((win) => win.document.visibilityState === "hidden") ||
 			Date.now() - lastInput > IDLE_AFTER_MS,
 	});
 	const send = (): void => {
@@ -48,26 +50,48 @@ export function watchHere(
 		if (sent?.idle) send();
 	};
 
+	const watch = (win: Window): void => {
+		if (windows.has(win)) return;
+		windows.add(win);
+		for (const type of ACTIVITY) {
+			win.addEventListener(type, onInput, { passive: true });
+		}
+		win.document.addEventListener("visibilitychange", send);
+	};
+	const unwatch = (win: Window): void => {
+		if (!windows.delete(win)) return;
+		for (const type of ACTIVITY) win.removeEventListener(type, onInput);
+		win.document.removeEventListener("visibilitychange", send);
+	};
+
+	watch(window);
 	const refs = [
 		workspace.on("active-leaf-change", settle),
 		workspace.on("file-open", settle),
 		workspace.on("layout-change", settle),
+		workspace.on("window-open", (_, win) => watch(win)),
+		workspace.on("window-close", (_, win) => {
+			unwatch(win);
+			settle();
+		}),
 	];
 	const renamed = app.vault.on("rename", settle);
-	for (const type of ACTIVITY) {
-		window.addEventListener(type, onInput, { passive: true });
-	}
-	document.addEventListener("visibilitychange", send);
 	const check = window.setInterval(send, IDLE_CHECK_MS);
-	workspace.onLayoutReady(send);
+	let stopped = false;
+	workspace.onLayoutReady(() => {
+		if (stopped) return;
+		// Popouts restored with the layout opened before this watch.
+		workspace.iterateAllLeaves((leaf) => watch(leaf.getContainer().win));
+		send();
+	});
 
 	return {
 		refresh: send,
 		stop() {
+			stopped = true;
 			for (const ref of refs) workspace.offref(ref);
 			app.vault.offref(renamed);
-			for (const type of ACTIVITY) window.removeEventListener(type, onInput);
-			document.removeEventListener("visibilitychange", send);
+			for (const win of [...windows]) unwatch(win);
 			window.clearInterval(check);
 			if (timer !== null) window.clearTimeout(timer);
 		},

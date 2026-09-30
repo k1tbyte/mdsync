@@ -1,4 +1,4 @@
-import type { ConditionalRead } from "@/storage/types";
+import type { ConditionalRead, ListedObject } from "@/storage/types";
 import { FakeStorage } from "./fake-storage";
 
 /** A backend that hands out a validator, as S3 and WebDAV do. */
@@ -21,6 +21,7 @@ export class RevalidatingStorage extends FakeStorage {
 		objectKey: string,
 		etag: string | null,
 	): Promise<ConditionalRead> {
+		this.getCalls++;
 		const body = this.map.get(objectKey);
 		if (!body) return Promise.resolve({ status: "absent" });
 		const current = this.etags.get(objectKey) ?? null;
@@ -29,5 +30,12 @@ export class RevalidatingStorage extends FakeStorage {
 		}
 		this.bodiesSent++;
 		return Promise.resolve({ status: "found", body, etag: current });
+	}
+
+	async listWithEtags(prefix: string): Promise<ListedObject[]> {
+		return (await this.list(prefix)).map((key) => ({
+			key,
+			etag: this.etags.get(key) ?? null,
+		}));
 	}
 }

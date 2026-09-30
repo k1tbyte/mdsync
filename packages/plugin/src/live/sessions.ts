@@ -2,8 +2,8 @@
  * Which files are live: a session exists while its file is open in a view
  * that edits it live on this device (a note in source mode, a drawing in
  * Excalidraw), and every such leaf is bound to it once the room answered. A
- * room that moved hands its leaves to its successor. Closed files are the
- * cold layer's business.
+ * room that moved hands its leaves to its successor; a renamed file takes its
+ * room along. Closed files are the cold layer's business.
  */
 
 import { ERefusal, type Refusal } from "@obsync/protocol";
@@ -11,12 +11,21 @@ import type { App, TFile, WorkspaceLeaf } from "obsidian";
 
 import type { HubConnection } from "@/hub/connection";
 import { reportWarning } from "@/shared/diagnostics";
+import { toLf } from "@/utils/eol";
 
 import type { AgreedTexts } from "./agreed-texts";
-import { liveKindOf } from "./doc-types";
-import { EDITORS, type LiveEditor, type LiveRoom } from "./editors";
+import { closedBefore } from "./closing";
+import {
+	EDITORS,
+	type LiveEditor,
+	type LiveRoom,
+	openNotes,
+	readOpen,
+} from "./editors";
 import type { BoundEditor } from "./model";
-import type { LiveSession, Rotation } from "./session";
+import { movedWith, moveRoom } from "./rename";
+import type { LiveSession } from "./session";
+import type { Rotation, Unfollowed } from "./session-deps";
 import { docIdIn, type LiveSpace, sameSpace } from "./space";
 
 const LOADING_RETRY_MS = 500;
@@ -24,7 +33,14 @@ const LOADING_RETRY_MS = 500;
 const JOIN_PATIENCE_MS = 15_000;
 
 /** Why an open note stays cold until it is closed. */
-export type ColdCause = "moved-away" | "too-large" | "too-many" | "read-only";
+export type ColdCause =
+	| "moved-away"
+	| "too-large"
+	| "too-many"
+	| "read-only"
+	| Unfollowed;
+
+const UNFOLLOWED = new Set<ColdCause>(["empty", "diverged"]);
 
 const REFUSED: Record<Refusal, ColdCause> = {
 	[ERefusal.TooLarge]: "too-large",
@@ -35,22 +51,35 @@ const REFUSED: Record<Refusal, ColdCause> = {
 export interface LiveSessionsDeps {
 	app: App;
 	hub: Pick<HubConnection, "space">;
-	/** Where the note goes live; null keeps it cold: live off, no key yet, a paused or read-only share. */
+	/** Where the note goes live; null keeps it cold: live off, no key yet, a paused share. */
 	liveSpace(path: string): Promise<LiveSpace | null>;
 	agreed: AgreedTexts;
 	/** The cold-sync baseline, the merge base for a note never agreed here. */
 	baseText(path: string): Promise<string | null>;
+	/** Renames a note as another device did; false when that cannot happen here. */
+	moveFile(from: string, to: string): Promise<boolean>;
+	/** Whether others' text is tinted by author. */
+	authorsShown(): boolean;
+	/** The name the relay vouches for a person present in a space. */
+	nameOf(space: string, person: string): string | null;
 }
 
 interface Room extends LiveRoom {
 	space: LiveSpace;
 	editor: LiveEditor;
+	/** Kept across a rename, so the room can tell its file moved. */
+	file: TFile;
+	/** The path its docIds are named by: the file's, until a rename here moves the room. */
+	lineage: string;
+	/** Where this device is moving the room. */
+	renamingTo: string | null;
 }
 
-interface OpenNote {
-	file: TFile;
-	space: LiveSpace;
-	editor: LiveEditor;
+/** Where a room opens when a pointer named its generation: `successor` was filled by whoever moved it. */
+interface OpenAt {
+	lineage: string;
+	generation: number;
+	successor: boolean;
 }
 
 interface Binding {
@@ -67,8 +96,6 @@ export class LiveSessions {
 	/** Open notes left to the file sync: their room moved elsewhere, or the hub cannot carry them. */
 	private readonly cold = new Map<string, ColdCause>();
 	private readonly listeners = new Set<() => void>();
-	/** Who typed what, tinted in every bound editor; this app session only. */
-	private authors = false;
 	private running = false;
 	private again = false;
 	private disposed = false;
@@ -115,32 +142,24 @@ export class LiveSessions {
 
 	/** The note's room once an editor is bound to it; null while closed, joining or moving. */
 	roomOf(path: string): LiveSession | null {
-		const session = this.rooms.get(path)?.session;
-		if (!session?.synced) return null;
+		const room = this.rooms.get(path);
+		const session = room?.session;
+		// Moving, the room is still the old path's: the note's own answers from the new one.
+		if (!session?.synced || room?.lineage !== path) return null;
 		for (const binding of this.bound.values()) {
 			if (binding.path === path) return session;
 		}
 		return null;
 	}
 
-	/** Open here and on its way to a room the hub can deliver; a dead hub leaves the file to the sync. */
+	/** On its way to a room the hub can deliver; a dead hub or a silent room leaves the file to the sync. */
 	joining(path: string): boolean {
-		const room = this.rooms.get(path);
-		return (
-			room !== undefined &&
-			this.roomOf(path) === null &&
-			this.deps.hub.space(room.space.id).isConnected()
-		);
+		return this.waitedFor(path) === "patient";
 	}
 
-	/** Joining for longer than a room takes to answer: the hub is up but the room is silent. */
+	/** The hub is up but the room stayed silent past the time it takes to answer. */
 	unanswered(path: string): boolean {
-		const room = this.rooms.get(path);
-		return (
-			room !== undefined &&
-			this.joining(path) &&
-			Date.now() - room.session.subscribedAt >= JOIN_PATIENCE_MS
-		);
+		return this.waitedFor(path) === "silent";
 	}
 
 	/** The space whose room holds the note, open or joining; null while it is cold. */
@@ -153,25 +172,20 @@ export class LiveSessions {
 		return this.cold.get(path) ?? null;
 	}
 
-	/** Returns whether authors are now shown. */
-	toggleAuthors(): boolean {
-		this.authors = !this.authors;
+	/** Tints or clears every bound editor, as `authorsShown` now says. */
+	repaintAuthors(): void {
+		const shown = this.deps.authorsShown();
 		for (const { person, editor } of this.bound.values()) {
-			editor.showAuthors(this.authors ? person : null);
+			editor.showAuthors(shown ? person : null);
 		}
-		return this.authors;
-	}
-
-	authorsShown(): boolean {
-		return this.authors;
 	}
 
 	/** Rebuilds an open note's room as its next generation, which everyone then follows. */
 	async rotate(path: string): Promise<Rotation> {
 		const room = this.roomOf(path);
-		const space = this.rooms.get(path)?.space;
-		if (!room || !space) return "busy";
-		return room.rotate(await docIdIn(space, path, room.generation + 1));
+		const entry = this.rooms.get(path);
+		if (!room || entry?.lineage !== path) return "busy";
+		return room.rotate(await docIdIn(entry.space, path, room.generation + 1));
 	}
 
 	/** Saves the note's bound editor now, so its file holds what the room has; false when nothing could. */
@@ -194,11 +208,12 @@ export class LiveSessions {
 	}
 
 	private async run(): Promise<void> {
-		const open = await this.openEditors();
+		const open = await openNotes(this.deps.app, this.deps.liveSpace);
 		if (this.disposed) return;
 		const shown = new Map(
 			[...open.values()].map(({ file, space }) => [file.path, space]),
 		);
+		this.carryRenamed(shown);
 		// A note that changed space (moved into a share, paused, new keys) leaves its old room.
 		const stays = (path: string, room: Room): boolean => {
 			const space = shown.get(path);
@@ -234,25 +249,27 @@ export class LiveSessions {
 				await this.follow(path, room);
 			}
 		}
-		// Closed, a note tries again on its next open.
-		for (const path of this.cold.keys()) {
-			if (!shown.has(path)) this.cold.delete(path);
+		// Closed, a note tries again on its next open; a reader's also once they may write.
+		for (const [path, cause] of this.cold) {
+			const space = shown.get(path);
+			if (!space || (UNFOLLOWED.has(cause) && !space.readOnly)) {
+				this.cold.delete(path);
+			}
 		}
 		if (this.disposed) return;
 
 		for (const [leaf, { file, space, editor }] of open) {
 			if (this.bound.has(leaf) || this.cold.has(file.path)) continue;
 			const room =
-				this.rooms.get(file.path) ??
-				(await this.open(file.path, space, editor));
-			if (this.disposed) return;
+				this.rooms.get(file.path) ?? (await this.open(file, space, editor));
+			if (this.disposed || !room) return;
 			// Binding before the room answered would publish this device's text as agreed.
 			if (!room.session.synced) continue;
 			if (room.editor.fileOf(leaf.view) !== file) continue;
 			const { person } = space;
 			const bound = room.bind(
 				leaf.view,
-				this.authors ? person : null,
+				this.deps.authorsShown() ? person : null,
 				() => void this.refresh(),
 			);
 			if (!bound) {
@@ -271,36 +288,121 @@ export class LiveSessions {
 		}
 	}
 
-	/**
-	 * Opens the room a moved note continued in. A pointer anywhere but its next
-	 * generation would pour this note into another one's room.
-	 */
-	private async follow(path: string, from: Room): Promise<void> {
-		const generation = from.session.generation + 1;
-		if (
-			from.session.movedTo !== (await docIdIn(from.space, path, generation))
-		) {
-			reportWarning("A live note moved to a room that is not its own.", path);
-			this.cold.set(path, "moved-away");
-			return;
+	/** A renamed file keeps its TFile: its room goes along and moves to the new path. */
+	private carryRenamed(shown: Map<string, LiveSpace>): void {
+		for (const [path, room] of [...this.rooms]) {
+			const to = room.file.path;
+			const space = shown.get(to);
+			if (to === path || this.rooms.has(to) || !room.session.synced) continue;
+			if (!space || !sameSpace(space, room.space)) continue;
+			this.rooms.delete(path);
+			this.rooms.set(to, room);
+			for (const binding of this.bound.values()) {
+				if (binding.path === path) binding.path = to;
+			}
 		}
-		if (this.disposed) return;
-		await this.open(path, from.space, from.editor, generation);
+		for (const [path, room] of this.rooms) {
+			const moving = room.lineage !== path && room.renamingTo === null;
+			if (!moving || !room.session.synced) continue;
+			room.renamingTo = path;
+			void this.relocate(path, room);
+		}
 	}
 
-	/** `follows`: the generation a moved room pointed at, filled by whoever moved it. */
-	private async open(
+	private async relocate(path: string, room: Room): Promise<void> {
+		const { session, space } = room;
+		const still = () => this.rooms.get(path) === room;
+		const hub = this.deps.hub.space(space.id);
+		// Moved: the pointer's arrival refreshes, and the room is followed there.
+		if ((await moveRoom(session, space, hub, path, still)) === "moved") return;
+		room.renamingTo = null;
+		// Renamed again meanwhile, the next pass moves it on; nowhere to go, the note starts over at its path.
+		if (still()) {
+			this.rooms.delete(path);
+			session.dispose();
+		}
+		void this.refresh();
+	}
+
+	/**
+	 * Opens the room a moved note continued in: its next generation, or the
+	 * room it moved to with its file, which this file then follows. A pointer
+	 * anywhere else would pour this note into another one's room.
+	 */
+	private async follow(path: string, from: Room): Promise<void> {
+		const { session, space, editor, file, lineage } = from;
+		const generation = session.generation + 1;
+		const successor =
+			session.movedTo === (await docIdIn(space, lineage, generation));
+		const moved = successor ? null : await movedWith(space, session);
+		if (!successor && !moved) {
+			return this.goCold(path, "A live note moved to a room not its own.");
+		}
+		// Never in the room: a new note where one was renamed away, or a copy the file sync replaces.
+		if (!moved || !session.joined) {
+			await this.open(file, space, editor, { lineage, generation, successor });
+			return;
+		}
+		const ours = moved.path === from.renamingTo || moved.path === path;
+		if (!ours && !(await this.followRename(path, moved.path, space))) {
+			return this.goCold(path, "A live note was renamed to a path taken here.");
+		}
+		// The base goes along; as at any open, the cold baseline when nothing was agreed.
+		const base =
+			(await this.deps.agreed.get(await docIdIn(space, lineage, 0)))?.text ??
+			(await this.deps.baseText(lineage));
+		if (base !== null) {
+			const note = await docIdIn(space, moved.path, 0);
+			this.deps.agreed.put(note, { text: base, gen: moved.generation, seq: 0 });
+		}
+		if (this.disposed) return;
+		await this.open(file, space, editor, {
+			lineage: moved.path,
+			generation: moved.generation,
+			successor: true,
+		});
+	}
+
+	private async followRename(
 		path: string,
+		to: string,
+		space: LiveSpace,
+	): Promise<boolean> {
+		const there = await this.deps.liveSpace(to);
+		if (!there || !sameSpace(there, space)) return false;
+		return this.deps.moveFile(path, to);
+	}
+
+	/** Leaves an open note to the file sync until it is closed. */
+	private leave(path: string, cause: ColdCause): void {
+		this.cold.set(path, cause);
+		void this.refresh();
+	}
+
+	private goCold(path: string, why: string): void {
+		reportWarning(why, path);
+		this.cold.set(path, "moved-away");
+	}
+
+	private async open(
+		file: TFile,
 		space: LiveSpace,
 		editor: LiveEditor,
-		follows?: number,
-	): Promise<Room> {
-		const note = await docIdIn(space, path, 0);
+		at?: OpenAt,
+	): Promise<Room | null> {
+		const { path } = file;
+		const lineage = at?.lineage ?? path;
+		const note = await docIdIn(space, lineage, 0);
 		const { agreed, baseText, hub } = this.deps;
 		const last = await agreed.get(note);
-		const generation = follows ?? last?.gen ?? 0;
+		const generation = at?.generation ?? last?.gen ?? 0;
 		const docId =
-			generation === 0 ? note : await docIdIn(space, path, generation);
+			generation === 0 ? note : await docIdIn(space, lineage, generation);
+		// Stepping past a room renamed away starts a new note: that room's text is no base for it.
+		const fresh = at?.successor === false;
+		await closedBefore(docId);
+		// Unloaded meanwhile: a session opened now would never close.
+		if (this.disposed) return null;
 		const opened = editor.open(docId, generation, {
 			keys: space.keys,
 			hub: hub.space(space.id),
@@ -308,24 +410,62 @@ export class LiveSessions {
 			// A successor starts from its rebuild: empty, it lost its log like any room behind what was agreed.
 			knownSeq: Math.max(
 				last?.gen === generation ? last.seq : 0,
-				follows === undefined ? 0 : 1,
+				at?.successor ? 1 : 0,
 			),
-			successor: () => docIdIn(space, path, generation + 1),
-			readDisk: () => this.readDisk(path, editor),
+			successor: () => docIdIn(space, lineage, generation + 1),
+			readDisk: () => readOpen(this.deps.app, path, editor),
 			readBase: async () =>
-				(await agreed.get(note))?.text ?? (await baseText(path)) ?? "",
+				(fresh ? null : (await agreed.get(note))?.text) ??
+				(await baseText(path)) ??
+				"",
 			onAgreed: (text, seq) => agreed.put(note, { text, gen: generation, seq }),
 			onMoved: () => void this.refresh(),
-			onRefused: (reason) => {
-				this.cold.set(path, REFUSED[reason]);
-				void this.refresh();
-			},
+			onRefused: (reason) => this.leave(path, REFUSED[reason]),
+			nameOf: (person) => this.deps.nameOf(space.id, person),
+			...(space.readOnly
+				? {
+						follower: {
+							unchanged: (disk: string) => this.known(note, path, disk),
+							onCold: (why: Unfollowed) => this.leave(path, why),
+						},
+					}
+				: {}),
 		});
 		opened.session.awareness.setLocalStateField("user", space.user);
-		const room = { ...opened, space, editor };
+		const room = { ...opened, space, editor, file, lineage, renamingTo: null };
 		this.rooms.set(path, room);
 		void opened.session.ready.then(() => this.refresh());
 		return room;
+	}
+
+	/** A version the space already has, which a reader's view may show the room over. */
+	private async known(
+		note: string,
+		path: string,
+		disk: string,
+	): Promise<boolean> {
+		const lf = toLf(disk);
+		const versions = [
+			(await this.deps.agreed.get(note))?.text,
+			await this.deps.baseText(path),
+		];
+		return versions.some(
+			(text) => typeof text === "string" && toLf(text) === lf,
+		);
+	}
+
+	private waitedFor(path: string): "patient" | "silent" | null {
+		const room = this.rooms.get(path);
+		if (
+			!room ||
+			this.roomOf(path) !== null ||
+			!this.deps.hub.space(room.space.id).isConnected()
+		) {
+			return null;
+		}
+		if (room.lineage !== path) return "patient";
+		const waited = Date.now() - room.session.subscribedAt;
+		return waited < JOIN_PATIENCE_MS ? "patient" : "silent";
 	}
 
 	/** A joining room turns "unanswered" with no event of its own: look again once its patience is over. */
@@ -340,31 +480,6 @@ export class LiveSessions {
 
 	private notify(): void {
 		for (const listener of this.listeners) listener();
-	}
-
-	/** An open view is newer than the file it saves a moment later. */
-	private async readDisk(path: string, editor: LiveEditor): Promise<string> {
-		const { workspace, vault } = this.deps.app;
-		for (const leaf of workspace.getLeavesOfType(editor.viewType)) {
-			const text = editor.read(leaf.view, path);
-			if (text !== null) return text;
-		}
-		const file = vault.getFileByPath(path);
-		return file ? vault.read(file) : "";
-	}
-
-	private async openEditors(): Promise<Map<WorkspaceLeaf, OpenNote>> {
-		const { app, liveSpace } = this.deps;
-		const open = new Map<WorkspaceLeaf, OpenNote>();
-		for (const [kind, editor] of Object.entries(EDITORS)) {
-			for (const leaf of app.workspace.getLeavesOfType(editor.viewType)) {
-				const file = editor.fileOf(leaf.view);
-				if (!file || liveKindOf(app, file) !== kind) continue;
-				const space = await liveSpace(file.path);
-				if (space) open.set(leaf, { file, space, editor });
-			}
-		}
-		return open;
 	}
 
 	private closeAll(): void {

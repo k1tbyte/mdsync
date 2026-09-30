@@ -7,6 +7,7 @@ import {
 import { DiffCache, type DiffCacheInput } from "@/sync/diff-cache";
 import type { CompareResult, EngineDependencies } from "@/sync/engine";
 import type { FileDiffModel } from "@/sync/projection";
+import type { Space } from "@/sync/space";
 import type {
 	Conflict,
 	DiffResult,
@@ -25,8 +26,11 @@ export interface BaselineSnapshot {
 }
 
 interface FileDiffServiceDeps {
-	/** The session of the space that owns the path. */
-	openSession: (path: string) => Promise<EngineDependencies | null>;
+	/** The session of `space`, else of the space that owns the path. */
+	openSession: (
+		path: string,
+		space?: Space,
+	) => Promise<EngineDependencies | null>;
 	getResult: () => CompareResult | null;
 }
 
@@ -97,10 +101,14 @@ export class FileDiffService {
 
 	/**
 	 * Loads baseline text for a path, even without current change status (for live editor diffs).
-	 * Returns null if missing from baseline or if binary.
+	 * Returns null if missing from baseline or if binary. `space`: another
+	 * space's baseline, such as the vault's frozen entries under a share root.
 	 */
-	async loadBaselineForPath(path: string): Promise<BaselineSnapshot | null> {
-		const session = await this.deps.openSession(path);
+	async loadBaselineForPath(
+		path: string,
+		space?: Space,
+	): Promise<BaselineSnapshot | null> {
+		const session = await this.deps.openSession(path, space);
 		if (!session) return null;
 		const baseline = session.state.baseline;
 		const entry = baseline?.files[path];

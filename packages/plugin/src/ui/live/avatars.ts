@@ -1,5 +1,5 @@
 import type { Person } from "@/presence/people";
-import { personColors } from "@/shared/colors";
+import { personColor } from "@/shared/colors";
 
 /** More faces than this collapse into a "+N". */
 const STACK_MAX = 3;
@@ -13,7 +13,7 @@ export function renderAvatar(
 		cls: "obsync-avatar",
 		text: initialOf(person.name),
 	});
-	avatar.setCssProps({ "--obsync-person": personColors(person.key).color });
+	avatar.setCssProps({ "--obsync-person": personColor(person.key) });
 	avatar.toggleClass("is-idle", person.idle);
 	return avatar;
 }

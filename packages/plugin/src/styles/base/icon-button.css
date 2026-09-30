@@ -4,6 +4,24 @@
 	padding: 0 var(--size-4-2);
 }
 
+.obsync-icon-btn:where(:has(> svg:only-child)) {
+	min-width: var(--input-height);
+	padding-inline: 0;
+}
+
+.obsync-labeled-btn {
+	gap: var(--size-2-2);
+}
+
+.obsync-labeled-btn-icon {
+	display: inline-flex;
+}
+
+.obsync-labeled-btn-icon svg {
+	width: var(--obsync-icon);
+	height: var(--obsync-icon);
+}
+
 .obsync-icon-btn:hover {
 	background-color: var(--interactive-hover);
 }
@@ -16,39 +34,4 @@
 /* Obsidian styles buttons as inline-flex, which would beat the hidden attribute. */
 .obsync-icon-btn[hidden] {
 	display: none;
-}
-
-/* Conflict rows resolve with compact icons; the text buttons crowded the sidebar. */
-.obsync-conflict-controls,
-.obsync-conflict-preview-actions {
-	display: flex;
-	flex: 0 0 auto;
-	align-items: center;
-	gap: var(--size-2-1);
-}
-
-.obsync-conflict-controls .obsync-icon-btn,
-.obsync-conflict-preview-actions .obsync-icon-btn {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 24px;
-	min-width: 24px;
-	height: 24px;
-	padding: 0;
-}
-
-.obsync-conflict-controls svg,
-.obsync-conflict-preview-actions svg {
-	width: var(--obsync-icon);
-	height: var(--obsync-icon);
-}
-
-.obsync-diff-hint {
-	flex: 0 0 auto;
-	padding: var(--size-4-3);
-	color: var(--text-muted);
-	font-size: var(--font-ui-smaller);
-	text-align: center;
-	border-top: 1px solid var(--background-modifier-border);
 }

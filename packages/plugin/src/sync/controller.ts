@@ -110,10 +110,9 @@ export class SyncController {
 	constructor(host: SyncControllerHost) {
 		this.host = host;
 		this.runtimeState = new SyncControllerRuntimeState();
-		const open = (space: Space) =>
-			this.host.openSession(space, this.runtimeState.spaces());
+		const open = (space: Space) => this.operations.openSession(space);
 		this.fileDiffs = new FileDiffService({
-			openSession: (path) => open(this.spaceFor(path)),
+			openSession: (path, space) => open(space ?? this.spaceFor(path)),
 			getResult: () => this.runtimeState.getResult(),
 		});
 		this.operations = new OperationRunner({
@@ -157,6 +156,12 @@ export class SyncController {
 		const entry = remote?.files[path];
 		const author = authorOf(remote ?? null, entry);
 		return entry && author ? { ...author, at: entry.mtime } : null;
+	}
+
+	/** Whether the path's space holds it remotely, as its last compare saw; null before one. */
+	remoteHas(path: string): boolean | null {
+		const remote = this.runtimeState.resultOf(this.spaceFor(path))?.remote;
+		return remote ? remote.files[path] !== undefined : null;
 	}
 
 	dispose(): void {

@@ -62,11 +62,15 @@ export interface ObsyncSettings {
 	realtimeSync: boolean;
 	/** Notes open in the editor edit together across devices, over the relay. */
 	liveEditing: boolean;
+	/** Others' text in live notes tinted by author, on this device. */
+	showLiveAuthors: boolean;
 	showOpenNote: boolean;
 	/** This device's copy of the shared folders it syncs; see `spaces/`. */
 	spaces: SpaceRecord[];
 	/** Shares this device holds out of sync; never published, unlike `spaces`. */
 	pausedSpaces: string[];
+	/** Shares this person adds on other devices arrive paused here. Never published. */
+	pauseArrivingShares: boolean;
 	/** Shares moved on another device, by id: where the folder still is here. Never published. */
 	localRoots: Record<string, string>;
 	/** The vault storage (identity) the records were traded with: another vault's never reach this one. */
@@ -104,9 +108,11 @@ export const DEFAULT_SETTINGS: ObsyncSettings = {
 	historyAutoRefresh: true,
 	realtimeSync: false,
 	liveEditing: true,
+	showLiveAuthors: false,
 	showOpenNote: true,
 	spaces: [],
 	pausedSpaces: [],
+	pauseArrivingShares: false,
 	localRoots: {},
 	spacesVault: null,
 	relayUrl: "",

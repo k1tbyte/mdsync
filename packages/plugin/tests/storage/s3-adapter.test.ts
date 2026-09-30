@@ -197,6 +197,41 @@ describe("S3 adapter over requestUrl", () => {
 		expect(requests[0]?.url).toContain("prefix=vaults%2Fmine%2Fobjects%2F");
 	});
 
+	it("lists each object's etag with its key, across pages", async () => {
+		const adapter = createS3Adapter(config({ prefix: "vaults/mine" }));
+		const contents = (key: string, etag?: string) =>
+			`<Contents><Key>vaults/mine/${key}</Key>${etag ? `<ETag>&quot;${etag}&quot;</ETag>` : ""}</Contents>`;
+		replies = [
+			{
+				status: 200,
+				text: `<ListBucketResult>${contents("spaces/a.json.enc", "e1")}${contents("spaces/b.json.enc")}<NextContinuationToken>T</NextContinuationToken></ListBucketResult>`,
+			},
+			{
+				status: 200,
+				text: `<ListBucketResult>${contents("spaces/c.json.enc", "e3")}</ListBucketResult>`,
+			},
+		];
+
+		expect(await adapter.listWithEtags?.("spaces/")).toEqual([
+			{ key: "spaces/a.json.enc", etag: '"e1"' },
+			{ key: "spaces/b.json.enc", etag: null },
+			{ key: "spaces/c.json.enc", etag: '"e3"' },
+		]);
+		expect(requests[1]?.url).toContain("continuation-token=T");
+	});
+
+	it("still refuses a repeated continuation token when listing etags", async () => {
+		const adapter = createS3Adapter(config());
+		replies = [
+			{ status: 200, text: listing(["spaces/a"], "SAME") },
+			{ status: 200, text: listing(["spaces/b"], "SAME") },
+		];
+
+		await expect(adapter.listWithEtags?.("spaces/")).rejects.toThrow(
+			/repeated/,
+		);
+	});
+
 	it("signs each attempt afresh so a retry is not refused for skew", async () => {
 		// Only the clock and the retry delay are faked; signing is real
 		// WebCrypto and has to keep resolving on its own.
@@ -345,9 +380,13 @@ describe("S3 conditional reads", () => {
 	});
 });
 
+/** A tick budget ran out under load; real time does not. */
+const UNTIL_TIMEOUT_MS = 5000;
+
 /** Lets real async work (WebCrypto) settle while the clock is frozen. */
 async function until(done: () => boolean): Promise<void> {
-	for (let i = 0; i < 1000 && !done(); i++) {
+	const deadline = performance.now() + UNTIL_TIMEOUT_MS;
+	while (!done() && performance.now() < deadline) {
 		await new Promise((resolve) => setImmediate(resolve));
 	}
 	if (!done()) throw new Error("condition never became true");

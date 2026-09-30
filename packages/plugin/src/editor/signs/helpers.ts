@@ -11,6 +11,42 @@ export interface PresentedChunk {
 	deletionLine: number;
 }
 
+export function presentSyncHunk(
+	hunk: SyncHunk,
+): Pick<PresentedChunk, "removedLines" | "addedLines"> {
+	const removedLines: string[] = [];
+	const addedLines: string[] = [];
+	for (const line of hunk.lines) {
+		if (line.startsWith("-")) removedLines.push(line.slice(1));
+		else if (line.startsWith("+")) addedLines.push(line.slice(1));
+	}
+	return { removedLines, addedLines };
+}
+
+export function hunkTitle(removedCount: number, addedCount: number): string {
+	if (addedCount > 0 && removedCount > 0) return "Changes since last sync";
+	if (addedCount > 0) return "Added since last sync";
+	return "Removed since last sync";
+}
+
+export function findChunkForLine(
+	chunks: readonly Chunk[],
+	current: Text,
+	lineNumber: number,
+): Chunk | null {
+	for (const chunk of chunks) {
+		if (chunk.fromB === chunk.toB) {
+			const at = current.lineAt(clampPos(chunk.fromB, current)).number;
+			if (at === lineNumber) return chunk;
+			continue;
+		}
+		const from = current.lineAt(chunk.fromB).number;
+		const to = current.lineAt(clampPos(chunk.endB, current)).number;
+		if (lineNumber >= from && lineNumber <= to) return chunk;
+	}
+	return null;
+}
+
 /**
  * Baseline must keep the empty last line a trailing newline implies to prevent phantom "added line" diffs at the end.
  */
@@ -136,7 +172,7 @@ function commonSuffixCount(
 	return count;
 }
 
-function clampPos(pos: number, text: Text): number {
+export function clampPos(pos: number, text: Text): number {
 	if (pos < 0) return 0;
 	if (pos > text.length) return text.length;
 	return pos;

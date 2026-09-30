@@ -1,5 +1,7 @@
 import { type App, type ButtonComponent, Modal, Setting } from "obsidian";
 
+import { onEnter } from "@/ui/common/enter-key";
+
 import { openPromiseModal } from "./promise-modal";
 
 const CONFIRMATION_TEXT = "RESET";
@@ -35,13 +37,12 @@ class RemoteResetModal extends Modal {
 
 		let resetButton: ButtonComponent | null = null;
 		new Setting(contentEl).setName("Confirmation").addText((text) => {
+			text.inputEl.setAttr("aria-label", "Confirmation");
 			text.setPlaceholder(CONFIRMATION_TEXT).onChange((value) => {
 				this.value = value.trim();
 				resetButton?.setDisabled(this.value !== CONFIRMATION_TEXT);
 			});
-			text.inputEl.addEventListener("keydown", (event) => {
-				if (event.key === "Enter") this.submit();
-			});
+			onEnter(text.inputEl, () => this.submit());
 		});
 
 		new Setting(contentEl)

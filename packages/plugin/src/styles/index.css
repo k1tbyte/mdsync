@@ -14,6 +14,7 @@
 @import "./source-control/sections.css";
 @import "./source-control/file-rows.css";
 @import "./source-control/tree.css";
+@import "./source-control/containers.css";
 
 @import "./diff/view.css";
 @import "./base/icon-button.css";
@@ -33,6 +34,7 @@
 @import "./status-bar.css";
 @import "./ribbon.css";
 @import "./modals.css";
+@import "./shares.css";
 
 @import "./source-control/history.css";
 @import "./editor/signs.css";
@@ -40,6 +42,8 @@
 @import "./source-control/restore.css";
 @import "./source-control/timeline.css";
 @import "./presence.css";
+@import "./source-control/phone.css";
+@import "./diff/phone.css";
 
 /* Last: phone overrides win on specificity, but stay last as documented. */
 @import "./mobile.css";

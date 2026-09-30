@@ -5,6 +5,43 @@
 	margin-top: var(--size-4-3);
 }
 
+.modal-content p.mod-warning:empty {
+	display: none;
+}
+
+.obsync-confirm-modal p {
+	overflow-wrap: anywhere;
+}
+
+.obsync-prompt-input {
+	width: 100%;
+}
+
+body.is-phone .obsync-modal-buttons button {
+	flex: 1 1 0;
+}
+
+.obsync-button-row {
+	border-top: 0;
+}
+
+.obsync-button-row .setting-item-info {
+	display: none;
+}
+
+.is-phone .modal .obsync-button-row .setting-item-control {
+	flex-wrap: wrap;
+}
+
+.is-phone
+	.modal
+	.obsync-button-row
+	.setting-item-control
+	button:not(.clickable-icon) {
+	flex: 1 1 auto;
+	width: auto;
+}
+
 .obsync-adopt-new-vault-btn {
 	margin-left: var(--size-4-2);
 }

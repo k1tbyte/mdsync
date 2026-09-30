@@ -27,12 +27,14 @@ export {
 } from "./live/live-actions";
 export { registerLiveStatusBar } from "./live/live-status-bar";
 export { registerNotePresence } from "./live/note-presence";
+export { openWhereMenu } from "./live/where-menu";
 export {
 	askNewPassphrase,
 	askPassphrase,
 	askSettingsTransferInput,
 	confirmRemoteReset,
 	confirmSettingsTransferImport,
+	openConfirmModal,
 	openPromiseModal,
 	showSettingsTransferExport,
 } from "./modals";
@@ -46,7 +48,6 @@ export {
 export {
 	confirmAdoptNewVault,
 	confirmBatchResolve,
-	openConfirmModal,
 	showIgnoredFiles,
 } from "./source-control";
 export {

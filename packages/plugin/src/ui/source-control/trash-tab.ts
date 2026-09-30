@@ -2,9 +2,11 @@ import { TFolder } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { errorMessage } from "@/shared/errors";
 import type { DeletedFilesResult } from "@/sync/history";
+import { appendLabeledButton } from "@/ui/common/icon-button";
 import { notifyError, notifyInfo } from "@/ui/common/notices";
 
-import { openPromptModal } from "./modals";
+import { openPromptModal } from "@/ui/modals";
+import { actionButton } from "./action-button";
 import { confirmBulkRestore, confirmRestore } from "./restore-modal";
 import {
 	buildTrashRows,
@@ -51,12 +53,7 @@ export class TrashTab {
 		}
 		const head = pane.createDiv({ cls: "obsync-history-versions-head" });
 		const bar = head.createDiv({ cls: "obsync-history-head-actions" });
-		const refresh = bar.createEl("button", {
-			text: "⟳ Refresh",
-			cls: "obsync-history-refresh",
-		});
-		refresh.setAttr("aria-label", "Reload the list of deleted files");
-		refresh.addEventListener("click", () => {
+		appendLabeledButton(bar, "refresh-cw", "Refresh deleted", () => {
 			this.clear();
 			this.onRerender();
 		});
@@ -67,22 +64,15 @@ export class TrashTab {
 	private renderBulkActions(head: HTMLElement): void {
 		const selectAll = head.createEl("button", {
 			text: "Select all",
-			cls: "obsync-history-refresh",
 		});
-		selectAll.setAttr("aria-label", "Select or deselect every deleted file");
 		selectAll.addEventListener("click", () => {
 			if (this.selected.size === this.rows.length) this.selected.clear();
 			else for (const row of this.rows) this.selected.add(row.path);
 			this.onRerender();
 		});
-		this.bulkButton = head.createEl("button", {
-			text: "Restore selected",
-			cls: "obsync-history-refresh mod-cta",
-		});
-		this.bulkButton.addEventListener(
-			"click",
-			() => void this.restoreSelected(),
-		);
+		this.bulkButton = actionButton(head, "cta")
+			.setButtonText("Restore selected")
+			.onClick(() => void this.restoreSelected()).buttonEl;
 		this.updateBulkButton();
 	}
 
@@ -138,7 +128,7 @@ export class TrashTab {
 			// The warnings above already say why the list is short; do not contradict them.
 			if (!incomplete) {
 				body.createDiv({
-					cls: "obsync-status-line",
+					cls: "obsync-status-line is-empty",
 					text: `Nothing deleted in the last ${this.plugin.settings.fileHistoryMaxSnapshots} snapshots. Older deletions are dropped from history unless their snapshot is pinned.`,
 				});
 			}
@@ -221,9 +211,10 @@ export class TrashTab {
 				size: row.size,
 			});
 		});
-		const restore = this.action(actions, "Restore", `Restore ${row.path}`);
-		restore.addClass("mod-cta");
-		restore.addEventListener("click", () => void this.restore(row, row.path));
+		const restore = actionButton(actions, "cta")
+			.setButtonText("Restore")
+			.onClick(() => void this.restore(row, row.path)).buttonEl;
+		restore.setAttr("aria-label", `Restore ${row.path}`);
 		const restoreTo = this.action(
 			actions,
 			"Restore to…",

@@ -1,15 +1,15 @@
 /**
  * Live editing between two real Obsidians: one relay, one in-memory WebDAV
  * storage for the shared key, one note typed into from both sides, a relay
- * restart in the middle of the typing, a rebuild of the note's room, and a
- * write under the open note from outside Obsidian.
+ * restart in the middle of the typing, a rebuild of the note's room, a write
+ * under the open note from outside Obsidian, and a rename of the open note.
  */
 
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { converged, editorText, open, textOn, type } from "./editor";
-import { check, runScenario, sleep } from "./harness";
+import { check, poll, runScenario, sleep } from "./harness";
 import { launchObsidian, type Obsidian } from "./obsidian";
 import { type Relay, startRelay } from "./relay";
 import { startWebDav } from "./webdav";
@@ -21,6 +21,7 @@ const SECRET = "e2e-secret";
 const PASSPHRASE = "e2e-passphrase";
 const NOTE = "note.md";
 const OTHER = "other.md";
+const RENAMED = "renamed.md";
 /** A rebuild is refused while the other side's keystrokes keep landing. */
 const REBUILD_ATTEMPTS = 10;
 
@@ -101,6 +102,7 @@ async function scenario(
 		[await diskOf(laptop, together), await diskOf(desktop, together)],
 		[together, together],
 	);
+	await undoesOwnTypingOnly(laptop, desktop, together);
 
 	check(
 		"each device shows the other's cursor",
@@ -141,6 +143,52 @@ async function scenario(
 	await coldSync(laptop, desktop);
 	await rebuild(laptop, desktop);
 	await externalWrite(laptop, desktop);
+	await renameLive(laptop, desktop);
+}
+
+/** The phone toolbar (`editor.undo()`) and the Edit menu (`beforeinput`) take back this device's typing, never what came after it from another. */
+async function undoesOwnTypingOnly(
+	laptop: Obsidian,
+	desktop: Obsidian,
+	before: string,
+): Promise<void> {
+	await type(laptop, "end", "mine ");
+	await textOn(desktop, (text) => text.endsWith("mine "));
+	await type(desktop, "end", "theirs");
+	await textOn(laptop, (text) => text.endsWith("theirs"));
+	const undone = `${before}theirs`;
+
+	await laptop.evaluate(() =>
+		app.workspace.getLeavesOfType("markdown")[0].view.editor.undo(),
+	);
+	await textOn(desktop, (text) => !text.includes("mine"));
+	check(
+		"the toolbar's undo takes back only this device's typing",
+		await converged(laptop, desktop),
+		undone,
+	);
+
+	await laptop.evaluate(() =>
+		app.workspace.getLeavesOfType("markdown")[0].view.editor.redo(),
+	);
+	await textOn(desktop, (text) => text.includes("mine "));
+	await laptop.evaluate(() =>
+		app.workspace
+			.getLeavesOfType("markdown")[0]
+			.view.editor.cm.contentDOM.dispatchEvent(
+				new InputEvent("beforeinput", {
+					inputType: "historyUndo",
+					bubbles: true,
+					cancelable: true,
+				}),
+			),
+	);
+	await textOn(desktop, (text) => !text.includes("mine"));
+	check(
+		"the Edit menu's undo does too",
+		await converged(laptop, desktop),
+		undone,
+	);
 }
 
 /** A write under an open note (git, another sync) joins the room, beside what the editor has not saved. */
@@ -262,6 +310,53 @@ async function coldSync(laptop: Obsidian, desktop: Obsidian): Promise<void> {
 	);
 }
 
+/** Renamed while open, the note takes its room along: the other device renames its file and types on in it. */
+async function renameLive(laptop: Obsidian, desktop: Obsidian): Promise<void> {
+	const before = await saved(laptop, desktop);
+	await laptop.evaluate(
+		(to) => app.fileManager.renameFile(app.vault.getFileByPath("note.md"), to),
+		RENAMED,
+	);
+	const rooms = await Promise.all(
+		[laptop, desktop].map((device) =>
+			device.waitFor(
+				"room renamed",
+				() =>
+					app.plugins.plugins.obsync.realtime.live.roomOf("renamed.md")?.docId,
+				Boolean,
+			),
+		),
+	);
+	check("both devices end in the moved room", rooms[0], rooms[1]);
+	await type(desktop, "end", "\nafter the rename");
+	const after = await converged(laptop, desktop);
+	check("typing goes on in one room", after, `${before}\nafter the rename`);
+	await Promise.all([laptop, desktop].map((d) => diskOf(d, after, RENAMED)));
+
+	await sync(laptop);
+	await sync(desktop);
+	const back = await sync(laptop);
+	check(
+		"the file sync ends with one note on both",
+		[back.conflicts, back.pendingLocal, ...(await notes(laptop, desktop))],
+		[0, 0, "other.md,renamed.md", "other.md,renamed.md"],
+	);
+}
+
+function notes(...devices: Obsidian[]): Promise<string[]> {
+	return Promise.all(
+		devices.map((device) =>
+			device.evaluate(() =>
+				app.vault
+					.getMarkdownFiles()
+					.map((file: { path: string }) => file.path)
+					.sort()
+					.join(","),
+			),
+		),
+	);
+}
+
 /** Both editors agree and both files hold it. */
 async function saved(a: Obsidian, b: Obsidian): Promise<string> {
 	const text = await converged(a, b);
@@ -303,10 +398,13 @@ async function unlock(device: Obsidian): Promise<void> {
 	);
 }
 
-function diskOf(device: Obsidian, expected: string): Promise<string> {
-	return device.waitFor(
-		"note saved",
-		() => app.vault.adapter.read("note.md"),
-		(text) => text === expected,
-	);
+function diskOf(
+	device: Obsidian,
+	expected: string,
+	path = NOTE,
+): Promise<string> {
+	return poll(`${path} saved`, async () => {
+		const text = readFileSync(join(device.vault, path), "utf8");
+		return text === expected ? text : undefined;
+	});
 }

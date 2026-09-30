@@ -5,21 +5,6 @@
 	align-items: center;
 }
 
-.obsync-toolbar button {
-	background-color: var(--interactive-normal);
-}
-
-.obsync-toolbar button.is-primary {
-	background-color: var(--interactive-accent);
-	color: var(--text-on-accent);
-}
-
-.obsync-toolbar button.is-warning,
-.obsync-history-row-actions button.is-warning {
-	background-color: var(--background-modifier-error);
-	color: var(--text-on-accent);
-}
-
 .obsync-toolbar button:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
@@ -41,11 +26,10 @@
 
 .obsync-toolbar-icon {
 	display: inline-flex;
-	flex: 0 0 32px;
+	flex: 0 0 var(--input-height);
 	align-items: center;
 	justify-content: center;
-	width: 32px;
-	height: 30px;
+	height: var(--input-height);
 	padding: 0;
 }
 
@@ -57,10 +41,14 @@
 .obsync-toolbar-count {
 	padding: 1px var(--size-2-2);
 	border-radius: var(--radius-s);
-	background: rgba(0, 0, 0, 0.15);
+	background: rgba(var(--mono-rgb-100), 0.1);
 	font-size: var(--font-ui-smaller);
 	font-variant-numeric: tabular-nums;
 	line-height: 1.2;
+}
+
+.obsync-toolbar button.mod-cta .obsync-toolbar-count {
+	background: rgba(0, 0, 0, 0.2);
 }
 
 .obsync-status-line {
@@ -70,6 +58,11 @@
 
 .obsync-status-line.is-error {
 	color: var(--color-red);
+}
+
+.obsync-status-line.is-empty {
+	padding: var(--size-4-4) var(--size-4-2);
+	text-align: center;
 }
 
 .obsync-status-conflicts {
@@ -94,6 +87,11 @@
 	line-height: 1.4;
 	vertical-align: middle;
 	box-shadow: none;
+}
+
+.obsync-ignored-badge:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 1px;
 }
 
 .obsync-ignored-badge:hover {

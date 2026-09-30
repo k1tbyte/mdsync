@@ -114,14 +114,22 @@
 }
 
 /* Reaches the touch size without growing the row: the tree's row metrics are a contract. */
-body.is-phone .obsync-share-badge::after {
+body.is-mobile .obsync-path-badge:not(.obsync-link-badge)::after {
 	content: "";
 	position: absolute;
 	top: 50%;
-	left: 50%;
-	width: max(100%, var(--obsync-touch));
+	inset-inline: calc(var(--size-2-1) * -1);
 	height: var(--obsync-touch);
-	transform: translate(-50%, -50%);
+	transform: translateY(-50%);
+}
+
+body.is-mobile
+	.obsync-path-badge:not(
+		.obsync-link-badge,
+		.obsync-path-badge + .obsync-path-badge
+	)::after {
+	inset-inline: auto calc(var(--size-2-1) * -1);
+	width: max(calc(100% + var(--size-4-1)), var(--obsync-touch));
 }
 
 .obsync-share-badge.has-people {

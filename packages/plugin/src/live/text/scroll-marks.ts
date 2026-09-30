@@ -1,13 +1,14 @@
 import { EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
+import { LOCAL_AWARENESS } from "@/live/room-awareness";
 import type { LiveSession } from "@/live/session";
-import { personColors } from "@/shared/colors";
+import { personColor } from "@/shared/colors";
 import { cursorsIn, type RoomCursor } from "./cursors";
 import type { TextModel } from "./model";
 
 interface Mark {
 	cursor: RoomCursor;
-	/** Down the scroll range, 0 to 1. */
-	top: number;
+	/** Down the scroll range, as a CSS percentage. */
+	top: string;
 }
 
 /** Others' cursors as ticks on the scrollbar; a tick scrolls to its cursor, never follows it. */
@@ -15,11 +16,15 @@ export function scrollMarks(session: LiveSession<TextModel>) {
 	return ViewPlugin.define((view) => new ScrollMarks(view, session));
 }
 
-class ScrollMarks {
+export class ScrollMarks {
 	private readonly track: HTMLElement;
 	/** A measure queued before the plugin went still runs after. */
 	private destroyed = false;
-	private readonly onAwareness = (): void => this.measure();
+	private marks: readonly Mark[] = [];
+	private drawn = "[]";
+	private readonly onAwareness = (_changes: unknown, origin: unknown): void => {
+		if (origin !== LOCAL_AWARENESS) this.measure();
+	};
 
 	constructor(
 		private readonly view: EditorView,
@@ -44,19 +49,22 @@ class ScrollMarks {
 		this.view.requestMeasure({
 			key: this,
 			read: (view): Mark[] => {
+				if (this.destroyed) return [];
+				const cursors = cursorsIn(this.session);
+				if (!cursors.length) return [];
 				const { scrollDOM, state } = view;
 				const height = scrollDOM.scrollHeight;
-				if (this.destroyed || height <= 0) return [];
+				if (height <= 0) return [];
 				// Where the text starts in the scroll range: the title and properties sit above it.
 				const start =
 					view.documentTop -
 					scrollDOM.getBoundingClientRect().top +
 					scrollDOM.scrollTop;
-				return cursorsIn(this.session).map((cursor) => {
+				return cursors.map((cursor) => {
 					const line = view.lineBlockAt(Math.min(cursor.at, state.doc.length));
 					// Lines off screen have estimated heights.
 					const top = Math.min(1, Math.max(0, (start + line.top) / height));
-					return { cursor, top };
+					return { cursor, top: `${(top * 100).toFixed(2)}%` };
 				});
 			},
 			write: (marks) => {
@@ -66,19 +74,29 @@ class ScrollMarks {
 	}
 
 	private render(marks: readonly Mark[]): void {
+		this.marks = marks;
+		const drawn = JSON.stringify(
+			marks.map(({ cursor, top }) => [cursor.key, cursor.name, top]),
+		);
+		if (drawn === this.drawn) return;
+		this.drawn = drawn;
 		this.track.empty();
-		for (const { cursor, top } of marks) {
+		marks.forEach(({ cursor, top }, index) => {
 			const tick = this.track.createDiv({
 				cls: "obsync-scroll-mark",
 				attr: { "aria-label": cursor.name, "data-tooltip-position": "left" },
 			});
-			tick.setCssProps({ "--obsync-person": personColors(cursor.key).color });
-			tick.setCssStyles({ top: `${(top * 100).toFixed(2)}%` });
-			tick.addEventListener("click", () =>
-				this.view.dispatch({
-					effects: EditorView.scrollIntoView(cursor.at, { y: "center" }),
-				}),
-			);
-		}
+			tick.setCssProps({ "--obsync-person": personColor(cursor.key) });
+			tick.setCssStyles({ top });
+			tick.addEventListener("click", () => this.reveal(index));
+		});
+	}
+
+	private reveal(index: number): void {
+		const mark = this.marks[index];
+		if (!mark) return;
+		this.view.dispatch({
+			effects: EditorView.scrollIntoView(mark.cursor.at, { y: "center" }),
+		});
 	}
 }

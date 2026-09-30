@@ -52,6 +52,17 @@
 	display: none;
 }
 
+.obsync-live-status:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: -2px;
+}
+
+body.is-phone .obsync-note-presence {
+	min-width: var(--obsync-touch);
+	min-height: var(--obsync-touch);
+	justify-content: center;
+}
+
 .obsync-note-lock,
 .obsync-note-state {
 	display: inline-flex;
@@ -101,18 +112,13 @@
 	font-size: var(--font-ui-smaller);
 }
 
-/* The share window: quiet section labels over Obsidian's setting rows. */
-.obsync-share-section {
-	margin-top: var(--size-4-5);
-	padding-bottom: var(--size-4-1);
-	border-bottom: 1px solid var(--background-modifier-border);
-	color: var(--text-muted);
-	font-size: var(--font-ui-small);
-	font-weight: var(--font-semibold);
+.menu-item.is-label:has(.obsync-menu-info) .menu-item-title {
+	white-space: normal;
+	-webkit-line-clamp: none;
 }
 
-.obsync-share-footer {
-	margin-top: var(--size-4-4);
+body:not(.is-phone) .menu-item.is-label:has(.obsync-menu-info) {
+	font-size: var(--font-ui-small);
 }
 
 @keyframes obsync-pulse {
@@ -145,4 +151,13 @@
 	transform: translateY(-50%);
 	pointer-events: auto;
 	cursor: pointer;
+}
+
+body.is-phone .obsync-scroll-mark::after {
+	content: "";
+	position: absolute;
+	top: 50%;
+	inset-inline: calc(var(--size-4-3) * -1) 0;
+	height: var(--obsync-touch);
+	transform: translateY(-50%);
 }

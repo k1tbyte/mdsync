@@ -1,4 +1,4 @@
-import type { Rotation } from "@/live/session";
+import type { Rotation } from "@/live/session-deps";
 import type { PluginHost } from "@/plugin/host";
 import type { SpaceRecord } from "@/spaces/record";
 import { type Space, VAULT_SPACE } from "@/sync/space";
@@ -12,8 +12,12 @@ const REBUILT: Record<Rotation, string> = {
 };
 
 export function toggleAuthors(plugin: PluginHost): void {
+	const shown = !plugin.settings.showLiveAuthors;
+	plugin.settings.showLiveAuthors = shown;
+	plugin.realtime.live.repaintAuthors();
+	void plugin.saveSettings();
 	notifyInfo(
-		plugin.realtime.live.toggleAuthors()
+		shown
 			? "Text others typed in live notes is tinted by author."
 			: "Authors hidden.",
 	);

@@ -37,8 +37,8 @@ export interface HubChannel {
 
 export interface HubLinkOptions {
 	serverUrl: string;
-	/** In slot order; a promise because channels and grants are derived. */
-	channels: Promise<readonly HubChannel[]>;
+	/** In slot order; asked per connection, since owner grants expire. */
+	channels(): Promise<readonly HubChannel[]>;
 	/** Opaque; lets an HTTP signal skip this device's own socket. */
 	deviceId: string;
 	onFrame(frame: ServerFrame): void;
@@ -170,7 +170,7 @@ export class HubLink {
 
 	private async signalOverHttp(slot: number): Promise<void> {
 		try {
-			const channel = (await this.options.channels)[slot];
+			const channel = (await this.options.channels())[slot];
 			if (!channel) return;
 			const url = new URL(
 				`${this.options.serverUrl.replace(/\/$/, "")}${HUB_SIGNAL_PATH}`,
@@ -186,7 +186,7 @@ export class HubLink {
 
 	private async hubUrl(base: string): Promise<string> {
 		const url = new URL(`${base.replace(/\/$/, "")}${HUB_PATH}`);
-		for (const { channel, token } of await this.options.channels) {
+		for (const { channel, token } of await this.options.channels()) {
 			url.searchParams.append(EHubParam.Channel, channel);
 			url.searchParams.append(EHubParam.Token, token);
 		}

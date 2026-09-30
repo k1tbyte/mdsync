@@ -20,7 +20,7 @@
 	cursor: pointer;
 }
 
-.obsync-diff-view.obsync-is-phone .obsync-gap {
+body.is-phone .obsync-diff-view .obsync-gap {
 	position: sticky;
 	left: var(--obsync-gutter-width, 0px);
 	box-sizing: border-box;

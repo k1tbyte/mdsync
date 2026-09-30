@@ -13,7 +13,7 @@ import type * as Y from "yjs";
 
 import type { LiveKeys } from "@/crypto/live-keys";
 
-import { seal, unseal } from "./seal";
+import { type SealedFor, seal, unseal } from "./seal";
 
 /** Cursors batch this long, like edits. */
 const FLUSH_MS = 250;
@@ -21,6 +21,8 @@ const FLUSH_MS = 250;
 const REMOTE = Symbol("remote");
 /** The origin y-protocols gives this device's own awareness changes. */
 export const LOCAL_AWARENESS = "local";
+/** Set in a reader's awareness state: it never writes, so it never compacts. */
+export const FOLLOWS = "follows";
 
 interface AwarenessChanges {
 	added: number[];
@@ -30,6 +32,7 @@ interface AwarenessChanges {
 
 export interface RoomAwarenessIo {
 	keys: LiveKeys;
+	docId: string;
 	/** Announcements may go out: the socket has answered. */
 	canSend(): boolean;
 	send(payload: Uint8Array): void;
@@ -44,22 +47,25 @@ export class RoomAwareness {
 	private timer: number | null = null;
 	private disposed = false;
 
+	private readonly sealedFor: SealedFor;
+
 	constructor(
 		private readonly doc: Y.Doc,
 		private readonly io: RoomAwarenessIo,
 	) {
+		this.sealedFor = `awareness:${io.docId}`;
 		this.awareness = new Awareness(doc);
 		this.awareness.on("update", this.onUpdate);
 	}
 
 	async announce(): Promise<void> {
 		const update = encodeAwarenessUpdate(this.awareness, [this.doc.clientID]);
-		const payload = await seal(this.io.keys, update);
+		const payload = await seal(this.io.keys, update, this.sealedFor);
 		if (this.io.canSend()) this.io.send(payload);
 	}
 
 	async receive(payload: Uint8Array, from: number): Promise<void> {
-		const update = await unseal(this.io.keys, payload);
+		const update = await unseal(this.io.keys, payload, this.sealedFor);
 		if (update) applyAwarenessUpdate(this.awareness, update, from);
 	}
 
@@ -75,10 +81,12 @@ export class RoomAwareness {
 		removeAwarenessStates(this.awareness, clients, REMOTE);
 	}
 
-	/** The lowest client id compacts, so the room gets one snapshot rather than one per device. */
+	/** The lowest writer's client id compacts, so the room gets one snapshot rather than one per device. */
 	leads(): boolean {
-		for (const id of this.awareness.getStates().keys()) {
-			if (id < this.doc.clientID) return false;
+		const states = this.awareness.getStates();
+		if (states.get(this.doc.clientID)?.[FOLLOWS]) return false;
+		for (const [id, state] of states) {
+			if (id < this.doc.clientID && !state[FOLLOWS]) return false;
 		}
 		return true;
 	}

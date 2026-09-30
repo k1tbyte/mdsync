@@ -14,8 +14,6 @@ import {
 } from "./excalidraw";
 import type { DrawingModel } from "./model";
 
-/** The origin y-protocols gives this device's own awareness changes. */
-
 interface PointerState {
 	user?: { key?: unknown; name?: unknown };
 	pointer?: { x: number; y: number } | null;
@@ -40,44 +38,64 @@ export function bindDrawing(
 	const NEVER = lib.CaptureUpdateAction.NEVER;
 	/** Each element's version as the view last had it: a different one is an edit made here. */
 	const seen = new Map<string, number>();
+	const staged = new Map<string, SceneElement>();
+	let missed = false;
 	/** This view's own writes, which its observer skips; another view of the file still shows them. */
 	const origin = Symbol("drawing-view");
 
-	const push = (elements: readonly SceneElement[]) =>
+	const drain = () => {
+		const edits = [...staged.values()];
+		staged.clear();
 		doc.transact(() => {
-			for (const element of elements) model.put(element);
+			for (const edit of edits) model.put(edit);
 		}, origin);
+	};
+
+	const report = (element: SceneElement) => {
+		const held = model.elements.get(element.id);
+		// Made over a newer version from elsewhere: the edit still lands, one version past it.
+		if (held && wins(held, element)) lib.bumpVersion(element, held.version);
+		seen.set(element.id, element.version);
+		if (
+			held?.version === element.version &&
+			held.versionNonce === element.versionNonce
+		) {
+			return;
+		}
+		staged.set(element.id, element);
+		session.stage(drain);
+	};
 
 	// Until the sessions detach it, a view switched to another file must neither take nor give elements.
-	const showRoom = () => {
-		if (!holds(view, file)) return;
-		const room = [...model.elements.values()].map((element) => ({
-			...element,
-		}));
+	const showRoom = (changed?: ReadonlySet<string>) => {
+		if (!holds(view, file)) {
+			missed = true;
+			return;
+		}
+		const only = missed ? undefined : changed;
+		missed = false;
+		const room: SceneElement[] = [];
+		for (const id of only ?? model.elements.keys()) {
+			const held = model.elements.get(id);
+			if (held) room.push({ ...held });
+		}
 		const elements = lib.reconcileElements(
 			api.getSceneElementsIncludingDeleted(),
 			room,
 			api.getAppState(),
 		);
-		for (const { id, version } of elements) seen.set(id, version);
-		api.updateScene({ elements, captureUpdate: NEVER });
 		// Y.Map settles concurrent writes by client, not version: the winner the view kept goes back.
-		push(elements);
+		for (const element of elements) {
+			if (!only || only.has(element.id)) report(element);
+		}
+		api.updateScene({ elements, captureUpdate: NEVER });
 	};
 
 	const onChange = (elements: readonly SceneElement[]) => {
 		if (!holds(view, file)) return;
-		const edited = elements.filter(
-			({ id, version }) => seen.get(id) !== version,
-		);
-		if (edited.length === 0) return;
-		for (const element of edited) {
-			const held = model.elements.get(element.id);
-			// Made over a newer version from elsewhere: the edit still lands, one version past it.
-			if (held && wins(held, element)) lib.bumpVersion(element, held.version);
-			seen.set(element.id, element.version);
+		for (const element of elements) {
+			if (seen.get(element.id) !== element.version) report(element);
 		}
-		push(edited);
 	};
 
 	const stale = () => view.excalidrawAPI !== api;
@@ -86,8 +104,8 @@ export function bindDrawing(
 		return !stale();
 	};
 
-	const onRoom = (_: unknown, tx: Y.Transaction) => {
-		if (tx.origin !== origin && alive()) showRoom();
+	const onRoom = (event: Y.YMapEvent<SceneElement>, tx: Y.Transaction) => {
+		if (tx.origin !== origin && alive()) showRoom(event.keysChanged);
 	};
 
 	const showPointers = () =>
@@ -98,14 +116,24 @@ export function bindDrawing(
 	const onPeers = (_: unknown, origin: unknown) => {
 		if (origin !== LOCAL_AWARENESS && alive()) showPointers();
 	};
+	let frame: number | null = null;
+	let latest: PointerEvent;
 	const onMove = (event: PointerEvent) => {
 		if (!alive()) return;
-		awareness.setLocalStateField(
-			"pointer",
-			lib.viewportCoordsToSceneCoords(event, api.getAppState()),
-		);
+		latest = event;
+		frame ??= window.requestAnimationFrame(() => {
+			frame = null;
+			awareness.setLocalStateField(
+				"pointer",
+				lib.viewportCoordsToSceneCoords(latest, api.getAppState()),
+			);
+		});
 	};
-	const onLeave = () => awareness.setLocalStateField("pointer", null);
+	const onLeave = () => {
+		if (frame !== null) window.cancelAnimationFrame(frame);
+		frame = null;
+		awareness.setLocalStateField("pointer", null);
+	};
 
 	// Strokes drawn while the room was answering go in before the view follows it.
 	session.adopt(sceneText(api));
@@ -123,6 +151,7 @@ export function bindDrawing(
 		detach() {
 			offChange();
 			model.elements.unobserve(onRoom);
+			session.drainStaged();
 			awareness.off("change", onPeers);
 			view.contentEl.removeEventListener("pointermove", onMove);
 			view.contentEl.removeEventListener("pointerleave", onLeave);

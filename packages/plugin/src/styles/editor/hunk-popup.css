@@ -24,39 +24,27 @@
 	background: var(--background-secondary);
 }
 
+.obsync-hunk-popup-title {
+	flex: 1 1 auto;
+	min-width: 0;
+	font-weight: var(--font-semibold);
+	overflow-wrap: anywhere;
+}
+
 .obsync-hunk-popup-controls {
 	display: flex;
+	flex: 0 0 auto;
 	align-items: center;
-	gap: var(--size-4-2);
+	gap: var(--size-4-1);
 }
 
-.obsync-hunk-popup-wrap {
-	display: inline-flex;
-	align-items: center;
-	gap: var(--size-2-2);
-}
-
-.obsync-hunk-popup-wrap[aria-pressed="true"] {
-	background: var(--interactive-accent);
+.obsync-hunk-popup-controls [aria-pressed="true"] {
+	background-color: var(--interactive-accent);
 	color: var(--text-on-accent);
 }
 
-.obsync-hunk-popup-title {
-	font-weight: 600;
-}
-
-.obsync-hunk-popup-close {
-	background: transparent;
-	border: none;
-	color: var(--text-muted);
-	font-size: 16px;
-	line-height: 1;
-	cursor: pointer;
-	padding: 0 var(--size-2-2);
-}
-
-.obsync-hunk-popup-close:hover {
-	color: var(--text-normal);
+.obsync-hunk-popup-controls [aria-pressed="true"]:hover {
+	background-color: var(--interactive-accent-hover);
 }
 
 .obsync-hunk-popup-body {
@@ -134,12 +122,6 @@
 	background: var(--background-secondary);
 }
 
-.obsync-hunk-popup-revert,
-.obsync-hunk-popup-push {
-	border-radius: var(--button-radius, var(--radius-s));
-	cursor: pointer;
-}
-
 .obsync-hunk-drawer-container {
 	align-items: flex-end;
 	padding: 0;
@@ -154,12 +136,14 @@
 	border-radius: var(--radius-l) var(--radius-l) 0 0;
 }
 
+.obsync-hunk-drawer .modal-header,
+.obsync-hunk-drawer .modal-header-button,
 .obsync-hunk-drawer .modal-title,
 .obsync-hunk-drawer .modal-close-button {
 	display: none;
 }
 
-.obsync-hunk-drawer-content {
+.obsync-hunk-drawer .obsync-hunk-drawer-content {
 	display: flex;
 	min-height: 0;
 	padding: 0;
@@ -174,10 +158,17 @@
 	border: 0;
 	border-radius: 0;
 	box-shadow: none;
-	padding-bottom: env(safe-area-inset-bottom, 0px);
+	padding-bottom: var(
+		--safe-area-inset-bottom,
+		env(safe-area-inset-bottom, 0px)
+	);
 }
 
 .obsync-hunk-drawer .obsync-hunk-popup-header,
 .obsync-hunk-drawer .obsync-hunk-popup-footer {
 	flex: 0 0 auto;
+}
+
+.obsync-hunk-drawer .obsync-hunk-popup-footer button {
+	flex: 1 1 0;
 }

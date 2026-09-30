@@ -5,9 +5,7 @@ import type { EChangeType } from "@/sync/types";
 import { type ChangeAction, changeActionOf } from "@/ui/common/change-action";
 import {
 	type PresenceMarks,
-	presenceMarks,
 	renderPresenceMarks,
-	shareMarks,
 } from "./file-explorer-presence";
 import { setIndicatorTooltip } from "./indicator-tooltip";
 
@@ -17,14 +15,16 @@ type ChangeIndicatorClass =
 	| "obsync-changed-deleted"
 	| "obsync-changed-conflict";
 
-interface PathDecoration extends PresenceMarks {
+export interface BaseMarks {
 	change?: ChangeIndicatorClass;
 	linkRoot?: string;
 	ignored?: boolean;
 }
 
+export type PathDecoration = BaseMarks & PresenceMarks;
+
 export interface AppliedDecoration {
-	key: string;
+	decoration: PathDecoration;
 	target: HTMLElement;
 }
 
@@ -40,15 +40,12 @@ const CHANGE_CLASS_BY_ACTION: Record<ChangeAction, ChangeIndicatorClass> = {
 	delete: "obsync-changed-deleted",
 };
 
-export function computeDecorations(
+export function computeBase(
 	plugin: PluginHost,
 	controller: SyncController,
 	directLinks: ReadonlyMap<string, string>,
-	collapsed: (folder: string) => boolean,
-	indicators: boolean,
-): Map<string, PathDecoration> {
-	if (!indicators) return shareMarks(plugin);
-	const out = new Map<string, PathDecoration>();
+): Map<string, BaseMarks> {
+	const out = new Map<string, BaseMarks>();
 	for (const [path, status] of controller.fileDiffs.getChangedPathStatuses()) {
 		const cls = classifyStatus(status);
 		if (cls) patchDecoration(out, path, { change: cls });
@@ -59,14 +56,29 @@ export function computeDecorations(
 	for (const path of plugin.ignoreState.ignoredPaths()) {
 		patchDecoration(out, path, { ignored: true });
 	}
-	for (const [path, marks] of presenceMarks(plugin, collapsed)) {
-		patchDecoration(out, path, marks);
-	}
 	return out;
 }
 
-export function decorationKey(decoration: PathDecoration): string {
-	return JSON.stringify(decoration);
+export function decorationOf(
+	base: BaseMarks | undefined,
+	marks: PresenceMarks | undefined,
+): PathDecoration | undefined {
+	return base && marks ? { ...base, ...marks } : (base ?? marks);
+}
+
+export function sameDecoration(
+	left: PathDecoration,
+	right: PathDecoration,
+): boolean {
+	return (
+		left === right ||
+		(left.change === right.change &&
+			left.linkRoot === right.linkRoot &&
+			left.ignored === right.ignored &&
+			left.unseen === right.unseen &&
+			sameFlat(left.share, right.share) &&
+			sameList(left.people, right.people))
+	);
 }
 
 export function renderDecoration(
@@ -77,7 +89,7 @@ export function renderDecoration(
 	if (decoration.ignored) target.addClass("obsync-explorer-ignored");
 	if (
 		decoration.linkRoot ||
-		decoration.people ||
+		decoration.people?.length ||
 		decoration.share ||
 		decoration.unseen
 	) {
@@ -96,17 +108,6 @@ export function clearDecoration(target: HTMLElement): void {
 	}
 }
 
-export function sameStringMap(
-	left: ReadonlyMap<string, string>,
-	right: ReadonlyMap<string, string>,
-): boolean {
-	if (left.size !== right.size) return false;
-	for (const [key, value] of left) {
-		if (right.get(key) !== value) return false;
-	}
-	return true;
-}
-
 function classifyStatus(
 	status: EChangeType | "conflict",
 ): ChangeIndicatorClass | null {
@@ -116,16 +117,39 @@ function classifyStatus(
 }
 
 function patchDecoration(
-	target: Map<string, PathDecoration>,
+	target: Map<string, BaseMarks>,
 	path: string,
-	patch: PathDecoration,
+	patch: BaseMarks,
 ): void {
 	target.set(path, { ...target.get(path), ...patch });
+}
+
+function sameFlat(left?: object, right?: object): boolean {
+	if (left === right) return true;
+	if (!left || !right) return false;
+	const entries = Object.entries(left);
+	return (
+		entries.length === Object.keys(right).length &&
+		entries.every(
+			([key, value]) => (right as Record<string, unknown>)[key] === value,
+		)
+	);
+}
+
+function sameList(
+	left: readonly object[] = [],
+	right: readonly object[] = [],
+): boolean {
+	return (
+		left.length === right.length &&
+		left.every((item, index) => sameFlat(item, right[index]))
+	);
 }
 
 function renderLinkBadge(target: HTMLElement, linkRoot: string): void {
 	const badge = target.createSpan({
 		cls: "obsync-path-badge obsync-link-badge",
+		attr: { role: "img" },
 	});
 	setIcon(badge, "link-2");
 	setIndicatorTooltip(badge, `Linked path: ${linkRoot}\nExcluded from sync`);

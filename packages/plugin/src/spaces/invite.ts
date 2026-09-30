@@ -6,7 +6,7 @@
 import { randomBytes } from "@/crypto";
 import { LINK_PARAM, openLink, sealLink } from "@/crypto/sealed-link";
 
-import type { SpaceRecord } from "./record";
+import type { ShareAccess, SpaceRecord } from "./record";
 
 export const INVITE_ACTION = "obsync-share";
 
@@ -63,16 +63,7 @@ export function acceptInvite(
 	/** A share this person left before: the new record must outrank it. */
 	previous?: SpaceRecord,
 ): SpaceRecord {
-	const {
-		id,
-		name,
-		key,
-		relayUrl,
-		token,
-		participantId,
-		personName,
-		readOnly,
-	} = invite;
+	const { id, name, key } = invite;
 	return {
 		id,
 		name,
@@ -80,14 +71,20 @@ export function acceptInvite(
 		rev: (previous?.rev ?? 0) + 1,
 		author,
 		key,
-		access: {
-			kind: "participant",
-			relayUrl,
-			token,
-			participantId,
-			personName,
-			...(readOnly ? { readOnly } : {}),
-		},
+		access: inviteAccess(invite),
+	};
+}
+
+/** How the invited person reaches the share: what a new link replaces. */
+export function inviteAccess(invite: Invite): ShareAccess {
+	const { relayUrl, token, participantId, personName, readOnly } = invite;
+	return {
+		kind: "participant",
+		relayUrl,
+		token,
+		participantId,
+		personName,
+		...(readOnly ? { readOnly } : {}),
 	};
 }
 

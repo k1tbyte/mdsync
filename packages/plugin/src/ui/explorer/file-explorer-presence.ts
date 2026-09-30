@@ -1,4 +1,4 @@
-import { setIcon } from "obsidian";
+import { Notice, Platform, setIcon } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
 import type { Person } from "@/presence/people";
@@ -9,7 +9,7 @@ import { lastEditLabel } from "@/ui/live/last-edit";
 import { openShareWindow, shareAt } from "@/ui/shares/share-window";
 import { setIndicatorTooltip } from "./indicator-tooltip";
 
-export type ShareKind = "owned" | "joined" | "read-only" | "paused";
+type ShareKind = "owned" | "joined" | "read-only" | "paused";
 
 export interface ShareMark {
 	root: string;
@@ -32,6 +32,9 @@ const SHARE_ICONS: Record<ShareKind, string> = {
 	paused: "pause",
 };
 const SHARE_ROOT_ATTR = "data-share-root";
+const SHARE_BADGE = ".obsync-share-badge";
+const TAP_BADGES = ".obsync-people-badge, .obsync-unseen-dot";
+const TIP_MS = 4000;
 const SHARE_TOOLTIPS: Record<ShareKind, string> = {
 	owned: "Shared folder: you invite who can open it",
 	joined: "Shared with you",
@@ -97,12 +100,14 @@ export function renderPresenceMarks(
 	if (marks.unseen) {
 		const dot = target.createSpan({
 			cls: "obsync-path-badge obsync-unseen-dot",
+			attr: { role: "img" },
 		});
 		setIndicatorTooltip(dot, marks.unseen);
 	}
 	if (marks.people && marks.people.length > 0) {
 		const badge = target.createSpan({
 			cls: "obsync-path-badge obsync-people-badge",
+			attr: { role: "img" },
 		});
 		renderAvatarStack(badge, marks.people);
 		setIndicatorTooltip(badge, `Here: ${describePeople(marks.people)}`);
@@ -111,18 +116,29 @@ export function renderPresenceMarks(
 }
 
 /** A share badge opens the share's window rather than folding the folder. */
-export function openShareFromBadge(
+export function badgeActivation(
 	plugin: PluginHost,
-	event: MouseEvent | KeyboardEvent,
-): void {
-	if ("key" in event && event.key !== "Enter" && event.key !== " ") return;
-	if (!(event.target instanceof Element)) return;
-	const badge = event.target.closest(".obsync-share-badge");
-	if (!badge) return;
-	event.preventDefault();
-	event.stopPropagation();
-	const record = shareAt(plugin, badge.getAttribute(SHARE_ROOT_ATTR) ?? "");
-	if (record) openShareWindow(plugin, record);
+): (event: MouseEvent | KeyboardEvent) => void {
+	let tip: Notice | null = null;
+	return (event) => {
+		if ("key" in event && event.key !== "Enter" && event.key !== " ") return;
+		if (!(event.target instanceof Element)) return;
+		const share = event.target.closest(SHARE_BADGE);
+		const mark =
+			!share && event.type === "click" && Platform.isMobile
+				? event.target.closest(TAP_BADGES)
+				: null;
+		if (!share && !mark) return;
+		event.preventDefault();
+		event.stopPropagation();
+		if (mark) {
+			tip?.hide();
+			tip = new Notice(mark.getAttribute("aria-label") ?? "", TIP_MS);
+			return;
+		}
+		const record = shareAt(plugin, share?.getAttribute(SHARE_ROOT_ATTR) ?? "");
+		if (record) openShareWindow(plugin, record);
+	};
 }
 
 function renderShareBadge(target: HTMLElement, share: ShareMark): void {

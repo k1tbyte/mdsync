@@ -13,15 +13,9 @@ import { type Space, spaceOf, VAULT_SPACE } from "@/sync/space";
 
 import { type Announcement, sealAnnouncement } from "./announcement";
 import { ChannelPresence } from "./channel";
+import { byNote, onePerPerson, type Person } from "./views";
 
-export interface Person {
-	/** Groups and colours: the person in a share, the device in the vault. */
-	key: string;
-	name: string;
-	/** The vault path of their open file; null while it is elsewhere. */
-	note: string | null;
-	idle: boolean;
-}
+export type { Person } from "./views";
 
 /** This device's open file and whether its person is at it. */
 export interface Here {
@@ -58,15 +52,25 @@ interface Channel {
 	unlisten(): void;
 }
 
+interface Views {
+	online: Map<string, readonly Person[]>;
+	notes?: ReadonlyMap<string, readonly Person[]>;
+}
+
 export class People {
 	private readonly channels = new Map<string, Channel>();
 	private readonly listeners = new Set<() => void>();
 	private here: Here = { path: null, idle: false };
+	private views: Views | null = null;
+	private disposed = false;
 
 	constructor(private readonly deps: PeopleDeps) {}
 
 	/** Follows the partition: a share mounted, moved, paused or closed. */
 	refresh(): void {
+		// A late settings change must not reopen the channels of an unloaded plugin.
+		if (this.disposed) return;
+		this.views = null;
 		const spaces = this.deps.spaces().filter((space) => !space.paused);
 		const ids = new Set(spaces.map((space) => space.id));
 		for (const [id, channel] of this.channels) {
@@ -97,17 +101,15 @@ export class People {
 	}
 
 	/** Everyone in the space's channel, one entry per person, the most present of their devices. */
-	online(spaceId: string): Person[] {
-		const channel = this.channels.get(spaceId);
-		if (!channel) return [];
-		const byKey = new Map<string, Person>();
-		for (const person of this.peopleIn(channel)) {
-			const known = byKey.get(person.key);
-			if (!known || presenceRank(person) > presenceRank(known)) {
-				byKey.set(person.key, person);
-			}
+	online(spaceId: string): readonly Person[] {
+		const { online } = this.viewsNow();
+		let people = online.get(spaceId);
+		if (!people) {
+			const channel = this.channels.get(spaceId);
+			people = channel ? onePerPerson(this.peopleIn(channel)) : [];
+			online.set(spaceId, people);
 		}
-		return sortByName([...byKey.values()]);
+		return people;
 	}
 
 	/** Whether someone in the space's channel cannot be read: they hold another passphrase or key. */
@@ -115,32 +117,23 @@ export class People {
 		return this.channels.get(spaceId)?.presence.hasUnreadable() ?? false;
 	}
 
+	/** The name the relay vouches for a participant present in the space; null for anyone else. */
+	nameOf(spaceId: string, person: string): string | null {
+		return this.channels.get(spaceId)?.presence.nameOf(person) ?? null;
+	}
+
 	/** Who has this file open; idle only when all their devices on it are. */
-	inNote(path: string): Person[] {
+	inNote(path: string): readonly Person[] {
 		return this.notes().get(path) ?? [];
 	}
 
 	/** Vault path -> who has it open, across every space. */
-	notes(): Map<string, Person[]> {
-		const byNote = new Map<string, Map<string, Person>>();
-		for (const channel of this.channels.values()) {
-			for (const person of this.peopleIn(channel)) {
-				if (person.note === null) continue;
-				const here = byNote.get(person.note) ?? new Map<string, Person>();
-				const known = here.get(person.key);
-				here.set(person.key, {
-					...person,
-					idle: person.idle && (known?.idle ?? true),
-				});
-				byNote.set(person.note, here);
-			}
-		}
-		return new Map(
-			[...byNote].map(([note, people]) => [
-				note,
-				sortByName([...people.values()]),
-			]),
+	notes(): ReadonlyMap<string, readonly Person[]> {
+		const views = this.viewsNow();
+		views.notes ??= byNote(
+			[...this.channels.values()].map((channel) => this.peopleIn(channel)),
 		);
+		return views.notes;
 	}
 
 	/** The vault's other devices; `locked` while its key is out of reach, so none can be read. */
@@ -155,8 +148,10 @@ export class People {
 	}
 
 	dispose(): void {
+		this.disposed = true;
 		for (const channel of this.channels.values()) channel.unlisten();
 		this.channels.clear();
+		this.views = null;
 		this.listeners.clear();
 	}
 
@@ -165,7 +160,9 @@ export class People {
 		const channel: Channel = {
 			space,
 			hub,
-			presence: new ChannelPresence(),
+			presence: new ChannelPresence(() => {
+				this.views = null;
+			}),
 			access: null,
 			unlocking: false,
 			again: false,
@@ -186,7 +183,6 @@ export class People {
 				if (frame.type === EFrame.Join) {
 					channel.sent = null;
 					this.announce(channel);
-					return;
 				}
 				void channel.presence.apply(frame).then((changed) => {
 					if (changed) this.emit();
@@ -249,6 +245,11 @@ export class People {
 		return space.root === "" ? path : path.slice(space.root.length + 1);
 	}
 
+	private viewsNow(): Views {
+		this.views ??= { online: new Map() };
+		return this.views;
+	}
+
 	private peopleIn(channel: Channel): Person[] {
 		const { root } = channel.space;
 		return channel.presence.entries().map(({ key, name, note, idle }) => ({
@@ -266,15 +267,4 @@ export class People {
 
 function pathIn(root: string, inside: string): string {
 	return root === "" ? inside : `${root}/${inside}`;
-}
-
-function presenceRank(person: Person): number {
-	return (person.idle ? 0 : 2) + (person.note === null ? 0 : 1);
-}
-
-function sortByName(people: Person[]): Person[] {
-	return people.sort(
-		(left, right) =>
-			left.name.localeCompare(right.name) || left.key.localeCompare(right.key),
-	);
 }

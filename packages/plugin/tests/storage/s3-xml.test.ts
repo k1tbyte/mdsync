@@ -7,6 +7,10 @@ function listing(body: string): string {
 <Name>bucket</Name><Prefix>objects/</Prefix>${body}</ListBucketResult>`;
 }
 
+function keysOf(xml: string): string[] {
+	return parseListObjects(xml).objects.map((object) => object.key);
+}
+
 describe("S3 listing responses", () => {
 	it("reads every key in a page", () => {
 		const xml = listing(
@@ -14,9 +18,21 @@ describe("S3 listing responses", () => {
 				`<Contents><Key>objects/bb</Key><Size>2</Size></Contents>`,
 		);
 
-		expect(parseListObjects(xml)).toEqual({
-			keys: ["objects/aa", "objects/bb"],
-		});
+		expect(keysOf(xml)).toEqual(["objects/aa", "objects/bb"]);
+	});
+
+	it("reads the validator of each object, decoded, or none when it lists none", () => {
+		const xml = listing(
+			`<Contents><Key>objects/aa</Key><ETag>&quot;abc&quot;</ETag></Contents>` +
+				`<Contents><Key>objects/bb</Key></Contents>` +
+				`<Contents><Key>objects/cc</Key><ETag> </ETag></Contents>`,
+		);
+
+		expect(parseListObjects(xml).objects).toEqual([
+			{ key: "objects/aa", etag: '"abc"' },
+			{ key: "objects/bb", etag: null },
+			{ key: "objects/cc", etag: null },
+		]);
 	});
 
 	it("reports the token that continues a truncated listing", () => {
@@ -40,7 +56,7 @@ describe("S3 listing responses", () => {
 
 	it("reads nothing from an empty bucket instead of failing", () => {
 		expect(parseListObjects(listing("<KeyCount>0</KeyCount>"))).toEqual({
-			keys: [],
+			objects: [],
 		});
 	});
 
@@ -50,7 +66,7 @@ describe("S3 listing responses", () => {
 		);
 
 		// The ampersand is decoded last, or "&amp;amp;" would come back as "&".
-		expect(parseListObjects(xml).keys).toEqual(["a &amp; b/c<d>.md"]);
+		expect(keysOf(xml)).toEqual(["a &amp; b/c<d>.md"]);
 	});
 
 	it("does not take a Prefix or an Owner for a key", () => {
@@ -59,7 +75,7 @@ describe("S3 listing responses", () => {
 				`<Key>objects/aa</Key></Contents>`,
 		);
 
-		expect(parseListObjects(xml).keys).toEqual(["objects/aa"]);
+		expect(keysOf(xml)).toEqual(["objects/aa"]);
 	});
 
 	it("refuses a truncated page that does not say how to continue", () => {
@@ -95,13 +111,13 @@ describe("S3 listing responses", () => {
 			`<s3:ListBucketResult xmlns:s3="http://s3.amazonaws.com/doc/2006-03-01/">` +
 			`<s3:Contents><s3:Key>objects/aa</s3:Key></s3:Contents></s3:ListBucketResult>`;
 
-		expect(parseListObjects(xml).keys).toEqual(["objects/aa"]);
+		expect(keysOf(xml)).toEqual(["objects/aa"]);
 	});
 
 	it("keeps the spaces a key is allowed to start and end with", () => {
 		const xml = listing(`<Contents><Key> spaced .md </Key></Contents>`);
 
-		expect(parseListObjects(xml).keys).toEqual([" spaced .md "]);
+		expect(keysOf(xml)).toEqual([" spaced .md "]);
 	});
 
 	it("trims a token a backend pretty-printed onto its own line", () => {
@@ -119,7 +135,7 @@ describe("S3 listing responses", () => {
 	it("decodes a numeric character reference", () => {
 		const xml = listing(`<Contents><Key>a&#38;b&#x2F;c.md</Key></Contents>`);
 
-		expect(parseListObjects(xml).keys).toEqual(["a&b/c.md"]);
+		expect(keysOf(xml)).toEqual(["a&b/c.md"]);
 	});
 
 	it("names the code of an error document", () => {

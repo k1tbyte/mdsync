@@ -8,6 +8,7 @@ import {
 	writeRemoteObject,
 } from "@/sync/content";
 import type { EngineDependencies } from "@/sync/engine";
+import { ownedFiles } from "@/sync/foreign";
 import {
 	type DeletedFilesResult,
 	type FileVersion,
@@ -65,11 +66,15 @@ export class HistoryService {
 	async listDeletedFiles(): Promise<DeletedFilesResult> {
 		const session = await this.deps.openSession();
 		if (!session) return { files: [], lagging: false, truncated: false };
-		return queryDeletedFiles({
+		const deleted = await queryDeletedFiles({
 			storage: session.storage,
 			key: session.key,
 			root: session.space.root,
 		});
+		return {
+			...deleted,
+			files: deleted.files.filter(({ path }) => session.scope.owns(path)),
+		};
 	}
 
 	async listSnapshots(): Promise<SnapshotListResult> {
@@ -136,7 +141,7 @@ export class HistoryService {
 				"That snapshot can no longer be rebuilt from history, so the vault cannot be restored to it.",
 			);
 		}
-		return target;
+		return { ...target, files: ownedFiles(target.files, session.scope) };
 	}
 
 	async setSnapshotPinned(

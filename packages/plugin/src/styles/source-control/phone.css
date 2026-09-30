@@ -1,0 +1,85 @@
+body.is-phone .obsync-source-control .obsync-source-tab-panel {
+	padding-bottom: var(--view-bottom-spacing, 0px);
+}
+
+body.is-phone
+	.obsync-source-control
+	.obsync-source-tabs
+	.obsync-settings-tab-button {
+	min-width: var(--obsync-touch);
+}
+
+body.is-phone
+	.obsync-source-control
+	.obsync-source-tabs
+	.obsync-settings-tab-button.is-active {
+	flex: 1 1 auto;
+}
+
+body.is-phone .obsync-source-control .obsync-source-tab-icon svg {
+	width: var(--obsync-icon-lg);
+	height: var(--obsync-icon-lg);
+}
+
+body.is-phone .obsync-source-control .obsync-toolbar-icon {
+	flex-basis: var(--obsync-touch);
+	width: var(--obsync-touch);
+	height: var(--obsync-touch);
+}
+
+body.is-phone
+	.obsync-source-control
+	.obsync-section-actions
+	.obsync-section-icon-action {
+	width: var(--obsync-touch);
+	min-width: var(--obsync-touch);
+	padding: 0;
+}
+
+body.is-phone .obsync-source-control .obsync-file-row {
+	min-height: var(--obsync-touch);
+	padding-top: 0;
+	padding-right: var(--size-4-2);
+	padding-bottom: 0;
+}
+
+body.is-phone .obsync-source-control .obsync-file-row.is-conflict {
+	flex-wrap: nowrap;
+}
+
+body.is-phone .obsync-source-control .obsync-file-size {
+	font-size: var(--font-ui-smaller);
+}
+
+body.is-phone .obsync-source-control .obsync-section-header,
+body.is-phone .obsync-source-control .obsync-history-search {
+	min-height: var(--obsync-touch);
+}
+
+body.is-phone .obsync-source-control .obsync-tree-folder {
+	min-height: var(--obsync-touch);
+	padding-top: var(--size-4-2);
+	padding-right: var(--size-4-2);
+	padding-bottom: var(--size-4-2);
+}
+
+body.is-phone .obsync-source-control .obsync-file-selection {
+	flex-basis: var(--obsync-touch);
+	width: var(--obsync-touch);
+	height: var(--obsync-touch);
+	margin-left: calc(-1 * var(--size-4-1));
+}
+
+body.is-phone .obsync-source-control .obsync-file-checkbox {
+	--checkbox-size: 20px;
+}
+
+body.is-phone .obsync-source-control .obsync-section-actions button {
+	font-size: var(--font-ui-small);
+}
+
+body.is-phone .obsync-source-control .obsync-tree-folder-toggle svg,
+body.is-phone .obsync-source-control .obsync-tree-folder-icon svg {
+	width: var(--obsync-icon-lg);
+	height: var(--obsync-icon-lg);
+}

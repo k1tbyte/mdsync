@@ -56,12 +56,18 @@
 
 .obsync-history-row-actions {
 	display: flex;
+	flex-wrap: wrap;
 	gap: var(--size-4-2);
 	margin-top: var(--size-2-1);
 }
 
+.obsync-history-row-actions button {
+	padding-inline: var(--size-4-2);
+}
+
 .obsync-history-search {
 	width: 100%;
+	height: var(--input-height);
 	margin-bottom: var(--size-4-2);
 }
 
@@ -72,34 +78,15 @@
 	margin-bottom: var(--size-4-2);
 }
 
-/* One button alone left dead space, so the bar shares its width out. */
 .obsync-history-head-actions {
 	display: flex;
+	flex-wrap: wrap;
 	gap: var(--size-2-2);
 }
 
 .obsync-history-head-actions > button {
-	flex: 1 1 0;
-	min-width: 0;
-	overflow: hidden;
+	flex: 1 1 auto;
 	white-space: nowrap;
-	text-overflow: ellipsis;
-}
-
-.obsync-labeled-btn {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	gap: var(--size-2-2);
-}
-
-.obsync-labeled-btn-icon {
-	display: inline-flex;
-}
-
-.obsync-labeled-btn-icon svg {
-	width: var(--obsync-icon);
-	height: var(--obsync-icon);
 }
 
 .obsync-history-pinned-badge {

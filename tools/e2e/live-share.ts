@@ -14,6 +14,8 @@ import { accept, invite, mounted, runSharing, shareFolder } from "./sharing";
 const PLAN = "Team/plan.md";
 const MOUNTED = "Shared/Team/plan.md";
 const NOTES = "Team/notes.md";
+/** Long enough to scroll any window: the followed cursor goes down it. */
+const FOLLOWED = "a line to follow\n".repeat(80);
 
 // biome-ignore lint/suspicious/noExplicitAny: the renderer's app is untyped here.
 declare const app: any;
@@ -135,7 +137,8 @@ await runSharing(
 					[...document.querySelectorAll(".obsync-share-modal .setting-item")]
 						.map((row) => row.textContent ?? "")
 						.find((text) => text.includes("In plan.md")),
-				(row) => row !== undefined,
+				// Present people show first; their access follows from the broker.
+				(row) => row?.endsWith("Revoke") === true,
 			),
 			"FFriendCan edit - In plan.mdRevoke",
 		);
@@ -244,16 +247,16 @@ await runSharing(
 			);
 		}
 		check(
-			"go to cursor puts the owner where the friend is",
+			"follow cursor puts the owner where the friend is",
 			await owner.evaluate(() => {
 				const { editor, containerEl } =
 					app.workspace.getLeavesOfType("markdown")[0].view;
 				editor.setCursor(editor.offsetToPos(0));
 				containerEl.querySelector(".obsync-note-presence").click();
 				const item = [...document.querySelectorAll(".menu .menu-item")].find(
-					(each) => each.textContent?.includes("go to cursor"),
+					(each) => each.textContent?.includes("follow cursor"),
 				) as HTMLElement | undefined;
-				if (!item) throw new Error("no go to cursor in the header menu");
+				if (!item) throw new Error("no follow cursor in the header menu");
 				item.click();
 				return (
 					editor.posToOffset(editor.getCursor()) === editor.getValue().length
@@ -261,6 +264,7 @@ await runSharing(
 			}),
 			true,
 		);
+		await follows(owner, friend);
 		await friend.evaluate(() =>
 			app.commands.executeCommandById("obsync:toggle-live-authors"),
 		);
@@ -356,4 +360,65 @@ function saved(device: Obsidian, path: string, text: string): Promise<true> {
 	return poll(`${path} saved`, async () =>
 		(await read(device, path)) === text ? true : undefined,
 	);
+}
+
+/** The owner follows the friend's cursor down a long insert, until the owner scrolls. */
+async function follows(owner: Obsidian, friend: Obsidian): Promise<void> {
+	const block = (add: boolean) =>
+		friend.evaluate(
+			({ add, long }) => {
+				const { editor } = app.workspace.getLeavesOfType("markdown")[0].view;
+				const end = editor.getValue().length;
+				if (add) {
+					editor.replaceRange(long, editor.offsetToPos(end));
+					// As a typist's caret: after the text, in the editor and in the room.
+					const last = editor.offsetToPos(editor.getValue().length);
+					editor.setCursor(last);
+					const head = { type: null, tname: "body", item: null, assoc: 0 };
+					app.plugins.plugins.obsync.realtime.live
+						.roomOf("Shared/Team/plan.md")
+						.awareness.setLocalStateField("cursor", { anchor: head, head });
+				} else {
+					editor.replaceRange(
+						"",
+						editor.offsetToPos(end - long.length),
+						editor.offsetToPos(end),
+					);
+				}
+			},
+			{ add, long: FOLLOWED },
+		);
+	const states = () =>
+		owner.evaluate(() => {
+			const { containerEl } = app.workspace.getLeavesOfType("markdown")[0].view;
+			containerEl.querySelector(".obsync-note-presence").click();
+			const found = [
+				...document.querySelectorAll(".menu .obsync-person-state"),
+			];
+			document.body.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+			);
+			return found.map((each) => each.textContent);
+		});
+	await block(true);
+	check(
+		"following, the owner's view goes where the friend types",
+		(await owner.waitFor(
+			"the owner's view scrolled",
+			() =>
+				app.workspace.getLeavesOfType("markdown")[0].view.editor.cm.scrollDOM
+					.scrollTop,
+			(top: number) => top > 0,
+		)) > 0,
+		true,
+	);
+	check("the menu says whom the owner follows", await states(), ["following"]);
+	await owner.evaluate(() =>
+		app.workspace
+			.getLeavesOfType("markdown")[0]
+			.view.contentEl.dispatchEvent(new Event("wheel")),
+	);
+	check("the owner's own scroll ends it", await states(), ["follow cursor"]);
+	await block(false);
+	await converged(owner, friend);
 }

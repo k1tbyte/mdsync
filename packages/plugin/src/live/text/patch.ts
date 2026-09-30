@@ -3,6 +3,17 @@ import type * as Y from "yjs";
 
 import { commonEnds, MAX_EDIT_LENGTH } from "@/sync/hunks";
 
+const MIN_ANCHOR = 10;
+
+interface Group {
+	keep: string;
+	removed: string;
+	added: string;
+}
+
+const opsOf = ({ removed, added }: Group): number =>
+	(removed ? 1 : 0) + (added ? 1 : 0);
+
 /**
  * Brings a Y.Text to `target` as inserts and deletes. Replacing the whole text
  * instead would make two devices that each rewrote it merge into interleaved
@@ -26,17 +37,45 @@ export function patchYText(doc: Y.Doc, text: Y.Text, target: string): void {
 		{ added: true, value: to },
 	];
 
+	const groups: Group[] = [];
+	let keep = "";
+	for (const part of parts) {
+		if (!part.added && !part.removed) {
+			keep += part.value;
+			continue;
+		}
+		let group = groups.at(-1);
+		if (keep || !group) {
+			group = { keep, removed: "", added: "" };
+			groups.push(group);
+			keep = "";
+		}
+		if (part.added) group.added += part.value;
+		else group.removed += part.value;
+	}
+
+	const folded: Group[] = [];
+	for (const group of groups) {
+		const left = folded.at(-1);
+		if (
+			left &&
+			group.keep.length < MIN_ANCHOR &&
+			opsOf(left) + opsOf(group) >= 3
+		) {
+			left.removed += group.keep + group.removed;
+			left.added += group.keep + group.added;
+		} else {
+			folded.push(group);
+		}
+	}
+
 	doc.transact(() => {
 		let at = a.slice(0, head).join("").length;
-		for (const part of parts) {
-			if (part.added) {
-				text.insert(at, part.value);
-				at += part.value.length;
-			} else if (part.removed) {
-				text.delete(at, part.value.length);
-			} else {
-				at += part.value.length;
-			}
+		for (const group of folded) {
+			at += group.keep.length;
+			if (group.removed) text.delete(at, group.removed.length);
+			if (group.added) text.insert(at, group.added);
+			at += group.added.length;
 		}
 	});
 }

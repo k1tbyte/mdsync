@@ -28,9 +28,28 @@ export function mergeThreeWay(
 		if (!region.changed.local) out.push(...theirs);
 		else if (!region.changed.remote || sameLines(mine, theirs))
 			out.push(...mine);
-		else out.push(...theirs, ...mine);
+		else out.push(...keepBoth(theirs, mine));
 		cursor = region.base[1];
 	}
 	out.push(...baseLines.slice(cursor));
 	return out.join("\n");
+}
+
+/** Lines both sides open or close with come once, as git's zealous merge: two inserts at one spot often share them. */
+function keepBoth(theirs: string[], mine: string[]): string[] {
+	const shortest = Math.min(theirs.length, mine.length);
+	let head = 0;
+	while (head < shortest && theirs[head] === mine[head]) head++;
+	let tail = 0;
+	while (
+		tail < shortest - head &&
+		theirs[theirs.length - 1 - tail] === mine[mine.length - 1 - tail]
+	) {
+		tail++;
+	}
+	return [
+		...theirs.slice(0, theirs.length - tail),
+		...mine.slice(head, mine.length - tail),
+		...theirs.slice(theirs.length - tail),
+	];
 }

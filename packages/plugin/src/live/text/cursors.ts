@@ -34,3 +34,34 @@ export function cursorsIn(session: LiveSession): RoomCursor[] {
 	}
 	return out;
 }
+
+/** One person in the room, watched: where their cursor is, and whether they are still here. */
+export interface WatchedCursor {
+	/** Null while they have no cursor, as with their window out of focus. */
+	at(): number | null;
+	present(): boolean;
+	/** Calls `changed` whenever the cursor may have moved or the room closed; returns the unsubscribe. */
+	watch(changed: () => void): () => void;
+}
+
+export function watchCursor(session: LiveSession, key: string): WatchedCursor {
+	const { awareness } = session;
+	return {
+		at: () => cursorsIn(session).find((each) => each.key === key)?.at ?? null,
+		present: () =>
+			[...awareness.getStates().values()].some(
+				(state) => (state as CursorState).user?.key === key,
+			),
+		// Edits move a cursor without a new awareness state: it is relative to the text.
+		watch(changed) {
+			awareness.on("change", changed);
+			session.doc.on("update", changed);
+			session.doc.on("destroy", changed);
+			return () => {
+				awareness.off("change", changed);
+				session.doc.off("update", changed);
+				session.doc.off("destroy", changed);
+			};
+		},
+	};
+}

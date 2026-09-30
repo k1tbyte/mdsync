@@ -3,7 +3,7 @@ import { type Plugin, TFolder, type Vault } from "obsidian";
 import { mountError, spacesOf } from "@/spaces/partition";
 import type { PendingMove, SpaceRecords } from "@/spaces/records";
 import { isUnder } from "@/sync/space";
-import { notifyInfo } from "@/ui";
+import { notifyError, notifyInfo } from "@/ui";
 
 import type { PluginHost } from "./host";
 
@@ -80,7 +80,7 @@ async function follow(
 }
 
 async function onFolderRenamed(
-	plugin: PluginHost,
+	plugin: Plugin & PluginHost,
 	folder: TFolder,
 	oldPath: string,
 ): Promise<void> {
@@ -99,10 +99,14 @@ async function onFolderRenamed(
 			`Moved "${folder.path}" back: a shared folder cannot go into another shared folder or a hidden one.`,
 		);
 		// Out of the event, once the rename that fired it is done.
-		window.setTimeout(
-			() => void plugin.app.fileManager.renameFile(folder, oldPath),
-			0,
-		);
+		const back = window.setTimeout(() => {
+			plugin.app.fileManager
+				.renameFile(folder, oldPath)
+				.catch((err) =>
+					notifyError(`Could not move "${folder.path}" back`, err),
+				);
+		}, 0);
+		plugin.register(() => window.clearTimeout(back));
 		return;
 	}
 	const author = plugin.controller.currentDevice().id;

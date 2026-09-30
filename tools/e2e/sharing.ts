@@ -132,11 +132,26 @@ export async function invite(
 	return { link, password };
 }
 
-/** What Obsidian runs for an obsidian:// link; the OS never sees this one. */
 export async function accept(
 	friend: Obsidian,
-	{ link, password }: SentInvite,
+	sent: SentInvite,
 	folder?: string,
+): Promise<void> {
+	await openInvite(friend, sent);
+	if (folder) await fill(friend, "Folder", folder);
+	await press(friend, "Add shared folder");
+}
+
+/** A new link for the share this device already has. */
+export async function renew(friend: Obsidian, sent: SentInvite): Promise<void> {
+	await openInvite(friend, sent);
+	await press(friend, "Use this link");
+}
+
+/** What Obsidian runs for an obsidian:// link; the OS never sees this one. */
+async function openInvite(
+	friend: Obsidian,
+	{ link, password }: SentInvite,
 ): Promise<void> {
 	await friend.evaluate((url) => {
 		const params = Object.fromEntries(new URL(url).searchParams);
@@ -147,8 +162,6 @@ export async function accept(
 	}, link);
 	await fill(friend, "Password", password);
 	await press(friend, "Open invite");
-	if (folder) await fill(friend, "Folder", folder);
-	await press(friend, "Add shared folder");
 }
 
 export function mounted(device: Obsidian, path: string): Promise<string> {

@@ -17,7 +17,6 @@ export function renderBinaryDiff(
 	});
 	if (model.forceTextAvailable && !forceText) {
 		const button = wrap.createEl("button", {
-			cls: "obsync-icon-btn",
 			text: "Show differences anyway",
 		});
 		button.addEventListener("click", onForceText);

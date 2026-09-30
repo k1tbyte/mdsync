@@ -69,13 +69,13 @@
 	color: var(--text-faint);
 }
 
-.obsync-diff-view.obsync-is-phone .cm-gutters {
+body.is-phone .obsync-diff-view .cm-gutters {
 	background: color-mix(in srgb, var(--background-primary) 94%, transparent);
 	box-shadow: 1px 0 var(--background-modifier-border);
 }
 
 /* CodeMirror retains a measured line width after its text is folded away. */
-.obsync-diff-view.obsync-is-phone .is-fully-folded .cm-content {
+body.is-phone .obsync-diff-view .is-fully-folded .cm-content {
 	/* biome-ignore lint/complexity/noImportantStyles: CodeMirror sets flex-basis
 	   inline from its own measurement, so only !important can clear it. */
 	flex-basis: auto !important;
@@ -89,9 +89,9 @@
 	padding-bottom: 0;
 }
 
-.obsync-diff-view.obsync-is-phone .obsync-merge-editor-host .cm-content,
-.obsync-diff-view.obsync-is-phone .obsync-compare-host .cm-content {
-	padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+body.is-phone .obsync-diff-view .obsync-merge-editor-host .cm-content,
+body.is-phone .obsync-diff-view .obsync-compare-host .cm-content {
+	padding-bottom: var(--view-bottom-spacing, 0px);
 }
 
 .obsync-merge-editor-host.is-local .cm-content,

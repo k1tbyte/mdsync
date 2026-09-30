@@ -15,6 +15,7 @@ import { advanceBaselineForPaths, mergeFolderArrays } from "./baseline";
 import { throwIfCancelled } from "./cancel";
 import { reconcileBaselineResetGenerations } from "./config-reset";
 import { diff } from "./diff";
+import { ownedFiles } from "./foreign";
 import { type HistoryConfig, publishManifestWithHistory } from "./history";
 import { type LiveNotes, settleLive, writeIncoming } from "./live-notes";
 import {
@@ -213,6 +214,12 @@ export async function pullPaths(
 	let done = 0;
 
 	const written = new Map<string, ManifestEntry | null>();
+	const hashes = new Set<string>();
+	for (const change of downloads) {
+		const entry = entryAt(remote.files, change.path);
+		if (entry) hashes.add(entry.hash);
+	}
+	deps.storage.prepareReads?.([...hashes].map(objectKey));
 	/** True when live editing settled the path: an open room keeps its file. */
 	const settledLive = async (path: string): Promise<boolean> => {
 		const side = await settleLive(deps, compareResult, path);
@@ -344,7 +351,7 @@ export async function publishFileMap(
 	files: Record<string, ManifestEntry>,
 ): Promise<Manifest> {
 	const attributed = attribute(
-		files,
+		ownedFiles(files, deps.scope),
 		compareResult.remote,
 		publisher(deps.state, deps.author),
 	);

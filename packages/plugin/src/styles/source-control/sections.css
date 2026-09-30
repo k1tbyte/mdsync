@@ -87,6 +87,8 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
+	width: var(--input-height);
+	padding-inline: 0;
 }
 
 .obsync-selection-controls {

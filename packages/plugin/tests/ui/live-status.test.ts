@@ -1,67 +1,11 @@
-import { type FileView, MarkdownView, TFile } from "obsidian";
+import { note, statusOf } from "@tests/helpers/live-status";
 import { describe, expect, it } from "vitest";
 
-import type { RelayStatus } from "@/hub/status";
-import type { ColdCause } from "@/live/sessions";
-import type { PluginHost } from "@/plugin/host";
-import { liveStatusOf } from "@/ui/live/live-status";
 import {
 	RELAY_TEXT,
 	relaySummary,
 	UNREADABLE_TEXT,
 } from "@/ui/live/relay-text";
-
-interface Facts {
-	status: RelayStatus;
-	unreadable: boolean;
-	room: boolean;
-	joining: boolean;
-	unanswered: boolean;
-	cold: ColdCause | null;
-	liveEditing: boolean;
-}
-
-const FACTS: Facts = {
-	status: "connected",
-	unreadable: false,
-	room: false,
-	joining: false,
-	unanswered: false,
-	cold: null,
-	liveEditing: true,
-};
-
-function statusOf(facts: Partial<Facts> = {}, file = note("a.md")) {
-	const all = { ...FACTS, ...facts };
-	const plugin = {
-		app: { metadataCache: { getFileCache: () => null } },
-		settings: { liveEditing: all.liveEditing },
-		spaces: { partition: () => [] },
-		realtime: {
-			statusOf: () => all.status,
-			people: { unreadable: () => all.unreadable },
-			live: {
-				roomOf: () => (all.room ? {} : null),
-				joining: () => all.joining,
-				unanswered: () => all.unanswered,
-				coldCause: () => all.cold,
-			},
-		},
-	} as unknown as PluginHost;
-	const view = Object.assign(Object.create(MarkdownView.prototype), {
-		getViewType: () => "markdown",
-		getMode: () => "source",
-	}) as FileView;
-	return liveStatusOf(plugin, view, file);
-}
-
-function note(path: string, size = 10): TFile {
-	return Object.assign(new TFile(), {
-		path,
-		extension: path.split(".").pop(),
-		stat: { size },
-	});
-}
 
 describe("live status of a note", () => {
 	it("is absent where no relay is meant to carry the space", () => {
@@ -108,7 +52,7 @@ describe("live status of a note", () => {
 
 	it("gives up on a room that never answers, with its own label", () => {
 		const waiting = statusOf({ joining: true });
-		const silent = statusOf({ joining: true, unanswered: true });
+		const silent = statusOf({ unanswered: true });
 
 		expect(waiting?.state).toBe("joining");
 		expect(silent?.state).toBe("offline");

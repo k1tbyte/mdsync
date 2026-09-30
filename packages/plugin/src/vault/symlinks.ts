@@ -36,8 +36,9 @@ export function createSymlinkDetector(
 	enabled: boolean,
 	root = "",
 ): SymlinkDetector {
-	const fs = enabled ? loadFs() : null;
-	if (!fs || !(adapter instanceof FileSystemAdapter)) return NEVER;
+	if (!enabled || !(adapter instanceof FileSystemAdapter)) return NEVER;
+	const fs = loadFs();
+	if (!fs) return NEVER;
 	const ignoreCase = Platform.isWin || Platform.isMacOS;
 	return symlinkDetector(
 		joinPath(adapter.getBasePath(), root),

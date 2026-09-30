@@ -1,3 +1,4 @@
+import { toHex } from "@obsync/protocol";
 import {
 	BLOB_VERSION,
 	BLOB_VERSION_GZIP,
@@ -198,7 +199,7 @@ export async function decryptJson<T>(
 
 export async function sha256Hex(data: Uint8Array): Promise<string> {
 	const digest = await subtle.digest("SHA-256", toBufferSource(data));
-	return toHex(new Uint8Array(digest));
+	return toHex(digest);
 }
 
 export function randomBytes(length: number): Uint8Array {
@@ -221,12 +222,4 @@ export function randomId(): string {
  */
 function toBufferSource(bytes: Uint8Array): BufferSource {
 	return bytes as BufferSource;
-}
-
-function toHex(bytes: Uint8Array): string {
-	let out = "";
-	for (let i = 0; i < bytes.length; i++) {
-		out += (bytes[i] as number).toString(16).padStart(2, "0");
-	}
-	return out;
 }

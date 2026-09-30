@@ -66,6 +66,7 @@ function device(
 				state: projectSession(local, storage.identity(), space.root),
 				maxFileBytes: 1_000_000,
 				concurrency: 2,
+				history: { maxSnapshots: 50 },
 			};
 		},
 		persistState: async (state) => {
@@ -76,7 +77,7 @@ function device(
 		logWarn: vi.fn(async () => {}),
 		logError: vi.fn(async () => {}),
 	});
-	const mount = (next: string) => {
+	const mount = (next: string | null) => {
 		mounted = next;
 	};
 	const mark = (next: typeof flags) => {
@@ -204,6 +205,9 @@ describe("spaces in the file sync", () => {
 			ok: false,
 			error: '"Shared/p" is paused on this device.',
 		});
+		await expect(
+			phone.controller.history.getFileHistory("Shared/p/b.md"),
+		).rejects.toThrow('"Shared/p" is paused on this device.');
 
 		phone.mark({});
 		await phone.controller.refreshAndAutoSync();
@@ -223,5 +227,97 @@ describe("spaces in the file sync", () => {
 
 		expect(await publishedPaths(on.vault, vaultKey)).toEqual(["Shared/p/b.md"]);
 		expect(await publishedPaths(on.share, shareKey)).toEqual(["b.md", "c.md"]);
+	});
+
+	it("drops the vault's copy of a shared folder from its manifest at the next vault push", async () => {
+		const on = remote();
+		const before = device(on, null);
+		before.adapter.putText("Shared/p/b.md", "B");
+		await before.controller.refreshAndAutoSync();
+
+		const after = device(on, "Shared/p", before);
+		after.adapter.putText("mine.md", "M");
+		await after.controller.refreshAndAutoSync();
+
+		expect(await publishedPaths(on.vault, vaultKey)).toEqual(["mine.md"]);
+		expect(await publishedPaths(on.share, shareKey)).toEqual(["b.md"]);
+		expect(after.state().storages.vault?.baseline?.files).not.toHaveProperty(
+			"Shared/p/b.md",
+		);
+	});
+
+	it("returns a closed share's folder to the vault without reading it as deleted, on a device that never pushed the drop", async () => {
+		const on = remote();
+		const owner = device(on, null);
+		owner.adapter.putText("Shared/p/b.md", "B");
+		await owner.controller.refreshAndAutoSync();
+
+		const idle = device(on, null);
+		await idle.controller.refreshAndAutoSync();
+		expect(idle.adapter.readText("Shared/p/b.md")).toBe("B");
+
+		owner.mount("Shared/p");
+		owner.adapter.putText("mine.md", "M");
+		await owner.controller.refreshAndAutoSync();
+		expect(await publishedPaths(on.vault, vaultKey)).toEqual(["mine.md"]);
+
+		idle.mount("Shared/p");
+		await idle.controller.refreshAndAutoSync();
+		idle.mount(null);
+		await idle.controller.refreshAndAutoSync();
+
+		expect(idle.adapter.readText("Shared/p/b.md")).toBe("B");
+		expect(idle.controller.getSnapshot()).toMatchObject({
+			error: null,
+			conflicts: 0,
+		});
+		expect(await publishedPaths(on.vault, vaultKey)).toEqual([
+			"Shared/p/b.md",
+			"mine.md",
+		]);
+	});
+
+	it("keeps its baseline of a shared folder while the vault still lists it, so an edit made before closing is no conflict", async () => {
+		const on = remote();
+		const laptop = device(on, null);
+		laptop.adapter.putText("Shared/p/b.md", "B");
+		await laptop.controller.refreshAndAutoSync();
+
+		laptop.mount("Shared/p");
+		await laptop.controller.refreshAndAutoSync();
+		laptop.adapter.putText("Shared/p/b.md", "B edited in the share");
+		await laptop.controller.refreshAndAutoSync();
+		laptop.mount(null);
+		await laptop.controller.refreshAndAutoSync();
+
+		expect(laptop.controller.getSnapshot()).toMatchObject({
+			error: null,
+			conflicts: 0,
+		});
+		expect(await publishedPaths(on.vault, vaultKey)).toEqual(["Shared/p/b.md"]);
+	});
+
+	it("keeps a shared folder's files out of the Trash and out of a vault restore", async () => {
+		const on = remote();
+		const before = device(on, null);
+		before.adapter.putText("Shared/p/b.md", "B");
+		before.adapter.putText("a.md", "A1");
+		await before.controller.refreshAndAutoSync();
+
+		const after = device(on, "Shared/p", before);
+		after.adapter.putText("a.md", "A2");
+		await after.controller.refreshAndAutoSync();
+		expect(await publishedPaths(on.vault, vaultKey)).toEqual(["a.md"]);
+
+		const { files } = await after.controller.history.listDeletedFiles();
+		expect(files).toEqual([]);
+
+		const { snapshots } = await after.controller.history.listSnapshots();
+		const first = snapshots[snapshots.length - 1];
+		const plan = await after.controller.history.previewVaultRestore(
+			first?.id ?? "",
+		);
+		expect(plan.write.map(({ path }) => path)).toEqual(["a.md"]);
+		expect(plan.remove).toEqual([]);
 	});
 });

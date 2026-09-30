@@ -267,7 +267,7 @@ export class ObsyncSettingTab extends PluginSettingTab {
 			this.display(),
 		);
 		if (automationUnsub) this.sectionUnsubs.push(automationUnsub);
-		renderSharesSection(parent, this.plugin, () => this.display());
+		renderSharesSection(parent, this.fieldContext());
 		this.renderSettingsSyncSection(parent);
 		this.renderIgnoreSection(parent);
 	}

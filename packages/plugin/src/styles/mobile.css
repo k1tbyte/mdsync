@@ -1,128 +1,23 @@
-.obsync-source-control.obsync-is-phone button,
-.obsync-diff-view.obsync-is-phone button {
+body.is-phone .obsync-source-control button,
+body.is-phone .obsync-diff-view button {
 	min-height: var(--obsync-touch);
 	padding-inline: var(--size-4-3);
 }
 
-.obsync-source-control.obsync-is-phone .obsync-source-tab-icon svg {
-	width: var(--obsync-icon-lg);
-	height: var(--obsync-icon-lg);
-}
-
-.obsync-source-control.obsync-is-phone .obsync-toolbar-icon {
-	flex-basis: var(--obsync-touch);
-	width: var(--obsync-touch);
-	height: var(--obsync-touch);
-}
-
-.obsync-source-control.obsync-is-phone
-	.obsync-section-actions
-	.obsync-section-icon-action {
-	width: var(--obsync-touch);
+body.is-phone .obsync-source-control .obsync-icon-btn,
+body.is-phone .obsync-diff-view .obsync-icon-btn {
 	min-width: var(--obsync-touch);
-	padding: 0;
 }
 
-.obsync-source-control.obsync-is-phone .obsync-file-row {
-	min-height: var(--obsync-touch);
-	padding-top: 0;
-	padding-right: var(--size-4-2);
-	padding-bottom: 0;
-}
-
-.obsync-source-control.obsync-is-phone .obsync-section-header,
-.obsync-source-control.obsync-is-phone .obsync-history-search {
-	min-height: var(--obsync-touch);
-}
-
-.obsync-source-control.obsync-is-phone .obsync-tree-folder {
-	min-height: var(--obsync-touch);
-	padding-top: var(--size-4-2);
-	padding-right: var(--size-4-2);
-	padding-bottom: var(--size-4-2);
-}
-
-.obsync-source-control.obsync-is-phone .obsync-file-selection {
-	flex-basis: var(--obsync-touch);
-	width: var(--obsync-touch);
-	height: var(--obsync-touch);
-	margin-left: calc(-1 * var(--size-4-1));
-}
-
-.obsync-source-control.obsync-is-phone .obsync-file-checkbox {
-	--checkbox-size: 20px;
-}
-
-.obsync-source-control.obsync-is-phone .obsync-tree-folder-toggle svg,
-.obsync-source-control.obsync-is-phone .obsync-tree-folder-icon svg {
-	width: var(--obsync-icon-lg);
-	height: var(--obsync-icon-lg);
-}
-
-.obsync-source-control.obsync-is-phone
-	.obsync-conflict-controls
-	.obsync-icon-btn {
-	width: var(--obsync-touch);
-	min-width: var(--obsync-touch);
-	height: var(--obsync-touch);
-	padding: 0;
-}
-
-.obsync-diff-view.obsync-is-phone .obsync-diff-title {
-	display: flex;
-	flex: 1 1 100%;
-	align-items: center;
-	gap: var(--size-4-2);
-	min-width: 0;
-}
-
-.obsync-diff-view.obsync-is-phone .obsync-diff-title .obsync-diff-path {
-	flex-basis: 100%;
-}
-
-.obsync-diff-view.obsync-is-phone
-	.obsync-diff-file-actions:not(:has(> button)):not(
-		:has(.obsync-pending:not(:empty))
+body.is-tablet
+	:is(.obsync-source-control, .obsync-diff-view)
+	:is(
+		.obsync-toolbar-icon,
+		.obsync-section-icon-action,
+		.obsync-rail-btn,
+		.obsync-icon-btn:has(> svg:only-child)
 	) {
-	display: none;
-}
-
-/* biome-ignore lint/style/noDescendingSpecificity: scoped to .obsync-diff-view,
-   while the longer rule above is scoped to .obsync-source-control - two
-   different view roots, so they never match the same element. */
-.obsync-diff-view.obsync-is-phone .obsync-icon-btn {
-	min-width: var(--obsync-touch);
-}
-
-.obsync-diff-view.obsync-is-phone .obsync-merge-toolbar select {
-	min-height: var(--obsync-touch);
-}
-
-.obsync-diff-view.obsync-is-phone .obsync-merge-pane-head,
-.obsync-diff-view.obsync-is-phone .obsync-compare-head,
-.obsync-diff-view.obsync-is-phone .obsync-source-head {
-	display: flex;
-	align-items: center;
-	min-height: var(--obsync-touch);
-	box-sizing: border-box;
-	font-size: var(--font-ui-small);
-}
-
-.obsync-diff-view.obsync-is-phone .obsync-rail-btn {
-	width: var(--obsync-touch);
-	min-width: var(--obsync-touch);
-	height: var(--obsync-touch);
-	padding: 0;
-}
-
-.obsync-diff-view.obsync-is-phone .obsync-rail-btn.has-label {
-	width: auto;
-	padding-inline: var(--size-4-2);
-	gap: var(--size-4-1);
-}
-
-.obsync-diff-view.obsync-is-phone .obsync-rail-label {
-	display: inline;
+	padding-inline: 0;
 }
 
 body.is-phone .obsync-people-badge {

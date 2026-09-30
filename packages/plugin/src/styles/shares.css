@@ -1,0 +1,124 @@
+.obsync-share-modal {
+	overflow: hidden;
+}
+
+.obsync-share-modal .modal-content {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+}
+
+.obsync-share-modal .modal-content > * {
+	flex-shrink: 0;
+}
+
+.obsync-share-modal .obsync-share-section {
+	margin: var(--size-4-5) 0 var(--size-4-1);
+	padding-bottom: var(--size-4-1);
+	border-bottom: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+}
+
+.obsync-share-warning {
+	margin: var(--size-4-3) 0 0;
+	padding: var(--size-4-2) var(--size-4-3);
+	border-inline-start: var(--obsync-bar-strong) solid var(--color-orange);
+	border-radius: var(--radius-s);
+	background: rgba(var(--color-orange-rgb), 0.12);
+	overflow-wrap: anywhere;
+}
+
+.modal.obsync-share-modal .setting-item.obsync-share-footer {
+	flex: 0 0 auto;
+	margin-top: var(--size-4-3);
+	padding: var(--size-4-3) 0 0;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.is-phone
+	.modal.obsync-share-modal
+	.setting-item.obsync-share-footer:last-child {
+	padding: var(--size-4-3) var(--size-4-4);
+	padding-bottom: max(
+		var(--size-4-3),
+		var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
+	);
+}
+
+.modal.obsync-share-modal .obsync-share-section + .setting-item {
+	border-top: 0;
+}
+
+.obsync-share-modal .setting-item-description:empty {
+	display: none;
+}
+
+.obsync-share-access .setting-item-info {
+	min-width: 0;
+}
+
+.obsync-share-access .setting-item-name {
+	overflow-wrap: anywhere;
+}
+
+.obsync-share-modal input[readonly] {
+	text-overflow: ellipsis;
+}
+
+.is-phone .modal.obsync-share-modal .obsync-share-access .setting-item {
+	flex-direction: row;
+	align-items: center;
+}
+
+.is-phone .modal.obsync-share-modal .obsync-share-access .setting-item-control {
+	flex: 0 0 auto;
+	width: auto;
+}
+
+.is-phone
+	.modal.obsync-share-modal
+	.obsync-share-access
+	.setting-item-control
+	button:not(.clickable-icon) {
+	width: auto;
+}
+
+.is-phone .modal.obsync-share-modal .obsync-share-footer .setting-item-control {
+	flex-wrap: wrap;
+}
+
+.is-phone
+	.modal.obsync-share-modal
+	.obsync-share-footer
+	.setting-item-control
+	button:not(.clickable-icon) {
+	flex: 1 1 auto;
+	width: auto;
+}
+
+.is-phone .modal.obsync-share-modal .clickable-icon {
+	min-width: var(--obsync-touch);
+	min-height: var(--obsync-touch);
+}
+
+@media (max-height: 520px) {
+	.is-phone .modal.obsync-share-modal {
+		overflow-y: auto;
+	}
+
+	.is-phone .obsync-share-modal .modal-content {
+		flex: none;
+		overflow: visible;
+	}
+}
+
+.is-phone .modal.obsync-share-modal:has(input:focus) {
+	overflow-y: auto;
+}
+
+.is-phone .obsync-share-modal:has(input:focus) .modal-content {
+	flex: none;
+	overflow: visible;
+}

@@ -1,0 +1,25 @@
+@container (min-width: 420px) {
+	.obsync-source-tab-label {
+		display: inline;
+	}
+
+	.obsync-source-tabs .obsync-settings-tab-button.is-active {
+		flex-grow: 1;
+	}
+}
+
+@container (max-width: 285px) {
+	.obsync-main-toolbar {
+		flex-wrap: wrap;
+	}
+}
+
+@container (max-width: 320px) {
+	.obsync-file-row.is-conflict {
+		flex-wrap: wrap;
+	}
+
+	.obsync-file-row.is-conflict .obsync-file-copy {
+		flex-basis: calc(100% - 2rem);
+	}
+}

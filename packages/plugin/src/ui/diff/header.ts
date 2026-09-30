@@ -1,5 +1,6 @@
 import { EDiffDirection } from "@/sync/projection";
 import { appendIconButton } from "@/ui/common/icon-button";
+import { renderPath } from "@/ui/source-control/row-parts";
 
 export interface DiffHeaderState {
 	path: string;
@@ -47,25 +48,21 @@ export function renderDiffHeader(
 			actions.goBack,
 		);
 	}
-	pathParent.createSpan({ cls: "obsync-diff-path", text: state.path });
+	renderPath(pathParent, state.path).addClass("obsync-diff-path");
 	const actionParent = state.showBack
 		? parent.createDiv({ cls: "obsync-diff-file-actions" })
 		: parent;
+	const trailing = state.showBack ? pathParent : actionParent;
 
 	if (state.direction === null) return state.showBack ? actionParent : null;
 	if (state.isEditing) {
 		appendIconButton(
-			actionParent,
+			trailing,
 			"check",
 			"Save and push",
 			actions.saveResolution,
 		).addClass("mod-cta");
-		appendIconButton(
-			actionParent,
-			"x",
-			"Cancel merge",
-			actions.cancelResolution,
-		);
+		appendIconButton(trailing, "x", "Cancel merge", actions.cancelResolution);
 		return state.showBack ? actionParent : null;
 	}
 
@@ -91,7 +88,7 @@ export function renderDiffHeader(
 		}
 	}
 
-	appendFileNavigation(actionParent, state, actions);
+	appendFileNavigation(trailing, state, actions);
 	return state.showBack ? actionParent : null;
 }
 
@@ -101,10 +98,15 @@ function appendFileNavigation(
 	actions: DiffHeaderActions,
 ): void {
 	if (state.canGoPrevFile) {
-		appendButton(parent, "◀", actions.goPrevFile, "Previous file");
+		appendIconButton(
+			parent,
+			"chevron-left",
+			"Previous file",
+			actions.goPrevFile,
+		);
 	}
 	if (state.canGoNextFile) {
-		appendButton(parent, "▶", actions.goNextFile, "Next file");
+		appendIconButton(parent, "chevron-right", "Next file", actions.goNextFile);
 	}
 }
 
@@ -112,14 +114,9 @@ function appendButton(
 	parent: HTMLElement,
 	text: string,
 	onClick: () => void,
-	ariaLabel?: string,
 ): HTMLButtonElement {
-	const button = parent.createEl("button", {
-		cls: "obsync-icon-btn",
-		text,
-	});
+	const button = parent.createEl("button", { text });
 	button.type = "button";
-	if (ariaLabel) button.setAttr("aria-label", ariaLabel);
 	button.addEventListener("click", onClick);
 	return button;
 }

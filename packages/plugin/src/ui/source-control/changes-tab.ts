@@ -1,16 +1,15 @@
 import { setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
-import { formatRelativeTime } from "@/shared/format";
 import type { SyncStatusSnapshot } from "@/sync/controller";
 import type { DiffResult, ManifestEntry } from "@/sync/types";
 import { notifyError } from "@/ui/common/notices";
-
+import { actionButton } from "./action-button";
 import type { SourceControlActions } from "./actions";
 import { ChangesSection, type ChangesSectionDeps } from "./changes-section";
 import type { ConflictPreviewManager } from "./conflict-preview-manager";
 import { diffEquals } from "./diff-identity";
-import { showIgnoredFiles } from "./modals";
 import { rowFromChange, rowFromConflict } from "./row-formatter";
+import { fillStatusLine, formatActionCount, hasSyncError } from "./status-line";
 import { ESection, type FileRow } from "./types";
 
 /**
@@ -118,7 +117,7 @@ export class ChangesTab {
 		const diff = result?.diff;
 		if (!diff) {
 			root.createDiv({
-				cls: "obsync-status-line",
+				cls: "obsync-status-line is-empty",
 				text: "Run compare to see changes.",
 			});
 			return;
@@ -154,10 +153,21 @@ export class ChangesTab {
 			),
 		};
 		this.previews.prune(rows[ESection.Conflicts].map((row) => row.path));
+		let shown = 0;
 		for (const section of this.sections) {
 			// Pruned against the unfiltered rows: a filter must not drop a selection.
 			section.pruneSelection(rows[section.id]);
-			section.render(root, this.applyFilter(rows[section.id]), snapshot.busy);
+			const visible = this.applyFilter(rows[section.id]);
+			shown += visible.length;
+			section.render(root, visible, snapshot.busy);
+		}
+		if (shown === 0 && !hasSyncError(snapshot)) {
+			root.createDiv({
+				cls: "obsync-status-line is-empty",
+				text: this.filter.trim()
+					? "No changed files match the filter."
+					: "No changes.",
+			});
 		}
 	}
 
@@ -208,7 +218,7 @@ export class ChangesTab {
 		if (this.statusLineEl) {
 			this.statusLineEl.empty();
 			this.statusLineEl.removeClass("is-error");
-			this.fillStatusLine(this.statusLineEl, snapshot);
+			fillStatusLine(this.statusLineEl, snapshot, this.plugin, this.actions);
 		}
 		if (this.refreshButtonEl) this.refreshButtonEl.disabled = snapshot.busy;
 		this.cancelButtonEl?.toggleClass("obsync-hidden", !snapshot.cancellable);
@@ -236,16 +246,15 @@ export class ChangesTab {
 
 		// Always built, then shown on demand: a push starts without a full
 		// re-render, and a button that only exists after one would never appear.
-		const cancel = bar.createEl("button", { text: "Cancel" });
-		cancel.addClass("is-warning");
+		const cancel = actionButton(bar, "warning")
+			.setButtonText("Cancel")
+			.onClick(() => this.plugin.controller.cancel()).buttonEl;
 		cancel.setAttr("aria-label", "Stop the running sync");
-		cancel.addEventListener("click", () => this.plugin.controller.cancel());
 		cancel.toggleClass("obsync-hidden", !snapshot.cancellable);
 		this.cancelButtonEl = cancel;
 
-		const pushAll = bar.createEl("button", {
-			cls: "obsync-bulk-action is-primary",
-		});
+		const pushAll = actionButton(bar, "cta").buttonEl;
+		pushAll.addClass("obsync-bulk-action");
 		pushAll.createSpan({ text: "Push" });
 		pushAll.createSpan({
 			cls: "obsync-toolbar-count",
@@ -260,9 +269,8 @@ export class ChangesTab {
 			void this.actions.pushPaths(diff?.localChanges.map((c) => c.path) ?? []);
 		});
 
-		const pullAll = bar.createEl("button", {
-			cls: "obsync-bulk-action is-primary",
-		});
+		const pullAll = actionButton(bar, "cta").buttonEl;
+		pullAll.addClass("obsync-bulk-action");
 		pullAll.createSpan({ text: "Pull" });
 		pullAll.createSpan({
 			cls: "obsync-toolbar-count",
@@ -297,75 +305,7 @@ export class ChangesTab {
 		snapshot: SyncStatusSnapshot,
 	): void {
 		this.statusLineEl = parent.createDiv({ cls: "obsync-status-line" });
-		this.fillStatusLine(this.statusLineEl, snapshot);
-	}
-
-	private fillStatusLine(
-		line: HTMLElement,
-		snapshot: SyncStatusSnapshot,
-	): void {
-		if (snapshot.error) {
-			line.addClass("is-error");
-			line.setText(`Error: ${snapshot.error}`);
-			if (snapshot.error.includes("Remote vault id does not match local")) {
-				const resolveBtn = line.createEl("button", {
-					text: "Resolve vault mismatch",
-					cls: ["mod-warning", "obsync-adopt-new-vault-btn"],
-				});
-				resolveBtn.addEventListener(
-					"click",
-					() => void this.actions.adoptNewVault(),
-				);
-				return;
-			}
-			return;
-		}
-		if (snapshot.busy) {
-			line.setText(snapshot.progressText ?? "Syncing…");
-			return;
-		}
-		if (snapshot.spaceErrors.length > 0) {
-			line.addClass("is-error");
-			for (const { root, message } of snapshot.spaceErrors) {
-				line.createDiv({ text: `Error in "${root}": ${message}` });
-			}
-			line.createDiv({
-				text: "Restore the folder, or stop sharing or leave it in Obsync settings (Sync tab).",
-			});
-			return;
-		}
-		if (snapshot.staleReason) {
-			line.setText(snapshot.staleReason);
-			return;
-		}
-		line.setText(
-			snapshot.lastCompareAt
-				? `Compared ${formatRelativeTime(snapshot.lastCompareAt)}`
-				: "Not compared yet",
-		);
-		if (snapshot.conflicts > 0) {
-			line.createSpan({
-				cls: "obsync-status-conflicts",
-				text: ` · ${formatActionCount(snapshot.conflicts)} conflicts`,
-			});
-		}
-		const ignoredPaths = snapshot.result?.snapshot.ignoredPaths ?? [];
-		if (ignoredPaths.length > 0) {
-			const ignoredBadge = line.createEl("button", {
-				cls: "obsync-ignored-badge",
-			});
-			setIcon(ignoredBadge, "eye-off");
-			ignoredBadge.createSpan({
-				text: formatActionCount(ignoredPaths.length),
-			});
-			ignoredBadge.setAttr(
-				"aria-label",
-				`Show ${ignoredPaths.length} ignored files`,
-			);
-			ignoredBadge.addEventListener("click", () =>
-				showIgnoredFiles(this.plugin.app, ignoredPaths),
-			);
-		}
+		fillStatusLine(this.statusLineEl, snapshot, this.plugin, this.actions);
 	}
 
 	private openFileDiff(item: HTMLElement, path: string): void {
@@ -428,8 +368,4 @@ function canPullAll(snapshot: SyncStatusSnapshot): boolean {
 	const d = snapshot.result?.diff;
 	if (!d) return false;
 	return d.conflicts.length === 0 && d.remoteChanges.length > 0;
-}
-
-function formatActionCount(count: number): string {
-	return count.toLocaleString();
 }

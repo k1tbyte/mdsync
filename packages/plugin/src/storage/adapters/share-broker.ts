@@ -17,6 +17,7 @@ import {
 	signingRegion,
 } from "./s3-signer";
 import { createS3Store } from "./s3-store";
+import { ShareReadUrls } from "./share-read-urls";
 import { StorageHttpError } from "./util";
 
 export interface BrokerAccess {
@@ -55,18 +56,24 @@ export function createBrokerAdapter(
 ): StorageAdapter {
 	// Listings come back as full bucket keys under this.
 	let base = "";
-	return createS3Store({
-		identity: `broker|${access.relayUrl}|${shareId}`,
+	const reads = new ShareReadUrls((keys) => signReads(access, keys));
+	const store = createS3Store({
+		// The share's objects, not the route: a new relay keeps the sync state.
+		identity: `broker|${shareId}`,
 		key: (key) => key,
 		relative: (listed) =>
 			listed.startsWith(base) ? listed.slice(base.length) : listed,
 		sign: async (input) => {
+			if (input.method === "GET" && input.key !== "") {
+				const url = await reads.take(input.key);
+				if (url) return { url, headers: input.headers ?? {} };
+			}
 			const signed = await callBroker(
 				access.relayUrl,
 				"/share/sign",
 				{
 					method: "POST",
-					headers: { Authorization: `Bearer ${access.token}` },
+					headers: bearer(access),
 					body: signRequest(input),
 				},
 				PARTICIPANT_REFUSALS,
@@ -75,6 +82,7 @@ export function createBrokerAdapter(
 			return { url: String(signed.url), headers: input.headers ?? {} };
 		},
 	});
+	return { ...store, prepareReads: (keys) => reads.expect(keys) };
 }
 
 /** Where the broker signs for this share, with this device's credentials. */
@@ -188,9 +196,37 @@ export async function leaveShare(access: BrokerAccess): Promise<void> {
 	await callBroker(
 		access.relayUrl,
 		"/share/token",
-		{ method: "DELETE", headers: { Authorization: `Bearer ${access.token}` } },
+		{ method: "DELETE", headers: bearer(access) },
 		PARTICIPANT_REFUSALS,
 	);
+}
+
+function bearer(access: BrokerAccess): Record<string, string> {
+	return { Authorization: `Bearer ${access.token}` };
+}
+
+async function signReads(
+	access: BrokerAccess,
+	keys: string[],
+): Promise<string[]> {
+	const { urls } = await callBroker(
+		access.relayUrl,
+		"/share/sign",
+		{
+			method: "POST",
+			headers: bearer(access),
+			body: { op: "get", keys },
+		},
+		PARTICIPANT_REFUSALS,
+	);
+	if (
+		!Array.isArray(urls) ||
+		urls.length !== keys.length ||
+		!urls.every((url) => typeof url === "string")
+	) {
+		throw new Error("Share broker answered a read batch that does not fit it");
+	}
+	return urls;
 }
 
 function signRequest(input: S3RequestInput): Record<string, unknown> {

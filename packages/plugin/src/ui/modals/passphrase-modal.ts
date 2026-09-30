@@ -1,5 +1,8 @@
 import { type App, Modal, Setting } from "obsidian";
 
+import { alertLine } from "@/ui/common/alert-line";
+import { onEnter } from "@/ui/common/enter-key";
+
 import { openPromiseModal } from "./promise-modal";
 
 class PassphraseModal extends Modal {
@@ -21,15 +24,14 @@ class PassphraseModal extends Modal {
 
 		new Setting(contentEl).setName("Passphrase").addText((t) => {
 			t.inputEl.type = "password";
+			t.inputEl.setAttr("aria-label", "Passphrase");
 			t.onChange((v) => {
 				this.value = v;
 			});
-			t.inputEl.addEventListener("keydown", (e) => {
-				if (e.key === "Enter") this.submit();
-			});
+			onEnter(t.inputEl, () => this.submit());
 		});
 
-		this.errorEl = contentEl.createEl("p", { cls: "mod-warning" });
+		this.errorEl = alertLine(contentEl);
 
 		new Setting(contentEl)
 			.addButton((b) =>
@@ -78,24 +80,29 @@ class NewPassphraseModal extends Modal {
 			text: "Re-wraps the vault's data key under a new passphrase. Your notes are NOT re-encrypted, so this is instant. Every device must switch to the new passphrase afterwards.",
 		});
 
+		let confirmField: HTMLInputElement | undefined;
 		new Setting(contentEl).setName("New passphrase").addText((t) => {
 			t.inputEl.type = "password";
+			t.inputEl.setAttr("aria-label", "New passphrase");
 			t.onChange((v) => {
 				this.next = v;
 			});
+			onEnter(t.inputEl, () =>
+				this.next ? confirmField?.focus() : this.submit(),
+			);
 		});
 
 		new Setting(contentEl).setName("Confirm passphrase").addText((t) => {
+			confirmField = t.inputEl;
 			t.inputEl.type = "password";
+			t.inputEl.setAttr("aria-label", "Confirm passphrase");
 			t.onChange((v) => {
 				this.confirm = v;
 			});
-			t.inputEl.addEventListener("keydown", (e) => {
-				if (e.key === "Enter") this.submit();
-			});
+			onEnter(t.inputEl, () => this.submit());
 		});
 
-		this.errorEl = contentEl.createEl("p", { cls: "mod-warning" });
+		this.errorEl = alertLine(contentEl);
 		this.errorEl.hidden = true;
 
 		new Setting(contentEl)

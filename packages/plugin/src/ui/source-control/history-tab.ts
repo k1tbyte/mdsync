@@ -2,11 +2,11 @@ import { Menu, setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { errorMessage } from "@/shared/errors";
 import type { FileVersion } from "@/sync/history";
+import { makeActivatable } from "@/ui/common/activatable";
 import { appendIconButton, appendLabeledButton } from "@/ui/common/icon-button";
 import { notifyError, notifyInfo } from "@/ui/common/notices";
 import type { HistoryDiffTarget } from "@/ui/source-control-view";
 
-import { makeActivatable } from "./change-rows";
 import { groupByDay } from "./day-groups";
 import { buildHistoryRows, type HistoryRow } from "./history-rows";
 import { confirmRestore } from "./restore-modal";
@@ -74,7 +74,7 @@ export class HistoryTab {
 	/** History needs a file, but a deleted one has no path to open - offer that route. */
 	private renderNoFile(pane: HTMLElement): void {
 		pane.createDiv({
-			cls: "obsync-status-line",
+			cls: "obsync-status-line is-empty",
 			text: "Open a file to view its history.",
 		});
 		const link = pane.createEl("button", { text: "Browse deleted files" });
@@ -111,7 +111,7 @@ export class HistoryTab {
 		}
 		if (this.historyVersions.length === 0) {
 			body.createDiv({
-				cls: "obsync-status-line",
+				cls: "obsync-status-line is-empty",
 				text: "No stored history for this file yet.",
 			});
 			return;

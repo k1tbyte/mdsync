@@ -8,8 +8,6 @@ export { HistoryTab } from "./history-tab";
 export {
 	confirmAdoptNewVault,
 	confirmBatchResolve,
-	openConfirmModal,
-	openPromptModal,
 	showIgnoredFiles,
 } from "./modals";
 export { confirmRestore } from "./restore-modal";

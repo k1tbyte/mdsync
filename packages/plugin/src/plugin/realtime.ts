@@ -54,7 +54,9 @@ export function createRealtime(host: LiveHost): Realtime {
 	);
 	// Kept across the vault socket's drops: the signal may have come on a share's.
 	hub.listen({ onSignal: pull });
-	const live = createLive(host, hub, access);
+	const live = createLive(host, hub, access, (space, person) =>
+		people.nameOf(space, person),
+	);
 	people.refresh();
 	return {
 		hub,

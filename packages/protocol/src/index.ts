@@ -8,8 +8,8 @@
 import { Reader, Writer } from "./bytes";
 
 export { toHex } from "./bytes";
-export { deriveChannelGrant } from "./grant";
-export { shareChannel, sharePrefix } from "./share";
+export { deriveChannelGrant, GRANT_TTL_S, grantExpiry } from "./grant";
+export { SIGN_BATCH_MAX, shareChannel, sharePrefix } from "./share";
 
 /** The hub route; `/hub/signal` is its HTTP fallback for the cold-sync ping. */
 export const HUB_PATH = "/hub";
@@ -46,6 +46,8 @@ export const EFrame = {
 	Moved: 22,
 	Revoked: 23,
 	Refused: 24,
+	/** Someone already on the channel, told to a newcomer; `Join` is someone arriving. */
+	Here: 25,
 } as const;
 
 /** Why the hub dropped a document frame: the client stops waiting on it. */
@@ -66,6 +68,8 @@ export const MAX_FRAME_BYTES = 1024 * 1024;
 export const MAX_DOC_SUBS = 64;
 /** A docId is 32 hex chars; anything much longer is not one. */
 export const MAX_DOC_ID_LENGTH = 64;
+/** A sealed path is short; the hub keeps every note it holds in memory too. */
+export const MAX_MOVE_NOTE_BYTES = 4 * 1024;
 
 interface Address {
 	slot: number;
@@ -81,12 +85,14 @@ export type ClientFrame = Address &
 		| { type: typeof EFrame.Snapshot; upto: number; payload: Uint8Array }
 		/**
 		 * Seeds `target` with the rebuilt document and seals this one with a
-		 * pointer, as one step, only while the log still ends at `upto`.
+		 * pointer, as one step, only while the log still ends at `upto`. `note`
+		 * goes out with the pointer: sealed, empty unless the note moved path.
 		 */
 		| {
 				type: typeof EFrame.Rotate;
 				target: string;
 				upto: number;
+				note: Uint8Array;
 				payload: Uint8Array;
 		  }
 		| { type: typeof EFrame.Signal }
@@ -112,15 +118,32 @@ export type ServerFrame = Address &
 		  }
 		| { type: typeof EFrame.Echo; seq: number }
 		| { type: typeof EFrame.Peer; from: number; payload: Uint8Array }
-		| { type: typeof EFrame.Join; from: number; who: string }
+		| ({ type: typeof EFrame.Join } & Vouched)
+		| ({ type: typeof EFrame.Here } & Vouched)
 		| { type: typeof EFrame.Leave; from: number }
-		| { type: typeof EFrame.Moved; target: string }
+		| { type: typeof EFrame.Moved; target: string; note: Uint8Array }
 		| { type: typeof EFrame.Revoked }
 		| { type: typeof EFrame.Refused; reason: Refusal }
 		| { type: typeof EFrame.Signal; from: number }
 	);
 
 type Body<F, K> = Omit<Extract<F, { type: K }>, keyof Address | "type">;
+
+/** A socket as the hub knows it: its grant's `who`, and the name its share token carries ("" for none). */
+interface Vouched {
+	from: number;
+	who: string;
+	name: string;
+}
+
+const vouched = {
+	write: (f: Vouched, out: Writer) => out.u32(f.from).text(f.who).text(f.name),
+	read: (input: Reader): Vouched => ({
+		from: input.u32(),
+		who: input.text(),
+		name: input.text(),
+	}),
+};
 
 type Codec<F extends { type: number }> = {
 	[K in F["type"]]: {
@@ -150,10 +173,12 @@ const CLIENT: Codec<ClientFrame> = {
 		read: (input) => ({ upto: input.u32(), payload: input.rest() }),
 	},
 	[EFrame.Rotate]: {
-		write: (f, out) => out.text(f.target).u32(f.upto).bytes(f.payload),
+		write: (f, out) =>
+			out.text(f.target).u32(f.upto).block(f.note).bytes(f.payload),
 		read: (input) => ({
 			target: input.text(),
 			upto: input.u32(),
+			note: input.block(),
 			payload: input.rest(),
 		}),
 	},
@@ -205,17 +230,15 @@ const SERVER: Codec<ServerFrame> = {
 		write: (f, out) => out.u32(f.from).bytes(f.payload),
 		read: (input) => ({ from: input.u32(), payload: input.rest() }),
 	},
-	[EFrame.Join]: {
-		write: (f, out) => out.u32(f.from).text(f.who),
-		read: (input) => ({ from: input.u32(), who: input.text() }),
-	},
+	[EFrame.Join]: vouched,
+	[EFrame.Here]: vouched,
 	[EFrame.Leave]: {
 		write: (f, out) => out.u32(f.from),
 		read: (input) => ({ from: input.u32() }),
 	},
 	[EFrame.Moved]: {
-		write: (f, out) => out.text(f.target),
-		read: (input) => ({ target: input.text() }),
+		write: (f, out) => out.text(f.target).bytes(f.note),
+		read: (input) => ({ target: input.text(), note: input.rest() }),
 	},
 	[EFrame.Revoked]: none,
 	[EFrame.Refused]: {

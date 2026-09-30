@@ -1,10 +1,11 @@
-import { Modal } from "obsidian";
+import { ButtonComponent, Modal } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { errorMessage } from "@/shared/errors";
 import { formatBytes } from "@/shared/format";
 import type { FileDiffModel, HistoryVersionRef } from "@/sync/projection";
 import { renderHunkPreview } from "@/ui/diff";
 import { openPromiseModal } from "@/ui/modals/promise-modal";
+import { actionButton } from "./action-button";
 
 export interface RestoreConfirmOptions {
 	plugin: PluginHost;
@@ -52,20 +53,21 @@ export function confirmRestore(
 		body.createDiv({ cls: "obsync-status-line", text: "Loading changes…" });
 
 		const buttons = modal.contentEl.createDiv({ cls: "obsync-modal-buttons" });
-		const cancel = buttons.createEl("button", { text: "Cancel" });
-		cancel.addEventListener("click", () => finish(false));
-		const confirm = buttons.createEl("button", { text: "Restore" });
-		confirm.addClass("mod-cta");
+		const cancel = new ButtonComponent(buttons)
+			.setButtonText("Cancel")
+			.onClick(() => finish(false));
 		// Nothing to confirm until the preview is on screen.
-		confirm.disabled = true;
-		confirm.addEventListener("click", () => finish(true));
+		const confirm = actionButton(buttons, "cta")
+			.setButtonText("Restore")
+			.setDisabled(true)
+			.onClick(() => finish(true));
 		// Cancel, not Restore: a stray Enter must not write to the vault.
-		window.setTimeout(() => cancel.focus(), 0);
+		window.setTimeout(() => cancel.buttonEl.focus(), 0);
 
 		void loadPreview(options)
 			.then((model) => {
 				renderPreview(body, model);
-				confirm.disabled = false;
+				confirm.setDisabled(false);
 			})
 			.catch((err: unknown) => {
 				body.empty();
@@ -120,13 +122,14 @@ export function confirmBulkRestore(
 			});
 		}
 		const buttons = modal.contentEl.createDiv({ cls: "obsync-modal-buttons" });
-		const cancel = buttons.createEl("button", { text: "Cancel" });
-		cancel.addEventListener("click", () => finish(false));
-		const confirm = buttons.createEl("button", { text: "Restore" });
-		confirm.addClass("mod-cta");
-		confirm.addEventListener("click", () => finish(true));
+		const cancel = new ButtonComponent(buttons)
+			.setButtonText("Cancel")
+			.onClick(() => finish(false));
+		actionButton(buttons, "cta")
+			.setButtonText("Restore")
+			.onClick(() => finish(true));
 		// Cancel, not Restore: a stray Enter must not write to the vault.
-		window.setTimeout(() => cancel.focus(), 0);
+		window.setTimeout(() => cancel.buttonEl.focus(), 0);
 		return modal;
 	}, false);
 }

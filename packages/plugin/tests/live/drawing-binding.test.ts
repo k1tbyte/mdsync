@@ -1,106 +1,30 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Awareness } from "y-protocols/awareness";
-import * as Y from "yjs";
-
-import { type SceneElement, wins } from "@/drawing";
+import {
+	DRAG_FRAMES,
+	DRAGGED,
+	dragged,
+	element,
+	fakeView,
+	held,
+	LIB,
+	NO_STALE,
+	perFrameBytes,
+	pointsHeld,
+	room,
+	STROKE,
+	STROKE_FRAMES,
+	STROKE_POINTS,
+	state,
+	stroke,
+	updatesOf,
+	useExcalidrawLib,
+} from "@tests/helpers/drawing-view";
+import { describe, expect, it, vi } from "vitest";
+import type { SceneElement } from "@/drawing";
 import { bindDrawing } from "@/live/drawing/binding";
-import type { ExcalidrawLib, ExcalidrawView } from "@/live/drawing/excalidraw";
-import { DRAWING, type DrawingModel } from "@/live/drawing/model";
+import type { DrawingModel } from "@/live/drawing/model";
 import type { LiveSession } from "@/live/session";
 
-/** Excalidraw's reconcile, minus the element being edited. */
-const LIB: ExcalidrawLib = {
-	reconcileElements(local, remote) {
-		const out = new Map(local.map((element) => [element.id, element]));
-		for (const element of remote) {
-			const mine = out.get(element.id);
-			if (!mine || wins(element, mine)) out.set(element.id, element);
-		}
-		return [...out.values()];
-	},
-	viewportCoordsToSceneCoords: ({ clientX, clientY }) => ({
-		x: clientX,
-		y: clientY,
-	}),
-	bumpVersion(element, version = element.version) {
-		element.version = version + 1;
-		element.versionNonce = Math.floor(Math.random() * 2 ** 31);
-	},
-	CaptureUpdateAction: { NEVER: "NEVER" },
-};
-
-const NO_STALE = () => {};
-
-function element(id: string, version = 1): SceneElement {
-	return { id, version, versionNonce: version, index: `a${id}` };
-}
-
-/** An Excalidraw view whose scene changes as the plugin's does: `onChange` after every update. */
-function fakeView(scene: SceneElement[]) {
-	let elements = scene;
-	const listeners = new Set<(elements: readonly SceneElement[]) => void>();
-	const changed = () => {
-		for (const listener of listeners) listener(elements);
-	};
-	const file = { path: "a.excalidraw.md" };
-	const view = {
-		file,
-		excalidrawData: { file },
-		excalidrawAPI: {
-			getSceneElementsIncludingDeleted: () => elements,
-			getAppState: () => ({}),
-			updateScene(next: { elements?: readonly SceneElement[] }) {
-				if (!next.elements) return;
-				elements = [...next.elements];
-				changed();
-			},
-			onChange(listener: (elements: readonly SceneElement[]) => void) {
-				listeners.add(listener);
-				return () => listeners.delete(listener);
-			},
-		},
-		contentEl: { addEventListener() {}, removeEventListener() {} },
-	} as unknown as ExcalidrawView;
-	return {
-		view,
-		/** Obsidian names the next file first; the plugin loads its scene after. */
-		switchTo(path: string, scene: SceneElement[]) {
-			const next = { path } as unknown as ExcalidrawView["file"];
-			view.file = next;
-			elements = scene;
-			changed();
-			view.excalidrawData = { file: next };
-		},
-		draw(next: SceneElement) {
-			elements = [...elements.filter(({ id }) => id !== next.id), next];
-			changed();
-		},
-		stamps: () => elements.map(({ id, version }) => `${id}@${version}`).sort(),
-	};
-}
-
-function room(): LiveSession<DrawingModel> {
-	const doc = new Y.Doc();
-	Y.applyUpdate(doc, DRAWING.seed(JSON.stringify([element("1")])));
-	return {
-		doc,
-		model: DRAWING.model(doc),
-		awareness: new Awareness(doc),
-		adopt() {},
-	} as unknown as LiveSession<DrawingModel>;
-}
-
-function state(session: LiveSession<DrawingModel>): string[] {
-	return [...session.model.elements.keys()].sort();
-}
-
-beforeEach(() => {
-	(window as { ExcalidrawLib?: ExcalidrawLib }).ExcalidrawLib = LIB;
-});
-
-afterEach(() => {
-	delete (window as { ExcalidrawLib?: ExcalidrawLib }).ExcalidrawLib;
-});
+useExcalidrawLib();
 
 describe("bindDrawing", () => {
 	it("shows a stroke drawn in one view of the file in the other", () => {
@@ -111,6 +35,7 @@ describe("bindDrawing", () => {
 		bindDrawing(right.view, session, NO_STALE);
 
 		left.draw(element("2"));
+		session.drainStaged();
 
 		expect(right.stamps()).toEqual(["1@1", "2@1"]);
 	});
@@ -119,12 +44,11 @@ describe("bindDrawing", () => {
 		const session = room();
 		const view = fakeView([element("1")]);
 		bindDrawing(view.view, session, NO_STALE);
-		// Another device's edit, which this view has not taken yet.
 		session.model.elements.set("1", element("1", 5));
 		view.draw({ ...element("1", 2), versionNonce: 7 });
+		session.drainStaged();
 
-		const held = session.model.elements.get("1");
-		expect(held?.version).toBe(6);
+		expect(held(session, "1")?.version).toBe(6);
 		expect(view.stamps()).toEqual(["1@6"]);
 	});
 
@@ -136,6 +60,7 @@ describe("bindDrawing", () => {
 		view.switchTo("b.excalidraw.md", [element("b1")]);
 		view.draw(element("b2"));
 		session.model.put(element("3"));
+		session.drainStaged();
 
 		expect(state(session)).toEqual(["1", "3"]);
 		expect(view.stamps()).toEqual(["b1@1", "b2@1"]);
@@ -172,5 +97,197 @@ describe("bindDrawing", () => {
 		session.model.put(element("2"));
 
 		expect(view.stamps()).toEqual(["1@1"]);
+		expect(view.listening()).toBe(0);
+	});
+});
+
+describe("bindDrawing batching", () => {
+	it("puts the frames of a stroke in the room once per batch", () => {
+		const session = room();
+		const view = fakeView([element("1")]);
+		bindDrawing(view.view, session, NO_STALE);
+		const updates = updatesOf(session);
+
+		for (const frame of STROKE) view.draw(frame);
+		expect(updates).toHaveLength(0);
+		session.drainStaged();
+
+		expect(updates).toHaveLength(1);
+		expect(held(session, "s")?.version).toBe(STROKE_FRAMES);
+		expect(pointsHeld(session, "s")).toBe(STROKE_POINTS);
+		expect(updates[0]?.length).toBeLessThan(perFrameBytes(STROKE) / 4);
+	});
+
+	it("puts every element of a drag once per batch", () => {
+		const session = room();
+		const view = fakeView([element("1")]);
+		bindDrawing(view.view, session, NO_STALE);
+		const updates = updatesOf(session);
+		const frames = Array.from({ length: DRAG_FRAMES }, (_, at) =>
+			dragged(at + 1),
+		);
+
+		for (const frame of frames) view.draw(...frame);
+		session.drainStaged();
+
+		expect(updates).toHaveLength(1);
+		expect(state(session)).toEqual(["1", ...DRAGGED]);
+		expect(DRAGGED.map((id) => held(session, id)?.version)).toEqual([
+			DRAG_FRAMES + 1,
+			DRAG_FRAMES + 1,
+			DRAG_FRAMES + 1,
+		]);
+		expect(updates[0]?.length).toBeLessThan(perFrameBytes(frames.flat()) / 3);
+	});
+
+	it("takes the room's copy when the batch goes, not when the frame did", () => {
+		const session = room();
+		const view = fakeView([element("1")]);
+		bindDrawing(view.view, session, NO_STALE);
+		const live = stroke(2);
+
+		view.draw(live);
+		live.version = 3;
+		session.drainStaged();
+		live.points = [];
+
+		expect(held(session, "s")?.version).toBe(3);
+		expect(held(session, "s")).not.toBe(live);
+		expect(pointsHeld(session, "s")).toBeGreaterThan(0);
+	});
+
+	it("puts what is staged in the room when detached", () => {
+		const session = room();
+		const view = fakeView([element("1")]);
+		const bound = bindDrawing(view.view, session, NO_STALE);
+
+		view.draw(element("2"));
+		expect(held(session, "2")).toBeUndefined();
+		bound?.detach();
+
+		expect(held(session, "2")).toBeDefined();
+	});
+
+	it("reconciles only the keys the room changed", () => {
+		const crowd = Array.from({ length: 50 }, (_, at) => element(`e${at}`));
+		const session = room(crowd);
+		const view = fakeView(crowd);
+		bindDrawing(view.view, session, NO_STALE);
+		const reconcile = vi.spyOn(LIB, "reconcileElements");
+		const updates = updatesOf(session);
+
+		session.model.elements.set("e7", element("e7", 2));
+
+		expect(reconcile).toHaveBeenCalledOnce();
+		expect(reconcile.mock.calls[0]?.[1].map(({ id }) => id)).toEqual(["e7"]);
+		expect(view.stamps()).toHaveLength(50);
+		expect(view.stamps()).toContain("e7@2");
+		session.drainStaged();
+		expect(updates).toHaveLength(1);
+	});
+
+	it("still reports an edit the view made before the room changed another element", () => {
+		const scene = [element("1"), element("2")];
+		const session = room(scene);
+		const view = fakeView(scene);
+		bindDrawing(view.view, session, NO_STALE);
+
+		const edited = scene[1] as SceneElement;
+		edited.version = 3;
+		session.model.elements.set("1", element("1", 2));
+		session.drainStaged();
+
+		expect(held(session, "2")?.version).toBe(3);
+	});
+
+	it("bumps the element the view kept past the room's newer version", () => {
+		const session = room();
+		const view = fakeView([element("1")], { editing: ["1"] });
+		bindDrawing(view.view, session, NO_STALE);
+
+		session.model.elements.set("1", element("1", 5));
+		session.drainStaged();
+
+		expect(view.stamps()).toEqual(["1@6"]);
+		expect(held(session, "1")?.version).toBe(6);
+	});
+
+	it("catches up on events it missed while its view named another file", () => {
+		const session = room();
+		const view = fakeView([element("1")]);
+		bindDrawing(view.view, session, NO_STALE);
+		const { file } = view.view;
+
+		view.view.excalidrawData = { file: null };
+		session.model.elements.set("2", element("2"));
+		view.view.excalidrawData = { file };
+		session.model.elements.set("3", element("3"));
+
+		expect(view.stamps()).toEqual(["1@1", "2@1", "3@1"]);
+	});
+
+	it("sends the winner the view kept back to the room", () => {
+		const session = room();
+		const view = fakeView([element("1", 5)]);
+		bindDrawing(view.view, session, NO_STALE);
+		session.drainStaged();
+
+		session.model.elements.set("1", element("1", 3));
+		expect(view.stamps()).toEqual(["1@5"]);
+		expect(held(session, "1")?.version).toBe(3);
+		session.drainStaged();
+
+		expect(held(session, "1")?.version).toBe(5);
+	});
+});
+
+describe("bindDrawing pointer", () => {
+	const pointer = (session: LiveSession<DrawingModel>) =>
+		session.awareness.getLocalState()?.pointer;
+
+	it("follows the pointer once per frame", () => {
+		vi.useFakeTimers();
+		const session = room();
+		const view = fakeView([element("1")]);
+		bindDrawing(view.view, session, NO_STALE);
+		const change = vi.fn();
+		session.awareness.on("change", change);
+
+		view.move(1, 1);
+		view.move(2, 2);
+		view.move(3, 3);
+		expect(change).not.toHaveBeenCalled();
+		vi.advanceTimersByTime(20);
+
+		expect(pointer(session)).toEqual({ x: 3, y: 3 });
+		expect(change).toHaveBeenCalledOnce();
+	});
+
+	it("drops a frame the pointer left before", () => {
+		vi.useFakeTimers();
+		const session = room();
+		const view = fakeView([element("1")]);
+		bindDrawing(view.view, session, NO_STALE);
+
+		view.move(1, 1);
+		vi.advanceTimersByTime(20);
+		view.move(2, 2);
+		view.leave();
+		vi.advanceTimersByTime(20);
+
+		expect(pointer(session)).toBeNull();
+	});
+
+	it("drops a frame the binding was detached before", () => {
+		vi.useFakeTimers();
+		const session = room();
+		const view = fakeView([element("1")]);
+		const bound = bindDrawing(view.view, session, NO_STALE);
+
+		view.move(2, 2);
+		bound?.detach();
+		vi.advanceTimersByTime(20);
+
+		expect(pointer(session)).toBeNull();
 	});
 });

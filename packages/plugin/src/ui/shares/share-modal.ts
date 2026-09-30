@@ -3,6 +3,9 @@ import { type App, Modal, Setting } from "obsidian";
 import type { Person } from "@/presence/people";
 import { errorMessage } from "@/shared/errors";
 import type { Participant } from "@/storage";
+import { alertLine } from "@/ui/common/alert-line";
+import { serial } from "@/ui/common/enter-key";
+import { notifyError } from "@/ui/common/notices";
 import { renderAvatar } from "@/ui/live/avatars";
 import type { CreatedInvite } from "./invite-action";
 import { renderInviteForm } from "./invite-section";
@@ -21,7 +24,8 @@ export interface ShareWindow {
 	name: string;
 	/** Whose it is and where, in a sentence. */
 	summary: string;
-	here(): Person[];
+	warning: string | null;
+	here(): readonly Person[];
 	/** Why the relay cannot show who is here; null when it can. */
 	note(): string | null;
 	subscribe(listener: () => void): () => void;
@@ -61,9 +65,19 @@ export class ShareModal extends Modal {
 			cls: "setting-item-description",
 			text: share.summary,
 		});
+		if (share.warning) {
+			contentEl.createEl("p", {
+				cls: "obsync-share-warning",
+				text: share.warning,
+			});
+		}
 		section(contentEl, "People");
+		const failure = alertLine(contentEl);
 		const list = contentEl.createDiv({ cls: "obsync-share-access" });
-		this.redraw = () => this.renderPeople(list);
+		this.redraw = () => {
+			failure.setText(this.failure ?? "");
+			this.renderPeople(list);
+		};
 		this.unsubscribe = share.subscribe(this.redraw);
 		this.redraw();
 		void this.load();
@@ -76,6 +90,7 @@ export class ShareModal extends Modal {
 
 	onClose(): void {
 		this.unsubscribe?.();
+		this.redraw = () => {};
 		this.contentEl.empty();
 		this.share.onClosed?.();
 	}
@@ -104,7 +119,7 @@ export class ShareModal extends Modal {
 
 	private noteOf(rows: readonly ShareRow[]): string | null {
 		const { share } = this;
-		if (this.failure) return this.failure;
+		if (this.failure) return null;
 		if (share.access && this.participants === null) return "Loading…";
 		const empty = share.access
 			? "Nobody else can open this folder yet."
@@ -156,34 +171,44 @@ export class ShareModal extends Modal {
 
 	private renderFooter(): void {
 		const { share } = this;
-		const footer = new Setting(this.contentEl);
+		const footer = new Setting(this.modalEl);
 		footer.settingEl.addClass("obsync-share-footer");
 		const { paused } = share;
 		if (paused !== null) {
+			footer.setDesc("Pausing affects this device only.");
 			footer.addButton((button) => {
 				const show = (now: boolean) =>
 					button.setButtonText(
 						now ? "Resume on this device" : "Pause on this device",
 					);
 				show(paused);
-				button
-					.setTooltip("Only this device; the others keep syncing it.")
-					.onClick(pauseToggle(paused, (next) => share.setPaused(next), show));
+				button.onClick(
+					pauseToggle(paused, (next) => share.setPaused(next), show),
+				);
 			});
 		}
 		footer.addButton((button) =>
 			button
 				.setButtonText(share.closeLabel)
 				.setWarning()
-				.onClick(async () => {
-					if (await share.close()) this.close();
-				}),
+				.onClick(
+					serial(async () => {
+						button.setDisabled(true);
+						try {
+							if (await share.close()) this.close();
+						} catch (err) {
+							notifyError(`Could not ${share.closeLabel.toLowerCase()}`, err);
+						} finally {
+							button.setDisabled(false);
+						}
+					}),
+				),
 		);
 	}
 }
 
 function section(parent: HTMLElement, title: string): void {
-	parent.createDiv({ cls: "obsync-share-section", text: title });
+	parent.createEl("h3", { cls: "obsync-share-section", text: title });
 }
 
 function named({ key, name, person }: ShareRow): DocumentFragment {

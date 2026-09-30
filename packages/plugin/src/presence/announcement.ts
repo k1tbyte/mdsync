@@ -21,7 +21,7 @@ export function sealAnnouncement(
 	keys: LiveKeys,
 	announcement: Announcement,
 ): Promise<Uint8Array> {
-	return seal(keys, encoder.encode(JSON.stringify(announcement)));
+	return seal(keys, encoder.encode(JSON.stringify(announcement)), "presence");
 }
 
 /** Null for anything this key cannot open or that is not an announcement. */
@@ -29,7 +29,7 @@ export async function openAnnouncement(
 	keys: LiveKeys,
 	payload: Uint8Array,
 ): Promise<Announcement | null> {
-	const plain = await unseal(keys, payload);
+	const plain = await unseal(keys, payload, "presence");
 	if (!plain) return null;
 	let value: unknown;
 	try {

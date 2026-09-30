@@ -3,7 +3,12 @@ import type { StorageAdapter } from "@/storage/types";
 import type { Space } from "@/sync/space";
 
 import { spacesOf } from "./partition";
-import { closeRecord, mergeRecords, type SpaceRecord } from "./record";
+import {
+	closeRecord,
+	mergeRecords,
+	type ShareAccess,
+	type SpaceRecord,
+} from "./record";
 import { syncRecords } from "./remote";
 
 /** A folder the person moved on another device, still at `from` here. */
@@ -23,15 +28,26 @@ export interface RecordsSync {
 	left: Space[];
 }
 
+interface Derived {
+	spaces: SpaceRecord[];
+	pausedSpaces: string[];
+	localRoots: Record<string, string>;
+	list: readonly SpaceRecord[];
+	partition: readonly Space[];
+}
+
 /**
  * This device's working copy of the space records. It lives in the settings,
  * next to the storage credentials, because it is needed before the first pull.
  */
 export class SpaceRecords {
+	private derived: Derived | null = null;
+
 	constructor(
 		private readonly settings: {
 			spaces: SpaceRecord[];
 			pausedSpaces: string[];
+			pauseArrivingShares: boolean;
 			localRoots: Record<string, string>;
 			spacesVault: string | null;
 		},
@@ -40,15 +56,11 @@ export class SpaceRecords {
 
 	/** Roots as on this device: a folder not moved here yet keeps its old one. */
 	list(): readonly SpaceRecord[] {
-		const { spaces, localRoots } = this.settings;
-		return spaces.map((record) => {
-			const root = localRoots[record.id];
-			return root === undefined ? record : { ...record, root };
-		});
+		return this.derive().list;
 	}
 
-	partition(): Space[] {
-		return spacesOf(this.list(), this.paused());
+	partition(): readonly Space[] {
+		return this.derive().partition;
 	}
 
 	/** Open records left out because a smaller id holds their folder: only closing them helps. */
@@ -94,14 +106,34 @@ export class SpaceRecords {
 		await this.add({ ...record, root, rev: record.rev + 1, author });
 	}
 
+	/** Remembers the relay an invite went through, so closing the share can end its tokens there. */
+	async invitedVia(
+		id: string,
+		relayUrl: string,
+		author: string,
+	): Promise<void> {
+		const record = this.stored(id);
+		if (
+			record?.access.kind !== "owner" ||
+			record.access.relayUrl === relayUrl
+		) {
+			return;
+		}
+		const access = { ...record.access, relayUrl };
+		await this.add({ ...record, access, rev: record.rev + 1, author });
+	}
+
+	/** A new invite link for a share open here: only its access changes, never its root. */
+	async renew(id: string, access: ShareAccess, author: string): Promise<void> {
+		const record = this.stored(id);
+		if (!record || record.closed) return;
+		await this.add({ ...record, access, rev: record.rev + 1, author });
+	}
+
 	/** The folder is where its record says now. */
 	async settle(id: string): Promise<void> {
 		this.dropLocalRoot(id);
 		await this.save();
-	}
-
-	paused(): ReadonlySet<string> {
-		return new Set(this.settings.pausedSpaces);
 	}
 
 	/** This device only: the person's other devices keep syncing the share. */
@@ -145,10 +177,36 @@ export class SpaceRecords {
 			this.settings.localRoots = pendingRoots(here, merged, {
 				...this.settings.localRoots,
 			});
+			this.repause(here, merged);
 			this.settings.spaces = merged;
 			await this.save();
 		}
 		return { published, closed, left: left ?? [] };
+	}
+
+	/**
+	 * A closed share is paused no more; one new here arrives paused when this
+	 * device asks so. In the records' own save, so no refresh pulls it first.
+	 */
+	private repause(
+		here: readonly SpaceRecord[],
+		merged: readonly SpaceRecord[],
+	): void {
+		const open = new Set(
+			here.filter((each) => !each.closed).map(({ id }) => id),
+		);
+		const closed = new Set(
+			merged.filter((each) => each.closed).map(({ id }) => id),
+		);
+		const arrived = this.settings.pauseArrivingShares
+			? merged.filter(({ id }) => !closed.has(id) && !open.has(id))
+			: [];
+		this.settings.pausedSpaces = [
+			...new Set([
+				...this.settings.pausedSpaces.filter((id) => !closed.has(id)),
+				...arrived.map(({ id }) => id),
+			]),
+		];
 	}
 
 	/**
@@ -167,6 +225,30 @@ export class SpaceRecords {
 		this.settings.pausedSpaces = [];
 		this.settings.localRoots = {};
 		return left;
+	}
+
+	private derive(): Derived {
+		const { spaces, pausedSpaces, localRoots } = this.settings;
+		const known = this.derived;
+		if (
+			known?.spaces === spaces &&
+			known.pausedSpaces === pausedSpaces &&
+			known.localRoots === localRoots
+		) {
+			return known;
+		}
+		const list = spaces.map((record) => {
+			const root = localRoots[record.id];
+			return root === undefined ? record : { ...record, root };
+		});
+		this.derived = {
+			spaces,
+			pausedSpaces,
+			localRoots,
+			list,
+			partition: spacesOf(list, new Set(pausedSpaces)),
+		};
+		return this.derived;
 	}
 
 	private stored(id: string): SpaceRecord | undefined {

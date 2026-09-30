@@ -49,7 +49,7 @@ beforeEach(async () => {
 	FakeSocket.opened = [];
 	link = new HubLink({
 		serverUrl: "https://relay.test",
-		channels: Promise.resolve([{ channel: "c", token: "t" }]),
+		channels: async () => [{ channel: "c", token: "t" }],
 		deviceId: "d",
 		onFrame: () => {},
 	});
@@ -120,7 +120,7 @@ describe("hub link state", () => {
 		link.dispose();
 		link = new HubLink({
 			serverUrl: "https://relay.test",
-			channels: Promise.resolve([{ channel: "c", token: "t" }]),
+			channels: async () => [{ channel: "c", token: "t" }],
 			deviceId: "d",
 			onFrame: () => {},
 			onConnectionChange: (connected) => changes.push(connected),

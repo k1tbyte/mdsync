@@ -11,13 +11,24 @@ describe("live sealing", () => {
 	it("opens what it sealed and nothing sealed under another key", async () => {
 		const raw = dataKey();
 		const keys = await deriveLiveKeys(raw);
-		const sealed = await seal(keys, Uint8Array.of(1, 2, 3));
+		const sealed = await seal(keys, Uint8Array.of(1, 2, 3), "doc:a");
 
-		expect(await unseal(await deriveLiveKeys(raw), sealed)).toEqual(
+		expect(await unseal(await deriveLiveKeys(raw), sealed, "doc:a")).toEqual(
 			Uint8Array.of(1, 2, 3),
 		);
-		expect(await unseal(await deriveLiveKeys(dataKey()), sealed)).toBeNull();
-		expect(await unseal(keys, sealed.subarray(0, 12))).toBeNull();
+		expect(
+			await unseal(await deriveLiveKeys(dataKey()), sealed, "doc:a"),
+		).toBeNull();
+		expect(await unseal(keys, sealed.subarray(0, 12), "doc:a")).toBeNull();
+	});
+
+	it("opens nothing the relay moved to another document or kind", async () => {
+		const keys = await deriveLiveKeys(dataKey());
+		const sealed = await seal(keys, Uint8Array.of(1, 2, 3), "doc:a");
+
+		expect(await unseal(keys, sealed, "doc:b")).toBeNull();
+		expect(await unseal(keys, sealed, "awareness:a")).toBeNull();
+		expect(await unseal(keys, sealed, "presence")).toBeNull();
 	});
 
 	it("names a document the same on every device holding the data key", async () => {

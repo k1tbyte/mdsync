@@ -8,7 +8,11 @@ import {
 	EFieldKind,
 	type SettingsFieldSpec,
 } from "@/storage/field-spec";
-import type { ConditionalRead, StorageAdapter } from "@/storage/types";
+import type {
+	ConditionalRead,
+	ListedObject,
+	StorageAdapter,
+} from "@/storage/types";
 import { bytesToBase64 } from "@/utils/base64";
 import { toArrayBuffer } from "@/utils/bytes";
 import {
@@ -22,7 +26,7 @@ import {
 } from "./util";
 
 const PROPFIND_BODY =
-	'<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/></d:prop></d:propfind>';
+	'<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getetag/></d:prop></d:propfind>';
 const HTTP_OK_MIN = 200;
 const HTTP_OK_MAX = 299;
 const HTTP_NOT_FOUND = 404;
@@ -160,6 +164,42 @@ export function createWebDAVAdapter(
 		}
 	}
 
+	const listObjects = async (keyPrefix: string): Promise<ListedObject[]> => {
+		// Depth 1 only reports direct children, so the walk has to recurse:
+		// objects/ sits one level below the root and would be invisible.
+		const seen = new Set<string>();
+		const objects: ListedObject[] = [];
+		const queue = [keyPrefix ? ensureTrailingSlash(keyPrefix) : ""];
+		while (queue.length > 0) {
+			const dir = queue.shift() as string;
+			if (seen.has(dir)) continue;
+			seen.add(dir);
+			const res = await davRequest({
+				url: rootUrl + encodeKey(dir),
+				method: "PROPFIND",
+				headers: buildHeaders({
+					Depth: "1",
+					"Content-Type": "application/xml; charset=utf-8",
+				}),
+				body: PROPFIND_BODY,
+				throw: false,
+			});
+			if (res.status === HTTP_NOT_FOUND) continue;
+			if (res.status !== HTTP_MULTI_STATUS) {
+				throw new StorageHttpError(
+					res.status,
+					`WebDAV PROPFIND "${dir}" failed (HTTP ${res.status})`,
+				);
+			}
+			const listed = parsePropfindResponse(res.text, rootUrl);
+			objects.push(...listed.files);
+			for (const child of listed.collections) {
+				if (child !== dir) queue.push(child);
+			}
+		}
+		return objects;
+	};
+
 	return {
 		identity() {
 			return webdavIdentity(config);
@@ -203,40 +243,9 @@ export function createWebDAVAdapter(
 			assertOk(res, "delete", key);
 		},
 		async list(keyPrefix) {
-			// Depth 1 only reports direct children, so the walk has to recurse:
-			// objects/ sits one level below the root and would be invisible.
-			const seen = new Set<string>();
-			const keys: string[] = [];
-			const queue = [keyPrefix ? ensureTrailingSlash(keyPrefix) : ""];
-			while (queue.length > 0) {
-				const dir = queue.shift() as string;
-				if (seen.has(dir)) continue;
-				seen.add(dir);
-				const res = await davRequest({
-					url: rootUrl + encodeKey(dir),
-					method: "PROPFIND",
-					headers: buildHeaders({
-						Depth: "1",
-						"Content-Type": "application/xml; charset=utf-8",
-					}),
-					body: PROPFIND_BODY,
-					throw: false,
-				});
-				if (res.status === HTTP_NOT_FOUND) continue;
-				if (res.status !== HTTP_MULTI_STATUS) {
-					throw new StorageHttpError(
-						res.status,
-						`WebDAV PROPFIND "${dir}" failed (HTTP ${res.status})`,
-					);
-				}
-				const listed = parsePropfindResponse(res.text, rootUrl);
-				keys.push(...listed.files);
-				for (const child of listed.collections) {
-					if (child !== dir) queue.push(child);
-				}
-			}
-			return keys;
+			return (await listObjects(keyPrefix)).map((object) => object.key);
 		},
+		listWithEtags: listObjects,
 	};
 
 	async function sendPut(
@@ -310,7 +319,7 @@ function isSuccess(status: number): boolean {
 }
 
 interface PropfindListing {
-	files: string[];
+	files: ListedObject[];
 	collections: string[];
 }
 
@@ -340,10 +349,21 @@ function parsePropfindResponse(
 		if (isCollection) {
 			if (relative) listing.collections.push(ensureTrailingSlash(relative));
 		} else {
-			listing.files.push(relative);
+			listing.files.push({
+				key: relative,
+				etag: propertyText(node, "getetag"),
+			});
 		}
 	}
 	return listing;
+}
+
+/** Empty when the server 404s the property, i.e. has no validators. */
+function propertyText(response: Element, name: string): string | null {
+	const text = response
+		.getElementsByTagNameNS("DAV:", name)
+		.item(0)?.textContent;
+	return text?.trim() || null;
 }
 
 /**

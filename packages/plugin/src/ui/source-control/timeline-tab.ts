@@ -2,11 +2,11 @@ import { setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { errorMessage } from "@/shared/errors";
 import type { SnapshotListResult } from "@/sync/history";
+import { makeActivatable } from "@/ui/common/activatable";
 import { appendIconButton, appendLabeledButton } from "@/ui/common/icon-button";
 import { onLongPress } from "@/ui/common/long-press";
 import { notifyError } from "@/ui/common/notices";
 import type { HistoryDiffTarget } from "@/ui/source-control-view";
-import { makeActivatable } from "./change-rows";
 import { groupByDay } from "./day-groups";
 import { STATUS_CLASSES, STATUS_LETTERS } from "./row-formatter";
 import { renderPath, renderSize } from "./row-parts";
@@ -137,7 +137,7 @@ export class TimelineTab {
 		});
 		if (rows.length === 0) {
 			body.createDiv({
-				cls: "obsync-status-line",
+				cls: "obsync-status-line is-empty",
 				text: "No pushes recorded yet. The timeline fills up as you push.",
 			});
 		}

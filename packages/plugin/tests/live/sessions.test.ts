@@ -8,6 +8,7 @@ import { sha256Hex } from "@/crypto";
 import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
 import { AgreedTexts } from "@/live/agreed-texts";
 import { LiveColdSync } from "@/live/cold-sync";
+import { FollowerSession } from "@/live/follower-session";
 import { docIdFor, seal } from "@/live/seal";
 import type { LiveSession } from "@/live/session";
 import { LiveSessions } from "@/live/sessions";
@@ -19,7 +20,7 @@ vi.mock("@/live/text/binding", () => ({
 	bindEditor: vi.fn(() => ({ detach: vi.fn(), showAuthors: vi.fn() })),
 }));
 
-const USER = { key: "d1", name: "laptop", color: "red", colorLight: "pink" };
+const USER = { key: "d1", name: "laptop", color: "red" };
 
 function editorOf(file: TFile, mode = "source"): MarkdownView {
 	return Object.assign(Object.create(MarkdownView.prototype), {
@@ -38,6 +39,7 @@ let spaceOf: (path: string) => LiveSpace | null;
 let leaves: { view: MarkdownView }[];
 let agreed: AgreedTexts;
 let sessions: LiveSessions;
+let authorsShown: boolean;
 
 beforeEach(async () => {
 	vi.mocked(bindEditor).mockClear();
@@ -47,6 +49,7 @@ beforeEach(async () => {
 	keys = await freshKeys();
 	spaceOf = (path) => (path.startsWith("Shared/") ? null : vault());
 	leaves = [];
+	authorsShown = false;
 	agreed = new AgreedTexts(
 		new InMemoryAdapter() as unknown as DataAdapter,
 		".obsidian",
@@ -57,6 +60,9 @@ beforeEach(async () => {
 		liveSpace: async (path) => spaceOf(path),
 		agreed,
 		baseText: async () => null,
+		moveFile: async () => false,
+		authorsShown: () => authorsShown,
+		nameOf: () => null,
 	});
 });
 
@@ -68,7 +74,7 @@ function fakeApp(): App {
 			getLeavesOfType: (type: string) => (type === "markdown" ? leaves : []),
 		},
 		vault: { getFileByPath: () => null, read: async () => "" },
-		metadataCache: { getFileCache: () => null },
+		metadataCache: { getFileCache: () => ({}) },
 	} as unknown as App;
 }
 
@@ -122,6 +128,8 @@ describe("live sessions", () => {
 			changed.mockClear();
 			await vi.advanceTimersByTimeAsync(15_000);
 			expect(sessions.unanswered("a.md")).toBe(true);
+			// No longer joining: the file sync takes the note back.
+			expect(sessions.joining("a.md")).toBe(false);
 			expect(changed).toHaveBeenCalled();
 		} finally {
 			vi.useRealTimers();
@@ -195,6 +203,23 @@ describe("live sessions", () => {
 		expect(sessions.coldCause("a.md")).toBeNull();
 	});
 
+	it("keeps a reader's note out of an empty room, and takes it in once they may write", async () => {
+		const writable = spaceOf;
+		spaceOf = (path) => {
+			const space = writable(path);
+			return space && { ...space, readOnly: true };
+		};
+		leaves = [{ view: editorOf(note("a.md")) }];
+
+		await sessions.refresh();
+		await vi.waitFor(() => expect(sessions.coldCause("a.md")).toBe("empty"));
+		spaceOf = writable;
+		await sessions.refresh();
+
+		expect(sessions.coldCause("a.md")).toBeNull();
+		await vi.waitFor(() => expect(bindEditor).toHaveBeenCalled());
+	});
+
 	it("tints other people's text in every bound editor while authors are shown", async () => {
 		leaves = [{ view: editorOf(note("a.md")) }];
 		await sessions.refresh();
@@ -202,14 +227,16 @@ describe("live sessions", () => {
 		const first = vi.mocked(bindEditor).mock.results[0]?.value;
 		expect(vi.mocked(bindEditor).mock.calls[0]?.[2]).toBeNull();
 
-		expect(sessions.toggleAuthors()).toBe(true);
+		authorsShown = true;
+		sessions.repaintAuthors();
 		expect(first.showAuthors).toHaveBeenCalledWith("owner");
 		leaves.push({ view: editorOf(note("b.md")) });
 		await sessions.refresh();
 		await vi.waitFor(() => expect(bindEditor).toHaveBeenCalledTimes(2));
 		expect(vi.mocked(bindEditor).mock.calls[1]?.[2]).toBe("owner");
 
-		expect(sessions.toggleAuthors()).toBe(false);
+		authorsShown = false;
+		sessions.repaintAuthors();
 		expect(first.showAuthors).toHaveBeenLastCalledWith(null);
 	});
 
@@ -320,6 +347,31 @@ describe("live notes as the file sync sees them", () => {
 		expect(take).toBe("taken");
 		expect(room.model.text.toString()).toBe("text\nmore");
 		expect(view.save).toHaveBeenCalled();
+	});
+
+	it("leaves a reader's note to the file sync at a version its room lacks", async () => {
+		await openRoom();
+		leaves = [];
+		await sessions.refresh();
+		const writable = spaceOf;
+		spaceOf = (path) => {
+			const space = writable(path);
+			return space && { ...space, readOnly: true };
+		};
+		vi.mocked(bindEditor).mockClear();
+		const { room } = await openRoom();
+		expect(room).toBeInstanceOf(FollowerSession);
+		const offer = (incoming: string) =>
+			cold().absorb("a.md", undefined, async () => ({
+				base: "text",
+				incoming,
+			}));
+
+		expect(await offer("text")).toBe("taken");
+		expect(await offer("text\nmore")).toBe("later");
+
+		expect(room.model.text.toString()).toBe("text");
+		await vi.waitFor(() => expect(sessions.coldCause("a.md")).toBe("diverged"));
 	});
 
 	it("leaves an incoming version for later when its view cannot save", async () => {
@@ -480,7 +532,11 @@ describe("rebuilt rooms", () => {
 		raw.send({
 			type: EFrame.Update,
 			doc: third,
-			payload: await seal(keys as LiveKeys, Uint8Array.of(0, 0)),
+			payload: await seal(
+				keys as LiveKeys,
+				Uint8Array.of(0, 0),
+				`doc:${third}`,
+			),
 		});
 		raw.disconnect();
 
@@ -499,7 +555,12 @@ describe("rebuilt rooms", () => {
 			doc: room.docId,
 			target: "f".repeat(32),
 			upto: room.seq,
-			payload: await seal(keys as LiveKeys, Uint8Array.of(0, 0)),
+			note: new Uint8Array(),
+			payload: await seal(
+				keys as LiveKeys,
+				Uint8Array.of(0, 0),
+				`doc:${"f".repeat(32)}`,
+			),
 		});
 		raw.disconnect();
 

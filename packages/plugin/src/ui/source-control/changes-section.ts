@@ -1,12 +1,9 @@
 import { setIcon } from "obsidian";
 import { EConflictStrategy } from "@/sync/controller";
+import { makeActivatable } from "@/ui/common/activatable";
+import { type ActionTone, actionButton } from "./action-button";
 import type { SourceControlActions } from "./actions";
-import {
-	makeActivatable,
-	type RowContext,
-	renderFileRow,
-	renderFolderRow,
-} from "./change-rows";
+import { type RowContext, renderFileRow, renderFolderRow } from "./change-rows";
 import { buildTree, flattenRows, flattenTree } from "./tree-builder";
 import { ESection, type FileRow, type VisualRow } from "./types";
 import { mountVirtualList, type VirtualListHandle } from "./virtual-list";
@@ -29,7 +26,7 @@ export interface ChangesSectionDeps
 
 interface SelectionAction {
 	text: string;
-	cls: string;
+	tone: ActionTone;
 	run: (actions: SourceControlActions, paths: string[]) => Promise<boolean>;
 }
 
@@ -39,19 +36,19 @@ const SELECTION_ACTIONS: Record<ESection, ReadonlyArray<SelectionAction>> = {
 	[ESection.Local]: [
 		{
 			text: "Push selected",
-			cls: "is-primary",
+			tone: "cta",
 			run: (actions, paths) => actions.pushPaths(paths),
 		},
 		{
 			text: "Revert selected",
-			cls: "is-warning",
+			tone: "warning",
 			run: (actions, paths) => actions.revertPaths(paths),
 		},
 	],
 	[ESection.Remote]: [
 		{
 			text: "Pull selected",
-			cls: "is-primary",
+			tone: "cta",
 			run: (actions, paths) => actions.pullPaths(paths),
 		},
 	],
@@ -153,35 +150,25 @@ export class ChangesSection {
 		});
 		const { actions } = this.deps;
 		this.selectionButtons = SELECTION_ACTIONS[this.id].map(
-			({ text, cls, run }) => {
-				const button = bar.createEl("button", { text, cls });
-				button.addEventListener(
-					"click",
-					() => void this.runOnSelection((paths) => run(actions, paths)),
-				);
-				return button;
-			},
+			({ text, tone, run }) =>
+				actionButton(bar, tone)
+					.setButtonText(text)
+					.onClick(
+						() => void this.runOnSelection((paths) => run(actions, paths)),
+					).buttonEl,
 		);
 
 		if (this.id === ESection.Conflicts) {
-			const keepAll = bar.createEl("button", {
-				text: "Keep all local",
-				cls: "is-warning",
-			});
-			keepAll.disabled = busy;
-			keepAll.addEventListener(
-				"click",
-				() => void actions.batchResolve(EConflictStrategy.KeepLocal),
-			);
-			const acceptAll = bar.createEl("button", {
-				text: "Accept all remote",
-				cls: "is-warning",
-			});
-			acceptAll.disabled = busy;
-			acceptAll.addEventListener(
-				"click",
-				() => void actions.batchResolve(EConflictStrategy.AcceptRemote),
-			);
+			actionButton(bar, "warning")
+				.setButtonText("Keep all local")
+				.setDisabled(busy)
+				.onClick(() => void actions.batchResolve(EConflictStrategy.KeepLocal));
+			actionButton(bar, "warning")
+				.setButtonText("Accept all remote")
+				.setDisabled(busy)
+				.onClick(
+					() => void actions.batchResolve(EConflictStrategy.AcceptRemote),
+				);
 		}
 
 		const selectionControls = bar.createDiv({

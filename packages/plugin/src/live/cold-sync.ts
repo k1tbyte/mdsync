@@ -88,8 +88,7 @@ export class LiveColdSync implements LiveNotes {
 			return !isNewerMark(snapshot, { gen: room.generation, seq: room.seq });
 		}
 		// A deletion leaves the open note be: edits outlive it.
-		if (incoming) room.absorb(incoming.base, incoming.incoming);
-		return true;
+		return !incoming || room.absorb(incoming.base, incoming.incoming);
 	}
 
 	async wrote(path: string, mark: LiveMark, text: string): Promise<void> {

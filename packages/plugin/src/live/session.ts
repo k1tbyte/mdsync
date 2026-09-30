@@ -13,14 +13,16 @@ import {
 } from "@obsync/protocol";
 import * as Y from "yjs";
 
-import type { LiveKeys } from "@/crypto/live-keys";
-import type { SpaceFrame, SpaceHub, SpaceListener } from "@/hub/connection";
+import type { SpaceFrame, SpaceListener } from "@/hub/connection";
 import { reportWarning } from "@/shared/diagnostics";
 
-import { type Author, USERS } from "./authors";
-import type { LiveKind, LiveModel } from "./model";
+import { USERS } from "./authors";
+import { closingUntil } from "./closing";
+import type { LiveModel } from "./model";
 import { RoomAwareness } from "./room-awareness";
-import { seal, unseal } from "./seal";
+import { type SealedFor, seal, unseal } from "./seal";
+import type { LiveSessionDeps, Rotation } from "./session-deps";
+import { Staging } from "./staging";
 
 /** Edits and cursors batch this long: at 100 ms the envelope outweighed the content. */
 const FLUSH_MS = 250;
@@ -30,35 +32,13 @@ export const COMPACT_AFTER = 200;
 const REMOTE = Symbol("remote");
 /** A payload past this cannot fit a frame with its header: the hub would drop it. */
 const MAX_PAYLOAD_BYTES = MAX_FRAME_BYTES - 1024;
-
-/** "busy": not now - edits still unacked, offline, or the answer was lost. */
-export type Rotation = "moved" | "refused" | "busy";
+/** A plain rotation: the note keeps its path. */
+const NO_NOTE = new Uint8Array();
 
 type Frame<T> = Extract<ServerFrame, { type: T }>;
-type Unaddressed<F = SpaceFrame> = F extends SpaceFrame
+export type Unaddressed<F = SpaceFrame> = F extends SpaceFrame
 	? Omit<F, "doc">
 	: never;
-export interface LiveSessionDeps<M extends LiveModel> {
-	kind: LiveKind<M>;
-	keys: LiveKeys;
-	/** The channel of the space the note is in. */
-	hub: SpaceHub;
-	/** Who this device types as: attribution maps its client id to them. */
-	author: Author;
-	/** The seq this device knew the room at; a room behind it lost its log. A successor starts at 1. */
-	knownSeq?: number;
-	/** The docId of the next generation, where a room that lost its log moves on. */
-	successor(): Promise<string>;
-	readDisk(): Promise<string>;
-	/** What the disk last agreed on with everyone: the base of the merge. */
-	readBase(): Promise<string>;
-	/** The room now holds all of `agreed`: nothing local is pending or unacked. */
-	onAgreed(agreed: string, seq: number): void;
-	/** The room was rebuilt elsewhere and now points at its successor. */
-	onMoved(): void;
-	/** The hub cannot carry this document: it goes cold. */
-	onRefused(reason: Refusal): void;
-}
 
 export class LiveSession<M extends LiveModel = LiveModel>
 	implements SpaceListener
@@ -71,7 +51,7 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	private markReady!: () => void;
 	private inSync = false;
 	/** The disk read the open merged in, so `adopt` can tell what changed since. */
-	private reconciledFrom: string | null = null;
+	protected reconciledFrom: string | null = null;
 	/** Updates may go out on this socket: from its first State until it drops. */
 	private online = false;
 	/** Bumped per socket, so nothing queued for a dead one acts on the next. */
@@ -86,7 +66,7 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	private pending: Uint8Array[] = [];
 	/** Disk text offered to an empty room, applied here only once the hub takes it. */
 	private seed: Uint8Array | null = null;
-	private moved: string | null = null;
+	private moved: { target: string; note: Uint8Array } | null = null;
 	/** Names the room's log once a State did. */
 	private log: string | null = null;
 	/** The lost log this socket asked to move on from. */
@@ -97,7 +77,9 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	private readonly presence: RoomAwareness;
 	private queue: Promise<void> = Promise.resolve();
 	private updateTimer: number | null = null;
+	private readonly staged = new Staging();
 	private readonly unlisten: () => void;
+	private readonly sealedFor: SealedFor;
 
 	private readonly handlers: {
 		[K in ServerFrame["type"]]?: (frame: Frame<K>, epoch: number) => unknown;
@@ -108,21 +90,23 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		[EFrame.Peer]: (frame) => this.presence.receive(frame.payload, frame.from),
 		[EFrame.Join]: () => this.presence.announce(),
 		[EFrame.Leave]: (frame) => this.presence.depart(frame.from),
-		[EFrame.Moved]: (frame) => this.onMoved(frame.target),
+		[EFrame.Moved]: (frame) => this.onMoved(frame.target, frame.note),
 		[EFrame.Refused]: (frame) => this.onRefused(frame.reason),
 	};
 
 	constructor(
 		readonly docId: string,
 		readonly generation: number,
-		private readonly deps: LiveSessionDeps<M>,
+		protected readonly deps: LiveSessionDeps<M>,
 	) {
 		this.model = deps.kind.model(this.doc);
+		this.sealedFor = `doc:${docId}`;
 		this.ready = new Promise((resolve) => {
 			this.markReady = resolve;
 		});
 		this.presence = new RoomAwareness(this.doc, {
 			keys: deps.keys,
+			docId,
 			canSend: () => this.online,
 			send: (payload) => this.send({ type: EFrame.Awareness, payload }),
 			enqueue: (step) => this.enqueue(step),
@@ -146,16 +130,32 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		return this.inSync && this.moved === null;
 	}
 
-	/** The docId this room continued as, once another device rebuilt it. */
-	get movedTo(): string | null {
-		return this.moved;
+	/** The name the relay vouches for a person present in the room's space. */
+	nameOf(person: string): string | null {
+		return this.deps.nameOf?.(person) ?? null;
 	}
 
-	/** The room holds every edit made here: nothing pending, nothing unacked. */
+	/** The docId this room continued as, once another device rebuilt it. */
+	get movedTo(): string | null {
+		return this.moved?.target ?? null;
+	}
+
+	/** Sealed by whoever moved the room with its file; empty for a plain rotation. */
+	get moveNote(): Uint8Array | null {
+		return this.moved?.note ?? null;
+	}
+
+	/** The room answered and holds this file: a pointer met later is where this note went. */
+	get joined(): boolean {
+		return this.inSync;
+	}
+
+	/** The room holds every edit made here: nothing staged, pending or unacked. */
 	get settled(): boolean {
 		return (
 			this.synced &&
 			!this.disposed &&
+			this.staged.empty &&
 			this.unacked.length === 0 &&
 			this.pending.length === 0
 		);
@@ -166,9 +166,21 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		return this.lastSeq;
 	}
 
-	/** Folds in a version edited outside the room, three-way against the one it grew from. */
-	absorb(base: string, incoming: string): void {
+	/** Folds in a version edited outside the room, three-way against the one it grew from; false when it cannot. */
+	absorb(base: string, incoming: string): boolean {
+		this.drainStaged();
 		this.model.merge(base, incoming);
+		return true;
+	}
+
+	stage(drain: () => void): void {
+		if (this.disposed) return;
+		this.staged.add(drain);
+		this.armFlush();
+	}
+
+	drainStaged(): void {
+		this.staged.drain();
 	}
 
 	/** Folds in what the first bound view gained since the disk read the open merged. */
@@ -181,17 +193,21 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	}
 
 	/** Rebuilds the document into `target` and moves the room there, unless the log moved on meanwhile. */
-	rotate(target: string): Promise<Rotation> {
+	rotate(target: string, note: Uint8Array = NO_NOTE): Promise<Rotation> {
 		return new Promise((resolve) =>
 			this.enqueue(async () => {
 				if (!this.settled || !this.online || this.rotation) {
 					return resolve("busy");
 				}
 				const upto = this.lastSeq;
-				const payload = await seal(this.deps.keys, this.model.rebuild());
+				const payload = await seal(
+					this.deps.keys,
+					this.model.rebuild(),
+					`doc:${target}`,
+				);
 				if (!this.online) return resolve("busy");
 				this.rotation = resolve;
-				this.send({ type: EFrame.Rotate, target, upto, payload });
+				this.send({ type: EFrame.Rotate, target, upto, note, payload });
 			}),
 		);
 	}
@@ -221,10 +237,12 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	/** Unacked edits may never reach the room, but they are on disk: the next open merges them back. */
 	dispose(): void {
 		if (this.disposed) return;
+		this.drainStaged();
 		this.disposed = true;
 		this.endRotation("busy");
 		this.unlisten();
-		this.clearTimers();
+		if (this.updateTimer !== null) window.clearTimeout(this.updateTimer);
+		this.presence.stopTimer();
 		const rest = this.takePending();
 		this.enqueue(async () => {
 			if (rest) await this.sendUpdate(rest);
@@ -234,6 +252,8 @@ export class LiveSession<M extends LiveModel = LiveModel>
 			this.presence.dispose();
 			this.doc.destroy();
 		});
+		// The queue settles even on errors, so a reopen never waits forever.
+		closingUntil(this.docId, this.queue);
 	}
 
 	private subscribe(): void {
@@ -260,7 +280,7 @@ export class LiveSession<M extends LiveModel = LiveModel>
 			// deleted note, and one this device knew had a log lost it (above).
 			if (frame.head === 0) return this.offerSeed(epoch);
 			this.seed = null;
-			await this.reconcile();
+			if (!(await this.reconcile())) return;
 			this.markSynced();
 		}
 		// On a socket already online a State only answers a refused rotation: nothing to resend.
@@ -280,7 +300,7 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	 * place, its seq would restart under marks ordered by it; and a log grown
 	 * again from another device's disk would double the text applied here.
 	 */
-	private async moveOn(
+	protected async moveOn(
 		frame: Frame<typeof EFrame.State>,
 		epoch: number,
 	): Promise<void> {
@@ -289,21 +309,22 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		const { head: upto, log } = frame;
 		if (this.lost?.upto === upto && this.lost.log === log) {
 			// Refused with the log unchanged: the successor has one, so the note continued there.
-			return this.onMoved(target);
+			return this.onMoved(target, NO_NOTE);
 		}
+		this.drainStaged();
 		const content = this.inSync
 			? this.model.rebuild()
 			: this.deps.kind.seed(await this.deps.readDisk());
-		const payload = await seal(this.deps.keys, content);
+		const payload = await seal(this.deps.keys, content, `doc:${target}`);
 		if (epoch !== this.epoch) return;
 		this.lost = { upto, log };
-		this.send({ type: EFrame.Rotate, target, upto, payload });
+		this.send({ type: EFrame.Rotate, target, upto, note: NO_NOTE, payload });
 	}
 
-	private async offerSeed(epoch: number): Promise<void> {
+	protected async offerSeed(epoch: number): Promise<void> {
 		const disk = await this.deps.readDisk();
 		const seed = this.deps.kind.seed(disk);
-		const payload = await seal(this.deps.keys, seed);
+		const payload = await seal(this.deps.keys, seed, this.sealedFor);
 		// An echo on a later socket must not be taken for this seed's.
 		if (epoch !== this.epoch) return;
 		this.seed = seed;
@@ -316,12 +337,13 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	 * the room straight to the disk would express an overwrite as operations and
 	 * delete everything the others wrote meanwhile.
 	 */
-	private async reconcile(): Promise<void> {
+	protected async reconcile(): Promise<boolean> {
 		// Base first: a file sync writes the disk before the base, so the pair read is never base-ahead.
 		const base = await this.deps.readBase();
 		const disk = await this.deps.readDisk();
 		this.reconciledFrom = disk;
 		this.model.merge(base, disk);
+		return true;
 	}
 
 	private markSynced(): void {
@@ -377,14 +399,14 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		}
 		this.compacted = this.lastSeq;
 		const snapshot = Y.encodeStateAsUpdate(this.doc);
-		const payload = await seal(this.deps.keys, snapshot);
+		const payload = await seal(this.deps.keys, snapshot, this.sealedFor);
 		if (this.online) {
 			this.send({ type: EFrame.Snapshot, upto: this.compacted, payload });
 		}
 	}
 
-	private onMoved(target: string): void {
-		this.moved = target;
+	private onMoved(target: string, note: Uint8Array): void {
+		this.moved = { target, note };
 		this.endRotation("moved");
 		this.deps.onMoved();
 	}
@@ -408,7 +430,7 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	}
 
 	private async apply(payload: Uint8Array): Promise<void> {
-		const update = await unseal(this.deps.keys, payload);
+		const update = await unseal(this.deps.keys, payload, this.sealedFor);
 		// A frame this key cannot open was sealed under another passphrase.
 		if (update) Y.applyUpdate(this.doc, update, REMOTE);
 	}
@@ -416,11 +438,11 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	/** Unacked before sealing: an edit is always pending or unacked until its echo. */
 	private async sendUpdate(update: Uint8Array): Promise<void> {
 		this.unacked.push(update);
-		const payload = await seal(this.deps.keys, update);
+		const payload = await seal(this.deps.keys, update, this.sealedFor);
 		if (this.online) this.send({ type: EFrame.Update, payload });
 	}
 
-	private send(frame: Unaddressed): void {
+	protected send(frame: Unaddressed): void {
 		if ("payload" in frame && frame.payload.length > MAX_PAYLOAD_BYTES) {
 			this.onRefused(ERefusal.TooLarge);
 			return;
@@ -447,22 +469,28 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		origin: unknown,
 	): void => {
 		if (origin === REMOTE || this.disposed) return;
-		this.pending.push(update);
-		this.attribute();
-		this.updateTimer ??= window.setTimeout(() => {
-			this.updateTimer = null;
-			// Taken inside the step: taken early, an echo queued before it would
-			// see nothing pending and agree on text the room does not have yet.
-			this.enqueue(() => {
-				const merged = this.takePending();
-				return merged && this.sendUpdate(merged);
-			});
-		}, FLUSH_MS);
+		this.local(update);
 	};
 
-	private clearTimers(): void {
-		if (this.updateTimer !== null) window.clearTimeout(this.updateTimer);
+	protected local(update: Uint8Array): void {
+		this.pending.push(update);
+		this.attribute();
+		this.armFlush();
+	}
+
+	private armFlush(): void {
+		this.updateTimer ??= window.setTimeout(() => this.flush(), FLUSH_MS);
+	}
+
+	private flush(): void {
+		this.drainStaged();
 		this.updateTimer = null;
-		this.presence.stopTimer();
+		if (!this.staged.empty) this.armFlush();
+		// Taken inside the step: taken early, an echo queued before it would
+		// see nothing pending and agree on text the room does not have yet.
+		this.enqueue(() => {
+			const merged = this.takePending();
+			return merged ? this.sendUpdate(merged) : this.settle();
+		});
 	}
 }

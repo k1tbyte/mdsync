@@ -3,8 +3,7 @@ import { activeStorage } from "@/settings/model";
 import { describeStorageTarget } from "@/storage";
 import { cleanSummary } from "@/sync/maintenance";
 import { notifyError, notifyInfo, reportError } from "@/ui/common/notices";
-import { confirmRemoteReset } from "@/ui/modals";
-import { openConfirmModal } from "@/ui/source-control/modals";
+import { confirmRemoteReset, openConfirmModal } from "@/ui/modals";
 
 const NO_STORAGE = "Configure a storage backend first.";
 

@@ -30,6 +30,7 @@ export class AgreedTexts {
 	private readonly dir: string;
 	private readonly unwritten = new Map<string, AgreedText>();
 	private timer: number | null = null;
+	private writing: Promise<void> = Promise.resolve();
 	/** Listed once: most notes never went live, and each would cost a failed read. */
 	private stored: Promise<Set<string>> | null = null;
 
@@ -62,9 +63,14 @@ export class AgreedTexts {
 		}, WRITE_DELAY_MS);
 	}
 
-	async flush(): Promise<void> {
+	flush(): Promise<void> {
 		if (this.timer !== null) window.clearTimeout(this.timer);
 		this.timer = null;
+		this.writing = this.writing.then(() => this.writeUnwritten());
+		return this.writing;
+	}
+
+	private async writeUnwritten(): Promise<void> {
 		if (this.unwritten.size === 0) return;
 		try {
 			await ensureDir(this.adapter, this.dir);

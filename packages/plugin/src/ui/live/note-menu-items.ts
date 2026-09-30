@@ -56,7 +56,8 @@ export function actionItems(facts: MenuFacts): MenuItem[] {
 			action: "manage",
 		});
 	}
-	if (facts.liveText) {
+	// A reader never writes the room.
+	if (facts.liveText && !facts.locked) {
 		items.push({
 			title: "Rebuild live note",
 			icon: "hammer",
@@ -71,8 +72,10 @@ export function personState(
 	{ idle }: Pick<Person, "idle">,
 	hasCursor: boolean,
 	cursorsShared: boolean,
+	following = false,
 ): string {
+	if (following) return "following";
 	if (idle) return "away";
-	if (hasCursor) return "go to cursor";
+	if (hasCursor) return "follow cursor";
 	return cursorsShared ? "no cursor here" : "Cursor not shared";
 }

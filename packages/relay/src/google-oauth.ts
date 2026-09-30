@@ -6,6 +6,8 @@
  * token for a fresh access token. The client secret never leaves the worker.
  */
 
+import { toHex } from "@obsync/protocol";
+
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const CONSENT_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
@@ -181,9 +183,7 @@ async function signState(env: GoogleOAuthEnv, issued: string): Promise<string> {
 		["sign"],
 	);
 	const mac = await crypto.subtle.sign("HMAC", key, encoder.encode(issued));
-	return [...new Uint8Array(mac)]
-		.map((byte) => byte.toString(16).padStart(2, "0"))
-		.join("");
+	return toHex(mac);
 }
 
 function consentUrl(
