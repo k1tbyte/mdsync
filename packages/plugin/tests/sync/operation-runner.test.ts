@@ -32,12 +32,19 @@ const unchanged = async () => ({
 });
 
 describe("OperationRunner.runOperation", () => {
-	it("reports completion only after a successful operation", async () => {
+	it("reports completion only after a push that published", async () => {
 		const [session] = pairedSessions();
 		const { runner, host } = createTestRunner(session);
 		expect(
 			await runner.runOperation(VAULT_SPACE, ESyncLogOperation.Push, unchanged),
 		).toEqual({ ok: true });
+		expect(host.onPushComplete).not.toHaveBeenCalled();
+
+		const published = async () => ({
+			newRemote: { snapshotId: "next" } as Manifest,
+			touchedPaths: new Set(["a.md"]),
+		});
+		await runner.runOperation(VAULT_SPACE, ESyncLogOperation.Push, published);
 		expect(host.onPushComplete).toHaveBeenCalledOnce();
 	});
 

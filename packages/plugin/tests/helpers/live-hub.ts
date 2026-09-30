@@ -65,7 +65,7 @@ export class LiveHub {
 	}
 
 	private freshCore(): HubCore {
-		return new HubCore(() => this.peers, new SqlDocStore(memorySql()));
+		return new HubCore(() => [...this.peers], new SqlDocStore(memorySql()));
 	}
 }
 
@@ -119,13 +119,16 @@ export class TestConnection implements SpaceHub {
 	}
 
 	disconnect(): void {
-		if (!this.peer) return;
-		this.socket++;
-		this.hub.detach(this.peer);
-		this.peer = null;
-		for (const listener of this.listeners) {
-			listener.onConnectionChange?.(false);
-		}
+		const peer = this.peer;
+		if (peer) this.hub.detach(peer);
+		this.drop();
+	}
+
+	/** Dies silently: the hub keeps the socket until the returned call ends it, as the relay does past its silence window. */
+	strand(): () => void {
+		const peer = this.peer;
+		this.drop();
+		return () => peer && this.hub.detach(peer);
 	}
 
 	/** Until the next socket, what the hub sends never arrives. */
@@ -136,6 +139,15 @@ export class TestConnection implements SpaceHub {
 	/** Until the next socket, what this device sends never arrives. */
 	dropOutgoing(): void {
 		this.mute = true;
+	}
+
+	private drop(): void {
+		if (!this.peer) return;
+		this.socket++;
+		this.peer = null;
+		for (const listener of this.listeners) {
+			listener.onConnectionChange?.(false);
+		}
 	}
 
 	private receive(bytes: Uint8Array): void {

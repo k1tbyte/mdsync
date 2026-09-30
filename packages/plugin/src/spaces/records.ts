@@ -1,15 +1,15 @@
 import type { EncryptionKey } from "@/crypto";
 import type { StorageAdapter } from "@/storage/types";
-import type { Space } from "@/sync/space";
+import { isUnder, type Space, VAULT_SPACE } from "@/sync/space";
 
-import { spacesOf } from "./partition";
+import { mountError, spacesOf } from "./partition";
 import {
 	closeRecord,
 	mergeRecords,
 	type ShareAccess,
 	type SpaceRecord,
 } from "./record";
-import { syncRecords } from "./remote";
+import { fetchRecords, syncRecords } from "./remote";
 
 /** A folder the person moved on another device, still at `from` here. */
 export interface PendingMove {
@@ -18,9 +18,7 @@ export interface PendingMove {
 	to: string;
 }
 
-/** What a trade with the vault's storage did. */
 export interface RecordsSync {
-	/** This device published a record. */
 	published: boolean;
 	/** Open here until another device closed them. */
 	closed: Space[];
@@ -36,10 +34,7 @@ interface Derived {
 	partition: readonly Space[];
 }
 
-/**
- * This device's working copy of the space records. It lives in the settings,
- * next to the storage credentials, because it is needed before the first pull.
- */
+/** This device's working copy of the records: in the settings, as it is needed before the first pull. */
 export class SpaceRecords {
 	private derived: Derived | null = null;
 
@@ -61,6 +56,21 @@ export class SpaceRecords {
 
 	partition(): readonly Space[] {
 		return this.derive().partition;
+	}
+
+	/** As stored: a folder not moved here yet has the root it moved to. */
+	get(id: string): SpaceRecord | undefined {
+		return this.settings.spaces.find((each) => each.id === id);
+	}
+
+	/** The open share mounted at `root`. */
+	shareAt(root: string): SpaceRecord | undefined {
+		return this.list().find((record) => record.root === root && !record.closed);
+	}
+
+	/** The open share behind `space`; none for the vault. */
+	shareOf({ id, root }: Space): SpaceRecord | undefined {
+		return id === VAULT_SPACE.id ? undefined : this.shareAt(root);
 	}
 
 	/** Open records left out because a smaller id holds their folder: only closing them helps. */
@@ -87,19 +97,16 @@ export class SpaceRecords {
 
 	/** Published like `add`; the folder leaves the partition from the next refresh. */
 	async close(id: string, author: string): Promise<void> {
-		const record = this.stored(id);
+		const record = this.get(id);
 		if (!record || record.closed) return;
 		this.settings.pausedSpaces = this.unpaused(id);
 		this.dropLocalRoot(id);
 		await this.add(closeRecord(record, author));
 	}
 
-	/**
-	 * The folder is at `root` on this device now; a new root moves it on the person's
-	 * other devices. The records change at once, the promise is the save.
-	 */
+	/** The folder is at `root` here now; a new root moves it on the person's other devices. */
 	async moveRoot(id: string, root: string, author: string): Promise<void> {
-		const record = this.stored(id);
+		const record = this.get(id);
 		if (!record) return;
 		if (record.root === root) return this.settle(id);
 		this.dropLocalRoot(id);
@@ -112,7 +119,7 @@ export class SpaceRecords {
 		relayUrl: string,
 		author: string,
 	): Promise<void> {
-		const record = this.stored(id);
+		const record = this.get(id);
 		if (
 			record?.access.kind !== "owner" ||
 			record.access.relayUrl === relayUrl
@@ -125,7 +132,7 @@ export class SpaceRecords {
 
 	/** A new invite link for a share open here: only its access changes, never its root. */
 	async renew(id: string, access: ShareAccess, author: string): Promise<void> {
-		const record = this.stored(id);
+		const record = this.get(id);
 		if (!record || record.closed) return;
 		await this.add({ ...record, access, rev: record.rev + 1, author });
 	}
@@ -145,9 +152,32 @@ export class SpaceRecords {
 	}
 
 	/**
-	 * Trades records with the vault's storage and keeps what wins.
-	 * A root moved elsewhere keeps the folder where it is here, in the same save, until it moves.
+	 * Shares joined before this device knew a vault enter it as accepting them
+	 * there would: at a root no share of it holds and it has no files in.
 	 */
+	async admitJoined(
+		storage: StorageAdapter,
+		key: EncryptionKey,
+		vaultPaths: () => Promise<readonly string[]>,
+	): Promise<void> {
+		if (this.settings.spacesVault !== null) return;
+		const joined = this.list().filter((record) => !record.closed);
+		if (joined.length === 0) return;
+		const theirs = await fetchRecords(storage, key);
+		const paths = await vaultPaths();
+		const clash = joined.find(
+			({ id, root }) =>
+				mountError(root, spacesOf(theirs.filter((each) => each.id !== id))) !==
+					null || paths.some((path) => isUnder(path, root)),
+		);
+		if (clash) {
+			throw new Error(
+				`Rename "${clash.root}" before syncing this vault: the vault already has files or a shared folder there.`,
+			);
+		}
+	}
+
+	/** Trades records with the vault's storage and keeps what wins; a root moved elsewhere stays here until followed. */
 	async sync(
 		storage: StorageAdapter,
 		key: EncryptionKey,
@@ -156,15 +186,20 @@ export class SpaceRecords {
 		const { spacesVault } = this.settings;
 		// Another vault's records never reach this one, share keys and all.
 		const foreign = spacesVault !== null && spacesVault !== vault;
+		const sent = this.settings.spaces;
 		const { records, published } = await syncRecords(
 			storage,
 			key,
-			foreign ? [] : this.settings.spaces,
+			foreign ? [] : sent,
+			spacesVault === null,
 		);
 		// Bound once the trade went through, so a failed one is tried again whole.
 		const left = spacesVault === vault ? null : this.bindTo(vault);
-		// Merged again: a record added while the trade was in flight must stay.
-		const merged = mergeRecords(records, this.settings.spaces);
+		// A record added while the trade was in flight must stay; those sent are in `records` as the trade settled them.
+		const merged = mergeRecords(
+			records,
+			this.settings.spaces.filter((record) => !sent.includes(record)),
+		);
 		const here = this.list();
 		const closed = merged.flatMap(({ id, closed }) => {
 			const local = here.find((each) => each.id === id);
@@ -249,10 +284,6 @@ export class SpaceRecords {
 			partition: spacesOf(list, new Set(pausedSpaces)),
 		};
 		return this.derived;
-	}
-
-	private stored(id: string): SpaceRecord | undefined {
-		return this.settings.spaces.find((each) => each.id === id);
 	}
 
 	private unpaused(id: string): string[] {

@@ -66,7 +66,8 @@ as "Owner".
   object on any failure (an older relay refuses batches: one wasted request,
   then single signs until the next pull). The relay checks the token once, derives one signing
   key, and one bad key refuses the whole batch. Pushes are not batched.
-  Measurements: [share-pull-measurements.md](../docs/share-pull-measurements.md).
+  Measured 2026-09-29 on 1000 files with modelled round trips: one sign per
+  object made the pull 2-7.7x slower than direct S3, batches 1.1x.
 
 ## Lifecycle
 
@@ -81,6 +82,14 @@ as "Owner".
   in place: same folder and baseline, since the broker's storage identity is
   `broker|<id>`, not the relay. That is the way back after a re-invite or a
   move of the owner's relay; the owner's share window names the old relay.
+- **Guest**: accepting needs no vault storage. A device without one
+  (`isGuest`) syncs its joined shares and never opens the vault; its records
+  stay in its settings. Once the vault is set up, the first trade admits them
+  as an accept there would (`admitJoined`: no vault file and no other share at
+  the root, else the refresh stops until the folder is renamed). In that trade
+  (`syncRecords`, `unbound`) an open record outranks the vault's older close
+  of it, and a share the vault owns stays its owner's whatever this device
+  joined or left of it (its folder moves to the owner's root).
 - **Move** is a record edit; the person's other devices move the folder. Paths
   inside the share and docIds do not change.
 - **A root gone on one device** detaches that device; it never deletes for all.
@@ -102,7 +111,9 @@ as "Owner".
   one expired or minted over a day further ahead. A socket outlives its grant. A read-only share token follows documents but never
   writes: each write is answered `Refused(ReadOnly)`. It never signals (the
   hub drops it, HTTP answers 403: it would only wake everyone into a sync),
-  and its awareness runs under a ceiling (5 a second, bursts of 20, 4 KB).
+  and its awareness runs under its own ceiling (20 a second, bursts of 40, 4 KB).
+  Every socket's frames run under one more (32 a second, bursts of 128, excess
+  dropped unanswered): clients flush a document every 250 ms and follow at most 64.
 - Per-socket state (slot -> channel, grant fingerprint, `who`, `name`) lives
   in the 16 KB WebSocket attachment, not in tags (at most 10). `name` is the
   label the owner invited a participant by, from the broker token, cut to 64
@@ -115,7 +126,8 @@ as "Owner".
 - A share token is live while its participant's pointer names it
   (`share/kv.ts`): two re-invites at once leave one live token, not an
   orphan no revoke finds.
-- Revocation: broker -> `dropGrant` -> `REVOKED(slot)`; other slots live on, a
+- Revocation: broker -> `dropGrant` -> `REVOKED(slot)` (cut first, then the token
+  and pointer go, so a failed cut is retried by repeating the revoke); other slots live on, a
   socket with none left closes with 4001. The client retries a refused socket
   six times (a fresh share token can be refused for a minute while KV catches
   up) and then reads `unauthorized` until the settings change or the device
@@ -142,7 +154,11 @@ places to change later:
 - The echo is the ack; unacked updates are resent after a reconnect (Yjs
   updates are idempotent).
 - `SUB` carries `since`: a reconnect gets the tail, not the whole state.
-- `LEAVE` drops a socket's awareness at once, without y-protocols' 30 s timeout.
+- `LEAVE` drops a socket's awareness at once, without y-protocols' 30 s timeout,
+  but only clients that socket announced last: a silently dead socket's comes
+  after its successor's. Every announcement moves the clock on, since
+  y-protocols ignores a clock it has seen and a peer that dropped the state
+  would not take it back.
 - docId = HMAC(docId key, path inside the space root + `#` + generation), 16
   bytes: every mount of a share meets in one room.
 - `MOVED` / `ROTATE` carry the target docId: rename and rebuild are one
@@ -169,14 +185,14 @@ places to change later:
   both sides, the room's first, and lines both open or close with come once
   (git's zealous merge), since two inserts at one spot often share them.
 - A note reopened while its last session is still closing opens once that
-  one's `Unsub` is out (`live/closing.ts`): after the new `Sub` it would drop
+  one's `Unsub` is out (`live/session/closing.ts`): after the new `Sub` it would drop
   the socket's subscription.
 - Live document types are chosen by frontmatter, not suffix
   (`excalidraw-plugin: parsed` also sits in plain `.md`): a drawing goes live
   only in the Excalidraw view, never as text.
 - Each kind is a `LiveModel` behind one session (`live/model.ts`): a note is one
   Y.Text, a drawing a Y.Map of whole elements settled by Excalidraw's own rule
-  (`live/drawing/`). `live/editors.ts` pairs each with the view that edits it.
+  (`live/drawing/`). `live/workspace/editors.ts` pairs each with the view that edits it.
 - A drawing binds through the Excalidraw plugin's undocumented `excalidrawAPI`
   and `window.ExcalidrawLib` (checked against 2.x). `onChange` pushes elements
   whose version moved into a staging map; the session drains it into the room
@@ -211,7 +227,7 @@ places to change later:
   asks for a new one (`stale`).
 - A room silent 15 s after its `SUB` leaves the note to the file sync, as a
   dead hub does; if it answers later, the session merges in like a reopen.
-- A note renamed with its room open takes the room along (`live/rename.ts`,
+- A note renamed with its room open takes the room along (`live/workspace/rename.ts`,
   spotted by its TFile's new path): the room rotates into the new path's
   first generation with no room, probed by `SUB`, since readers step past
   every pointer; meanwhile the note counts as joining, so the file sync
@@ -222,7 +238,7 @@ places to change later:
 - The lowest writer's client id compacts once 200 deltas pile up; **Rebuild
   live note** sheds tombstones (a note's document reached 3x its text after an
   hour).
-- A read-only person's text note follows its room (`live/follower-session.ts`):
+- A read-only person's text note follows its room (`live/session/follower-session.ts`):
   it sends only `Sub`, `Unsub` and `Awareness`, never seeds, rotates or
   compacts. It joins only when the disk is the room's text, the agreed text or
   the cold baseline, since the bound view shows the room over it. A change
@@ -265,7 +281,7 @@ places to change later:
   `authors` (`{key, name}`: the person in a share, the device in the vault).
   The table only grows, so an unchanged entry stays byte-identical; the merged
   UI result drops it, each space indexing its own.
-- A live note marks others' cursors on its scrollbar (`live/scroll-marks.ts`);
+- A live note marks others' cursors on its scrollbar (`live/text/scroll-marks.ts`);
   a tick scrolls there, never follows.
 - A read-only share's notes take no typing (`editor/read-only.ts`: CodeMirror
   `editable`/`readOnly` by the editor's file), with a lock in the note header.
@@ -277,7 +293,7 @@ places to change later:
   clears it, renames and deletions follow.
 - `People` caches its per-space and per-note views and drops them at every
   change of what a channel knows (`ChannelPresence`'s `onEntriesChange`, a
-  refresh, dispose); the returned lists are shared, never edited.
+  changed partition, dispose); the returned lists are shared, never edited.
   `SpaceRecords.partition()` is memoized on the identity of `settings.spaces`,
   `pausedSpaces` and `localRoots`: replace those fields, never edit them in
   place, or every reader sees the old partition.
@@ -305,6 +321,8 @@ places to change later:
   path or the room stays busy for 10 s: the others type on in the old room and
   the sync ends with both files, as before. So does a device that opens a
   stale copy of the old path before its file sync caught up.
+- A file moved elsewhere waits here while an open room holds its note: the
+  file sync renames it once the room closes, carrying what was typed in it.
 - A note whose folder becomes a share leaves its vault room in the hub (rooms
   are never trimmed); other devices type there until the record's signal moves
   them, then fold those edits into the share's room.
@@ -327,7 +345,9 @@ places to change later:
   the record arrived is a conflict with no base in the share.
 - The vault drops a share folder's frozen entries at its next push, so they
   stop holding the folder's blobs (`sync/foreign.ts`); history keeps them until
-  it rolls off. Until that push the vault lists them. A device whose refresh
+  it rolls off. The baseline forgets them at the next refresh; until the
+  share's baseline on this device takes a path, its entry stays in
+  `shareBases` as the live merge base. Until that push the vault lists them. A device whose refresh
   read the records just before the share was created, or that skipped the
   share's whole open period and first refreshes after Stop sharing before the
   owner pushes the folder back, reads them as deletions of unchanged files;
@@ -363,6 +383,11 @@ places to change later:
 - A new own share restarts the vault's socket, so live sessions resubscribe.
 - A participant's other devices hear of an accepted share by signal only with
   a relay of their own.
+- A guest has no vault socket: the ribbon's relay dot and the vault's relay
+  line read offline while its shares' channels are live. A guest's shares
+  reach the person's other devices only once it sets up the vault; files
+  another device has in that folder but never pushed are pushed into the share
+  there, as with any record arriving over one's own copy.
 - The manifest caches (`validators`, `publishedHeads`) live as long as their
   storage adapter; a share's root is in its adapter memo, so a new root is a
   new adapter.
@@ -370,6 +395,10 @@ places to change later:
   `Authorization`, and `Sec-WebSocket-Protocol` would be logged unredacted,
   while Cloudflare's logs redact hex and base64 ids in URLs by heuristics. A
   leaked owner grant admits for up to a day.
+- An unauthenticated upgrade can cost up to 2 KV reads per slot before the hub
+  is reached; a Cloudflare rate-limiting rule on `/hub` is the remedy.
+- A writable token can grow one document's log until a client compacts it; the
+  hub caps frames, not a document's delta count.
 - The relay can still withhold, replay or reorder a document's frames:
   additional data binds a frame to where it belongs, not to when.
 - The broker presigns DELETE too: a writer can remove a share's objects;

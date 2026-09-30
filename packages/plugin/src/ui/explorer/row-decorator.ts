@@ -15,7 +15,7 @@ import {
 	type PresenceMarks,
 	presenceMarks,
 	shareMarks,
-} from "./file-explorer-presence";
+} from "./file-explorer-marks";
 
 const NO_BASE: ReadonlyMap<string, BaseMarks> = new Map();
 const NO_MARKS: ReadonlyMap<string, PresenceMarks> = new Map();
@@ -106,7 +106,7 @@ export class RowDecorator {
 			return;
 		}
 		if (previous) clearDecoration(previous.target);
-		renderDecoration(target, decoration);
+		renderDecoration(target, decoration, this.plugin);
 		this.applied.set(path, { decoration, target });
 	}
 }

@@ -1,23 +1,22 @@
 import { describe, expect, it } from "vitest";
 
-import {
-	type LiveState,
-	type LiveStatus,
-	STATE_ICONS,
-} from "@/ui/live/live-status";
+import type { LiveStatus } from "@/ui/live/header/live-status";
 import {
 	actionItems,
+	canRebuild,
 	infoItems,
 	LOCKED,
 	type MenuFacts,
+	type PersonView,
 	personState,
-} from "@/ui/live/note-menu-items";
+} from "@/ui/live/header/note-menu-items";
+import { type LiveState, STATE_ICONS } from "@/ui/live/live-state";
 
 const NONE: MenuFacts = {
 	locked: false,
 	status: null,
 	edited: null,
-	relayDown: false,
+	relayFix: null,
 	shared: false,
 	liveText: false,
 	authorsShown: false,
@@ -70,7 +69,7 @@ describe("note header menu", () => {
 		const facts = { ...NONE, liveText: true, shared: true, locked: true };
 		expect(titles(actionItems(facts))).toEqual([
 			"Show who typed what",
-			"Manage shared folder",
+			"Manage sharing",
 		]);
 	});
 
@@ -78,7 +77,7 @@ describe("note header menu", () => {
 		const facts = { ...NONE, liveText: true, shared: true };
 		expect(titles(actionItems(facts))).toEqual([
 			"Show who typed what",
-			"Manage shared folder",
+			"Manage sharing",
 			"Rebuild live note",
 		]);
 	});
@@ -95,23 +94,60 @@ describe("note header menu", () => {
 
 	it("offers the folder but neither authors nor a rebuild for a cold note or a drawing of a share", () => {
 		expect(titles(actionItems({ ...NONE, shared: true }))).toEqual([
-			"Manage shared folder",
+			"Manage sharing",
 		]);
 	});
 
-	it("offers a reconnect only while the relay is down", () => {
-		expect(titles(actionItems({ ...NONE, relayDown: true }))).toEqual([
-			"Reconnect",
-		]);
-		expect(titles(actionItems(NONE))).not.toContain("Reconnect");
+	it("offers a reconnect for an unreachable relay, its settings for a refusing one", () => {
+		const offer = (relayFix: MenuFacts["relayFix"]) =>
+			titles(actionItems({ ...NONE, relayFix }));
+
+		expect(offer("reconnect")).toEqual(["Reconnect"]);
+		expect(offer("settings")).toEqual(["Open relay settings"]);
+		expect(offer(null)).toEqual([]);
 	});
 
-	it("words a person's cursor by what can be followed", () => {
-		const here = { idle: false };
-		expect(personState(here, true, true)).toBe("follow cursor");
-		expect(personState({ idle: true }, true, true, true)).toBe("following");
-		expect(personState(here, false, true)).toBe("no cursor here");
-		expect(personState(here, false, false)).toBe("Cursor not shared");
-		expect(personState({ idle: true }, false, false)).toBe("away");
+	it("lets one predicate decide the rebuild for the menu and the command", () => {
+		const rebuild = (liveText: boolean, locked: boolean) =>
+			canRebuild({ liveText, locked });
+
+		expect(rebuild(true, false)).toBe(true);
+		expect(rebuild(true, true)).toBe(false);
+		expect(rebuild(false, false)).toBe(false);
+		const facts = { ...NONE, liveText: true, locked: true };
+		expect(actionItems(facts).some(({ action }) => action === "rebuild")).toBe(
+			canRebuild(facts),
+		);
+	});
+});
+
+describe("a person in the note menu", () => {
+	const view = (patch: Partial<PersonView>): PersonView => ({
+		idle: false,
+		hasCursor: false,
+		cursorsShown: true,
+		following: false,
+		...patch,
+	});
+
+	it("offers to follow whoever has a cursor, and marks them away", () => {
+		expect(personState(view({ hasCursor: true }))).toBe("follow cursor");
+		expect(personState(view({ hasCursor: true, idle: true }))).toBe(
+			"follow cursor (away)",
+		);
+	});
+
+	it("says following while following, even when they went away", () => {
+		expect(personState(view({ following: true, idle: true }))).toBe(
+			"following",
+		);
+	});
+
+	it("tells away, no cursor and a view without cursors apart", () => {
+		expect(personState(view({ idle: true }))).toBe("away");
+		expect(personState(view({}))).toBe("no cursor here");
+		expect(personState(view({ cursorsShown: false }))).toBe(
+			"no cursor in this view",
+		);
 	});
 });

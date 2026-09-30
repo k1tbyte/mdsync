@@ -2,11 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PluginHost } from "@/plugin/host";
 import type { SpaceRecord } from "@/spaces/record";
-import { EStorageBackend, type S3StorageConfig } from "@/storage";
+import {
+	EStorageBackend,
+	revokeParticipant,
+	type S3StorageConfig,
+} from "@/storage";
 import { notifyInfo } from "@/ui/common/notices";
-import { RELAY_TEXT } from "@/ui/live/relay-text";
+import { RELAY_TEXT } from "@/ui/common/relay";
 import { openConfirmModal } from "@/ui/modals";
-import { closeShare, shareFolder } from "@/ui/shares/share-action";
+import {
+	closeShare,
+	revokeAccess,
+	shareFolder,
+} from "@/ui/shares/share-action";
 
 vi.mock("@/ui/actions/ignore-action", () => ({
 	carryVaultIgnores: vi.fn(async () => true),
@@ -14,6 +22,10 @@ vi.mock("@/ui/actions/ignore-action", () => ({
 vi.mock("@/ui/actions/push-action", () => ({ pushScope: vi.fn() }));
 vi.mock("@/ui/modals", () => ({
 	openConfirmModal: vi.fn(async () => false),
+}));
+vi.mock("@/storage", async (original) => ({
+	...(await original<typeof import("@/storage")>()),
+	revokeParticipant: vi.fn(async () => {}),
 }));
 vi.mock("@/ui/common/notices", () => ({
 	notifyInfo: vi.fn(),
@@ -124,5 +136,32 @@ describe("closeShare", () => {
 
 		await closeShare(host(false).plugin, shared());
 		expect(warned()).toBe(false);
+	});
+});
+
+describe("revokeAccess", () => {
+	const person = { id: "p1", label: "Sam", readOnly: false };
+	const team = { id: "s1", name: "Team" } as SpaceRecord;
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("ends their access at the relay once the owner confirms", async () => {
+		vi.mocked(openConfirmModal).mockResolvedValueOnce(true);
+
+		expect(await revokeAccess(host(true).plugin, team, person)).toBe(true);
+
+		expect(revokeParticipant).toHaveBeenCalledWith(
+			{ relayUrl: "https://relay.example", secret: "secret" },
+			"s1",
+			"p1",
+		);
+	});
+
+	it("leaves them be when the owner backs out", async () => {
+		expect(await revokeAccess(host(true).plugin, team, person)).toBe(false);
+
+		expect(revokeParticipant).not.toHaveBeenCalled();
 	});
 });

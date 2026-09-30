@@ -1,63 +1,109 @@
-/** Server frames the hub builds itself, worded once for channel and document logic. */
+/** Server frames the hub builds itself, and their delivery. */
 
 import {
+	type Address,
 	CHANNEL_DOC,
 	EFrame,
+	encodeServer,
 	type Refusal,
 	type ServerFrame,
+	withSlot,
 } from "@obsync/protocol";
 
-import type { Grant } from "./peer";
+import { follows, type Grant, type HubPeer, slotOf } from "./peer";
 
 type Unaddressed<F> = F extends ServerFrame ? Omit<F, "slot" | "doc"> : never;
 export type ServerBody = Unaddressed<ServerFrame>;
 
-/** `broadcast` rewrites the slot per recipient, so 0 is only a placeholder there. */
-export function addressed(
+export const signalFrame = (from: number): ServerBody => ({
+	type: EFrame.Signal,
+	from,
+});
+
+export const leaveFrame = (from: number): ServerBody => ({
+	type: EFrame.Leave,
+	from,
+});
+
+export const peerFrame = (from: number, payload: Uint8Array): ServerBody => ({
+	type: EFrame.Peer,
+	from,
+	payload,
+});
+
+export const movedFrame = (pointer: {
+	target: string;
+	note: Uint8Array;
+}): ServerBody => ({ type: EFrame.Moved, ...pointer });
+
+export function vouchedFrame(
+	type: typeof EFrame.Join | typeof EFrame.Here,
+	from: number,
+	grant: Grant,
+): ServerBody {
+	return { type, from, who: grant.who, name: grant.name ?? "" };
+}
+
+export function send(
+	peer: HubPeer,
+	slot: number,
+	doc: string,
 	body: ServerBody,
-	doc = CHANNEL_DOC,
-	slot = 0,
-): ServerFrame {
-	return { ...body, slot, doc } as ServerFrame;
+): void {
+	peer.send(encodeServer({ ...body, slot, doc } as ServerFrame));
 }
 
-export function signalFrame(from: number): ServerBody {
-	return { type: EFrame.Signal, from };
-}
-
-export function joinFrame(from: number, grant: Grant): ServerBody {
-	return { type: EFrame.Join, from, who: grant.who, name: grant.name ?? "" };
-}
-
-/** Someone already on the channel, told to a newcomer. */
-export function hereFrame(from: number, grant: Grant): ServerBody {
-	return { type: EFrame.Here, from, who: grant.who, name: grant.name ?? "" };
-}
-
-export function leaveFrame(from: number): ServerBody {
-	return { type: EFrame.Leave, from };
-}
-
-export function peerFrame(from: number, payload: Uint8Array): ServerBody {
-	return { type: EFrame.Peer, from, payload };
-}
-
-export function movedFrame(
-	slot: number,
-	doc: string,
-	{ target, note }: { target: string; note: Uint8Array },
-): ServerFrame {
-	return { type: EFrame.Moved, slot, doc, target, note };
-}
-
-export function refusedFrame(
-	slot: number,
-	doc: string,
+/** Unanswered, a dropped frame looks like a slow one: the client would wait forever. */
+export function refuse(
+	peer: HubPeer,
+	{ slot, doc }: Address,
 	reason: Refusal,
-): ServerFrame {
-	return { type: EFrame.Refused, slot, doc, reason };
+): void {
+	send(peer, slot, doc, { type: EFrame.Refused, reason });
 }
 
-export function revokedFrame(slot: number): ServerFrame {
-	return { type: EFrame.Revoked, slot, doc: CHANNEL_DOC };
+/** Encodes once and readdresses per recipient; `accept` picks who gets it. */
+export function broadcast(
+	peers: readonly HubPeer[],
+	channel: string,
+	doc: string,
+	body: ServerBody,
+	accept: (peer: HubPeer, slot: number) => boolean,
+): void {
+	const bytes = encodeServer({ ...body, slot: 0, doc } as ServerFrame);
+	for (const peer of peers) {
+		const slot = slotOf(peer, channel);
+		if (slot >= 0 && accept(peer, slot)) peer.send(withSlot(bytes, slot));
+	}
+}
+
+export function toChannel(
+	peers: readonly HubPeer[],
+	channel: string,
+	body: ServerBody,
+	exceptTag: number,
+): void {
+	broadcast(
+		peers,
+		channel,
+		CHANNEL_DOC,
+		body,
+		(peer) => peer.tag !== exceptTag,
+	);
+}
+
+export function toFollowers(
+	peers: readonly HubPeer[],
+	channel: string,
+	doc: string,
+	body: ServerBody,
+	exceptTag: number,
+): void {
+	broadcast(
+		peers,
+		channel,
+		doc,
+		body,
+		(peer, slot) => peer.tag !== exceptTag && follows(peer, slot, doc),
+	);
 }

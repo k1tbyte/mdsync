@@ -54,6 +54,18 @@ export function isUnder(path: string, root: string): boolean {
 	return root === "" || path === root || path.startsWith(`${root}/`);
 }
 
+/** A vault path as the space names it on every device: without its mount. */
+export function insideOf(space: Pick<Space, "root">, path: string): string {
+	return space.root === "" ? path : path.slice(space.root.length + 1);
+}
+
+export function vaultPathOf(
+	space: Pick<Space, "root">,
+	inside: string,
+): string {
+	return space.root === "" ? inside : `${space.root}/${inside}`;
+}
+
 /** A share whose folder vanished on this device: syncing it would delete it for everyone. */
 export class SpaceGoneError extends Error {
 	constructor(root: string) {

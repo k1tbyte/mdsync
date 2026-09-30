@@ -16,6 +16,7 @@ function diff(partial: Partial<DiffResult>): DiffResult {
 		localChanges: [],
 		remoteChanges: [],
 		conflicts: [],
+		moves: [],
 		converged: [],
 		remoteMoved: false,
 		...partial,
@@ -39,6 +40,11 @@ describe("selectAutoPushPaths", () => {
 	it("limits the push to the requested paths", () => {
 		const d = diff({ localChanges: [change("a.md"), change("b.md")] });
 		expect(selectAutoPushPaths(d, new Set(["b.md"]))).toEqual(["b.md"]);
+	});
+
+	it("takes the files in a requested folder", () => {
+		const d = diff({ localChanges: [change("New/a.md"), change("Newer.md")] });
+		expect(selectAutoPushPaths(d, new Set(["New"]))).toEqual(["New/a.md"]);
 	});
 
 	it("returns nothing when the diff is empty", () => {

@@ -11,7 +11,6 @@ export interface LiveModel {
 	dispose(): void;
 }
 
-/** A view bound to its room. */
 export interface BoundEditor {
 	/** Tints what anyone but `me` typed; null takes the tint off. */
 	showAuthors(me: string | null): void;

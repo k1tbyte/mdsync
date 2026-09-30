@@ -18,6 +18,7 @@ import {
 interface RegisteredPluginUi {
 	settingsTab: ObsyncSettingTab;
 	fileIndicators: IndicatorHandle;
+	openNoteMenu: (checking: boolean) => boolean;
 }
 
 export function registerPluginUi(
@@ -37,7 +38,7 @@ export function registerPluginUi(
 		registerStatusBar(plugin, controller);
 		registerLiveStatusBar(plugin);
 	}
-	registerNotePresence(plugin);
+	const openNoteMenu = registerNotePresence(plugin);
 	if (plugin.settings.showRibbonIcon) {
 		registerRibbon(plugin, controller, plugin.realtime.hub);
 	}
@@ -51,7 +52,7 @@ export function registerPluginUi(
 	};
 	fileIndicators.refresh(plugin.settings.showFileExplorerIndicators);
 
-	return { settingsTab, fileIndicators };
+	return { settingsTab, fileIndicators, openNoteMenu };
 }
 
 export function refreshOpenHistoryViewsAfterPush(

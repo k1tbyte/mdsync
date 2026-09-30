@@ -31,6 +31,7 @@ const PLUGIN_FILES = [
 ];
 const EXE =
 	process.env.OBSIDIAN_EXE ?? "C:\\Program Files\\Obsidian\\Obsidian.exe";
+const HIDDEN_DESKTOP = join(REPO, "tools/e2e/hidden-desktop.ps1");
 const APP_URL = "app://obsidian.md";
 const TRUST_BUTTON = /trust author and enable plugins/i;
 
@@ -90,11 +91,10 @@ export async function launchObsidian(options: {
 		writeFileSync(join(vault, path), text);
 	}
 
-	const child = spawn(
-		EXE,
-		[`--remote-debugging-port=${options.port}`, `--user-data-dir=${userData}`],
-		{ stdio: "ignore", ...OWN_GROUP },
-	);
+	const child = spawnObsidian([
+		`--remote-debugging-port=${options.port}`,
+		`--user-data-dir=${userData}`,
+	]);
 	const exited = once(child, "exit");
 	const stopProcess = async () => {
 		killTree(child);
@@ -157,6 +157,27 @@ async function attach(port: number) {
 	if (page) return { browser, page };
 	await browser.close();
 	return undefined;
+}
+
+/** On Windows off screen, so it never takes focus; `E2E_VISIBLE` shows it. */
+function spawnObsidian(args: string[]) {
+	if (process.platform !== "win32" || process.env.E2E_VISIBLE) {
+		return spawn(EXE, args, { stdio: "ignore", ...OWN_GROUP });
+	}
+	return spawn(
+		"powershell.exe",
+		[
+			"-NoProfile",
+			"-NonInteractive",
+			"-ExecutionPolicy",
+			"Bypass",
+			"-File",
+			HIDDEN_DESKTOP,
+			EXE,
+			...args,
+		],
+		{ stdio: "ignore", windowsHide: true, ...OWN_GROUP },
+	);
 }
 
 function writeJson(path: string, value: unknown): void {

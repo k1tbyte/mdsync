@@ -1,17 +1,13 @@
 /**
- * Key confinement for shared folders.
- *
- * Security boundary: a participant names an object key, and these functions decide
- * the bucket key. Every resolved key must land under `<prefix>shares/<shareId>/` -
- * escapes (traversal, absolute paths, pre-encoded separators) are rejected
- * rather than sanitised, so a bypass fails closed.
+ * Security boundary: a participant names an object key, these functions decide
+ * the bucket key. Every key must land under `<prefix>shares/<shareId>/`;
+ * escapes are rejected rather than sanitised, so a bypass fails closed.
  */
 
 import { sharePrefix } from "@obsync/protocol";
 
 const MAX_KEY_LENGTH = 1024;
 const SHARE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
-/** Traversal or separators smuggled in percent-encoded form. */
 const ENCODED_SEPARATOR = /%2e|%2f|%5c/i;
 /** `encodeURIComponent` throws on these, which would answer 500 instead of 400. */
 const LONE_SURROGATE = /\p{Surrogate}/u;

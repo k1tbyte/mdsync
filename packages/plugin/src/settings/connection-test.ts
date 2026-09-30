@@ -1,11 +1,13 @@
+import { requestUrl } from "obsidian";
+
 import type { PluginHost } from "@/plugin/host";
-import { checkRelay } from "@/plugin/relay-check";
 import {
 	activeStorage,
 	isRelayConfigured,
 	type RelayConfig,
 } from "@/settings/model";
 import { errorMessage } from "@/shared/errors";
+import { relayBase } from "@/shared/path";
 import {
 	createStorageAdapter,
 	describeStorageTarget,
@@ -56,9 +58,28 @@ export async function testRelay(
 		return { ok: false, message: "Enter the relay URL and secret first." };
 	}
 	try {
-		await checkRelay(relay);
-		return { ok: true, message: "Connected. The relay accepts this secret." };
+		const res = await requestUrl({
+			url: `${relayBase(relay.relayUrl)}/status`,
+			method: "GET",
+			headers: { "X-Obsync-Admin": relay.relaySecret },
+			throw: false,
+		});
+		return res.status === 200
+			? { ok: true, message: "Connected. The relay accepts this secret." }
+			: { ok: false, message: `Relay error: ${relayMessage(res)}` };
 	} catch (err) {
 		return { ok: false, message: errorMessage(err) };
 	}
+}
+
+/** An edge error page is HTML, and Obsidian parses `.json` lazily: reading it
+ * would throw a SyntaxError over the status the caller actually needs. */
+function relayMessage(res: { status: number; json?: unknown }): string {
+	try {
+		const detail = res.json as { message?: string } | undefined;
+		if (detail?.message) return detail.message;
+	} catch {
+		// Not JSON; the status is the whole story.
+	}
+	return `HTTP ${res.status}`;
 }

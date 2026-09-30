@@ -2,8 +2,7 @@ import { TFolder } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { errorMessage } from "@/shared/errors";
 import type { DeletedFilesResult } from "@/sync/history";
-import { appendLabeledButton } from "@/ui/common/icon-button";
-import { notifyError, notifyInfo } from "@/ui/common/notices";
+import { appendLabeledButton, notifyError, notifyInfo } from "@/ui/common";
 
 import { openPromptModal } from "@/ui/modals";
 import { actionButton } from "./action-button";

@@ -1,7 +1,11 @@
 import { type Plugin, TFolder, type Vault } from "obsidian";
 
-import { mountError, spacesOf } from "@/spaces/partition";
-import type { PendingMove, SpaceRecords } from "@/spaces/records";
+import {
+	mountError,
+	type PendingMove,
+	type SpaceRecords,
+	spacesOf,
+} from "@/spaces";
 import { isUnder } from "@/sync/space";
 import { notifyError, notifyInfo } from "@/ui";
 
@@ -16,9 +20,9 @@ type MoveVault = Pick<
 const following = new Set<string>();
 
 /**
- * Moves here the folders the person moved on another device. Runs before the
- * partition is fixed, so an old root never turns into vault content; a blocked
- * move keeps the share syncing where it is and is tried again every refresh.
+ * Moves here the folders the person moved on another device, before the partition
+ * is fixed, so an old root never turns into vault content. A blocked move keeps
+ * syncing where it is and is tried again every refresh.
  */
 export function createMoveFollower(
 	vault: MoveVault,
@@ -42,9 +46,15 @@ export function createMoveFollower(
 
 /** A shared folder renamed here, or one it is in, moves on the person's other devices too. */
 export function registerShareRenames(plugin: Plugin & PluginHost): void {
+	const movingBack = new Set<number>();
+	plugin.register(() => {
+		for (const timer of movingBack) window.clearTimeout(timer);
+	});
 	plugin.registerEvent(
 		plugin.app.vault.on("rename", (file, oldPath) => {
-			if (file instanceof TFolder) void onFolderRenamed(plugin, file, oldPath);
+			if (file instanceof TFolder) {
+				void onFolderRenamed(plugin, file, oldPath, movingBack);
+			}
 		}),
 	);
 }
@@ -83,6 +93,7 @@ async function onFolderRenamed(
 	plugin: Plugin & PluginHost,
 	folder: TFolder,
 	oldPath: string,
+	movingBack: Set<number>,
 ): Promise<void> {
 	if (following.has(oldPath)) return;
 	const { spaces } = plugin;
@@ -100,13 +111,14 @@ async function onFolderRenamed(
 		);
 		// Out of the event, once the rename that fired it is done.
 		const back = window.setTimeout(() => {
+			movingBack.delete(back);
 			plugin.app.fileManager
 				.renameFile(folder, oldPath)
 				.catch((err) =>
 					notifyError(`Could not move "${folder.path}" back`, err),
 				);
 		}, 0);
-		plugin.register(() => window.clearTimeout(back));
+		movingBack.add(back);
 		return;
 	}
 	const author = plugin.controller.currentDevice().id;

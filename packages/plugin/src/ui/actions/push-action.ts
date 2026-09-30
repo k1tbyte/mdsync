@@ -2,7 +2,7 @@ import type { Menu } from "obsidian";
 
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
-import { notifyError, notifyInfo, runWithNotice } from "@/ui/common/notices";
+import { notifyError, notifyInfo, runWithNotice } from "@/ui/common";
 import { openSourceControlView } from "@/ui/source-control-view";
 
 /**

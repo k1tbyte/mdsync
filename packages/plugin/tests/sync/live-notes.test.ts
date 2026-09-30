@@ -52,6 +52,10 @@ class FakeLive implements LiveNotes {
 	async wrote(path: string, mark: LiveMark, text: string): Promise<void> {
 		this.written.push({ path, mark, text });
 	}
+
+	holds(path: string): boolean {
+		return this.rooms.has(path);
+	}
 }
 
 async function push(
@@ -223,6 +227,24 @@ describe("settling live conflicts", () => {
 				text: "one\ntwo\nthree\nfour\n",
 			},
 		]);
+	});
+});
+
+describe("a room that opens while an incoming snapshot is weighed", () => {
+	it("leaves the note for the next cycle, unmerged", async () => {
+		const [a, b] = await shared("a\nb\nc\n");
+		await markedPush(b, "a\nb\nc\nremote\n", snap(5));
+		const live = new (class extends FakeLive {
+			override async mark(): Promise<"later"> {
+				return "later";
+			}
+		})();
+		// Mergeable on the cold path, which must not run.
+		a.adapter.putText(NOTE, "local\na\nb\nc\n");
+
+		await autoMergeOp({ ...a.deps(), live }, await a.compare(), a.context());
+
+		expect(a.text(NOTE)).toBe("local\na\nb\nc\n");
 	});
 });
 

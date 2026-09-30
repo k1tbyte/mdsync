@@ -8,7 +8,7 @@ import {
 	wins,
 } from "@/drawing";
 
-import type { LiveKind, LiveModel } from "../model";
+import type { LiveKind, LiveModel } from "@/live/model";
 
 const ELEMENTS = "elements";
 

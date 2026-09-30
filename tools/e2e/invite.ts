@@ -3,7 +3,8 @@
  * invites through the relay's broker; a participant with a vault of their own
  * opens the link, and edits cross both ways without the participant ever
  * holding the owner's storage credentials. Neither side syncs by hand to get
- * the other's edit: a push signals the share's channel on the owner's relay.
+ * the other's edit: a push signals the share's channel on the owner's relay,
+ * and a change in the share pushes by itself, a rename as a rename.
  */
 
 import { CLEAN, read, sync, write } from "./device";
@@ -25,6 +26,9 @@ import {
 const PLAN = "Team/plan.md";
 const MOUNTED = "Shared/Team/plan.md";
 const REJOINED = "Rejoined/Team/plan.md";
+const TODO = "Team/todo.md";
+const DONE = "Team/done.md";
+const EDITED = "todo v2 from the friend\n";
 
 // biome-ignore lint/suspicious/noExplicitAny: the renderer's app is untyped here.
 declare const app: any;
@@ -32,11 +36,16 @@ declare const app: any;
 await runSharing(
 	"invite e2e",
 	{
-		owner: { [PLAN]: "plan v1\n", "notes.md": "the owner's own\n" },
+		owner: {
+			[PLAN]: "plan v1\n",
+			[TODO]: "todo v1\n",
+			"notes.md": "the owner's own\n",
+		},
 		friend: { "mine.md": "the friend's own\n" },
 	},
 	async (owner, friend, s3) => {
 		await editsCross(owner, friend, s3);
+		await pushesByItself(owner, friend);
 		await rejoin(owner, friend);
 		await shareCloses(owner, friend, s3);
 	},
@@ -93,6 +102,27 @@ async function editsCross(
 		),
 		false,
 	);
+}
+
+/** Nobody syncs: the friend's edit and rename reach the owner on their own. */
+async function pushesByItself(
+	owner: Obsidian,
+	friend: Obsidian,
+): Promise<void> {
+	await write(friend, `Shared/${TODO}`, EDITED);
+	await arrives(owner, TODO, EDITED);
+	const pulled = await mtime(owner, TODO);
+	await friend.evaluate(
+		([from, to]) => app.vault.rename(app.vault.getFileByPath(from), to),
+		[`Shared/${TODO}`, `Shared/${DONE}`],
+	);
+	await arrives(owner, DONE, EDITED);
+	check(
+		"the rename lands as a rename, not a new download",
+		[await read(owner, TODO), await mtime(owner, DONE)],
+		[null, pulled],
+	);
+	check("both settle", [await sync(owner), await sync(friend)], [CLEAN, CLEAN]);
 }
 
 /**
@@ -179,4 +209,11 @@ async function brokerStatus(friend: Obsidian): Promise<number> {
 		body: JSON.stringify({ op: "get", key: "manifest.json.enc" }),
 	});
 	return res.status;
+}
+
+function mtime(device: Obsidian, path: string): Promise<number | null> {
+	return device.evaluate(
+		(target) => app.vault.getFileByPath(target)?.stat.mtime ?? null,
+		path,
+	);
 }

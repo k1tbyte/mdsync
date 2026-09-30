@@ -1,12 +1,8 @@
 /**
- * Shared-folder broker.
- *
- * Participants never hold storage credentials. They hold a share token; the broker
- * exchanges it for a short-lived presigned S3 URL scoped to a single key inside
- * `shares/<shareId>/`. Object bytes go between the participant and S3 - the broker only signs.
- *
- * The broker has no S3 config of its own: the owner's plugin registers each share's
- * base location and credentials, so a deploy needs no storage secrets.
+ * Shared-folder broker: a participant's share token buys a short-lived
+ * presigned S3 URL for one key under `shares/<shareId>/`; object bytes bypass
+ * the broker. The owner's plugin registers each share's storage, so a deploy
+ * needs no storage secrets.
  */
 
 import { SIGN_BATCH_MAX } from "@obsync/protocol";

@@ -1,7 +1,9 @@
+import { device, record } from "@tests/helpers/space-records";
 import type { Menu, MenuItem } from "obsidian";
 import { describe, expect, it } from "vitest";
 
 import type { PluginHost } from "@/plugin/host";
+import type { SpaceRecord } from "@/spaces/record";
 import { EStorageBackend, type S3StorageConfig } from "@/storage";
 import { addShareMenuItem } from "@/ui/shares/share-window";
 
@@ -19,14 +21,15 @@ const S3: S3StorageConfig = {
 
 function entriesFor(
 	storage: S3StorageConfig | null,
-	shared: { root: string; closed?: boolean }[] = [],
+	shared: SpaceRecord[] = [],
+	root = "Team",
 ): { title: string; disabled: boolean }[] {
 	const plugin = {
 		settings: {
 			activeStorageKind: EStorageBackend.S3,
 			storageConfigs: storage ? { [EStorageBackend.S3]: storage } : {},
 		},
-		spaces: { list: () => shared },
+		spaces: device(shared).records,
 	} as unknown as PluginHost;
 	const entries: { title: string; disabled: boolean }[] = [];
 	const menu = {
@@ -48,7 +51,7 @@ function entriesFor(
 			entries.push(entry);
 		},
 	} as unknown as Menu;
-	addShareMenuItem(menu, plugin, "Team");
+	addShareMenuItem(menu, plugin, root);
 	return entries;
 }
 
@@ -66,8 +69,26 @@ describe("the share folder entry", () => {
 	});
 
 	it("opens the window of a folder already shared", () => {
-		expect(entriesFor(null, [{ root: "Team" }])).toEqual([
+		expect(entriesFor(null, [record("a", "Team")])).toEqual([
 			{ title: "Obsync: Manage sharing", disabled: false },
 		]);
+	});
+
+	it("opens the window of the share a subfolder is in", () => {
+		expect(entriesFor(S3, [record("a", "Team")], "Team/Plans")).toEqual([
+			{ title: "Obsync: Manage sharing", disabled: false },
+		]);
+	});
+
+	it("offers sharing again once the share is closed", () => {
+		const closed: SpaceRecord = { ...record("a", "Team"), closed: true };
+		expect(entriesFor(S3, [closed])).toEqual([
+			{ title: "Obsync: Share folder", disabled: false },
+		]);
+	});
+
+	it("is left out where sharing is refused", () => {
+		expect(entriesFor(S3, [record("a", "Team/Plans")])).toEqual([]);
+		expect(entriesFor(S3, [], "Team/.hidden")).toEqual([]);
 	});
 });

@@ -5,7 +5,7 @@ import * as Y from "yjs";
 import { type SceneElement, wins } from "@/drawing";
 import type { ExcalidrawLib, ExcalidrawView } from "@/live/drawing/excalidraw";
 import { DRAWING, type DrawingModel } from "@/live/drawing/model";
-import type { LiveSession } from "@/live/session";
+import type { LiveSession } from "@/live/session/session";
 
 export const LIB: ExcalidrawLib = {
 	reconcileElements(local, remote, appState) {

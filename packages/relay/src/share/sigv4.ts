@@ -1,10 +1,4 @@
-/**
- * Minimal SigV4 presigner for S3-compatible storage.
- *
- * Presigned URLs let a share participant talk to S3 directly: the broker signs
- * a single key + method + expiry and never sees the object bytes. Hand-rolled
- * on WebCrypto because the AWS SDK is far too heavy for a Worker bundle.
- */
+/** Minimal SigV4 presigner on WebCrypto: the AWS SDK is too heavy for a Worker bundle. */
 
 import { toHex } from "@obsync/protocol";
 
@@ -144,7 +138,6 @@ function encodeRfc3986(value: string): string {
 	);
 }
 
-/** Percent-encodes each path segment, leaving the separators intact. */
 function encodePath(path: string): string {
 	return path.split("/").map(encodeRfc3986).join("/");
 }

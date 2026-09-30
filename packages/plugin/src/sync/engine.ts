@@ -7,7 +7,7 @@ import type { StorageAdapter } from "@/storage/types";
 import { REMOTE_OBJECTS_PREFIX } from "@/sync/constants";
 import { runWithConcurrency } from "@/utils/concurrency";
 import type { VaultIndex } from "@/vault/file-index";
-import { deletePath, ensureDir, readBinary, removeEmptyDir } from "@/vault/io";
+import { deletePath, readBinary } from "@/vault/io";
 import { scanVault } from "@/vault/scanner";
 import type { ScopePolicy } from "@/vault/scope";
 import { attribute, publisher } from "./authors";
@@ -24,6 +24,7 @@ import {
 	objectKey,
 	reconcileRemoteAgainstBaseline,
 } from "./manifest";
+import { pullMoves, syncFolders } from "./pull-moves";
 import { assertSpacePresent, type Space } from "./space";
 import {
 	type DiffResult,
@@ -204,8 +205,12 @@ export async function pullPaths(
 	const concurrency = deps.concurrency ?? DEFAULT_CONCURRENCY;
 	const pathSet = new Set(paths);
 	const remote = compareResult.remote;
+	const moved = await pullMoves(deps, compareResult, pathSet);
 	const changes = compareResult.diff.remoteChanges.filter(
-		(c) => pathSet.has(c.path) && deps.scope.includesInDiff(c.path),
+		(c) =>
+			pathSet.has(c.path) &&
+			!moved.paths.has(c.path) &&
+			deps.scope.includesInDiff(c.path),
 	);
 
 	const downloads = changes.filter((c) => c.type !== EChangeType.RemoteDelete);
@@ -213,7 +218,7 @@ export async function pullPaths(
 	const total = downloads.length + deletions.length;
 	let done = 0;
 
-	const written = new Map<string, ManifestEntry | null>();
+	const written = new Map<string, ManifestEntry | null>(moved.written);
 	const hashes = new Set<string>();
 	for (const change of downloads) {
 		const entry = entryAt(remote.files, change.path);
@@ -262,7 +267,7 @@ export async function pullPaths(
 	const cancelled = deps.signal?.aborted === true;
 	const onDisk = cancelled
 		? compareResult.snapshot.emptyFolders
-		: await syncFolders(deps, remote);
+		: await syncFolders(deps, remote, written);
 
 	// `written`, not `paths`: a requested path with no remote change was never
 	// downloaded, and advancing its baseline would turn an unresolved conflict
@@ -275,33 +280,6 @@ export async function pullPaths(
 		deps.scope,
 	);
 	return { baseline, written, cancelled };
-}
-
-/**
- * Mirrors the remote folder set, so empty directories survive a round trip, and
- * returns the folders it put on disk. Filtered by scope: unfiltered folders
- * would recreate ignored and out-of-scope directories on every pull.
- */
-async function syncFolders(
-	deps: EngineDependencies,
-	remote: Manifest,
-): Promise<string[]> {
-	const remoteFolders = (remote.folders ?? []).filter((dir) =>
-		deps.scope.canDescend(dir),
-	);
-	const baselineFolders = (deps.state.baseline?.folders ?? []).filter((dir) =>
-		deps.scope.canDescend(dir),
-	);
-	const remoteFolderSet = new Set(remoteFolders);
-	for (const dir of remoteFolders) {
-		await ensureDir(deps.adapter, dir);
-	}
-	for (const dir of baselineFolders) {
-		if (!remoteFolderSet.has(dir)) {
-			await removeEmptyDir(deps.adapter, dir);
-		}
-	}
-	return remoteFolders;
 }
 
 export async function storeObject(

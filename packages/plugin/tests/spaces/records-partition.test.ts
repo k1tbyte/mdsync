@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { deriveKey, type EncryptionKey } from "@/crypto";
 import { spacesOf } from "@/spaces/partition";
 import { SpaceRecords } from "@/spaces/records";
+import { VAULT_SPACE } from "@/sync/space";
 
 vi.mock("@/spaces/partition", async (original) => {
 	const actual = await original<typeof import("@/spaces/partition")>();
@@ -127,5 +128,24 @@ describe("the memoized partition", () => {
 			{ id: "b", root: "Elsewhere" },
 			{ id: "c", root: "C", paused: true },
 		]);
+	});
+});
+
+describe("shareAt", () => {
+	it("finds the open share at a folder as this device has it, never a closed one", async () => {
+		const laptop = device([record("a", "Team"), record("b", "Old")]);
+		laptop.settings.localRoots = { a: "Moved" };
+		await laptop.records.close("b", "laptop");
+
+		expect(laptop.records.shareAt("Moved")?.id).toBe("a");
+		expect(laptop.records.shareAt("Team")).toBeUndefined();
+		expect(laptop.records.shareAt("Old")).toBeUndefined();
+	});
+
+	it("finds the share of a space, never one for the vault", () => {
+		const { records } = device([record("a", "Team")]);
+
+		expect(records.shareOf(VAULT_SPACE)).toBeUndefined();
+		expect(records.shareOf({ id: "a", root: "Team" })?.id).toBe("a");
 	});
 });

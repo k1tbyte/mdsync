@@ -156,6 +156,11 @@ export class InMemoryAdapter {
 
 	rmdir(path: string, recursive: boolean): Promise<void> {
 		const n = norm(path);
+		const inside = (key: string) => key.startsWith(`${n}/`);
+		const full = [...this.files.keys(), ...this.dirs].some(inside);
+		if (!recursive && full) {
+			return Promise.reject(new Error(`ENOTEMPTY: ${path}`));
+		}
 		this.dirs.delete(n);
 		if (recursive) {
 			const prefix = `${n}/`;

@@ -1,6 +1,6 @@
 import { Compartment, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { appendIconButton } from "@/ui/common/icon-button";
+import { appendIconButton } from "@/ui/common";
 
 export interface LineWrappingOptions {
 	lineWrapping: boolean;

@@ -91,7 +91,7 @@ body.is-phone .obsync-diff-view .is-fully-folded .cm-content {
 
 body.is-phone .obsync-diff-view .obsync-merge-editor-host .cm-content,
 body.is-phone .obsync-diff-view .obsync-compare-host .cm-content {
-	padding-bottom: var(--view-bottom-spacing, 0px);
+	padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
 }
 
 .obsync-merge-editor-host.is-local .cm-content,

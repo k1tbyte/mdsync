@@ -9,20 +9,17 @@ import { DurableObject } from "cloudflare:workers";
 import {
 	KEEPALIVE_PING,
 	KEEPALIVE_PONG,
-	UNAUTHORIZED_CLOSE_CODE,
+	KEEPALIVE_STALE_MS,
 } from "@obsync/protocol";
 
 import { HubCore } from "./core";
 import type { DocSub, Grant, HubPeer } from "./peer";
 import { RevokedGrants } from "./revoked";
 import { SqlDocStore } from "./store";
+import { type HubEnv, unauthorizedSocket } from "./stub";
 
 /** Carries the worker's admission to the hub; only the worker can reach the hub. */
 export const HUB_ADMISSION_HEADER = "X-Obsync-Admission";
-/** A deployment is one trust domain, so one hub serves all of it. */
-const HUB_NAME = "hub";
-/** Clients ping every 30 s: this much silence is two missed pings and a late third. */
-const STALE_MS = 75_000;
 const STALE_CLOSE_CODE = 1001;
 
 export interface Admission {
@@ -37,15 +34,9 @@ interface Attachment extends Admission {
 	left?: true;
 }
 
-export interface HubEnv {
-	HUB: DurableObjectNamespace<Hub>;
-	/** Overrides the stale-socket window; only tests set it. */
-	HUB_STALE_MS?: string;
-}
-
 export class Hub extends DurableObject<HubEnv> {
 	private readonly core = new HubCore(
-		() => this.open().map(peerOf),
+		() => this.open().map(({ peer }) => peer),
 		new SqlDocStore(this.ctx.storage.sql),
 	);
 	private readonly revoked = new RevokedGrants(this.ctx.storage.sql);
@@ -57,7 +48,7 @@ export class Hub extends DurableObject<HubEnv> {
 		ctx.setWebSocketAutoResponse(
 			new WebSocketRequestResponsePair(KEEPALIVE_PING, KEEPALIVE_PONG),
 		);
-		this.staleMs = Number(env.HUB_STALE_MS) || STALE_MS;
+		this.staleMs = Number(env.HUB_STALE_MS) || KEEPALIVE_STALE_MS;
 		this.sweepMs = this.staleMs / 2;
 	}
 
@@ -74,14 +65,15 @@ export class Hub extends DurableObject<HubEnv> {
 		if (!slots.some((slot) => slot !== null)) return unauthorizedSocket();
 		const { 0: client, 1: server } = new WebSocketPair();
 		this.ctx.acceptWebSocket(server);
-		server.serializeAttachment({
+		const state: Attachment = {
 			...admission,
 			slots,
 			tag: newTag(),
 			subs: [],
 			joinedAt: Date.now(),
-		} satisfies Attachment);
-		this.core.join(peerOf(server));
+		};
+		server.serializeAttachment(state);
+		this.core.join(attach(server, state).peer);
 		// An alarm set under a longer window would leave this one's ghosts waiting.
 		const sweep = await this.ctx.storage.getAlarm();
 		if (sweep === null || sweep > Date.now() + this.sweepMs) {
@@ -92,7 +84,8 @@ export class Hub extends DurableObject<HubEnv> {
 
 	webSocketMessage(ws: WebSocket, message: ArrayBuffer | string): void {
 		if (typeof message === "string") return;
-		this.core.handle(peerOf(ws), new Uint8Array(message));
+		const entry = attachedOf(ws);
+		if (entry) this.core.handle(entry.peer, new Uint8Array(message));
 	}
 
 	webSocketClose(ws: WebSocket): void {
@@ -110,9 +103,8 @@ export class Hub extends DurableObject<HubEnv> {
 	 */
 	async alarm(): Promise<void> {
 		const cutoff = Date.now() - this.staleMs;
-		for (const ws of this.open()) {
+		for (const { ws, state } of this.open()) {
 			const pinged = this.ctx.getWebSocketAutoResponseTimestamp(ws);
-			const state = ws.deserializeAttachment() as Attachment;
 			if (Math.max(pinged?.getTime() ?? 0, state.joinedAt) > cutoff) continue;
 			this.leave(ws);
 			ws.close(STALE_CLOSE_CODE, "Stale");
@@ -138,19 +130,22 @@ export class Hub extends DurableObject<HubEnv> {
 	}
 
 	/** A socket the hub closed stays listed, without its attachment, until the close completes. */
-	private open(): WebSocket[] {
-		return this.ctx
-			.getWebSockets()
-			.filter((ws) => ws.readyState === WebSocket.OPEN);
+	private open(): Attached[] {
+		const open: Attached[] = [];
+		for (const ws of this.ctx.getWebSockets()) {
+			const entry = ws.readyState === WebSocket.OPEN ? attachedOf(ws) : null;
+			if (entry) open.push(entry);
+		}
+		return open;
 	}
 
 	/** Announces once: the close event of a socket the hub swept must not repeat it. */
 	private leave(ws: WebSocket): void {
-		const state = attachmentOf(ws);
-		if (!state || state.left) return;
-		this.core.leave(peerOf(ws));
-		state.left = true;
-		ws.serializeAttachment(state);
+		const entry = attachedOf(ws);
+		if (!entry || entry.state.left) return;
+		this.core.leave(entry.peer);
+		entry.state.left = true;
+		ws.serializeAttachment(entry.state);
 	}
 
 	private sweepLater(): Promise<void> {
@@ -158,31 +153,29 @@ export class Hub extends DurableObject<HubEnv> {
 	}
 }
 
-export function hubStub(env: HubEnv): DurableObjectStub<Hub> {
-	return env.HUB.get(env.HUB.idFromName(HUB_NAME));
+interface Attached {
+	ws: WebSocket;
+	state: Attachment;
+	peer: HubPeer;
 }
 
-/** A socket must be accepted to carry a close code; a plain 401 would look like a network error. */
-export function unauthorizedSocket(): Response {
-	const { 0: client, 1: server } = new WebSocketPair();
-	server.accept();
-	server.close(UNAUTHORIZED_CLOSE_CODE, "Unauthorized");
-	return new Response(null, { status: 101, webSocket: client });
+/** One object per socket: reading a 16 KB attachment and rebuilding its peer for every socket on every frame was the hub's hot path. */
+const attached = new WeakMap<WebSocket, Attached>();
+
+function attach(ws: WebSocket, state: Attachment): Attached {
+	const entry = { ws, state, peer: peerOver(ws, state) };
+	attached.set(ws, entry);
+	return entry;
 }
 
-/** One object per socket: reading a 16 KB attachment for every socket on every frame was the hub's hot path. */
-const attachments = new WeakMap<WebSocket, Attachment>();
-
-function attachmentOf(ws: WebSocket): Attachment | null {
-	const known = attachments.get(ws);
+function attachedOf(ws: WebSocket): Attached | null {
+	const known = attached.get(ws);
 	if (known) return known;
 	const state = ws.deserializeAttachment() as Attachment | null;
-	if (state) attachments.set(ws, state);
-	return state;
+	return state ? attach(ws, state) : null;
 }
 
-function peerOf(ws: WebSocket): HubPeer {
-	const state = attachmentOf(ws) as Attachment;
+function peerOver(ws: WebSocket, state: Attachment): HubPeer {
 	const keepSubs = (keep: (sub: DocSub) => boolean) => {
 		state.subs = state.subs.filter(keep);
 		ws.serializeAttachment(state);

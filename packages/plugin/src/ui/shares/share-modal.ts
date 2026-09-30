@@ -1,90 +1,83 @@
-import { type App, Modal, Setting } from "obsidian";
+import { Modal, Setting } from "obsidian";
 
-import type { Person } from "@/presence/people";
+import type { PluginHost } from "@/plugin/host";
+import { isRelayConfigured } from "@/settings/model";
 import { errorMessage } from "@/shared/errors";
-import type { Participant } from "@/storage";
-import { alertLine } from "@/ui/common/alert-line";
-import { serial } from "@/ui/common/enter-key";
-import { notifyError } from "@/ui/common/notices";
-import { renderAvatar } from "@/ui/live/avatars";
-import type { CreatedInvite } from "./invite-action";
+import type { SpaceRecord } from "@/spaces/record";
+import {
+	type BrokerAdmin,
+	listParticipants,
+	type Participant,
+} from "@/storage";
+import {
+	alertLine,
+	focusKey,
+	notifyError,
+	openNote,
+	RELAY_TEXT,
+	renderAvatar,
+	renderKeepingFocus,
+	serial,
+} from "@/ui/common";
+import { createInvite } from "./invite-action";
 import { renderInviteForm } from "./invite-section";
 import { pauseToggle } from "./pause-toggle";
-import { type ShareRow, shareRows } from "./share-people";
-
-/** The owner's side of a share: who holds access, and new invites. */
-export interface ShareAccess {
-	people(): Promise<Participant[]>;
-	/** False when the owner backed out. */
-	revoke(person: Participant): Promise<boolean>;
-	invite(person: string, readOnly: boolean): Promise<CreatedInvite>;
-}
-
-export interface ShareWindow {
-	name: string;
-	/** Whose it is and where, in a sentence. */
-	summary: string;
-	warning: string | null;
-	here(): readonly Person[];
-	/** Why the relay cannot show who is here; null when it can. */
-	note(): string | null;
-	subscribe(listener: () => void): () => void;
-	openNote(path: string): void;
-	/** Null for a participant, or an owner without a relay. */
-	access: ShareAccess | null;
-	/** Null where the share cannot sync here at all. */
-	paused: boolean | null;
-	setPaused(paused: boolean): Promise<void>;
-	closeLabel: string;
-	/** True once the share is closed. */
-	close(): Promise<boolean>;
-	/** The window went away: what it changed may need redrawing. */
-	onClosed?(): void;
-}
+import {
+	closeLabel,
+	closeShare,
+	relayAdmin,
+	revokeAccess,
+	strandedInvites,
+} from "./share-action";
+import { presenceNote, type ShareRow, shareRows } from "./share-people";
+import { shareSummary } from "./share-summary";
 
 /** One place for a shared folder: its people, invites, pause, stop. */
 export class ShareModal extends Modal {
 	private participants: Participant[] | null = null;
 	private failure: string | null = null;
-	private revoking = false;
+	private shown = "";
 	private redraw = (): void => {};
 	private unsubscribe: (() => void) | null = null;
+	private readonly owner: boolean;
+	private readonly admin: BrokerAdmin | null;
 
 	constructor(
-		app: App,
-		private readonly share: ShareWindow,
+		private readonly plugin: PluginHost,
+		private readonly record: SpaceRecord,
+		private readonly onClosed?: () => void,
 	) {
-		super(app);
+		super(plugin.app);
+		this.owner = record.access.kind === "owner";
+		this.admin =
+			this.owner && isRelayConfigured(plugin.settings)
+				? relayAdmin(plugin.settings)
+				: null;
 	}
 
 	onOpen(): void {
-		const { contentEl, share } = this;
+		const { contentEl, plugin, record } = this;
 		this.modalEl.addClass("obsync-share-modal");
-		this.titleEl.setText(`Sharing "${share.name}"`);
+		this.titleEl.setText(`Sharing "${record.name}"`);
 		contentEl.createEl("p", {
 			cls: "setting-item-description",
-			text: share.summary,
+			text: shareSummary(plugin.spaces, record),
 		});
-		if (share.warning) {
+		const stranded = strandedInvites(plugin, record);
+		if (stranded) {
 			contentEl.createEl("p", {
 				cls: "obsync-share-warning",
-				text: share.warning,
+				text: `People were invited through ${stranded}, which this vault no longer uses: invite them again, and the new link takes over the folder they have.`,
 			});
 		}
-		section(contentEl, "People");
+		heading(contentEl, "People");
 		const failure = alertLine(contentEl);
 		const list = contentEl.createDiv({ cls: "obsync-share-access" });
-		this.redraw = () => {
-			failure.setText(this.failure ?? "");
-			this.renderPeople(list);
-		};
-		this.unsubscribe = share.subscribe(this.redraw);
+		this.redraw = () => this.drawPeople(failure, list);
+		this.unsubscribe = plugin.realtime.people.subscribe(this.redraw);
 		this.redraw();
 		void this.load();
-		if (share.access) {
-			section(contentEl, "Invite");
-			renderInviteForm(contentEl, share.access.invite, () => void this.load());
-		}
+		if (this.owner) this.renderInvite();
 		this.renderFooter();
 	}
 
@@ -92,14 +85,13 @@ export class ShareModal extends Modal {
 		this.unsubscribe?.();
 		this.redraw = () => {};
 		this.contentEl.empty();
-		this.share.onClosed?.();
+		this.onClosed?.();
 	}
 
 	private async load(): Promise<void> {
-		const { access } = this.share;
-		if (!access) return;
+		if (!this.admin) return;
 		try {
-			this.participants = await access.people();
+			this.participants = await listParticipants(this.admin, this.record.id);
 			this.failure = null;
 		} catch (err) {
 			this.failure = errorMessage(err);
@@ -107,97 +99,128 @@ export class ShareModal extends Modal {
 		this.redraw();
 	}
 
-	private renderPeople(list: HTMLElement): void {
-		list.empty();
-		const rows = shareRows(this.share.here(), this.participants);
-		const note = this.noteOf(rows);
-		if (note) {
-			list.createEl("p", { cls: "setting-item-description", text: note });
+	private renderInvite(): void {
+		const { contentEl, plugin, record } = this;
+		heading(contentEl, "Invite");
+		if (!this.admin) {
+			contentEl.createEl("p", {
+				cls: "setting-item-description",
+				text: `${RELAY_TEXT["no-relay"]} to invite people.`,
+			});
+			return;
 		}
-		for (const row of rows) this.renderRow(list, row);
-	}
-
-	private noteOf(rows: readonly ShareRow[]): string | null {
-		const { share } = this;
-		if (this.failure) return null;
-		if (share.access && this.participants === null) return "Loading…";
-		const empty = share.access
-			? "Nobody else can open this folder yet."
-			: "Nobody else is here now.";
-		return share.note() ?? (rows.length > 0 ? null : empty);
-	}
-
-	private renderRow(list: HTMLElement, row: ShareRow): void {
-		const { share } = this;
-		const setting = new Setting(list).setName(named(row)).setDesc(row.detail);
-		const note = row.person?.note ?? null;
-		if (note !== null) {
-			setting.addExtraButton((button) =>
-				button
-					.setIcon("file-text")
-					.setTooltip(`Open ${note}`)
-					.onClick(() => {
-						this.close();
-						share.openNote(note);
-					}),
-			);
-		}
-		const { access } = share;
-		const { participant } = row;
-		if (!access || !participant) return;
-		setting.addButton((button) =>
-			button
-				.setButtonText("Revoke")
-				.setWarning()
-				.onClick(() => this.revoke(access, participant)),
+		renderInviteForm(
+			contentEl,
+			(person, readOnly) => createInvite(plugin, record, person, readOnly),
+			() => void this.load(),
 		);
 	}
 
-	private async revoke(
-		access: ShareAccess,
-		participant: Participant,
-	): Promise<void> {
-		if (this.revoking) return;
-		this.revoking = true;
+	/** The hub announces every space's people: redraw only when this share's rows changed. */
+	private drawPeople(failure: HTMLElement, list: HTMLElement): void {
+		const rows = shareRows(
+			this.plugin.realtime.people.online(this.record.id),
+			this.participants,
+		);
+		const note = this.noteOf(rows);
+		const signature = JSON.stringify([this.failure, note, rows]);
+		if (signature === this.shown) return;
+		this.shown = signature;
+		failure.setText(this.failure ?? "");
+		renderKeepingFocus(list, () => {
+			list.empty();
+			if (note)
+				list.createEl("p", { cls: "setting-item-description", text: note });
+			for (const row of rows) this.renderRow(list, row);
+		});
+	}
+
+	private noteOf(rows: readonly ShareRow[]): string | null {
+		if (this.failure) return null;
+		if (this.admin && this.participants === null) return "Loading…";
+		const { people, hub } = this.plugin.realtime;
+		const { id } = this.record;
+		const presence = presenceNote(hub.statusOf(id), people.unreadable(id));
+		if (presence) return presence;
+		if (rows.length > 0) return null;
+		return this.admin
+			? "Nobody else can open this folder yet."
+			: "Nobody else is here now.";
+	}
+
+	private renderRow(list: HTMLElement, row: ShareRow): void {
+		const setting = new Setting(list).setName(named(row)).setDesc(row.detail);
+		const note = row.person?.note ?? null;
+		if (note !== null) {
+			setting.addExtraButton((button) => {
+				focusKey(button.extraSettingsEl, `note-${row.key}`);
+				button
+					.setIcon("file-text")
+					.setTooltip(`Open ${note}`)
+					.onClick(async () => {
+						if (await openNote(this.app, note)) this.close();
+					});
+			});
+		}
+		const { participant } = row;
+		if (!this.admin || !participant) return;
+		setting.addButton((button) => {
+			focusKey(button.buttonEl, `revoke-${row.key}`);
+			button
+				.setButtonText("Revoke")
+				.setWarning()
+				.onClick(() => this.revoke(participant));
+		});
+	}
+
+	private readonly revoke = serial(async (person: Participant) => {
 		try {
-			if (await access.revoke(participant)) await this.load();
+			if (await revokeAccess(this.plugin, this.record, person))
+				await this.load();
 		} catch (err) {
 			this.failure = errorMessage(err);
 			this.redraw();
-		} finally {
-			this.revoking = false;
 		}
-	}
+	});
 
 	private renderFooter(): void {
-		const { share } = this;
+		const { plugin, record } = this;
 		const footer = new Setting(this.modalEl);
 		footer.settingEl.addClass("obsync-share-footer");
-		const { paused } = share;
-		if (paused !== null) {
+		const space = plugin.spaces.partition().find(({ id }) => id === record.id);
+		if (space) {
 			footer.setDesc("Pausing affects this device only.");
 			footer.addButton((button) => {
-				const show = (now: boolean) =>
+				const show = (paused: boolean) =>
 					button.setButtonText(
-						now ? "Resume on this device" : "Pause on this device",
+						paused ? "Resume on this device" : "Pause on this device",
 					);
+				const paused = space.paused === true;
 				show(paused);
 				button.onClick(
-					pauseToggle(paused, (next) => share.setPaused(next), show),
+					pauseToggle(
+						paused,
+						async (next) => {
+							await plugin.spaces.setPaused(record.id, next);
+							void plugin.controller.refresh();
+						},
+						show,
+					),
 				);
 			});
 		}
+		const label = closeLabel(record);
 		footer.addButton((button) =>
 			button
-				.setButtonText(share.closeLabel)
+				.setButtonText(label)
 				.setWarning()
 				.onClick(
 					serial(async () => {
 						button.setDisabled(true);
 						try {
-							if (await share.close()) this.close();
+							if (await closeShare(plugin, record)) this.close();
 						} catch (err) {
-							notifyError(`Could not ${share.closeLabel.toLowerCase()}`, err);
+							notifyError(`Could not ${label.toLowerCase()}`, err);
 						} finally {
 							button.setDisabled(false);
 						}
@@ -207,8 +230,11 @@ export class ShareModal extends Modal {
 	}
 }
 
-function section(parent: HTMLElement, title: string): void {
-	parent.createEl("h3", { cls: "obsync-share-section", text: title });
+function heading(parent: HTMLElement, title: string): void {
+	new Setting(parent)
+		.setName(title)
+		.setHeading()
+		.settingEl.addClass("obsync-share-section");
 }
 
 function named({ key, name, person }: ShareRow): DocumentFragment {

@@ -1,9 +1,14 @@
-import { UNAUTHORIZED_CLOSE_CODE } from "@obsync/protocol";
+import {
+	KEEPALIVE_INTERVAL_MS,
+	KEEPALIVE_SILENCE_MS,
+	UNAUTHORIZED_CLOSE_CODE,
+} from "@obsync/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { HubLink } from "@/hub/link";
+import { HubLink, type HubLinkOptions } from "@/hub/link";
 
 class FakeSocket extends EventTarget {
+	static readonly CONNECTING = 0;
 	static readonly OPEN = 1;
 	static opened: FakeSocket[] = [];
 	readyState = FakeSocket.OPEN;
@@ -117,23 +122,49 @@ describe("hub link state", () => {
 
 	it("reports every change of state through onConnectionChange", async () => {
 		const changes: boolean[] = [];
-		link.dispose();
-		link = new HubLink({
-			serverUrl: "https://relay.test",
-			channels: async () => [{ channel: "c", token: "t" }],
-			deviceId: "d",
-			onFrame: () => {},
+		await relink({
 			onConnectionChange: (connected) => changes.push(connected),
 		});
-		link.connect();
-		await vi.advanceTimersByTimeAsync(0);
 
 		last().emit("open");
 		last().emit("close", { code: 1006 });
 
 		expect(changes).toEqual([true, false]);
 	});
+
+	it("gives up on a silent link at once, not when its close event comes", async () => {
+		const changes: boolean[] = [];
+		await relink({
+			onConnectionChange: (connected) => changes.push(connected),
+		});
+		last().emit("open");
+		const before = FakeSocket.opened.length;
+
+		// The fake never reports its close, as a dead link may not for a long while.
+		await vi.advanceTimersByTimeAsync(
+			KEEPALIVE_SILENCE_MS + KEEPALIVE_INTERVAL_MS,
+		);
+		expect(link.state).toBe("offline");
+		expect(changes).toEqual([true, false]);
+
+		await vi.advanceTimersByTimeAsync(2_000);
+		expect(FakeSocket.opened).toHaveLength(before + 1);
+	});
 });
+
+/** A fresh link with other options; the first connect has run. */
+async function relink(options: Partial<HubLinkOptions>): Promise<void> {
+	link.dispose();
+	link = new HubLink({
+		serverUrl: "https://relay.test",
+		channels: async () => [{ channel: "c", token: "t" }],
+		deviceId: "d",
+		onFrame: () => {},
+		...options,
+	});
+	link.connect();
+	await vi.advanceTimersByTimeAsync(0);
+}
 
 describe("hub link wakes", () => {
 	it("retries at once when the network returns, whatever the backoff", async () => {
@@ -161,6 +192,45 @@ describe("hub link wakes", () => {
 		documentEvents.dispatchEvent(new Event("visibilitychange"));
 		await vi.advanceTimersByTimeAsync(0);
 		expect(FakeSocket.opened).toHaveLength(before + 1);
+	});
+
+	it("opens one socket when the backoff runs out while a wake is still opening", async () => {
+		const SLOW_MS = 5_000;
+		await relink({
+			channels: () =>
+				new Promise((resolve) =>
+					setTimeout(() => resolve([{ channel: "c", token: "t" }]), SLOW_MS),
+				),
+		});
+		await vi.advanceTimersByTimeAsync(SLOW_MS);
+		last().emit("close", { code: 1006 });
+		const before = FakeSocket.opened.length;
+
+		windowEvents.dispatchEvent(new Event("online"));
+		await vi.advanceTimersByTimeAsync(SLOW_MS * 2);
+
+		expect(FakeSocket.opened).toHaveLength(before + 1);
+	});
+
+	it("opens one socket when the network returns as the page turns visible", async () => {
+		last().emit("close", { code: 1006 });
+		const before = FakeSocket.opened.length;
+
+		windowEvents.dispatchEvent(new Event("online"));
+		documentEvents.dispatchEvent(new Event("visibilitychange"));
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(FakeSocket.opened).toHaveLength(before + 1);
+	});
+
+	it("leaves a socket that is still connecting alone", async () => {
+		last().readyState = FakeSocket.CONNECTING;
+		const before = FakeSocket.opened.length;
+
+		windowEvents.dispatchEvent(new Event("online"));
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(FakeSocket.opened).toHaveLength(before);
 	});
 
 	it("leaves a connected link alone", async () => {

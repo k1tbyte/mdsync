@@ -7,7 +7,7 @@ import {
 	removeIgnoreRule,
 } from "@/settings/ignore-rules";
 import { isUnder, spaceOf } from "@/sync/space";
-import { notifyError, notifyInfo } from "@/ui/common/notices";
+import { notifyError, notifyInfo } from "@/ui/common";
 import { openPromiseModal } from "@/ui/modals/promise-modal";
 import { ignoreHome, ignoreNoteOf, isIgnoreNote } from "@/vault/ignore";
 

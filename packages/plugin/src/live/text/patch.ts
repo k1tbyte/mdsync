@@ -15,12 +15,9 @@ const opsOf = ({ removed, added }: Group): number =>
 	(removed ? 1 : 0) + (added ? 1 : 0);
 
 /**
- * Brings a Y.Text to `target` as inserts and deletes. Replacing the whole text
- * instead would make two devices that each rewrote it merge into interleaved
- * nonsense - the rule the live layer rests on.
- *
- * Under the project's one edit budget; past it the differing middle becomes one
- * replacement, which still leaves the untouched ends alone.
+ * Brings a Y.Text to `target` as inserts and deletes: replacing the whole text
+ * would make two devices that each rewrote it merge into interleaved nonsense.
+ * Past the edit budget the differing middle becomes one replacement.
  */
 export function patchYText(doc: Y.Doc, text: Y.Text, target: string): void {
 	const current = text.toString();

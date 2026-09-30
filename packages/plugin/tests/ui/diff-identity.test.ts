@@ -15,6 +15,7 @@ function diff(overrides: Partial<DiffResult> = {}): DiffResult {
 		localChanges: [change("a.md"), change("b.md")],
 		remoteChanges: [],
 		conflicts: [],
+		moves: [],
 		converged: [],
 		remoteMoved: false,
 		...overrides,

@@ -4,21 +4,13 @@
  * at different slots on different sockets.
  */
 
-import {
-	type ClientFrame,
-	encodeServer,
-	type ServerFrame,
-	withSlot,
-} from "@obsync/protocol";
-
 /** A channel a socket was admitted to, checked by the worker before the hub woke. */
 export interface Grant {
 	channel: string;
 	/** Fingerprint of the admitting token, so revocation can find it. */
 	grant: string;
-	/** Who holds the token: a share participant, or the deployment owner. */
+	/** A share participant's id, or the deployment owner. */
 	who: string;
-	/** A read-only participant follows documents but never writes them. */
 	readOnly?: true;
 	/** The name the owner invited a participant by: others see this, not what they call themselves. */
 	name?: string;
@@ -42,44 +34,14 @@ export interface HubPeer {
 	close(code: number, reason: string): void;
 }
 
-export type Peers = () => Iterable<HubPeer>;
-
-/** Resolves the sockets once, for an operation that broadcasts several times. */
-export function resolved(peers: Peers): Peers {
-	const all = [...peers()];
-	return () => all;
-}
-
-export interface HandlerContext {
-	peers: Peers;
-	peer: HubPeer;
-	grant: Grant;
-}
-
-export type Handler<F> = (context: HandlerContext, frame: F) => void;
-
-export type Handlers = {
-	[K in ClientFrame["type"]]?: Handler<Extract<ClientFrame, { type: K }>>;
-};
-
 export function slotOf(peer: HubPeer, channel: string): number {
 	return peer.slots.findIndex((grant) => grant?.channel === channel);
 }
 
-export function follows(peer: HubPeer, slot: number, doc: string): boolean {
-	return peer.subs.some(([at, followed]) => at === slot && followed === doc);
+export function grantOn(peer: HubPeer, channel: string): Grant | undefined {
+	return peer.slots.find((grant) => grant?.channel === channel) ?? undefined;
 }
 
-/** Encodes once and readdresses per recipient; `accept` picks who gets it. */
-export function broadcast(
-	peers: Peers,
-	channel: string,
-	frame: ServerFrame,
-	accept: (peer: HubPeer, slot: number) => boolean,
-): void {
-	const bytes = encodeServer(frame);
-	for (const peer of peers()) {
-		const slot = slotOf(peer, channel);
-		if (slot >= 0 && accept(peer, slot)) peer.send(withSlot(bytes, slot));
-	}
+export function follows(peer: HubPeer, slot: number, doc: string): boolean {
+	return peer.subs.some(([at, followed]) => at === slot && followed === doc);
 }

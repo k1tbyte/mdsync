@@ -16,13 +16,9 @@ import {
 } from "@obsync/protocol";
 import { fingerprint, relaySecret, secretsEqual } from "../secret";
 import { EShareRole, type ShareEnv, shareGrantOf } from "../share/kv";
-import {
-	type Admission,
-	HUB_ADMISSION_HEADER,
-	hubStub,
-	unauthorizedSocket,
-} from "./durable-object";
+import { type Admission, HUB_ADMISSION_HEADER } from "./durable-object";
 import type { Grant } from "./peer";
+import { hubStub, unauthorizedSocket } from "./stub";
 
 /** Owner grants are 75 chars and share tokens 43; KV rejects keys over 512 bytes. */
 const MAX_TOKEN_LENGTH = 128;
@@ -46,8 +42,16 @@ export async function handleHubRequest(
 		return unauthorized(request);
 	}
 	const forwarded = new Request(request);
-	forwarded.headers.set(HUB_ADMISSION_HEADER, JSON.stringify(admission));
+	forwarded.headers.set(HUB_ADMISSION_HEADER, asciiJson(admission));
 	return hubStub(env).fetch(forwarded);
+}
+
+/** A header value is a byte string: `\u` escapes keep a name's UTF-8 out of it. */
+function asciiJson(value: unknown): string {
+	return JSON.stringify(value).replace(
+		/[^\x20-\x7e]/g,
+		(char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+	);
 }
 
 /**
@@ -110,7 +114,6 @@ async function admit(
 	return { device: deviceOf(params), slots };
 }
 
-/** The cold-sync ping from a device whose socket is down. */
 async function signal(
 	request: Request,
 	env: ShareEnv,

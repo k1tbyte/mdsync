@@ -1,7 +1,5 @@
-/** The socket to a relay, as far as this device can tell. */
 export type LinkState = "connecting" | "connected" | "unauthorized" | "offline";
 
-/** Why a space's relay channel is, or is not, carrying it. */
 export type RelayStatus = "off" | "no-relay" | "paused" | LinkState;
 
 export interface RelayFacts {
@@ -25,7 +23,10 @@ export function relayStatus({
 	return revoked ? "unauthorized" : link;
 }
 
-/** Whether a socket is meant to carry the space. */
 export function isLinkState(status: RelayStatus): status is LinkState {
 	return status !== "off" && status !== "no-relay" && status !== "paused";
+}
+
+export function isConnected(status: LinkState): boolean {
+	return status === "connected";
 }

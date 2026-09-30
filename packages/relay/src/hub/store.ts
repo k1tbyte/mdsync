@@ -1,8 +1,7 @@
 /**
- * The hub's document logs in the Durable Object's SQLite: one row per delta and
- * one per document (snapshot, forwarding pointer, log name). All of it
- * ciphertext. An update writes its delta row only: the head is the last delta's
- * seq, so the document row changes on compaction and rotation alone.
+ * Document logs in the Durable Object's SQLite, all ciphertext: a row per delta
+ * and one per document (snapshot, forwarding pointer, log name). An update
+ * writes its delta only: the head is the last delta's seq.
  */
 
 import type { DocState, DocStore, Pointer } from "./docs";
@@ -10,7 +9,6 @@ import type { DocState, DocStore, Pointer } from "./docs";
 /** `SqlStorageValue`, spelled out so code without workers-types can import this. */
 export type SqlValue = ArrayBuffer | string | number | null;
 
-/** The slice of `SqlStorage` used here, so tests can back it with node:sqlite. */
 export interface Sql {
 	exec(
 		query: string,
@@ -25,7 +23,6 @@ interface DocRow {
 	log: string;
 }
 
-/** A fresh log id, drawn per row. */
 const NEW_LOG = "lower(hex(randomblob(8)))";
 
 /** `movedTo` is asked on every frame and a pointer never changes once set, so answers are kept, oldest out first. */
@@ -98,7 +95,6 @@ export class SqlDocStore implements DocStore {
 		return true;
 	}
 
-	/** Drops the log: from here the pointer is the only answer. */
 	private markMoved(channel: string, doc: string, pointer: Pointer): void {
 		this.sql.exec(
 			"INSERT INTO docs(channel, doc, moved, moved_note) VALUES(?, ?, ?, ?) ON CONFLICT(channel, doc) DO UPDATE SET snap_seq = 0, snap = NULL, moved = excluded.moved, moved_note = excluded.moved_note",
@@ -116,21 +112,20 @@ export class SqlDocStore implements DocStore {
 	}
 
 	append(channel: string, doc: string, payload: Uint8Array): number {
-		return this.log(channel, doc, payload, false) as number;
+		return this.insert(channel, doc, payload, this.row(channel, doc));
 	}
 
 	seed(channel: string, doc: string, payload: Uint8Array): number | null {
-		return this.log(channel, doc, payload, true);
+		const row = this.row(channel, doc);
+		return row ? null : this.insert(channel, doc, payload, row);
 	}
 
-	private log(
+	private insert(
 		channel: string,
 		doc: string,
 		payload: Uint8Array,
-		seedOnly: boolean,
-	): number | null {
-		const row = this.row(channel, doc);
-		if (row && seedOnly) return null;
+		row: DocRow | null,
+	): number {
 		if (!row) {
 			this.sql.exec(
 				`INSERT INTO docs(channel, doc, log) VALUES(?, ?, ${NEW_LOG})`,

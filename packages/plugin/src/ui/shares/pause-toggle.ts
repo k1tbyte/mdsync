@@ -1,4 +1,4 @@
-import { notifyError } from "@/ui/common/notices";
+import { notifyError, serial } from "@/ui/common";
 
 /** Shows the flip at once and never waits on the save; a failed save flips it back. */
 export function pauseToggle(
@@ -7,7 +7,7 @@ export function pauseToggle(
 	show: (paused: boolean) => void,
 ): () => Promise<void> {
 	let current = paused;
-	return async () => {
+	return serial(async () => {
 		const next = !current;
 		current = next;
 		show(next);
@@ -18,5 +18,5 @@ export function pauseToggle(
 			show(current);
 			notifyError("Could not change pause", err);
 		}
-	};
+	});
 }

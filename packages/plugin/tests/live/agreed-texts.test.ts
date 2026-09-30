@@ -2,7 +2,7 @@ import { InMemoryAdapter } from "@tests/helpers/in-memory-adapter";
 import type { DataAdapter } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 
-import { AgreedTexts } from "@/live/agreed-texts";
+import { AgreedTexts } from "@/live/cold/agreed-texts";
 
 const DIR = ".obsidian/plugins/obsync/live";
 

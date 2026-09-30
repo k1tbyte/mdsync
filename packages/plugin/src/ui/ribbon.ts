@@ -1,7 +1,7 @@
 import type { App, Plugin } from "obsidian";
 
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
-import type { HubConnection } from "@/hub/connection";
+import type { HubConnection } from "@/hub";
 import type { SyncController, SyncStatusSnapshot } from "@/sync/controller";
 import { openSourceControlView } from "./source-control-view";
 

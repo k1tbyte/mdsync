@@ -7,6 +7,7 @@ import {
 } from "obsidian";
 import type { StatePersister } from "@/core";
 import type { PluginHost } from "@/plugin/host";
+import { carryHashes } from "@/sync/session-state";
 import {
 	addIgnoreMenuItem,
 	addPushMenuItem,
@@ -104,6 +105,24 @@ export function registerIgnoreFileRefresh(plugin: Plugin & PluginHost): void {
 		plugin.app.vault.on("rename", (file, oldPath) =>
 			refreshIfIgnoreFile(file, oldPath),
 		),
+	);
+}
+
+export function registerHashCarry(
+	plugin: Plugin,
+	statePersister: StatePersister,
+): void {
+	plugin.registerEvent(
+		plugin.app.vault.on("rename", (file, oldPath) => {
+			const { state } = statePersister;
+			const next = carryHashes(
+				state,
+				oldPath,
+				file.path,
+				file instanceof TFolder,
+			);
+			if (next !== state) void statePersister.persist(next);
+		}),
 	);
 }
 

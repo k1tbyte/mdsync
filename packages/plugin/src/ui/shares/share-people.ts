@@ -1,11 +1,10 @@
 import { OWNER } from "@obsync/protocol";
 
 import type { RelayStatus } from "@/hub/status";
-import type { Person } from "@/presence/people";
+import type { Person } from "@/presence";
 import type { Participant } from "@/storage";
-import { RELAY_TEXT, UNREADABLE_TEXT } from "@/ui/live/relay-text";
+import { RELAY_TEXT, UNREADABLE_TEXT } from "@/ui/common";
 
-/** One person of a share: who they are, what they may do and where they are now. */
 export interface ShareRow {
 	key: string;
 	name: string;

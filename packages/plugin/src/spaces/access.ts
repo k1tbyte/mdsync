@@ -1,5 +1,3 @@
-import { OWNER } from "@obsync/protocol";
-
 import { type EncryptionKey, importAesKey } from "@/crypto";
 import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
 import {
@@ -54,19 +52,4 @@ export function shareKey(record: SpaceRecord): Promise<EncryptionKey> {
 
 export function shareLiveKeys(record: SpaceRecord): Promise<LiveKeys> {
 	return deriveLiveKeys(base64ToBytes(record.key));
-}
-
-/** How a share names its owner, and a participant invited without a name. */
-const OWNER_NAME = "Owner";
-const UNNAMED = "Participant";
-
-/** This device's person in the share: who the relay knows them as, and the name others see. */
-export function shareIdentity(record: SpaceRecord): {
-	person: string;
-	name: string;
-} {
-	const { access } = record;
-	return access.kind === "participant"
-		? { person: access.participantId, name: access.personName || UNNAMED }
-		: { person: OWNER, name: OWNER_NAME };
 }

@@ -14,20 +14,21 @@ const PARTICIPANT_TOKEN = "p".repeat(43);
 const VIEWER_TOKEN = "v".repeat(43);
 
 interface HubCalls {
+	headers: string[];
 	admissions: unknown[];
 	signals: [string, string][];
 }
 
 /** `secret: null` models a deployment that left RELAY_SECRET unset. */
 function makeEnv(kv = new FakeKV(), secret: string | null = SECRET) {
-	const calls: HubCalls = { admissions: [], signals: [] };
+	const calls: HubCalls = { headers: [], admissions: [], signals: [] };
 	const hub = {
 		idFromName: (name: string) => ({ name }),
 		get: () => ({
 			fetch: async (request: Request) => {
-				calls.admissions.push(
-					JSON.parse(request.headers.get(HUB_ADMISSION_HEADER) ?? "null"),
-				);
+				const header = request.headers.get(HUB_ADMISSION_HEADER) ?? "null";
+				calls.headers.push(header);
+				calls.admissions.push(JSON.parse(header));
 				return new Response("hub");
 			},
 			signal: async (channel: string, device: string) => {
@@ -200,6 +201,26 @@ describe("hub routing", () => {
 					null,
 				],
 			},
+		]);
+	});
+
+	it("hands the hub a name beyond ASCII in an ASCII header", async () => {
+		const kv = await shareKv();
+		await kv.put(
+			`tok:${PARTICIPANT_TOKEN}`,
+			JSON.stringify({
+				shareId: "share1",
+				participantId: "p1",
+				label: "Łukasz 😀",
+			}),
+		);
+		const { env, calls } = makeEnv(kv);
+
+		await call(hubPath([[SHARE, PARTICIPANT_TOKEN]]), env);
+
+		expect(calls.headers[0]).toMatch(/^[\x20-\x7e]+$/);
+		expect(calls.admissions).toMatchObject([
+			{ slots: [{ name: "Łukasz 😀" }] },
 		]);
 	});
 

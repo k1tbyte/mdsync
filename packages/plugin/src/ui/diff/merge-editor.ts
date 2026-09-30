@@ -25,8 +25,12 @@ import {
 	type StatusPatch,
 	snapToLines,
 } from "@/sync/merge-model";
-import { appendIconButton } from "@/ui/common/icon-button";
-import { notifyError, notifyInfo, runWithNotice } from "@/ui/common/notices";
+import {
+	appendIconButton,
+	notifyError,
+	notifyInfo,
+	runWithNotice,
+} from "@/ui/common";
 import { Divider } from "./divider";
 import { sideSpan, spanBounds, updatePaneViewportWidth } from "./geometry";
 import { LayoutMode } from "./layout-mode";

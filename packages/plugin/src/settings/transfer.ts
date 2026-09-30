@@ -45,6 +45,7 @@ const TRANSFER_FIELDS = {
 		autoPushAfterChange: "p",
 		autoPushSettleSeconds: "g",
 		autoPushChangedFilesOnly: "c",
+		pushSharesRightAway: "s",
 		fileHistoryEnabled: "h",
 		fileHistoryMaxSnapshots: "j",
 		historyAutoRefresh: "r",

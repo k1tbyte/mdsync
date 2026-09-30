@@ -1,6 +1,6 @@
 import type { Plugin } from "obsidian";
 
-import { Unseen } from "@/presence/unseen";
+import { Unseen } from "@/presence";
 import { type Space, VAULT_SPACE } from "@/sync/space";
 
 const STORAGE_KEY = "obsync-unseen";

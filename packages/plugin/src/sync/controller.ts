@@ -114,6 +114,8 @@ export class SyncController {
 		this.fileDiffs = new FileDiffService({
 			openSession: (path, space) => open(space ?? this.spaceFor(path)),
 			getResult: () => this.runtimeState.getResult(),
+			shareBases: (identity) =>
+				this.host.getState().storages[identity]?.shareBases,
 		});
 		this.operations = new OperationRunner({
 			host: this.host,
@@ -187,13 +189,9 @@ export class SyncController {
 		this.runtimeState.invalidate(reason);
 	}
 
-	async refreshAndAutoPull(): Promise<void> {
-		const afterMerge = await this.refreshAndAutoMerge();
-		if (!afterMerge) return;
-		if (afterMerge.diff.conflicts.length > 0) return;
-		if (afterMerge.diff.localChanges.length > 0) return;
-		if (afterMerge.diff.remoteChanges.length === 0) return;
-		await this.pullPaths(afterMerge.diff.remoteChanges.map((c) => c.path));
+	/** A relay signal's pull; local changes elsewhere do not hold it back, a path changed on both sides is a conflict. */
+	refreshAndAutoPull(): Promise<void> {
+		return this.refreshAndAutoSync(false);
 	}
 
 	async refreshAndAutoSync(push = true): Promise<void> {
@@ -226,6 +224,36 @@ export class SyncController {
 		);
 		if (paths.length === 0) return;
 		await this.pushPaths(paths);
+	}
+
+	/** Each share of `paths` compared and pushed alone, as `autoPushFromSnapshot` would; the vault is left out. */
+	async autoPushShares(paths: ReadonlySet<string>): Promise<void> {
+		for (const [space, group] of pathsBySpace(
+			this.runtimeState.spaces(),
+			paths,
+		)) {
+			if (space.id === VAULT_SPACE.id || space.readOnly || space.paused)
+				continue;
+			const only = new Set(group);
+			await this.operations.runOperation(
+				space,
+				ESyncLogOperation.Push,
+				(deps, result, ctx) => {
+					const ready = selectAutoPushPaths(result.diff, only);
+					return ready.length > 0
+						? pushPathsOp(deps, result, ready, ctx)
+						: Promise.resolve({
+								newRemote: result.remote,
+								touchedPaths: new Set<string>(),
+							});
+				},
+			);
+		}
+	}
+
+	/** The space `path` belongs to, as the last refresh partitioned the vault. */
+	spaceFor(path: string): Space {
+		return spaceOf(this.runtimeState.spaces(), path);
 	}
 
 	private async autoMerge(): Promise<void> {
@@ -387,10 +415,6 @@ export class SyncController {
 				return batchKeepLocalOp(deps, res, new Set([path]), ctx);
 			},
 		);
-	}
-
-	private spaceFor(path: string): Space {
-		return spaceOf(this.runtimeState.spaces(), path);
 	}
 
 	/** One operation per space the paths fall in; stops at the first that fails. */

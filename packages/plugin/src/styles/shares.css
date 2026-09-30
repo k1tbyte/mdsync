@@ -12,13 +12,11 @@
 	flex-shrink: 0;
 }
 
-.obsync-share-modal .obsync-share-section {
+.obsync-share-modal .obsync-share-section.setting-item {
 	margin: var(--size-4-5) 0 var(--size-4-1);
-	padding-bottom: var(--size-4-1);
+	padding: 0 0 var(--size-4-1);
+	border-top: 0;
 	border-bottom: 1px solid var(--background-modifier-border);
-	color: var(--text-muted);
-	font-size: var(--font-ui-small);
-	font-weight: var(--font-semibold);
 }
 
 .obsync-share-warning {
@@ -37,16 +35,6 @@
 	border-top: 1px solid var(--background-modifier-border);
 }
 
-.is-phone
-	.modal.obsync-share-modal
-	.setting-item.obsync-share-footer:last-child {
-	padding: var(--size-4-3) var(--size-4-4);
-	padding-bottom: max(
-		var(--size-4-3),
-		var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
-	);
-}
-
 .modal.obsync-share-modal .obsync-share-section + .setting-item {
 	border-top: 0;
 }
@@ -63,62 +51,70 @@
 	overflow-wrap: anywhere;
 }
 
+.obsync-share-modal .obsync-share-section .setting-item-name {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+}
+
 .obsync-share-modal input[readonly] {
 	text-overflow: ellipsis;
 }
 
-.is-phone .modal.obsync-share-modal .obsync-share-access .setting-item {
-	flex-direction: row;
-	align-items: center;
-}
+.is-phone .modal.obsync-share-modal {
+	.setting-item.obsync-share-footer:last-child {
+		padding: var(--size-4-3) var(--size-4-4);
+		padding-bottom: max(
+			var(--size-4-3),
+			var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
+		);
+	}
 
-.is-phone .modal.obsync-share-modal .obsync-share-access .setting-item-control {
-	flex: 0 0 auto;
-	width: auto;
-}
+	.obsync-share-access .setting-item {
+		flex-direction: row;
+		align-items: center;
+	}
 
-.is-phone
-	.modal.obsync-share-modal
-	.obsync-share-access
-	.setting-item-control
-	button:not(.clickable-icon) {
-	width: auto;
-}
+	.obsync-share-access .setting-item-control {
+		flex: 0 0 auto;
+		width: auto;
+	}
 
-.is-phone .modal.obsync-share-modal .obsync-share-footer .setting-item-control {
-	flex-wrap: wrap;
-}
+	.obsync-share-access .setting-item-control button:not(.clickable-icon) {
+		width: auto;
+	}
 
-.is-phone
-	.modal.obsync-share-modal
-	.obsync-share-footer
-	.setting-item-control
-	button:not(.clickable-icon) {
-	flex: 1 1 auto;
-	width: auto;
-}
+	.obsync-share-footer .setting-item-control {
+		flex-wrap: wrap;
+	}
 
-.is-phone .modal.obsync-share-modal .clickable-icon {
-	min-width: var(--obsync-touch);
-	min-height: var(--obsync-touch);
+	.obsync-share-footer .setting-item-control button:not(.clickable-icon) {
+		flex: 1 1 auto;
+		width: auto;
+	}
+
+	.clickable-icon {
+		min-width: var(--obsync-touch);
+		min-height: var(--obsync-touch);
+	}
+
+	&:has(input:focus) {
+		overflow-y: auto;
+
+		.modal-content {
+			flex: none;
+			overflow: visible;
+		}
+	}
 }
 
 @media (max-height: 520px) {
 	.is-phone .modal.obsync-share-modal {
 		overflow-y: auto;
+
+		.modal-content {
+			flex: none;
+			overflow: visible;
+		}
 	}
-
-	.is-phone .obsync-share-modal .modal-content {
-		flex: none;
-		overflow: visible;
-	}
-}
-
-.is-phone .modal.obsync-share-modal:has(input:focus) {
-	overflow-y: auto;
-}
-
-.is-phone .obsync-share-modal:has(input:focus) .modal-content {
-	flex: none;
-	overflow: visible;
 }

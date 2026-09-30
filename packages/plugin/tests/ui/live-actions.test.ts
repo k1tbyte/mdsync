@@ -1,29 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PluginHost } from "@/plugin/host";
-import type { SpaceRecord } from "@/spaces/record";
-import { type Space, VAULT_SPACE } from "@/sync/space";
 import { notifyInfo } from "@/ui/common/notices";
-import {
-	rebuildLiveNote,
-	sharedFolderOf,
-	toggleAuthors,
-} from "@/ui/live/live-actions";
+import { rebuildLiveNote, toggleAuthors } from "@/ui/live/header/live-actions";
 
 vi.mock("@/ui/common/notices", () => ({
 	notifyInfo: vi.fn(),
 	reportError: vi.fn(),
 }));
 
-const record = {
-	id: "s1",
-	root: "Team",
-	closed: false,
-} as unknown as SpaceRecord;
 const plugin = (live: object): PluginHost =>
 	({
 		realtime: { live },
-		spaces: { list: () => [record] },
 		settings: { showLiveAuthors: false },
 		saveSettings: vi.fn(async () => {}),
 	}) as unknown as PluginHost;
@@ -54,12 +42,5 @@ describe("live note actions", () => {
 				"Still sending edits. Try again in a moment.",
 			),
 		);
-	});
-
-	it("finds the share of a space, never one for the vault", () => {
-		const host = plugin({});
-		expect(sharedFolderOf(host, VAULT_SPACE)).toBeUndefined();
-		const share = { id: "s1", root: "Team" } as Space;
-		expect(sharedFolderOf(host, share)).toBe(record);
 	});
 });

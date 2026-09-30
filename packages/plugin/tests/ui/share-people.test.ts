@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { RelayStatus } from "@/hub/status";
 import type { Person } from "@/presence/people";
 import type { Participant } from "@/storage";
-import { RELAY_TEXT, UNREADABLE_TEXT } from "@/ui/live/relay-text";
+import { RELAY_TEXT, UNREADABLE_TEXT } from "@/ui/common/relay";
 import { presenceNote, shareRows } from "@/ui/shares/share-people";
 
 const person = (
@@ -118,5 +118,20 @@ describe("presenceNote", () => {
 
 	it("has nothing to add when all is well", () => {
 		expect(presenceNote("connected", false)).toBeNull();
+	});
+});
+
+describe("shareRows as a redraw signature", () => {
+	const signature = (here: Person[]) =>
+		JSON.stringify(shareRows(here, [participant("a", "Alex")]));
+
+	it("is equal for equal people and differs once someone moves", () => {
+		const alex = person("a", "Alex", { note: "Team/a.md" });
+
+		expect(signature([{ ...alex }])).toBe(signature([{ ...alex }]));
+		expect(signature([{ ...alex, note: "Team/b.md" }])).not.toBe(
+			signature([alex]),
+		);
+		expect(signature([{ ...alex, idle: true }])).not.toBe(signature([alex]));
 	});
 });

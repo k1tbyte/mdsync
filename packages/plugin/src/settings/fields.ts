@@ -43,7 +43,6 @@ export interface TextField extends FieldBase {
 export interface NumberField extends FieldBase {
 	kind: typeof EFieldKind.Number;
 	get: (settings: ObsyncSettings) => string;
-	/** Validates input before storage. */
 	parse: (raw: string) => number;
 	set: (value: number, plugin: PluginHost) => Partial<ObsyncSettings>;
 }
@@ -59,7 +58,6 @@ export interface SliderField extends FieldBase {
 
 export type SettingsField = ToggleField | TextField | NumberField | SliderField;
 
-/** Uniform save path ensures scope refreshes and re-renders behave identically. */
 export function renderFields(
 	parent: HTMLElement,
 	ctx: FieldContext,

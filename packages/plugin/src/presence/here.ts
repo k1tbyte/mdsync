@@ -10,12 +10,11 @@ const SETTLE_MS = 400;
 const ACTIVITY = ["keydown", "pointerdown", "pointermove", "wheel"] as const;
 
 export interface HereWatch {
-	/** After the note setting changed: reports again if what is shown differs. */
+	/** After the note setting changed. */
 	refresh(): void;
 	stop(): void;
 }
 
-/** Reports this device's open file (unless `showNote` says to hide it) and whether its person is at it. */
 export function watchHere(
 	app: App,
 	report: (here: Here) => void,

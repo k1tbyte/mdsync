@@ -6,7 +6,7 @@ import {
 	type FileDiffModel,
 	type ProjectionDeps,
 } from "./projection";
-import type { Conflict, FileChange } from "./types";
+import type { Conflict, FileChange, Move } from "./types";
 
 /** Total text bytes the in-memory diff model cache may retain. */
 const DIFF_CACHE_MAX_BYTES = 8 * 1024 * 1024;
@@ -14,6 +14,7 @@ const DIFF_CACHE_MAX_BYTES = 8 * 1024 * 1024;
 export interface PathStatusInput {
 	change?: FileChange;
 	conflict?: Conflict;
+	move?: Move;
 }
 
 export interface DiffCacheInput {
@@ -103,9 +104,10 @@ async function buildModel(
 		return buildConflictDiff(projection, status.conflict, forceText);
 	}
 	if (status.change) {
-		return status.change.type.startsWith("local")
-			? buildLocalChangeDiff(projection, status.change, forceText)
-			: buildRemoteChangeDiff(projection, status.change, forceText);
+		const build = status.change.type.startsWith("local")
+			? buildLocalChangeDiff
+			: buildRemoteChangeDiff;
+		return build(projection, status.change, forceText, status.move);
 	}
 	return null;
 }
@@ -120,5 +122,6 @@ function keyFor(
 	const local = status.change?.localHash ?? status.conflict?.localHash ?? "";
 	const remote = status.change?.remoteHash ?? status.conflict?.remoteHash ?? "";
 	const base = status.conflict?.baselineHash ?? "";
-	return `${kind}|${path}|${local}|${remote}|${base}|${forceText ? "f" : ""}`;
+	const from = status.move?.from ?? "";
+	return `${kind}|${path}|${from}|${local}|${remote}|${base}|${forceText ? "f" : ""}`;
 }

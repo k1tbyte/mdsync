@@ -17,7 +17,7 @@ function hostWith(
 	});
 	const host = {
 		controller: { fileDiffs: { loadBaselineForPath }, remoteHas: () => remote },
-		partition: () => [VAULT_SPACE, TEAM],
+		spaces: { partition: () => [VAULT_SPACE, TEAM] },
 	} as unknown as Parameters<typeof baseTextOf>[0];
 	return { host, loadBaselineForPath };
 }

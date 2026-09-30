@@ -1,12 +1,12 @@
 import { ALEX, SAM } from "@tests/helpers/explorer-host";
 import { describe, expect, it, vi } from "vitest";
-
+import type { PluginHost } from "@/plugin/host";
 import {
 	type PathDecoration,
 	renderDecoration,
 	sameDecoration,
 } from "@/ui/explorer/file-explorer-decorations";
-import type { ShareMark } from "@/ui/explorer/file-explorer-presence";
+import type { ShareMark } from "@/ui/explorer/file-explorer-marks";
 
 const SHARE: ShareMark = { root: "Team", kind: "owned", here: 1 };
 
@@ -15,7 +15,7 @@ describe("comparing decorations", () => {
 		change: "obsync-changed-added",
 		linkRoot: "Team/link",
 		ignored: true,
-		unseen: "1 changed",
+		unseen: { count: 1, file: "Team/a.md" },
 		share: SHARE,
 		people: [ALEX],
 	};
@@ -23,7 +23,8 @@ describe("comparing decorations", () => {
 		["a changed status", { ...full, change: "obsync-changed-deleted" }],
 		["another link", { ...full, linkRoot: "Team/other" }],
 		["a lost ignore mark", { ...full, ignored: undefined }],
-		["another unseen tooltip", { ...full, unseen: "2 changed" }],
+		["another unseen count", { ...full, unseen: { count: 2 } }],
+		["an unseen folder", { ...full, unseen: { count: 1 } }],
 		[
 			"a share of another kind",
 			{ ...full, share: { ...SHARE, kind: "paused" } },
@@ -50,9 +51,10 @@ describe("comparing decorations", () => {
 	});
 
 	it("takes copies as equal, an empty list as no list", () => {
-		const copy = {
+		const copy: PathDecoration = {
 			...full,
 			share: { ...SHARE },
+			unseen: { count: 1, file: "Team/a.md" },
 			people: [{ ...ALEX }],
 		};
 
@@ -64,11 +66,12 @@ describe("comparing decorations", () => {
 	it("marks a row with a badge for people only when there are some", () => {
 		const addClass = vi.fn();
 		const target = { addClass } as unknown as HTMLElement;
+		const plugin = {} as PluginHost;
 
-		renderDecoration(target, { people: [] });
+		renderDecoration(target, { people: [] }, plugin);
 		expect(addClass).not.toHaveBeenCalled();
 
-		renderDecoration(target, { ignored: true });
+		renderDecoration(target, { ignored: true }, plugin);
 		expect(addClass).toHaveBeenCalledWith("obsync-explorer-ignored");
 		expect(addClass).not.toHaveBeenCalledWith("obsync-has-path-badge");
 	});

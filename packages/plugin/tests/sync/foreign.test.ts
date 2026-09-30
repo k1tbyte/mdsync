@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS_SYNC } from "@/settings/model";
 import { advanceSessionAfterPush } from "@/sync/baseline";
 import { compare, pushPaths } from "@/sync/engine";
-import { forgetDroppedForeign, ownedFiles } from "@/sync/foreign";
+import {
+	forgetDroppedForeign,
+	heldShareBases,
+	ownedFiles,
+} from "@/sync/foreign";
 import { readHistoryLog } from "@/sync/history/store";
 import { objectKey } from "@/sync/manifest";
 import { EFileKind, type Manifest, type ManifestEntry } from "@/sync/types";
@@ -87,6 +91,54 @@ describe("forgetDroppedForeign", () => {
 		const remote = manifest({ ...baseline.files });
 		expect(forgetDroppedForeign(baseline, remote, vaultScope)).toBe(baseline);
 		expect(forgetDroppedForeign(null, remote, vaultScope)).toBeNull();
+	});
+});
+
+describe("heldShareBases", () => {
+	const baseline = manifest({
+		"a.md": entry("a"),
+		"Shared/p/b.md": entry("b"),
+		"Shared/p/c.md": entry("c"),
+	});
+	const remote = manifest({ "a.md": entry("a") });
+	const holdsNone = () => false;
+
+	it("keeps what the baseline forgets while the share holds none of it", () => {
+		expect(
+			heldShareBases(undefined, baseline, remote, vaultScope, holdsNone),
+		).toEqual({ "Shared/p/b.md": entry("b"), "Shared/p/c.md": entry("c") });
+	});
+
+	it("lets a path go once the share holds it", () => {
+		const kept = heldShareBases(
+			undefined,
+			baseline,
+			remote,
+			vaultScope,
+			holdsNone,
+		);
+		const next = heldShareBases(
+			kept,
+			null,
+			remote,
+			vaultScope,
+			(path) => path === "Shared/p/b.md",
+		);
+		expect(Object.keys(next)).toEqual(["Shared/p/c.md"]);
+	});
+
+	it("lets every path go once the folder is the vault's again", () => {
+		const kept = { "Shared/p/b.md": entry("b") };
+		expect(heldShareBases(kept, null, remote, plainScope, holdsNone)).toEqual(
+			{},
+		);
+	});
+
+	it("keeps nothing the remote still lists", () => {
+		const listed = manifest({ ...baseline.files });
+		expect(
+			heldShareBases(undefined, baseline, listed, vaultScope, holdsNone),
+		).toEqual({});
 	});
 });
 

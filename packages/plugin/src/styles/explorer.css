@@ -1,4 +1,3 @@
-/* File explorer indicators */
 .nav-file-title.obsync-changed-added .nav-file-title-content {
 	color: var(--color-green);
 }
@@ -92,7 +91,6 @@
 	white-space: nowrap;
 }
 
-/* Who is in a note, and a share root's kind and headcount, at the row's end. */
 .obsync-people-badge,
 .obsync-share-badge {
 	width: auto;

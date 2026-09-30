@@ -1,3 +1,5 @@
+import { OWNER } from "@obsync/protocol";
+
 /**
  * Where a share's objects live: its owner's S3 location when it was created.
  * Pinned for good; re-deriving it from later settings would orphan them.
@@ -56,6 +58,21 @@ export function isNewer(a: SpaceRecord, b: SpaceRecord): boolean {
 /** The next revision, closed; every device of the person unmounts it. */
 export function closeRecord(record: SpaceRecord, author: string): SpaceRecord {
 	return { ...record, rev: record.rev + 1, author, closed: true };
+}
+
+/** How a share names its owner, and a participant invited without a name. */
+const OWNER_NAME = "Owner";
+const UNNAMED = "Participant";
+
+/** This device's person in the share: who the relay knows them as, and the name others see. */
+export function shareIdentity(record: SpaceRecord): {
+	person: string;
+	name: string;
+} {
+	const { access } = record;
+	return access.kind === "participant"
+		? { person: access.participantId, name: access.personName || UNNAMED }
+		: { person: OWNER, name: OWNER_NAME };
 }
 
 /** Every id once, at its newest revision, sorted by id. */

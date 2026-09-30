@@ -101,6 +101,9 @@ export function hunkHintText(input: HunkHintInput): string {
 	) {
 		return "This file is too large for per-change actions; use the whole-file buttons above.";
 	}
+	if (model.movedFrom !== undefined) {
+		return `Moved from ${model.movedFrom}. A move syncs whole: push or pull it from the changes list.`;
+	}
 	if (historyChange !== null) {
 		return "Viewing a historical change. Use the restore button above to bring this version back.";
 	}

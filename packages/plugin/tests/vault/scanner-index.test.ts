@@ -59,6 +59,7 @@ async function indexOf(
 	);
 	return {
 		configDir: CONFIG,
+		rename: async () => false,
 		files: () => files,
 		folders: () =>
 			[...folders].map((path) => ({

@@ -1,6 +1,6 @@
 import type { Menu } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
-import { notifyError, notifyInfo } from "@/ui/common/notices";
+import { notifyError, notifyInfo } from "@/ui/common";
 import { openPromptModal } from "@/ui/modals";
 
 interface SnapshotPin {

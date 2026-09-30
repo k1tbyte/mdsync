@@ -6,15 +6,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { sha256Hex } from "@/crypto";
 import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
-import { AgreedTexts } from "@/live/agreed-texts";
-import { LiveColdSync } from "@/live/cold-sync";
-import { FollowerSession } from "@/live/follower-session";
-import { docIdFor, seal } from "@/live/seal";
-import type { LiveSession } from "@/live/session";
-import { LiveSessions } from "@/live/sessions";
-import type { LiveSpace } from "@/live/space";
+import { seal } from "@/crypto/seal";
+import { AgreedTexts } from "@/live/cold/agreed-texts";
+import { LiveColdSync } from "@/live/cold/cold-sync";
+import { docIdFor } from "@/live/doc-id";
+import { FollowerSession } from "@/live/session/follower-session";
+import type { LiveSession } from "@/live/session/session";
 import { bindEditor } from "@/live/text/binding";
 import type { TextModel } from "@/live/text/model";
+import { LiveSessions } from "@/live/workspace/sessions";
+import type { LiveSpace } from "@/live/workspace/space";
 
 vi.mock("@/live/text/binding", () => ({
 	bindEditor: vi.fn(() => ({ detach: vi.fn(), showAuthors: vi.fn() })),
@@ -113,6 +114,29 @@ describe("live sessions", () => {
 		await vi.waitFor(() => expect(bindEditor).toHaveBeenCalledTimes(1));
 	});
 
+	it("reports a failed refresh instead of rejecting, tells its listeners, and recovers on the next", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		const good = spaceOf;
+		spaceOf = () => {
+			throw new Error("keys unavailable");
+		};
+		leaves = [{ view: editorOf(note("a.md")) }];
+		const changed = vi.fn();
+		sessions.subscribe(changed);
+
+		await expect(sessions.refresh()).resolves.toBeUndefined();
+		expect(warn).toHaveBeenCalledWith(
+			expect.stringContaining("Live editing could not follow"),
+			expect.any(Error),
+		);
+		expect(changed).toHaveBeenCalledTimes(1);
+
+		spaceOf = good;
+		await sessions.refresh();
+		expect(followed()).toEqual([await idOf("a.md")]);
+		warn.mockRestore();
+	});
+
 	it("calls a room unanswered once the hub has stayed silent for a good while", async () => {
 		vi.useFakeTimers();
 		try {
@@ -123,13 +147,38 @@ describe("live sessions", () => {
 
 			await sessions.refresh();
 			expect(sessions.joining("a.md")).toBe(true);
-			expect(sessions.unanswered("a.md")).toBe(false);
+			expect(sessions.noteState("a.md")).not.toBe("unanswered");
 
 			changed.mockClear();
 			await vi.advanceTimersByTimeAsync(15_000);
-			expect(sessions.unanswered("a.md")).toBe(true);
+			expect(sessions.noteState("a.md")).toBe("unanswered");
 			// No longer joining: the file sync takes the note back.
 			expect(sessions.joining("a.md")).toBe(false);
+			expect(changed).toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("tells its listeners when each silent room runs out of patience, not only the first", async () => {
+		vi.useFakeTimers();
+		try {
+			connection.dropIncoming();
+			leaves = [{ view: editorOf(note("a.md")) }];
+			await sessions.refresh();
+			await vi.advanceTimersByTimeAsync(5_000);
+			leaves = [...leaves, { view: editorOf(note("b.md")) }];
+			await sessions.refresh();
+			const changed = vi.fn();
+			sessions.subscribe(changed);
+
+			await vi.advanceTimersByTimeAsync(10_000);
+			expect(sessions.noteState("a.md")).toBe("unanswered");
+			expect(sessions.noteState("b.md")).not.toBe("unanswered");
+
+			changed.mockClear();
+			await vi.advanceTimersByTimeAsync(5_000);
+			expect(sessions.noteState("b.md")).toBe("unanswered");
 			expect(changed).toHaveBeenCalled();
 		} finally {
 			vi.useRealTimers();
@@ -151,10 +200,10 @@ describe("live sessions", () => {
 			connection.connect();
 			await sessions.refresh();
 			expect(sessions.joining("a.md")).toBe(true);
-			expect(sessions.unanswered("a.md")).toBe(false);
+			expect(sessions.noteState("a.md")).not.toBe("unanswered");
 
 			await vi.advanceTimersByTimeAsync(15_000);
-			expect(sessions.unanswered("a.md")).toBe(true);
+			expect(sessions.noteState("a.md")).toBe("unanswered");
 		} finally {
 			vi.useRealTimers();
 		}
@@ -194,13 +243,13 @@ describe("live sessions", () => {
 
 		await sessions.refresh();
 
-		await vi.waitFor(() => expect(sessions.coldCause("a.md")).toBe("too-many"));
+		await vi.waitFor(() => expect(sessions.noteState("a.md")).toBe("too-many"));
 		await sessions.refresh();
 		expect(sessions.joining("a.md")).toBe(false);
 		expect(bindEditor).not.toHaveBeenCalled();
 		leaves = [];
 		await sessions.refresh();
-		expect(sessions.coldCause("a.md")).toBeNull();
+		expect(sessions.noteState("a.md")).toBeNull();
 	});
 
 	it("keeps a reader's note out of an empty room, and takes it in once they may write", async () => {
@@ -212,11 +261,11 @@ describe("live sessions", () => {
 		leaves = [{ view: editorOf(note("a.md")) }];
 
 		await sessions.refresh();
-		await vi.waitFor(() => expect(sessions.coldCause("a.md")).toBe("empty"));
+		await vi.waitFor(() => expect(sessions.noteState("a.md")).toBe("empty"));
 		spaceOf = writable;
 		await sessions.refresh();
 
-		expect(sessions.coldCause("a.md")).toBeNull();
+		expect(sessions.noteState("a.md")).not.toBe("empty");
 		await vi.waitFor(() => expect(bindEditor).toHaveBeenCalled());
 	});
 
@@ -316,6 +365,15 @@ describe("live notes as the file sync sees them", () => {
 		expect(await cold().mark("a.md", await hashOf("y"))).toBeNull();
 	});
 
+	it("derives no id for a pushed note while no note ever went live", async () => {
+		const sign = vi.spyOn(crypto.subtle, "sign");
+
+		expect(await cold().mark("never-live.md", await hashOf("x"))).toBeNull();
+
+		expect(sign).not.toHaveBeenCalled();
+		sign.mockRestore();
+	});
+
 	it("holds an open note back until its room has settled on the file", async () => {
 		const { room } = await openRoom();
 		await vi.waitFor(async () =>
@@ -371,7 +429,7 @@ describe("live notes as the file sync sees them", () => {
 		expect(await offer("text\nmore")).toBe("later");
 
 		expect(room.model.text.toString()).toBe("text");
-		await vi.waitFor(() => expect(sessions.coldCause("a.md")).toBe("diverged"));
+		await vi.waitFor(() => expect(sessions.noteState("a.md")).toBe("diverged"));
 	});
 
 	it("leaves an incoming version for later when its view cannot save", async () => {

@@ -66,6 +66,8 @@ export interface StorageState {
 	root?: string;
 	/** The share this state is of; absent for the vault. */
 	space?: string;
+	/** Frozen entries the baseline forgot before their share here took them (`heldShareBases`). */
+	shareBases?: Record<string, ManifestEntry>;
 }
 
 /**
@@ -135,10 +137,21 @@ export interface Conflict {
 	baselineHash: string | null;
 }
 
+/**
+ * A file moved within its space, on the `side` that moved it: its two paths
+ * stay in the change lists, and act as one. The other side's edit follows it.
+ */
+export interface Move {
+	from: string;
+	to: string;
+	side: "local" | "remote";
+}
+
 export interface DiffResult {
 	localChanges: FileChange[];
 	remoteChanges: FileChange[];
 	conflicts: Conflict[];
+	moves: Move[];
 	/**
 	 * Paths both sides changed to the same content. Nothing to sync, but the
 	 * baseline still points at the old hash: leaving it there turns the next

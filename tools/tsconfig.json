@@ -9,8 +9,7 @@
 		"strict": true,
 		"noUncheckedIndexedAccess": true,
 		"isolatedModules": true,
-		"noEmit": true,
-		"paths": { "@/*": ["../packages/plugin/src/*"] }
+		"noEmit": true
 	},
-	"include": ["e2e/**/*", "bench/**/*"]
+	"include": ["e2e/**/*"]
 }

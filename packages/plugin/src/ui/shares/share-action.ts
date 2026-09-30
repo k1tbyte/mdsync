@@ -1,15 +1,34 @@
 import type { PluginHost } from "@/plugin/host";
-import { isRelayConfigured, ownerStorage } from "@/settings/model";
-import { createShare } from "@/spaces/owner";
-import { mountError } from "@/spaces/partition";
+import {
+	isRelayConfigured,
+	ownerStorage,
+	type RelayConfig,
+} from "@/settings/model";
+import { relayBase } from "@/shared/path";
+import { createShare, mountError } from "@/spaces";
 import type { SpaceRecord } from "@/spaces/record";
-import { endShare, leaveShare } from "@/storage";
-
+import {
+	type BrokerAdmin,
+	endShare,
+	leaveShare,
+	type Participant,
+	revokeParticipant,
+} from "@/storage";
 import { carryVaultIgnores } from "@/ui/actions/ignore-action";
 import { pushScope } from "@/ui/actions/push-action";
-import { notifyError, notifyInfo } from "@/ui/common/notices";
-import { RELAY_TEXT } from "@/ui/live/relay-text";
+import { notifyError, notifyInfo, RELAY_TEXT } from "@/ui/common";
 import { openConfirmModal } from "@/ui/modals";
+
+export function relayAdmin({
+	relayUrl,
+	relaySecret,
+}: RelayConfig): BrokerAdmin {
+	return { relayUrl, secret: relaySecret };
+}
+
+export function closeLabel({ access }: SpaceRecord): string {
+	return access.kind === "owner" ? "Stop sharing" : "Leave";
+}
 
 /** The folder becomes a space of its own, beside the vault; null when it cannot. */
 export async function shareFolder(
@@ -47,26 +66,18 @@ export function strandedInvites(
 	if (access.kind !== "owner" || access.relayUrl === undefined) return null;
 	const reached =
 		isRelayConfigured(plugin.settings) &&
-		sameUrl(plugin.settings.relayUrl, access.relayUrl);
+		relayBase(plugin.settings.relayUrl) === relayBase(access.relayUrl);
 	return reached ? null : access.relayUrl;
 }
 
-function sameUrl(a: string, b: string): boolean {
-	return a.replace(/\/+$/, "") === b.replace(/\/+$/, "");
-}
-
-/**
- * The owner stops sharing, or a participant leaves; true once it is closed.
- * Files stay: the folder syncs with this vault again from the next refresh, on
- * every device of this person.
- */
+/** The owner stops sharing, or a participant leaves; true once it is closed. */
 export async function closeShare(
 	plugin: PluginHost,
 	record: SpaceRecord,
 ): Promise<boolean> {
 	const { access } = record;
 	const owner = access.kind === "owner";
-	const action = owner ? "Stop sharing" : "Leave";
+	const action = closeLabel(record);
 	const stranded = strandedInvites(plugin, record);
 	const confirmed = await openConfirmModal({
 		app: plugin.app,
@@ -77,7 +88,7 @@ export async function closeShare(
 				: "You stop receiving this folder's changes.",
 			...(stranded
 				? [
-						`People were invited through ${stranded}, which this vault no longer uses: their links keep working there, and what they write returns to your storage. Set that relay again first to end them.`,
+						`People were invited through ${stranded}, which this vault no longer uses: their links keep working there and what they write still reaches your storage. Set that relay again first to end their access.`,
 					]
 				: []),
 			`The files in "${record.root}" stay and sync with this vault again.`,
@@ -86,17 +97,16 @@ export async function closeShare(
 		confirmClass: "mod-warning",
 	});
 	if (!confirmed) return false;
-	// Tokens left live would keep writing where nobody reads.
+	// Live tokens would keep writing where nobody reads.
 	if (owner && isRelayConfigured(plugin.settings)) {
-		const { relayUrl, relaySecret } = plugin.settings;
 		try {
-			await endShare({ relayUrl, secret: relaySecret }, record.id);
+			await endShare(relayAdmin(plugin.settings), record.id);
 		} catch (err) {
 			notifyError("Could not stop sharing", err);
 			return false;
 		}
 	}
-	// Leaving never waits on the owner's relay: the token is the owner's to end too.
+	// Leaving never waits on the owner's relay: the owner can end the token too.
 	if (access.kind === "participant") {
 		await leaveShare(access).catch((err) =>
 			notifyError("The owner's relay did not hear you leave", err),
@@ -104,9 +114,8 @@ export async function closeShare(
 	}
 	await plugin.spaces.close(record.id, plugin.controller.currentDevice().id);
 	notifyInfo(`"${record.root}" is no longer shared.`);
-	// Out of the partition first: an operation queued for it is refused rather
-	// than push its objects back. Its state goes too, or opening it again
-	// elsewhere would read this baseline.
+	// Out of the partition first, so a queued operation is refused rather than push objects back.
+	// Its state goes too, or opening it elsewhere would read this baseline.
 	await plugin.controller.refresh();
 	await plugin.controller
 		.forgetSpace({ id: record.id, root: record.root }, { deleteRemote: owner })
@@ -114,4 +123,25 @@ export async function closeShare(
 			notifyError("The shared folder's copy stayed in your storage", err),
 		);
 	return true;
+}
+
+/** False when the owner backed out. */
+export async function revokeAccess(
+	plugin: PluginHost,
+	record: SpaceRecord,
+	person: Participant,
+): Promise<boolean> {
+	const confirmed = await openConfirmModal({
+		app: plugin.app,
+		title: `Revoke ${person.label || "this person"}?`,
+		body: [
+			`They can no longer open "${record.name}". The files they already have stay with them.`,
+		],
+		confirmLabel: "Revoke",
+		confirmClass: "mod-warning",
+	});
+	if (confirmed) {
+		await revokeParticipant(relayAdmin(plugin.settings), record.id, person.id);
+	}
+	return confirmed;
 }

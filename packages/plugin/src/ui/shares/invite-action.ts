@@ -2,18 +2,18 @@ import { TFile, TFolder } from "obsidian";
 
 import { randomId } from "@/crypto";
 import type { PluginHost } from "@/plugin/host";
-import { isStorageConfigured, ownerStorage } from "@/settings/model";
+import { ownerStorage } from "@/settings/model";
 import { normalizePath, stripTrailingSlash } from "@/shared/path";
 import {
 	acceptInvite,
+	brokerStorage,
 	type Invite,
 	inviteAccess,
 	inviteLink,
 	invitePassword,
+	mountError,
 	readInvite,
-} from "@/spaces/invite";
-import { brokerStorage } from "@/spaces/owner";
-import { mountError } from "@/spaces/partition";
+} from "@/spaces";
 import type { SpaceRecord } from "@/spaces/record";
 import {
 	issueShareToken,
@@ -22,31 +22,27 @@ import {
 	revokeParticipant,
 } from "@/storage";
 import { scopedPaths } from "@/ui/actions/push-action";
-import { notifyInfo, runWithNotice } from "@/ui/common/notices";
+import { notifyInfo, runWithNotice } from "@/ui/common";
 import { AcceptInviteModal } from "@/ui/modals";
+import { relayAdmin } from "./share-action";
 
 export interface CreatedInvite {
 	link: string;
 	password: string;
 }
 
-/** The `obsidian://obsync-share` link a participant opens. */
-export function openInvite(plugin: PluginHost, link: string): void {
-	if (!isStorageConfigured(plugin.settings)) {
-		notifyInfo(
-			"Set up this vault's sync first: shared folders are kept with it.",
-		);
-		return;
-	}
+/** Opens an `obsidian://obsync-share` link, or asks for one when `link` is empty. */
+export function openInvite(plugin: PluginHost, link = ""): void {
 	new AcceptInviteModal(
 		plugin.app,
-		(password) => readInvite(link, password),
+		link,
+		readInvite,
 		(invite) => {
 			const known = recordOf(plugin, invite);
 			return known && !known.closed ? known.root : null;
 		},
 		(invite, root) =>
-			mount(plugin, invite, stripTrailingSlash(normalizePath(root))),
+			mountShare(plugin, invite, stripTrailingSlash(normalizePath(root))),
 	).open();
 }
 
@@ -61,8 +57,8 @@ export async function createInvite(
 	if (!s3 || record.access.kind !== "owner") {
 		throw new Error("Invites need this vault on S3.");
 	}
-	const { relayUrl, relaySecret } = plugin.settings;
-	const admin = { relayUrl, secret: relaySecret };
+	const { relayUrl } = plugin.settings;
+	const admin = relayAdmin(plugin.settings);
 	await registerShareStorage(
 		admin,
 		record.id,
@@ -101,17 +97,17 @@ export async function createInvite(
 }
 
 /** What is wrong with mounting at `root`, or null once the share is in. */
-async function mount(
+export async function mountShare(
 	plugin: PluginHost,
 	invite: Invite,
 	root: string,
 ): Promise<string | null> {
 	const known = recordOf(plugin, invite);
-	// Closed too: accepted, the owner's record would turn into a participant's.
+	// Closed too: accepting would turn the owner's record into a participant's.
 	if (known?.access.kind === "owner") return "This shared folder is yours.";
 	const device = plugin.controller.currentDevice().id;
 	if (known && !known.closed) {
-		// A new link, as after the owner's relay moved: same folder and sync state.
+		// A new link, as after the owner's relay moved: same folder and baseline.
 		await plugin.spaces.renew(invite.id, inviteAccess(invite), device);
 		notifyInfo(`"${invite.name}" now syncs through the new link.`);
 		void plugin.controller.refresh();
@@ -121,7 +117,7 @@ async function mount(
 	if (error) return error;
 	const existing = plugin.app.vault.getAbstractFileByPath(root);
 	if (existing instanceof TFile) return "A file already has this name.";
-	// Whatever is already there would be pushed into someone else's folder.
+	// Its files would be pushed into someone else's folder.
 	if (existing instanceof TFolder && existing.children.length > 0) {
 		return "This folder is not empty.";
 	}
@@ -129,6 +125,11 @@ async function mount(
 	await plugin.spaces.add(acceptInvite(invite, root, device, known));
 	await plugin.controller.forgetSpace({ id: invite.id, root });
 	notifyInfo(`"${invite.name}" is now shared into "${root}".`);
+	if (!plugin.settings.realtimeSync) {
+		notifyInfo(
+			"Turn on Real-time sync in the settings to see who is here and follow edits live.",
+		);
+	}
 	void pullFolder(plugin, root);
 	return null;
 }

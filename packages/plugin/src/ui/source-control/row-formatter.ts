@@ -1,6 +1,6 @@
 import { deviceLabel } from "@/sync/device";
-import type { Conflict, FileChange } from "@/sync/types";
-import { type ChangeAction, changeActionOf } from "@/ui/common/change-action";
+import type { Conflict, FileChange, Move } from "@/sync/types";
+import { type ChangeAction, changeActionOf } from "@/ui/common";
 import type { FileRow } from "./types";
 
 export const STATUS_LETTERS: Record<ChangeAction, string> = {
@@ -32,6 +32,40 @@ export function rowFromChange(
 		statusClass: action ? STATUS_CLASSES[action] : "",
 		isConflict: false,
 	};
+}
+
+/** A move's changes fold into one row at its new path. */
+export function foldMoves(
+	changes: readonly FileChange[],
+	moves: readonly Move[],
+	toRow: (change: FileChange) => FileRow,
+): FileRow[] {
+	const moveOf = new Map(
+		moves.flatMap((m) => [
+			[m.from, m],
+			[m.to, m],
+		]),
+	);
+	const folded = new Set<Move>();
+	const rows: FileRow[] = [];
+	for (const change of changes) {
+		const move = moveOf.get(change.path);
+		if (!move) {
+			rows.push(toRow(change));
+			continue;
+		}
+		if (folded.has(move)) continue;
+		folded.add(move);
+		rows.push({
+			...toRow(change),
+			path: move.to,
+			from: move.from,
+			sizeDelta: undefined,
+			statusLetter: "R",
+			statusClass: "obsync-status-move",
+		});
+	}
+	return rows;
 }
 
 export function rowFromConflict(conflict: Conflict, size?: number): FileRow {

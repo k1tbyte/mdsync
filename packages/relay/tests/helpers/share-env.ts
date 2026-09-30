@@ -18,17 +18,19 @@ export const STORAGE = {
 export type TestEnv = ShareEnv & {
 	SHARE_TOKENS: FakeKV;
 	dropped: string[];
+	hubFailures: { left: number };
 	purged: [channel: string, droppedBefore: number][];
 };
 
 export function makeEnv(kv = new FakeKV()): TestEnv {
 	const dropped: string[] = [];
 	const purged: TestEnv["purged"] = [];
-	// The hub records which grants the broker asked it to cut, and which channels to empty.
+	const hubFailures = { left: 0 };
 	const hub = {
 		idFromName: (name: string) => ({ name }),
 		get: () => ({
 			dropGrant: async (grant: string) => {
+				if (hubFailures.left-- > 0) throw new Error("hub unreachable");
 				dropped.push(grant);
 			},
 			purgeChannel: async (channel: string) => {
@@ -41,6 +43,7 @@ export function makeEnv(kv = new FakeKV()): TestEnv {
 		RELAY_SECRET: ADMIN,
 		HUB: hub,
 		dropped,
+		hubFailures,
 		purged,
 	} as unknown as TestEnv;
 }

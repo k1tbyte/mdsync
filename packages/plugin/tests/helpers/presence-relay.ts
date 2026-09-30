@@ -14,6 +14,8 @@ export interface Device {
 	listeners: Map<SpaceListener, string>;
 	connected: boolean;
 	vouch: Vouch;
+	/** Replace it, as the records do, to change the partition. */
+	spaces: readonly Space[];
 }
 
 /** The owner on every channel: the hub vouches for no one else. */
@@ -24,7 +26,7 @@ export class Relay {
 	private readonly devices: Device[] = [];
 
 	add(
-		spaces: Space[],
+		spaces: readonly Space[],
 		access: (space: Space) => Promise<PresenceAccess | null>,
 		vouch = OWNED,
 	): Device {
@@ -34,6 +36,7 @@ export class Relay {
 			connected: false,
 			people: null as unknown as People,
 			vouch,
+			spaces,
 		};
 		device.people = new People({
 			hub: {
@@ -50,7 +53,7 @@ export class Relay {
 					},
 				}),
 			},
-			spaces: () => spaces,
+			spaces: () => device.spaces,
 			access,
 		});
 		device.people.refresh();

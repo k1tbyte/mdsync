@@ -4,8 +4,7 @@ import type { EditorView } from "@codemirror/view";
 import { ButtonComponent, Platform } from "obsidian";
 
 import type { SyncHunk } from "@/sync/hunks";
-import { appendIconButton, appendLabeledButton } from "@/ui/common/icon-button";
-import { notifyInfo } from "@/ui/common/notices";
+import { appendIconButton, appendLabeledButton, notifyInfo } from "@/ui/common";
 
 import { hunkTitle, presentChunk, presentSyncHunk } from "./helpers";
 import { revertHunk } from "./hunk-revert";

@@ -21,7 +21,6 @@ export interface HubListener {
 	onConnectionChange?(connected: boolean): void;
 }
 
-/** One space's channel: its frames, and whether its socket carries it right now. */
 export interface SpaceListener {
 	onFrame?(frame: ServerFrame): void;
 	/** False on every restart of its socket and when the relay revokes the channel. */
@@ -55,7 +54,6 @@ interface OpenLink {
 }
 
 export class HubConnection {
-	/** By relay URL. */
 	private readonly links = new Map<string, OpenLink>();
 	private disposed = false;
 	private readonly listeners = new Set<HubListener>();
@@ -99,7 +97,6 @@ export class HubConnection {
 		};
 	}
 
-	/** The cold-sync ping to every other device holding the space. */
 	signal(spaceId: string): void {
 		const at = this.slotOf(spaceId);
 		at?.open.link.signal(at.slot);

@@ -87,17 +87,21 @@ body.is-phone .obsync-note-presence {
 	background: var(--color-green);
 }
 
-.obsync-live-dot.is-joining {
-	background: var(--color-yellow);
-	animation: obsync-pulse 0.8s ease-in-out infinite alternate;
-}
-
 .obsync-live-dot.is-offline {
 	border: 1px solid var(--text-muted);
 }
 
-.obsync-live-dot.is-cold {
-	border: 1px dashed var(--text-faint);
+.obsync-note-state.is-live {
+	color: var(--color-green);
+}
+
+.obsync-note-state.is-joining {
+	color: var(--color-yellow);
+	animation: obsync-pulse 0.8s ease-in-out infinite alternate;
+}
+
+.obsync-note-state.is-warning {
+	color: var(--color-orange);
 }
 
 .menu-item-title .obsync-avatar,
@@ -128,7 +132,7 @@ body:not(.is-phone) .menu-item.is-label:has(.obsync-menu-info) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.obsync-live-dot.is-joining {
+	.obsync-note-state.is-joining {
 		animation: none;
 	}
 }

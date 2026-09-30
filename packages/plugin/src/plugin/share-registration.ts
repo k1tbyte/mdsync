@@ -6,21 +6,16 @@ import {
 	ownerStorage,
 } from "@/settings/model";
 import { errorMessage } from "@/shared/errors";
-import { brokerStorage } from "@/spaces/owner";
-import type { SpaceRecords } from "@/spaces/records";
+import { brokerStorage, type SpaceRecords } from "@/spaces";
 import { listParticipants, registerShareStorage } from "@/storage";
 import type { Space } from "@/sync/space";
 
-/**
- * Another owner device may have sent older keys over these; resent this often,
- * working ones win back within it once the old keys are deleted.
- */
+/** Another owner device may have sent older keys: resent this often, so working ones win back. */
 const RESEND_MS = 60 * 60_000;
 
 /**
- * Keeps the relay's broker signing with this device's current S3 credentials,
- * so rotated keys reach participants without a new invite. Sent only after the
- * share compared fine here: a device with dead credentials never overwrites good ones.
+ * Keeps the broker signing with this device's current S3 credentials, so rotated keys
+ * reach participants. Sent only once the share compared fine: dead credentials never overwrite good ones.
  */
 export function createShareRegistration(host: {
 	settings: ObsyncSettings;

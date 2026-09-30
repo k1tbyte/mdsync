@@ -24,11 +24,14 @@ export interface VaultIndex {
 	files(): ReadonlyArray<IndexedFile>;
 	folders(): ReadonlyArray<IndexedFolder>;
 	readonly configDir: string;
+	/** Through the vault, so open tabs follow; false for a file it cannot see or a taken `to`. */
+	rename(from: string, to: string): Promise<boolean>;
 }
 
 export function createVaultIndex(vault: Vault): VaultIndex {
 	return {
 		configDir: vault.configDir,
+		rename: (from, to) => renameInVault(vault, from, to),
 		files() {
 			return vault.getFiles().map((file) => ({
 				path: file.path,
@@ -46,4 +49,22 @@ export function createVaultIndex(vault: Vault): VaultIndex {
 			return out;
 		},
 	};
+}
+
+/** Only the file: the device that renamed it rewrote the links, and those edits sync. */
+export async function renameInVault(
+	vault: Vault,
+	from: string,
+	to: string,
+): Promise<boolean> {
+	const file = vault.getFileByPath(from);
+	const taken = vault.getAbstractFileByPath(to);
+	// A case-blind lookup finds the file itself at its new case.
+	if (!file || (taken && taken !== file)) return false;
+	const parent = to.slice(0, Math.max(0, to.lastIndexOf("/")));
+	if (parent !== "" && !vault.getAbstractFileByPath(parent)) {
+		await vault.createFolder(parent);
+	}
+	await vault.rename(file, to);
+	return true;
 }

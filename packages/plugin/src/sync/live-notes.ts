@@ -1,8 +1,7 @@
 /**
- * The file sync's side of live editing. A version marked `live` is a snapshot
- * of a room, so it is never merged into that room and never conflicts with
- * another snapshot of it; a note whose room is open here is never written.
- * Declared here so `sync/` never imports `live/`; `plugin/` hands it in.
+ * The file sync's side of live editing: a version marked `live` is a room
+ * snapshot, never merged into its room; a note whose room is open here is never
+ * written. Declared here so `sync/` never imports `live/`.
  */
 
 import { entryAt } from "@/shared/records";
@@ -40,6 +39,8 @@ export interface LiveNotes {
 	): Promise<LiveTake>;
 	/** A snapshot written to a closed note: its next open merges against it. */
 	wrote(path: string, mark: LiveMark, text: string): Promise<void>;
+	/** A room has, or is opening, the note: the file sync neither moves nor writes it. */
+	holds(path: string): boolean;
 }
 
 /** Which side an incoming version of a live note settles on, or null for the cold path. */
@@ -66,7 +67,9 @@ export async function settleLive(
 	const local = entryAt(result.snapshot.files, path);
 	if (!remote?.live || !local) return null;
 	const mark = await live.mark(path, local.hash);
-	if (typeof mark !== "object" || mark?.doc !== remote.live.doc) return null;
+	// A room opened meanwhile: this cycle must not write under it.
+	if (mark === "later") return "later";
+	if (mark?.doc !== remote.live.doc) return null;
 	// Two snapshots of one note: the later one holds everything the other did.
 	return isNewerMark(remote.live, mark) ? "remote" : "local";
 }

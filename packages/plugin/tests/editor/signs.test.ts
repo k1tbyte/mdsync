@@ -1,6 +1,7 @@
 import { Chunk } from "@codemirror/merge";
 import { EditorState, Text } from "@codemirror/state";
 import { describe, expect, it, vi } from "vitest";
+
 import { registerEditorSigns } from "@/editor/signs";
 import { signsField } from "@/editor/signs/gutter";
 import {
@@ -9,12 +10,14 @@ import {
 	shouldRedeliverBaseline,
 	toCmText,
 } from "@/editor/signs/helpers";
+import { syncHunkRevert } from "@/editor/signs/hunk-revert";
 import {
 	chunksField,
 	compareTextField,
 	setChunksEffect,
 	setCompareTextEffect,
 } from "@/editor/signs/state";
+import { computeHunks } from "@/sync/hunks";
 
 describe("signs helpers", () => {
 	it("redelivers when compare text disappears after already being set", () => {
@@ -248,3 +251,32 @@ function createSignsPluginStub(enabled: boolean) {
 		fileOpenRef,
 	};
 }
+
+describe("reverting a sync hunk", () => {
+	function revert(baseline: string, current: string): string {
+		const doc = Text.of(current.split("\n"));
+		const [hunk] = computeHunks(baseline, current).hunks;
+		if (!hunk) throw new Error("no hunk");
+		const { from, to, insert } = syncHunkRevert(
+			doc,
+			Text.of(baseline.split("\n")),
+			hunk,
+		);
+		return doc.replace(from, to, Text.of(insert.split("\n"))).toString();
+	}
+
+	it.each([
+		["a changed last line with no newline", "a\nb", "a\nc"],
+		["a newline added at the end", "a\nb", "a\nb\n"],
+		["lines added after a last line with no newline", "a\nb", "a\nb\nc\n"],
+		["a newline taken from the end", "a\nb\n", "a\nb"],
+		[
+			"a changed middle line",
+			"a\nb\nc\nd\ne\nf\ng\nh\n",
+			"a\nB\nc\nd\ne\nf\ng\nh\n",
+		],
+		["everything added to an empty note", "", "x\n"],
+	])("restores the baseline after %s", (_, baseline, current) => {
+		expect(revert(baseline, current)).toBe(baseline);
+	});
+});

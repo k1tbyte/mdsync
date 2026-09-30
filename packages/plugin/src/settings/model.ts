@@ -71,6 +71,8 @@ export interface ObsyncSettings {
 	pausedSpaces: string[];
 	/** Shares this person adds on other devices arrive paused here. Never published. */
 	pauseArrivingShares: boolean;
+	/** A change in a shared folder is pushed once the folder is quiet a moment, not with the vault. */
+	pushSharesRightAway: boolean;
 	/** Shares moved on another device, by id: where the folder still is here. Never published. */
 	localRoots: Record<string, string>;
 	/** The vault storage (identity) the records were traded with: another vault's never reach this one. */
@@ -113,6 +115,7 @@ export const DEFAULT_SETTINGS: ObsyncSettings = {
 	spaces: [],
 	pausedSpaces: [],
 	pauseArrivingShares: false,
+	pushSharesRightAway: true,
 	localRoots: {},
 	spacesVault: null,
 	relayUrl: "",
@@ -134,6 +137,20 @@ export function activeStorage(settings: ObsyncSettings): StorageAdapterConfig {
 
 export function isStorageConfigured(settings: ObsyncSettings): boolean {
 	return isAdapterConfigured(activeStorage(settings));
+}
+
+/** No vault storage, only shares joined by invite: those sync, the vault stays on this device. */
+export function isGuest(settings: ObsyncSettings): boolean {
+	return (
+		!isStorageConfigured(settings) &&
+		settings.spaces.some(
+			(record) => !record.closed && record.access.kind === "participant",
+		)
+	);
+}
+
+export function canSync(settings: ObsyncSettings): boolean {
+	return isStorageConfigured(settings) || isGuest(settings);
 }
 
 /** A share pins its location for good, so only a complete S3 setup may own one. */

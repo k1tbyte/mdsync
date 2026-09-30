@@ -18,6 +18,24 @@ export function record(
 	};
 }
 
+/** Someone else's share this device joined. */
+export function joined(
+	id: string,
+	root: string,
+	rev = 1,
+	author = "laptop",
+): SpaceRecord {
+	return { ...record(id, root, rev, author), access: PARTICIPANT };
+}
+
+const PARTICIPANT = {
+	kind: "participant" as const,
+	relayUrl: "u",
+	token: "t",
+	participantId: "p1",
+	personName: "Me",
+};
+
 const LOCATION = {
 	endpoint: "https://s3.example",
 	region: "auto",

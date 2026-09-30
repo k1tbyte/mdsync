@@ -1,12 +1,10 @@
+import { commonEnds } from "@/sync/hunks";
 import { sameLines, threeWayRegions, toLines } from "@/sync/merge-model";
 
 /**
- * The room's text with this device's offline changes folded in, on the same
- * regions the merge editor shows. Diffing the room straight to the disk would
- * express an overwrite as operations and delete everyone else's edits.
- *
- * A real conflict keeps both sides, the room's first: a visible duplicate
- * beats a silent deletion, and the room's side is what others already see.
+ * The room's text with this device's offline changes folded in, on the regions
+ * the merge editor shows. A real conflict keeps both sides, the room's first: a
+ * visible duplicate beats a silent deletion.
  */
 export function mergeThreeWay(
 	base: string,
@@ -37,16 +35,7 @@ export function mergeThreeWay(
 
 /** Lines both sides open or close with come once, as git's zealous merge: two inserts at one spot often share them. */
 function keepBoth(theirs: string[], mine: string[]): string[] {
-	const shortest = Math.min(theirs.length, mine.length);
-	let head = 0;
-	while (head < shortest && theirs[head] === mine[head]) head++;
-	let tail = 0;
-	while (
-		tail < shortest - head &&
-		theirs[theirs.length - 1 - tail] === mine[mine.length - 1 - tail]
-	) {
-		tail++;
-	}
+	const { head, tail } = commonEnds(theirs, mine);
 	return [
 		...theirs.slice(0, theirs.length - tail),
 		...mine.slice(head, mine.length - tail),

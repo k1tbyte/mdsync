@@ -1,6 +1,6 @@
 import { type App, ButtonComponent, Modal } from "obsidian";
 
-import { onEnter } from "@/ui/common/enter-key";
+import { onEnter } from "@/ui/common";
 
 import { openPromiseModal } from "./promise-modal";
 
@@ -16,7 +16,7 @@ export interface PromptModalOptions {
 	allowEmpty?: boolean;
 }
 
-/** Answers with the trimmed text, or null when dismissed (or left empty). */
+/** Answers with the trimmed text, or null when dismissed or left empty. */
 export function openPromptModal(
 	options: PromptModalOptions,
 ): Promise<string | null> {
@@ -36,21 +36,19 @@ export function openPromptModal(
 		});
 		input.setAttr("aria-label", options.label);
 		input.value = options.initialValue;
-		const blank = (): boolean => !options.allowEmpty && !input.value.trim();
 		const submit = (): void => {
-			if (!blank()) finish(input.value.trim());
+			const value = input.value.trim();
+			finish(value || (options.allowEmpty ? "" : null));
 		};
 		onEnter(input, submit);
 		const buttons = modal.contentEl.createDiv({ cls: "obsync-modal-buttons" });
 		new ButtonComponent(buttons)
 			.setButtonText("Cancel")
 			.onClick(() => finish(null));
-		const confirm = new ButtonComponent(buttons)
+		new ButtonComponent(buttons)
 			.setButtonText(options.confirmLabel)
 			.setCta()
-			.setDisabled(blank())
 			.onClick(submit);
-		input.addEventListener("input", () => confirm.setDisabled(blank()));
 		window.setTimeout(() => input.focus(), 0);
 		return modal;
 	}, null);

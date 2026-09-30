@@ -10,9 +10,10 @@ interface Vouched {
 }
 
 /**
- * Who else holds one channel, per hub socket. Sealed announcements are kept
- * until the key is known: they are sent once per join, not again. A client can
- * seal any name, but not the `who` the hub vouches for its socket.
+ * Who else holds one channel, per hub socket. Sealed announcements wait for the
+ * key: they are sent once per join. A client can seal any name, but not the
+ * `who` the hub vouches for its socket. `unlock` and `apply` resolve true when
+ * what is shown changed.
  */
 export class ChannelPresence {
 	private readonly sealed = new Map<number, Uint8Array>();
@@ -24,7 +25,6 @@ export class ChannelPresence {
 
 	constructor(private readonly onEntriesChange: () => void) {}
 
-	/** Resolves true when what it knows changed. */
 	async unlock(keys: LiveKeys, self: string): Promise<boolean> {
 		const selfChanged = this.self !== self;
 		if (selfChanged) {
@@ -58,6 +58,14 @@ export class ChannelPresence {
 		return this.decode(frame.from, frame.payload);
 	}
 
+	/** Sealed announcements are kept: a key back in reach reads them again. */
+	lock(): void {
+		this.keys = null;
+		this.open.clear();
+		this.unreadable.clear();
+		this.onEntriesChange();
+	}
+
 	clear(): void {
 		this.vouched.clear();
 		this.sealed.clear();
@@ -70,12 +78,12 @@ export class ChannelPresence {
 		return this.keys === null;
 	}
 
-	/** Someone is here whose announcement this key does not open: another passphrase. */
+	/** Someone here holds another passphrase or key. */
 	hasUnreadable(): boolean {
 		return this.unreadable.size > 0;
 	}
 
-	/** One per socket the hub vouches for, this device's own key left out; a participant under their invited name. */
+	/** This device's own key left out; a participant under their invited name. */
 	entries(): Announcement[] {
 		const out: Announcement[] = [];
 		for (const [from, announcement] of this.open) {
@@ -90,7 +98,6 @@ export class ChannelPresence {
 		return out;
 	}
 
-	/** The name the hub vouches for a participant with a socket here. */
 	nameOf(person: string): string | null {
 		for (const { who, name } of this.vouched.values()) {
 			if (who === person && name !== "") return name;

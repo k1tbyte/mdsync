@@ -7,6 +7,7 @@
 
 import { requestUrl } from "obsidian";
 
+import { relayBase } from "@/shared/path";
 import type { S3StorageConfig } from "@/storage/config";
 import { type StorageAdapter, StorageRequestError } from "@/storage/types";
 
@@ -252,7 +253,7 @@ async function callBroker(
 	refusals: Record<string, string>,
 ): Promise<Record<string, unknown>> {
 	const res = await requestUrl({
-		url: `${relayUrl.replace(/\/+$/, "")}${path}`,
+		url: `${relayBase(relayUrl)}${path}`,
 		method: request.method,
 		headers: request.body
 			? { ...request.headers, "Content-Type": "application/json" }

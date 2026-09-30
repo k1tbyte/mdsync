@@ -5,7 +5,7 @@ import {
 	readFileExplorer,
 	readFileExplorerContainer,
 } from "./file-explorer-api";
-import { badgeActivation } from "./file-explorer-presence";
+import { badgeActivation } from "./file-explorer-badges";
 import type { IndicatorHandle } from "./indicator-handle";
 import { LinkScan } from "./link-scan";
 import { RowDecorator } from "./row-decorator";

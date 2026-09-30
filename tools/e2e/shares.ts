@@ -1,7 +1,7 @@
 /**
  * A share between two devices of its owner, in real Obsidians over one
  * in-memory S3: the laptop shares a folder through its menu, the desktop mounts
- * it by itself, edits cross both ways and the vault keeps its copy frozen; the
+ * it by itself, edits cross both ways and the vault's next push leaves it out; the
  * desktop pauses the share and resumes it; the laptop moves the folder and the
  * desktop follows.
  */
@@ -133,9 +133,9 @@ async function scenario(
 		["plan v3\n", "vault note 2\n"],
 	);
 	check(
-		"the vault keeps its copy frozen",
+		"the vault's next push leaves the folder out",
 		[frozen !== null, await vaultEntry(laptop, PLAN)],
-		[true, frozen],
+		[true, null],
 	);
 
 	await pauseHere(desktop, "Pause on this device", 1);

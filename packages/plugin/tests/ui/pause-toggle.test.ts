@@ -38,16 +38,26 @@ describe("pauseToggle", () => {
 		expect(notifyError).toHaveBeenCalledWith("Could not change pause", failure);
 	});
 
-	it("follows each click without waiting on the one before", async () => {
+	it("ignores clicks while a save is running, then follows the next", async () => {
 		const saved: boolean[] = [];
+		let answer: () => void = () => {};
 		const toggle = pauseToggle(
 			false,
-			async (now) => void saved.push(now),
+			(now) => {
+				saved.push(now);
+				return new Promise<void>((resolve) => (answer = resolve));
+			},
 			() => {},
 		);
 
-		await Promise.all([toggle(), toggle(), toggle()]);
+		const first = toggle();
+		await toggle();
+		answer();
+		await first;
+		const next = toggle();
+		answer();
+		await next;
 
-		expect(saved).toEqual([true, false, true]);
+		expect(saved).toEqual([true, false]);
 	});
 });

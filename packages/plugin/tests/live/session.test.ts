@@ -8,17 +8,18 @@ import { TestConnection } from "@tests/helpers/live-hub";
 import {
 	converge,
 	type Device,
+	FLUSHED_MS,
 	OWNER,
 	reachedRoom,
+	sleep,
 	type,
 	useLiveRoom,
 	waitUntil,
 } from "@tests/helpers/live-session";
 import { describe, expect, it, vi } from "vitest";
-
-import { closedBefore } from "@/live/closing";
-import { docIdFor } from "@/live/seal";
-import { LiveSession } from "@/live/session";
+import { docIdFor } from "@/live/doc-id";
+import { closedBefore } from "@/live/session/closing";
+import { LiveSession } from "@/live/session/session";
 import { TEXT } from "@/live/text/model";
 
 const live = useLiveRoom();
@@ -262,16 +263,14 @@ describe("live session", () => {
 		await waitUntil(() => expect(cursorOfA()).toBeUndefined());
 	});
 
-	it("forgets every cursor when its own socket drops", async () => {
+	it("forgets every cursor when its own socket drops, and takes them back on the next", async () => {
 		const a = await synced("x");
 		const b = await synced("x");
 		// y-protocols drops a peer's state at clock 0; any change moves it on.
 		a.session.awareness.setLocalStateField("user", { name: "a" });
-		await waitUntil(() =>
-			expect(b.session.awareness.getStates().has(a.session.doc.clientID)).toBe(
-				true,
-			),
-		);
+		const hasA = () =>
+			b.session.awareness.getStates().has(a.session.doc.clientID);
+		await waitUntil(() => expect(hasA()).toBe(true));
 
 		b.connection.disconnect();
 
@@ -279,6 +278,30 @@ describe("live session", () => {
 			expect([...b.session.awareness.getStates().keys()]).toEqual([
 				b.session.doc.clientID,
 			]),
+		);
+
+		b.connection.connect();
+
+		await waitUntil(() => expect(hasA()).toBe(true));
+	});
+
+	it("keeps a cursor its old socket's late leave no longer holds", async () => {
+		const a = await synced("x");
+		const b = await synced("x");
+		a.session.awareness.setLocalStateField("user", { name: "a" });
+		const seenClock = () =>
+			b.session.awareness.meta.get(a.session.doc.clientID)?.clock ?? -1;
+		await waitUntil(() => expect(seenClock()).toBeGreaterThan(0));
+		const before = seenClock();
+
+		const closeOld = a.connection.strand();
+		a.connection.connect();
+		await waitUntil(() => expect(seenClock()).toBeGreaterThan(before));
+		closeOld();
+		await sleep(FLUSHED_MS);
+
+		expect(b.session.awareness.getStates().has(a.session.doc.clientID)).toBe(
+			true,
 		);
 	});
 });

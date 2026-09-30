@@ -15,10 +15,10 @@ import {
 import * as Y from "yjs";
 
 import type { SpaceFrame } from "@/hub/connection";
-import { FollowerSession } from "@/live/follower-session";
-import { FOLLOWS, RoomAwareness } from "@/live/room-awareness";
-import { docIdFor } from "@/live/seal";
-import type { Unfollowed } from "@/live/session-deps";
+import { docIdFor } from "@/live/doc-id";
+import { FollowerSession } from "@/live/session/follower-session";
+import { FOLLOWS, RoomAwareness } from "@/live/session/room-awareness";
+import type { Unfollowed } from "@/live/session/session-deps";
 import { TEXT, type TextModel } from "@/live/text/model";
 
 const live = useLiveRoom();

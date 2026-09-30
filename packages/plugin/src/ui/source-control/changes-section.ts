@@ -1,6 +1,6 @@
 import { setIcon } from "obsidian";
 import { EConflictStrategy } from "@/sync/controller";
-import { makeActivatable } from "@/ui/common/activatable";
+import { makeActivatable } from "@/ui/common";
 import { type ActionTone, actionButton } from "./action-button";
 import type { SourceControlActions } from "./actions";
 import { type RowContext, renderFileRow, renderFolderRow } from "./change-rows";

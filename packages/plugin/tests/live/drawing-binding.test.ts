@@ -22,7 +22,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { SceneElement } from "@/drawing";
 import { bindDrawing } from "@/live/drawing/binding";
 import type { DrawingModel } from "@/live/drawing/model";
-import type { LiveSession } from "@/live/session";
+import type { LiveSession } from "@/live/session/session";
 
 useExcalidrawLib();
 

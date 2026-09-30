@@ -1,12 +1,9 @@
 import { type ButtonComponent, Setting } from "obsidian";
 
 import { errorMessage } from "@/shared/errors";
-import { alertLine } from "@/ui/common/alert-line";
-import { onEnter, serial } from "@/ui/common/enter-key";
-import { runWithNotice } from "@/ui/common/notices";
+import { alertLine, onEnter, runWithNotice, serial } from "@/ui/common";
 import type { CreatedInvite } from "./invite-action";
 
-/** Who the invite is for, read-only or not, then the link and password it made. */
 export function renderInviteForm(
 	parent: HTMLElement,
 	invite: (person: string, readOnly: boolean) => Promise<CreatedInvite>,
@@ -31,7 +28,7 @@ export function renderInviteForm(
 	new Setting(parent)
 		.setName("Name")
 		.setDesc(
-			"Who the invite is for. Inviting the same name again replaces their earlier link.",
+			"Who the invite is for. Inviting the same name again replaces their link: the earlier one stops working, even for someone who already joined.",
 		)
 		.addText((text) => {
 			text.inputEl.setAttr("aria-label", "Name");
@@ -58,7 +55,7 @@ function showInvite(el: HTMLElement, invite: CreatedInvite): void {
 	el.empty();
 	el.createEl("p", {
 		cls: "setting-item-description",
-		text: "Send the link and the password separately, for example the link by email and the password by message.",
+		text: "Send the link and the password separately, for example the link by email and the password by message. You will not see this link again.",
 	});
 	copyable(el, "Link", invite.link);
 	copyable(el, "Password", invite.password);

@@ -10,7 +10,7 @@ import {
 } from "@/constants";
 import type { RelayStatus } from "@/hub/status";
 import type { PluginHost } from "@/plugin/host";
-import type { People } from "@/presence/people";
+import type { People } from "@/presence";
 import {
 	type FieldContext,
 	renderFields,
@@ -20,7 +20,7 @@ import {
 import { EFieldKind } from "@/storage/field-spec";
 import { clampMaxSnapshots } from "@/sync/history";
 import { VAULT_SPACE } from "@/sync/space";
-import { RELAY_TEXT } from "@/ui/live/relay-text";
+import { RELAY_TEXT } from "@/ui/common";
 
 const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 	{
@@ -161,7 +161,7 @@ function renderConnectedDevices(
 	const render = (): void => {
 		devicesSetting.setDesc(
 			describeConnectedDevices(
-				plugin.realtime.statusOf(VAULT_SPACE.id),
+				plugin.realtime.hub.statusOf(VAULT_SPACE.id),
 				people.devices(),
 			),
 		);

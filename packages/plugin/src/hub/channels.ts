@@ -13,6 +13,7 @@ import {
 	isStorageConfigured,
 	type ObsyncSettings,
 } from "@/settings/model";
+import { relayBase } from "@/shared/path";
 import type { SpaceRecord } from "@/spaces/record";
 import { storageIdentity } from "@/storage";
 import { VAULT_SPACE } from "@/sync/space";
@@ -38,7 +39,7 @@ export function hubRoutes(settings: ObsyncSettings): HubRoute[] {
 	if (!settings.realtimeSync) return [];
 	const routes = new Map<string, Slot[]>();
 	const add = (url: string, slot: Slot) => {
-		const serverUrl = url.replace(/\/+$/, "");
+		const serverUrl = relayBase(url);
 		const slots = routes.get(serverUrl) ?? [];
 		// The hub admits no more: a space past them is not carried, rather than waiting forever.
 		if (slots.length < MAX_SLOTS) routes.set(serverUrl, [...slots, slot]);

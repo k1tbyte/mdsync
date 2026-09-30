@@ -13,11 +13,15 @@ import type {
 	DiffResult,
 	EChangeType,
 	FileChange,
+	ManifestEntry,
+	Move,
 } from "@/sync/types";
 
 export interface PathStatus {
 	change?: FileChange;
 	conflict?: Conflict;
+	/** A move lands at its new path; its change may sit at the old one. */
+	move?: Move;
 }
 
 export interface BaselineSnapshot {
@@ -32,6 +36,10 @@ interface FileDiffServiceDeps {
 		space?: Space,
 	) => Promise<EngineDependencies | null>;
 	getResult: () => CompareResult | null;
+	/** The share bases kept in a storage's slot. */
+	shareBases: (
+		identity: string,
+	) => Readonly<Record<string, ManifestEntry>> | undefined;
 }
 
 export class FileDiffService {
@@ -44,10 +52,12 @@ export class FileDiffService {
 	getStatusForPath(path: string): PathStatus | null {
 		const index = this.pathIndex();
 		if (!index) return null;
-		const change = index.change.get(path);
+		const move = index.moved.get(path);
+		const change =
+			index.change.get(path) ?? (move && index.change.get(move.from));
 		const conflict = index.conflict.get(path);
 		if (!change && !conflict) return null;
-		return { change, conflict };
+		return { change, conflict, move };
 	}
 
 	getChangedPathStatuses(): ReadonlyMap<string, EChangeType | "conflict"> {
@@ -110,12 +120,13 @@ export class FileDiffService {
 	): Promise<BaselineSnapshot | null> {
 		const session = await this.deps.openSession(path, space);
 		if (!session) return null;
-		const baseline = session.state.baseline;
-		const entry = baseline?.files[path];
+		const entry =
+			session.state.baseline?.files[path] ??
+			this.deps.shareBases(session.storage.identity())?.[path];
 		if (!entry) return null;
 		const text = await loadBaselineText(
 			{ storage: session.storage, key: session.key },
-			baseline,
+			{ files: { [path]: entry } },
 			path,
 		);
 		if (text === null) return null;
@@ -156,6 +167,8 @@ interface PathIndex {
 	change: Map<string, FileChange>;
 	conflict: Map<string, Conflict>;
 	status: Map<string, EChangeType | "conflict">;
+	/** By new path. */
+	moved: Map<string, Move>;
 }
 
 const EMPTY_STATUSES: ReadonlyMap<string, EChangeType | "conflict"> = new Map();
@@ -179,5 +192,6 @@ function buildPathIndex(diff: DiffResult): PathIndex {
 		if (!conflict.has(entry.path)) conflict.set(entry.path, entry);
 		status.set(entry.path, "conflict");
 	}
-	return { change, conflict, status };
+	const moved = new Map(diff.moves.map((move) => [move.to, move]));
+	return { change, conflict, status, moved };
 }

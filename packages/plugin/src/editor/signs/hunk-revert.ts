@@ -19,12 +19,11 @@ export function syncHunkRevert(
 ): TextChange {
 	const from = lineStart(current, hunk.newStart);
 	const to = lineStart(current, hunk.newStart + hunk.newLines);
-	const insertFrom = lineStart(baseline, hunk.oldStart);
-	const insertTo = lineStart(baseline, hunk.oldStart + hunk.oldLines);
-	const lines = baseline.sliceString(insertFrom, insertTo);
-	const lastLineLacksNewline =
-		insertTo === baseline.length && !lines.endsWith("\n");
-	const insert = to > from && lastLineLacksNewline ? `${lines}\n` : lines;
+	// Trailing context makes a hunk reach both ends or neither: the slice keeps the baseline's EOF as is.
+	const insert = baseline.sliceString(
+		lineStart(baseline, hunk.oldStart),
+		lineStart(baseline, hunk.oldStart + hunk.oldLines),
+	);
 	return { from, to, insert };
 }
 

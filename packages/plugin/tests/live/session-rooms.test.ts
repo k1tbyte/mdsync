@@ -13,12 +13,30 @@ import {
 } from "@tests/helpers/live-session";
 import { describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
-
-import { docIdFor, seal } from "@/live/seal";
-import { COMPACT_AFTER } from "@/live/session";
+import { seal } from "@/crypto/seal";
+import { docIdFor } from "@/live/doc-id";
+import { COMPACT_AFTER } from "@/live/session/room-log";
 
 const live = useLiveRoom();
 const { device, synced, typedElsewhere, roomState } = live;
+
+describe("live session rotation", () => {
+	it("answers busy when the rebuild cannot be sealed, rather than never", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		const a = await synced("text");
+		const encrypt = vi
+			.spyOn(crypto.subtle, "encrypt")
+			.mockRejectedValueOnce(new Error("sealing failed"));
+
+		const outcome = await a.session.rotate(
+			await docIdFor(live.keys, "note.md", 1),
+		);
+
+		expect(outcome).toBe("busy");
+		encrypt.mockRestore();
+		warn.mockRestore();
+	});
+});
 
 describe("live session compaction", () => {
 	it("folds a long log into one snapshot a newcomer opens from", async () => {

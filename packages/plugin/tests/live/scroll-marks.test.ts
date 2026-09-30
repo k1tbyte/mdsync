@@ -7,7 +7,7 @@ import {
 } from "y-protocols/awareness";
 import * as Y from "yjs";
 
-import type { LiveSession } from "@/live/session";
+import type { LiveSession } from "@/live/session/session";
 import { TextModel } from "@/live/text/model";
 import { ScrollMarks } from "@/live/text/scroll-marks";
 

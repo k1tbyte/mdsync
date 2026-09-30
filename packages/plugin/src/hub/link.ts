@@ -13,7 +13,9 @@ import {
 	encodeClient,
 	HUB_PATH,
 	HUB_SIGNAL_PATH,
+	KEEPALIVE_INTERVAL_MS,
 	KEEPALIVE_PING,
+	KEEPALIVE_SILENCE_MS,
 	type ServerFrame,
 	UNAUTHORIZED_CLOSE_CODE,
 } from "@obsync/protocol";
@@ -25,9 +27,6 @@ const RECONNECT_BASE_MS = 2_000;
 const RECONNECT_MAX_MS = 60_000;
 /** A fresh share token can be refused for about a minute while the relay's KV catches up. */
 const UNAUTHORIZED_RETRIES = 6;
-const PING_INTERVAL_MS = 30_000;
-/** The hub answers every ping, so this much quiet means the link is gone. */
-const SILENCE_TIMEOUT_MS = 90_000;
 
 export interface HubChannel {
 	channel: string;
@@ -36,6 +35,7 @@ export interface HubChannel {
 }
 
 export interface HubLinkOptions {
+	/** With no trailing slash, as `hubRoutes` gives it. */
 	serverUrl: string;
 	/** In slot order; asked per connection, since owner grants expire. */
 	channels(): Promise<readonly HubChannel[]>;
@@ -52,19 +52,24 @@ export class HubLink {
 	private unauthorizedCloses = 0;
 	private reconnectTimer: number | null = null;
 	private pingTimer: number | null = null;
+	private opening = false;
 	private wake: AbortController | null = null;
 	private disposed = false;
 	private lastMessageAt = 0;
 
 	constructor(private readonly options: HubLinkOptions) {}
 
-	/** Why the link is or is not up; `unauthorized` once the relay kept refusing it. */
+	/** `unauthorized` once the relay kept refusing the link. */
 	get state(): LinkState {
 		return this.status;
 	}
 
 	get connected(): boolean {
 		return this.ws?.readyState === WebSocket.OPEN;
+	}
+
+	private get connecting(): boolean {
+		return this.opening || this.ws?.readyState === WebSocket.CONNECTING;
 	}
 
 	connect(): void {
@@ -82,7 +87,6 @@ export class HubLink {
 		}
 	}
 
-	/** The cold-sync ping, over HTTP when the socket is down. */
 	signal(slot: number): void {
 		if (this.disposed) return;
 		if (this.connected) {
@@ -99,15 +103,16 @@ export class HubLink {
 	}
 
 	private async openSocket(): Promise<void> {
-		if (this.disposed) return;
+		// One open at a time: a backoff firing mid-open would kill the socket it makes.
+		if (this.disposed || this.opening) return;
 
 		let socket: WebSocket;
+		this.opening = true;
+		this.stopReconnect();
 		try {
-			// Settings hold the worker's https URL; the socket needs its ws twin.
 			const base = this.options.serverUrl.replace(/^http(s)?:/, "ws$1:");
 			const url = await this.hubUrl(base);
 			if (this.disposed) return;
-			// Replaced only now: a retry may have started another attempt meanwhile.
 			this.cleanup();
 			socket = new WebSocket(url);
 		} catch {
@@ -115,6 +120,8 @@ export class HubLink {
 			this.status = "offline";
 			this.options.onConnectionChange?.(false);
 			return;
+		} finally {
+			this.opening = false;
 		}
 		socket.binaryType = "arraybuffer";
 		this.ws = socket;
@@ -138,16 +145,20 @@ export class HubLink {
 		});
 		socket.addEventListener("close", (event) => {
 			if (this.ws !== socket) return;
-			this.stopPing();
-			this.ws = null;
-			const refused =
+			this.lose(
 				event.code === UNAUTHORIZED_CLOSE_CODE &&
-				++this.unauthorizedCloses > UNAUTHORIZED_RETRIES;
-			this.status = refused ? "unauthorized" : "offline";
-			this.options.onConnectionChange?.(false);
-			if (!refused) this.scheduleReconnect();
+					++this.unauthorizedCloses > UNAUTHORIZED_RETRIES,
+			);
 		});
 		socket.addEventListener("error", () => socket.close());
+	}
+
+	/** Down from now, whenever its close event comes: reconnects unless the relay refused it for good. */
+	private lose(refused = false): void {
+		this.cleanup();
+		this.status = refused ? "unauthorized" : "offline";
+		this.options.onConnectionChange?.(false);
+		if (!refused) this.scheduleReconnect();
 	}
 
 	/** After sleep or a network change the backoff may have grown long: try again at once. */
@@ -156,7 +167,7 @@ export class HubLink {
 		this.wake = new AbortController();
 		const { signal } = this.wake;
 		const retry = (): void => {
-			if (!this.connected) void this.openSocket();
+			if (!this.connected && !this.connecting) void this.openSocket();
 		};
 		window.addEventListener("online", retry, { signal });
 		document.addEventListener(
@@ -172,9 +183,7 @@ export class HubLink {
 		try {
 			const channel = (await this.options.channels())[slot];
 			if (!channel) return;
-			const url = new URL(
-				`${this.options.serverUrl.replace(/\/$/, "")}${HUB_SIGNAL_PATH}`,
-			);
+			const url = new URL(`${this.options.serverUrl}${HUB_SIGNAL_PATH}`);
 			url.searchParams.set(EHubParam.Channel, channel.channel);
 			url.searchParams.set(EHubParam.Token, channel.token);
 			url.searchParams.set(EHubParam.Device, this.options.deviceId);
@@ -185,7 +194,7 @@ export class HubLink {
 	}
 
 	private async hubUrl(base: string): Promise<string> {
-		const url = new URL(`${base.replace(/\/$/, "")}${HUB_PATH}`);
+		const url = new URL(`${base}${HUB_PATH}`);
 		for (const { channel, token } of await this.options.channels()) {
 			url.searchParams.append(EHubParam.Channel, channel);
 			url.searchParams.append(EHubParam.Token, token);
@@ -198,13 +207,13 @@ export class HubLink {
 		this.stopPing();
 		this.pingTimer = window.setInterval(() => {
 			if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-			// Drops silently dead TCP links to trigger the reconnect path.
-			if (Date.now() - this.lastMessageAt > SILENCE_TIMEOUT_MS) {
-				this.ws.close();
+			// A silently dead link may take long to report its close: give up on it now.
+			if (Date.now() - this.lastMessageAt > KEEPALIVE_SILENCE_MS) {
+				this.lose();
 				return;
 			}
 			this.ws.send(KEEPALIVE_PING);
-		}, PING_INTERVAL_MS);
+		}, KEEPALIVE_INTERVAL_MS);
 	}
 
 	private stopPing(): void {
@@ -213,20 +222,21 @@ export class HubLink {
 		this.pingTimer = null;
 	}
 
+	private stopReconnect(): void {
+		if (this.reconnectTimer === null) return;
+		window.clearTimeout(this.reconnectTimer);
+		this.reconnectTimer = null;
+	}
+
 	private cleanup(): void {
 		this.stopPing();
 		// A pending reconnect belongs to the socket being replaced.
-		if (this.reconnectTimer !== null) {
-			window.clearTimeout(this.reconnectTimer);
-			this.reconnectTimer = null;
-		}
+		this.stopReconnect();
 		const socket = this.ws;
 		this.ws = null;
 		try {
 			socket?.close();
-		} catch {
-			// Already closing.
-		}
+		} catch {}
 	}
 
 	private scheduleReconnect(): void {

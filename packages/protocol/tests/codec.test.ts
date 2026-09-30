@@ -86,6 +86,23 @@ describe("codec", () => {
 		).toBeNull();
 	});
 
+	it("rejects text that is not UTF-8, which could not be sent back", () => {
+		const invalidDoc = Uint8Array.of(
+			EFrame.Unsub,
+			0,
+			255,
+			...Array(255).fill(0xff),
+		);
+
+		expect(decodeClient(invalidDoc)).toBeNull();
+	});
+
+	it("keeps a byte order mark in text, so it re-encodes unchanged", () => {
+		const frame = { slot: 0, doc: "\ufeffdoc", type: EFrame.Unsub } as const;
+
+		expect(decodeClient(encodeClient(frame))).toEqual(frame);
+	});
+
 	it("reads a state from a relay that sends no log", () => {
 		const frame = SERVER_FRAMES[0] as ServerFrame;
 		const withLog = encodeServer(frame);

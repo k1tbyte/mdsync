@@ -28,6 +28,7 @@ export function mergeResults(
 			localChanges: union((r) => r.diff.localChanges),
 			remoteChanges: union((r) => r.diff.remoteChanges),
 			conflicts: union((r) => r.diff.conflicts),
+			moves: union((r) => r.diff.moves),
 			converged: union((r) => r.diff.converged),
 			remoteMoved: results.some((r) => r.diff.remoteMoved),
 		},

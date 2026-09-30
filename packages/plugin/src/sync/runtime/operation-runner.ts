@@ -11,7 +11,7 @@ import {
 	compare,
 	type EngineDependencies,
 } from "@/sync/engine";
-import { forgetDroppedForeign } from "@/sync/foreign";
+import { forgetDroppedForeign, heldShareBases } from "@/sync/foreign";
 import { ConcurrentPushError } from "@/sync/manifest";
 import type {
 	OperationContext,
@@ -24,6 +24,7 @@ import {
 	mergeSessionIntoLocal,
 	projectSession,
 	recomputeAfterWrite,
+	sharesHold,
 } from "@/sync/session-state";
 import { type Space, VAULT_SPACE } from "@/sync/space";
 import type { SessionState } from "@/sync/types";
@@ -127,17 +128,16 @@ export class OperationRunner {
 		};
 		const result = await compare(depsWithProgress);
 		const identity = session.storage.identity();
-		const baseline = result.remote
-			? forgetDroppedForeign(
-					reconcileBaselineResetGenerations(
-						session.state.baseline,
-						result.remote,
-						session.scope,
-					),
+		const reconciled = result.remote
+			? reconcileBaselineResetGenerations(
+					session.state.baseline,
 					result.remote,
 					session.scope,
 				)
 			: session.state.baseline;
+		const baseline = result.remote
+			? forgetDroppedForeign(reconciled, result.remote, session.scope)
+			: reconciled;
 		const advanced =
 			result.remote && result.diff.converged.length > 0
 				? advanceBaselineForPaths(
@@ -156,12 +156,24 @@ export class OperationRunner {
 			vaultId: session.state.vaultId ?? result.remote?.vaultId ?? null,
 			hashCache: result.updatedCache,
 		};
+		const local = this.deps.host.getState();
+		const shareBases =
+			result.remote && space.id === VAULT_SPACE.id
+				? heldShareBases(
+						local.storages[identity]?.shareBases,
+						reconciled,
+						result.remote,
+						session.scope,
+						sharesHold(local, this.deps.runtimeState.spaces()),
+					)
+				: undefined;
 		await this.deps.host.persistState(
 			mergeSessionIntoLocal(
-				this.deps.host.getState(),
+				local,
 				nextSessionState,
 				identity,
 				space,
+				shareBases,
 			),
 		);
 		return result;
@@ -285,7 +297,11 @@ export class OperationRunner {
 					);
 					return { ok: false };
 				}
-				if (operation === ESyncLogOperation.Push) {
+				// Only a published manifest is news for the others.
+				if (
+					operation === ESyncLogOperation.Push &&
+					outcome.newRemote !== result.remote
+				) {
 					this.deps.host.onPushComplete?.(space);
 				}
 				return { ok: true };

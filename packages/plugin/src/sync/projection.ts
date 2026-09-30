@@ -12,7 +12,14 @@ import {
 	textToBytes,
 } from "./content";
 import { type ComputedHunks, computeHunks } from "./hunks";
-import type { Conflict, EChangeType, FileChange, Manifest } from "./types";
+import { sidesOf } from "./moves";
+import type {
+	Conflict,
+	EChangeType,
+	FileChange,
+	Manifest,
+	Move,
+} from "./types";
 
 export const EDiffDirection = {
 	Local: "local",
@@ -50,6 +57,8 @@ export interface FileDiffModel {
 	rightPresent: boolean;
 	leftSize: number;
 	rightSize: number;
+	/** Where a moved file was: its hunks are not applied one by one. */
+	movedFrom?: string;
 }
 
 export interface ProjectionDeps {
@@ -193,6 +202,7 @@ async function assemble(
 		leftLabel: string;
 		rightLabel: string;
 		baseText: string | null;
+		movedFrom?: string;
 	},
 	leftSource: SideSource,
 	rightSource: SideSource,
@@ -229,22 +239,26 @@ async function assemble(
 	};
 }
 
+/** A move compares the text it left with the text it arrived with. */
 export async function buildLocalChangeDiff(
 	deps: ProjectionDeps,
 	change: FileChange,
 	forceText = false,
+	move?: Move,
 ): Promise<FileDiffModel> {
+	const { here } = move ? sidesOf(move) : { here: change.path };
 	return assemble(
 		{
-			path: change.path,
+			path: here,
 			direction: EDiffDirection.Local,
 			changeType: change.type,
 			leftLabel: "Baseline",
 			rightLabel: "Local",
 			baseText: null,
+			movedFrom: move?.from,
 		},
-		manifestSource(deps, deps.baseline, change.path),
-		await statLocalSource(deps.adapter, change.path),
+		manifestSource(deps, deps.baseline, move?.from ?? change.path),
+		await statLocalSource(deps.adapter, here),
 		forceText,
 	);
 }
@@ -253,18 +267,23 @@ export async function buildRemoteChangeDiff(
 	deps: ProjectionDeps,
 	change: FileChange,
 	forceText = false,
+	move?: Move,
 ): Promise<FileDiffModel> {
+	const { here, there } = move
+		? sidesOf(move)
+		: { here: change.path, there: change.path };
 	return assemble(
 		{
-			path: change.path,
+			path: move?.to ?? change.path,
 			direction: EDiffDirection.Remote,
 			changeType: change.type,
 			leftLabel: "Local",
 			rightLabel: "Remote",
 			baseText: null,
+			movedFrom: move?.from,
 		},
-		await statLocalSource(deps.adapter, change.path),
-		manifestSource(deps, deps.remote, change.path),
+		await statLocalSource(deps.adapter, here),
+		manifestSource(deps, deps.remote, there),
 		forceText,
 	);
 }

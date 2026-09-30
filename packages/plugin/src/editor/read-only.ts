@@ -1,14 +1,13 @@
 import { EditorState, type Extension, Prec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { editorInfoField, type Plugin } from "obsidian";
-
-import { LIVE_VIEWS } from "@/live/doc-types";
 import {
 	type ExcalidrawApi,
 	type ExcalidrawView,
 	isViewMode,
+	LIVE_VIEWS,
 	setViewMode,
-} from "@/live/drawing/excalidraw";
+} from "@/live";
 import type { PluginHost } from "@/plugin/host";
 
 const LOADING_RETRY_MS = 500;
@@ -37,13 +36,13 @@ export function registerReadOnlyLock(plugin: Plugin & PluginHost): void {
 	);
 	// A moved note keeps its view: only a rebuilt lock reads its new path.
 	plugin.registerEvent(
-		vault.on("rename", () => {
-			if (roots.length > 0) lock();
+		vault.on("rename", (file, oldPath) => {
+			if (under(roots, file.path) || under(roots, oldPath)) lock();
 		}),
 	);
 }
 
-/** Calls `onChange` whenever the read-only share roots change; returns the stop. */
+/** Calls `onChange` with the read-only share roots whenever they change; returns the stop. */
 export function watchReadOnlyRoots(
 	plugin: PluginHost,
 	onChange: (roots: readonly string[]) => void,
@@ -86,10 +85,7 @@ function lockIn(roots: readonly string[]): Extension {
 	];
 }
 
-/**
- * Keeps locked drawings in Excalidraw's view mode, back on whenever it is
- * switched off, and lets out only the views it put there. Returns the check.
- */
+/** Keeps locked drawings in Excalidraw's view mode and lets out only the views it put there. */
 function registerDrawingLock(
 	plugin: Plugin,
 	locked: (path: string) => boolean,
@@ -110,6 +106,9 @@ function registerDrawingLock(
 		const path = view.file?.path;
 		return path !== undefined && locked(path);
 	};
+	/** Only these need their changes heard: `follow` leaves every other view be. */
+	const held = (view: ExcalidrawView): boolean =>
+		lockedView(view) || mine.has(view);
 	const follow = (view: ExcalidrawView, viewMode: boolean): void => {
 		const lock = lockedView(view);
 		if (lock === viewMode || (!lock && !mine.has(view))) return;
@@ -120,15 +119,18 @@ function registerDrawingLock(
 
 	const check = (): void => {
 		const open = views();
+		for (const view of mine) if (!open.includes(view)) mine.delete(view);
 		for (const [view, { api, off }] of watched) {
-			if (open.includes(view) && view.excalidrawAPI === api) continue;
+			if (open.includes(view) && held(view) && view.excalidrawAPI === api) {
+				continue;
+			}
 			off();
 			watched.delete(view);
 		}
-		for (const view of mine) if (!open.includes(view)) mine.delete(view);
 		// Nothing announces a drawing done loading.
 		let loading = false;
 		for (const view of open) {
+			if (!held(view)) continue;
 			const api = view.excalidrawAPI;
 			if (!api) {
 				loading ||= lockedView(view);

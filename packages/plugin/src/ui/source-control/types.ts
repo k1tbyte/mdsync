@@ -7,6 +7,8 @@ export type ESection = (typeof ESection)[keyof typeof ESection];
 
 export interface FileRow {
 	path: string;
+	/** Where a moved file was. */
+	from?: string;
 	size?: number;
 	sizeDelta?: number;
 	statusLetter: string;

@@ -1,11 +1,71 @@
-import { note, statusOf } from "@tests/helpers/live-status";
+import { type FileView, MarkdownView, TFile } from "obsidian";
 import { describe, expect, it } from "vitest";
 
-import {
-	RELAY_TEXT,
-	relaySummary,
-	UNREADABLE_TEXT,
-} from "@/ui/live/relay-text";
+import type { RelayStatus } from "@/hub/status";
+import type { ColdCause } from "@/live/workspace/sessions";
+import type { PluginHost } from "@/plugin/host";
+import { spaceOf } from "@/sync/space";
+import { RELAY_TEXT, UNREADABLE_TEXT } from "@/ui/common/relay";
+import { liveStatusOf } from "@/ui/live/header/live-status";
+
+interface Facts {
+	status: RelayStatus;
+	unreadable: boolean;
+	room: boolean;
+	joining: boolean;
+	unanswered: boolean;
+	cold: ColdCause | null;
+	liveEditing: boolean;
+	spaces: { readOnly: true }[];
+}
+
+const FACTS: Facts = {
+	status: "connected",
+	unreadable: false,
+	room: false,
+	joining: false,
+	unanswered: false,
+	cold: null,
+	liveEditing: true,
+	spaces: [],
+};
+
+function statusOf(facts: Partial<Facts> = {}, file = note("a.md")) {
+	const all = { ...FACTS, ...facts };
+	const partition = all.spaces.map((space) => ({
+		...space,
+		id: "s1",
+		root: "Team",
+	}));
+	const plugin = {
+		app: { metadataCache: { getFileCache: () => ({}) } },
+		settings: { liveEditing: all.liveEditing },
+		realtime: {
+			hub: { statusOf: () => all.status },
+			people: { unreadable: () => all.unreadable },
+			live: {
+				noteState: () =>
+					(all.room && "live") ||
+					(all.joining && "joining") ||
+					(all.unanswered && "unanswered") ||
+					all.cold,
+			},
+		},
+	} as unknown as PluginHost;
+	const view = Object.assign(Object.create(MarkdownView.prototype), {
+		getViewType: () => "markdown",
+		getMode: () => "source",
+	}) as FileView;
+	return liveStatusOf(plugin, view, file, spaceOf(partition, file.path));
+}
+
+function note(path: string, size = 10): TFile {
+	return Object.assign(new TFile(), {
+		path,
+		extension: path.split(".").pop(),
+		stat: { size },
+	});
+}
 
 describe("live status of a note", () => {
 	it("is absent where no relay is meant to carry the space", () => {
@@ -39,11 +99,25 @@ describe("live status of a note", () => {
 		).toBe(3);
 	});
 
-	it("names a different passphrase before claiming to be live", () => {
+	it("warns about a different passphrase on a live note instead of calling it offline", () => {
 		expect(statusOf({ unreadable: true, room: true })).toEqual({
-			state: "offline",
+			state: "warning",
 			label: UNREADABLE_TEXT,
 		});
+		expect(statusOf({ unreadable: true })?.state).toBe("cold");
+	});
+
+	it("leaves saying read-only to the lock", () => {
+		const reader = (facts: Partial<Facts>) =>
+			statusOf({ ...facts, spaces: [{ readOnly: true }] }, note("Team/a.md"));
+		const labels = [
+			reader({ room: true }),
+			reader({ cold: "read-only" }),
+			reader({ cold: "empty" }),
+			reader({ cold: "diverged" }),
+		].map((status) => status?.label);
+
+		for (const label of labels) expect(label).not.toMatch(/read-only/i);
 	});
 
 	it("is live once its room answered", () => {
@@ -66,29 +140,6 @@ describe("live status of a note", () => {
 
 		expect(image).toMatch(/^Not a live note/);
 		expect(huge).toMatch(/^Too large to edit live/);
-		expect(fine).toMatch(/^Waiting for the key/);
-	});
-});
-
-describe("relay summary", () => {
-	it("says Live while every space is connected, and what cannot be read", () => {
-		expect(relaySummary(["connected", "connected"], false)).toBe("Live");
-		expect(relaySummary(["connected"], true)).toBe("Live, can't read others");
-	});
-
-	it("counts the spaces that are down while others are up", () => {
-		expect(relaySummary(["connected", "offline", "unauthorized"], false)).toBe(
-			"Live, 2 offline",
-		);
-	});
-
-	it("names the worst problem once none is up", () => {
-		expect(relaySummary(["offline", "connecting"], false)).toBe(
-			"Relay offline",
-		);
-		expect(relaySummary(["offline", "unauthorized"], false)).toBe(
-			"Relay refused",
-		);
-		expect(relaySummary(["connecting"], false)).toBe("Connecting…");
+		expect(fine).toMatch(/^Not ready yet/);
 	});
 });

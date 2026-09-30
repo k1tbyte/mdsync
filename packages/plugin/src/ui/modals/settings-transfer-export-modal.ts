@@ -9,8 +9,7 @@ import {
 	type SettingsTransferPackage,
 } from "@/settings/transfer";
 import { errorMessage } from "@/shared/errors";
-import { focusKey, renderKeepingFocus } from "@/ui/common/focus";
-import { runWithNotice } from "@/ui/common/notices";
+import { focusKey, renderKeepingFocus, runWithNotice } from "@/ui/common";
 
 const QR_SIZE = 320;
 

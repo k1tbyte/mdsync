@@ -1,39 +1,37 @@
 /**
- * Live documents inside a channel. The hub keeps each document's encrypted log
- * and never reads it: clients merge, the hub only orders updates, keeps what a
- * client snapshot covers and forwards the rest to the document's followers.
+ * Live documents inside a channel. The hub never reads a document's encrypted
+ * log: clients merge, it only orders updates, keeps what a client snapshot
+ * covers and forwards the rest to the document's followers.
  */
 
 import {
 	type ClientFrame,
 	EFrame,
 	ERefusal,
-	encodeServer,
 	MAX_DOC_ID_LENGTH,
 	MAX_DOC_SUBS,
 	MAX_MOVE_NOTE_BYTES,
-	type Refusal,
 } from "@obsync/protocol";
 
 import {
-	addressed,
-	joinFrame,
+	broadcast,
 	leaveFrame,
 	movedFrame,
 	peerFrame,
-	refusedFrame,
-	type ServerBody,
+	refuse,
+	send,
+	toFollowers,
+	vouchedFrame,
 } from "./frames";
-import {
-	broadcast,
-	follows,
-	type Grant,
-	type Handler,
-	type HandlerContext,
-	type Handlers,
-	type HubPeer,
-	type Peers,
-} from "./peer";
+import { follows, type Grant, type HubPeer } from "./peer";
+
+type Frame<T extends ClientFrame["type"]> = Extract<ClientFrame, { type: T }>;
+
+export interface FrameContext {
+	peers: readonly HubPeer[];
+	peer: HubPeer;
+	grant: Grant;
+}
 
 export interface DocState {
 	head: number;
@@ -63,18 +61,13 @@ export interface DocStore {
 		upto: number,
 		payload: Uint8Array,
 	): boolean;
-	/** Deletes every document of the channel, pointers included. */
 	purge(channel: string): void;
 	append(channel: string, doc: string, payload: Uint8Array): number;
 	/** Appends only to a document with no log; null when it has one. */
 	seed(channel: string, doc: string, payload: Uint8Array): number | null;
 	/** The snapshot only when `since` predates it; deltas after both. */
 	state(channel: string, doc: string, since: number): DocState;
-	/**
-	 * Replaces the deltas up to `upto` (clamped to the head) with the snapshot.
-	 * An empty snapshot would delete the log it claims to cover, and one older
-	 * than the snapshot held is refused: what lay between them is gone.
-	 */
+	/** Replaces the deltas up to `upto` (clamped to the head) with the snapshot. Empty or older snapshots are refused: they would lose log. */
 	compact(
 		channel: string,
 		doc: string,
@@ -83,168 +76,152 @@ export interface DocStore {
 	): void;
 }
 
-export function docHandlers(store: DocStore): Handlers {
-	/** Frames that need a subscription; a moved document answers with its pointer. */
-	const live =
-		<F extends ClientFrame>(handler: Handler<F>): Handler<F> =>
-		(context, frame) => {
-			const { peer, grant } = context;
-			if (!follows(peer, frame.slot, frame.doc)) return;
-			const pointer = store.movedTo(grant.channel, frame.doc);
-			if (pointer !== null) {
-				peer.send(encodeServer(movedFrame(frame.slot, frame.doc, pointer)));
-				return;
-			}
-			handler(context, frame);
-		};
-	/** Frames that change a document; a read-only grant only follows. */
-	const write = <F extends ClientFrame>(handler: Handler<F>): Handler<F> =>
-		live((context, frame) => {
-			const { grant, peer } = context;
-			if (!grant.readOnly) handler(context, frame);
-			else refuse(peer, frame, ERefusal.ReadOnly);
-		});
-	const sendState = (
+export class Documents {
+	constructor(private readonly store: DocStore) {}
+
+	handle(context: FrameContext, frame: ClientFrame): void {
+		if (frame.type === EFrame.Sub) this.subscribe(context, frame);
+		else if (follows(context.peer, frame.slot, frame.doc)) {
+			this.followed(context, frame);
+		}
+	}
+
+	private followed(
+		context: FrameContext,
+		frame: Exclude<ClientFrame, Frame<typeof EFrame.Sub>>,
+	): void {
+		const { peers, peer, grant } = context;
+		const { slot, doc } = frame;
+		if (frame.type === EFrame.Unsub) {
+			peer.unsubscribe(slot, doc);
+			toFollowers(peers, grant.channel, doc, leaveFrame(peer.tag), peer.tag);
+			return;
+		}
+		if (this.sendMoved(context, slot, doc)) return;
+		if (frame.type === EFrame.Awareness) {
+			const body = peerFrame(peer.tag, frame.payload);
+			toFollowers(peers, grant.channel, doc, body, peer.tag);
+			return;
+		}
+		if (grant.readOnly) {
+			refuse(peer, frame, ERefusal.ReadOnly);
+			return;
+		}
+		switch (frame.type) {
+			case EFrame.Update:
+				logged(
+					context,
+					frame,
+					this.store.append(grant.channel, doc, frame.payload),
+				);
+				break;
+			case EFrame.Seed:
+				this.seed(context, frame);
+				break;
+			case EFrame.Snapshot:
+				this.store.compact(grant.channel, doc, frame.payload, frame.upto);
+				break;
+			case EFrame.Rotate:
+				this.rotate(context, frame);
+				break;
+		}
+	}
+
+	private subscribe(
+		context: FrameContext,
+		{ slot, doc, since }: Frame<typeof EFrame.Sub>,
+	): void {
+		const { peers, peer, grant } = context;
+		if (doc.length > MAX_DOC_ID_LENGTH) return;
+		if (this.sendMoved(context, slot, doc)) return;
+		const fresh = !follows(peer, slot, doc);
+		if (fresh && peer.subs.length >= MAX_DOC_SUBS) {
+			refuse(peer, { slot, doc }, ERefusal.TooManyDocs);
+			return;
+		}
+		if (fresh) peer.subscribe(slot, doc);
+		this.sendState(peer, grant, slot, doc, since);
+		if (!fresh) return;
+		// Awareness is never stored: followers re-announce for the newcomer.
+		const join = vouchedFrame(EFrame.Join, peer.tag, grant);
+		toFollowers(peers, grant.channel, doc, join, peer.tag);
+	}
+
+	private seed(context: FrameContext, frame: Frame<typeof EFrame.Seed>): void {
+		const { peer, grant } = context;
+		const seq = this.store.seed(grant.channel, frame.doc, frame.payload);
+		// Concurrent seeds would double the text: the loser gets the room to merge into.
+		if (seq === null) this.sendState(peer, grant, frame.slot, frame.doc, 0);
+		else logged(context, frame, seq);
+	}
+
+	private rotate(
+		{ peers, peer, grant }: FrameContext,
+		{ slot, doc, target, upto, note, payload }: Frame<typeof EFrame.Rotate>,
+	): void {
+		if (
+			!target ||
+			target === doc ||
+			target.length > MAX_DOC_ID_LENGTH ||
+			note.length > MAX_MOVE_NOTE_BYTES
+		) {
+			return;
+		}
+		const pointer = { target, note };
+		// An update after `upto` would be acked here and missing there: the rotator gets the room instead.
+		if (!this.store.rotate(grant.channel, doc, pointer, upto, payload)) {
+			this.sendState(peer, grant, slot, doc, upto);
+			return;
+		}
+		// The rotator follows too: this is its confirmation.
+		broadcast(peers, grant.channel, doc, movedFrame(pointer), (at, atSlot) =>
+			follows(at, atSlot, doc),
+		);
+	}
+
+	/** A moved document answers with its pointer, whatever was asked. */
+	private sendMoved(
+		{ peer, grant }: FrameContext,
+		slot: number,
+		doc: string,
+	): boolean {
+		const pointer = this.store.movedTo(grant.channel, doc);
+		if (pointer) send(peer, slot, doc, movedFrame(pointer));
+		return pointer !== null;
+	}
+
+	private sendState(
 		peer: HubPeer,
 		grant: Grant,
 		slot: number,
 		doc: string,
 		since: number,
-	) =>
-		peer.send(
-			encodeServer({
-				type: EFrame.State,
-				slot,
-				doc,
-				...store.state(grant.channel, doc, since),
-			}),
-		);
-
-	return {
-		[EFrame.Sub]: ({ peers, peer, grant }, { slot, doc, since }) => {
-			if (doc.length > MAX_DOC_ID_LENGTH) return;
-			const pointer = store.movedTo(grant.channel, doc);
-			if (pointer !== null) {
-				peer.send(encodeServer(movedFrame(slot, doc, pointer)));
-				return;
-			}
-			const fresh = !follows(peer, slot, doc);
-			if (fresh && peer.subs.length >= MAX_DOC_SUBS) {
-				refuse(peer, { slot, doc }, ERefusal.TooManyDocs);
-				return;
-			}
-			if (fresh) peer.subscribe(slot, doc);
-			sendState(peer, grant, slot, doc, since);
-			// Awareness is never stored, so followers re-announce for the newcomer.
-			if (fresh) {
-				toFollowers(
-					peers,
-					grant.channel,
-					doc,
-					peer,
-					joinFrame(peer.tag, grant),
-				);
-			}
-		},
-		[EFrame.Unsub]: ({ peers, peer, grant }, { slot, doc }) => {
-			if (!follows(peer, slot, doc)) return;
-			peer.unsubscribe(slot, doc);
-			toFollowers(peers, grant.channel, doc, peer, leaveFrame(peer.tag));
-		},
-		[EFrame.Update]: write((context, frame) =>
-			logged(
-				context,
-				frame,
-				store.append(context.grant.channel, frame.doc, frame.payload),
-			),
-		),
-		[EFrame.Seed]: write((context, frame) => {
-			const { peer, grant } = context;
-			const seq = store.seed(grant.channel, frame.doc, frame.payload);
-			// Concurrent seeds would double the text: the loser gets the room to merge into.
-			if (seq === null) sendState(peer, grant, frame.slot, frame.doc, 0);
-			else logged(context, frame, seq);
-		}),
-		[EFrame.Awareness]: live(({ peers, peer, grant }, { doc, payload }) =>
-			toFollowers(
-				peers,
-				grant.channel,
-				doc,
-				peer,
-				peerFrame(peer.tag, payload),
-			),
-		),
-		[EFrame.Snapshot]: write(({ grant }, { doc, upto, payload }) =>
-			store.compact(grant.channel, doc, payload, upto),
-		),
-		[EFrame.Rotate]: write(({ peers, peer, grant }, frame) => {
-			const { slot, doc, target, upto, note, payload } = frame;
-			if (
-				!target ||
-				target === doc ||
-				target.length > MAX_DOC_ID_LENGTH ||
-				note.length > MAX_MOVE_NOTE_BYTES
-			) {
-				return;
-			}
-			const pointer = { target, note };
-			// An update after `upto` would be acked here and missing there: the rotator gets the room instead.
-			if (!store.rotate(grant.channel, doc, pointer, upto, payload)) {
-				sendState(peer, grant, slot, doc, upto);
-				return;
-			}
-			// The rotator follows too: this is its confirmation.
-			broadcast(peers, grant.channel, movedFrame(0, doc, pointer), (at, slot) =>
-				follows(at, slot, doc),
-			);
-		}),
-	};
-}
-
-/** Tells the followers of each document the socket follows (on one slot, if given) that it left. */
-export function leaveDocs(peers: Peers, peer: HubPeer, slot?: number): void {
-	for (const [at, doc] of peer.subs) {
-		const grant = peer.slots[at];
-		if (!grant || (slot !== undefined && at !== slot)) continue;
-		toFollowers(peers, grant.channel, doc, peer, leaveFrame(peer.tag));
+	): void {
+		const state = this.store.state(grant.channel, doc, since);
+		send(peer, slot, doc, { type: EFrame.State, ...state });
 	}
 }
 
-/** Unanswered, a dropped frame looks like a slow one: the client would wait forever. */
-export function refuse(
+/** Tells the followers of each document the socket follows (on one slot, if given) that it left. */
+export function leaveDocs(
+	peers: readonly HubPeer[],
 	peer: HubPeer,
-	{ slot, doc }: { slot: number; doc: string },
-	reason: Refusal,
+	slot?: number,
 ): void {
-	peer.send(encodeServer(refusedFrame(slot, doc, reason)));
+	for (const [at, doc] of peer.subs) {
+		const grant = peer.slots[at];
+		if (!grant || (slot !== undefined && at !== slot)) continue;
+		toFollowers(peers, grant.channel, doc, leaveFrame(peer.tag), peer.tag);
+	}
 }
 
 /** The echo is the sender's ack; resending unacked updates is safe in Yjs. */
 function logged(
-	{ peers, peer, grant }: HandlerContext,
+	{ peers, peer, grant }: FrameContext,
 	{ slot, doc, payload }: { slot: number; doc: string; payload: Uint8Array },
 	seq: number,
 ): void {
-	peer.send(encodeServer({ type: EFrame.Echo, slot, doc, seq }));
-	toFollowers(peers, grant.channel, doc, peer, {
-		type: EFrame.Fanout,
-		seq,
-		from: peer.tag,
-		payload,
-	});
-}
-
-function toFollowers(
-	peers: Peers,
-	channel: string,
-	doc: string,
-	sender: HubPeer,
-	body: ServerBody,
-): void {
-	broadcast(
-		peers,
-		channel,
-		addressed(body, doc),
-		(peer, slot) => peer.tag !== sender.tag && follows(peer, slot, doc),
-	);
+	send(peer, slot, doc, { type: EFrame.Echo, seq });
+	const fanout = { type: EFrame.Fanout, seq, from: peer.tag, payload } as const;
+	toFollowers(peers, grant.channel, doc, fanout, peer.tag);
 }

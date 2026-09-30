@@ -1,15 +1,17 @@
-/**
- * Who is where across every space this device holds a relay channel for. Each
- * device announces the file it has open to the space holding it and "elsewhere"
- * to the rest, so people are seen in a shared folder without opening its notes.
- */
+/** Each device announces its open file to the space holding it and "elsewhere" to the rest. */
 
 import { CHANNEL_DOC, EFrame } from "@obsync/protocol";
 
 import type { LiveKeys } from "@/crypto/live-keys";
-import type { HubConnection, SpaceHub } from "@/hub/connection";
+import type { HubConnection, SpaceHub } from "@/hub";
 import { reportWarning } from "@/shared/diagnostics";
-import { type Space, spaceOf, VAULT_SPACE } from "@/sync/space";
+import {
+	insideOf,
+	type Space,
+	spaceOf,
+	VAULT_SPACE,
+	vaultPathOf,
+} from "@/sync/space";
 
 import { type Announcement, sealAnnouncement } from "./announcement";
 import { ChannelPresence } from "./channel";
@@ -17,13 +19,11 @@ import { byNote, onePerPerson, type Person } from "./views";
 
 export type { Person } from "./views";
 
-/** This device's open file and whether its person is at it. */
 export interface Here {
 	path: string | null;
 	idle: boolean;
 }
 
-/** What this device holds in a space's channel: its key, and who it is there. */
 export interface PresenceAccess {
 	keys: LiveKeys;
 	key: string;
@@ -32,7 +32,7 @@ export interface PresenceAccess {
 
 export interface PeopleDeps {
 	hub: Pick<HubConnection, "space">;
-	/** The partition now: every space, paused ones flagged. */
+	/** Paused spaces flagged; the same array until the partition changes. */
 	spaces(): readonly Space[];
 	access(space: Space): Promise<PresenceAccess | null>;
 }
@@ -45,9 +45,10 @@ interface Channel {
 	unlocking: boolean;
 	/** Asked again mid-unlock: the answer in flight may be stale. */
 	again: boolean;
-	/** Last announcement sent, so an unchanged one is not sent again. */
 	sent: string | null;
-	/** Sends in order: sealing is async. */
+	/** The last announcement sealed: each newcomer is told it again without sealing anew. */
+	sealed: { text: string; keys: LiveKeys; payload: Uint8Array } | null;
+	/** Sealing is async, so sends are chained to keep their order. */
 	sending: Promise<void>;
 	unlisten(): void;
 }
@@ -62,16 +63,26 @@ export class People {
 	private readonly listeners = new Set<() => void>();
 	private here: Here = { path: null, idle: false };
 	private views: Views | null = null;
+	private partition: readonly Space[] | null = null;
 	private disposed = false;
 
 	constructor(private readonly deps: PeopleDeps) {}
 
-	/** Follows the partition: a share mounted, moved, paused or closed. */
+	/** Channels follow the partition; access is read again either way. */
 	refresh(): void {
 		// A late settings change must not reopen the channels of an unloaded plugin.
 		if (this.disposed) return;
+		const partition = this.deps.spaces();
+		const moved = partition !== this.partition;
+		if (moved) this.follow(partition);
+		for (const channel of this.channels.values()) this.unlock(channel);
+		if (moved) this.emit();
+	}
+
+	private follow(partition: readonly Space[]): void {
+		this.partition = partition;
 		this.views = null;
-		const spaces = this.deps.spaces().filter((space) => !space.paused);
+		const spaces = partition.filter((space) => !space.paused);
 		const ids = new Set(spaces.map((space) => space.id));
 		for (const [id, channel] of this.channels) {
 			if (ids.has(id)) continue;
@@ -83,8 +94,6 @@ export class People {
 			if (channel) channel.space = space;
 			else this.channels.set(space.id, this.open(space));
 		}
-		for (const channel of this.channels.values()) this.unlock(channel);
-		this.emit();
 	}
 
 	setHere(here: Here): void {
@@ -100,7 +109,7 @@ export class People {
 		return () => this.listeners.delete(listener);
 	}
 
-	/** Everyone in the space's channel, one entry per person, the most present of their devices. */
+	/** One entry per person: the most present of their devices. */
 	online(spaceId: string): readonly Person[] {
 		const { online } = this.viewsNow();
 		let people = online.get(spaceId);
@@ -112,12 +121,10 @@ export class People {
 		return people;
 	}
 
-	/** Whether someone in the space's channel cannot be read: they hold another passphrase or key. */
 	unreadable(spaceId: string): boolean {
 		return this.channels.get(spaceId)?.presence.hasUnreadable() ?? false;
 	}
 
-	/** The name the relay vouches for a participant present in the space; null for anyone else. */
 	nameOf(spaceId: string, person: string): string | null {
 		return this.channels.get(spaceId)?.presence.nameOf(person) ?? null;
 	}
@@ -127,7 +134,6 @@ export class People {
 		return this.notes().get(path) ?? [];
 	}
 
-	/** Vault path -> who has it open, across every space. */
 	notes(): ReadonlyMap<string, readonly Person[]> {
 		const views = this.viewsNow();
 		views.notes ??= byNote(
@@ -136,7 +142,7 @@ export class People {
 		return views.notes;
 	}
 
-	/** The vault's other devices; `locked` while its key is out of reach, so none can be read. */
+	/** `locked` while the vault key is out of reach: no device can be read. */
 	devices(): { locked: boolean; devices: { id: string; name: string }[] } {
 		const vault = this.channels.get(VAULT_SPACE.id);
 		const locked = vault?.presence.isLocked() ?? false;
@@ -167,6 +173,7 @@ export class People {
 			unlocking: false,
 			again: false,
 			sent: null,
+			sealed: null,
 			sending: Promise.resolve(),
 			unlisten: () => {},
 		};
@@ -179,7 +186,7 @@ export class People {
 			},
 			onFrame: (frame) => {
 				if (frame.doc !== CHANNEL_DOC) return;
-				// Presence is never stored, so every newcomer is told who is here.
+				// Presence is never stored: each newcomer must be told again.
 				if (frame.type === EFrame.Join) {
 					channel.sent = null;
 					this.announce(channel);
@@ -192,7 +199,7 @@ export class People {
 		return channel;
 	}
 
-	/** Access is read again each time: the device may have been renamed, the key come within reach. */
+	/** Read again each time: the device may have been renamed or its key come within reach. */
 	private unlock(channel: Channel): void {
 		if (channel.unlocking) {
 			channel.again = true;
@@ -203,8 +210,10 @@ export class People {
 		void this.deps
 			.access(channel.space)
 			.then(async (access) => {
-				if (!access || this.channels.get(channel.space.id) !== channel) return;
-				if (channel.access?.name !== access.name) channel.sent = null;
+				if (this.channels.get(channel.space.id) !== channel) return;
+				if (!access) return this.lock(channel);
+				const { name, keys } = channel.access ?? {};
+				if (name !== access.name || keys !== access.keys) channel.sent = null;
 				channel.access = access;
 				const changed = await channel.presence.unlock(access.keys, access.key);
 				this.announce(channel);
@@ -219,6 +228,16 @@ export class People {
 			});
 	}
 
+	/** The key went out of reach: nothing is read or announced until it is back. */
+	private lock(channel: Channel): void {
+		if (!channel.access) return;
+		channel.access = null;
+		channel.sent = null;
+		channel.sealed = null;
+		channel.presence.lock();
+		this.emit();
+	}
+
 	private announce(channel: Channel): void {
 		const { access, space, hub } = channel;
 		if (!access || !hub.isConnected()) return;
@@ -231,18 +250,29 @@ export class People {
 		const text = JSON.stringify(announcement);
 		if (channel.sent === text) return;
 		channel.sent = text;
-		channel.sending = channel.sending.then(async () => {
-			const payload = await sealAnnouncement(access.keys, announcement);
-			hub.send({ type: EFrame.Awareness, doc: CHANNEL_DOC, payload });
-		});
+		channel.sending = channel.sending
+			.then(async () => {
+				const { keys } = access;
+				const kept = channel.sealed;
+				const payload =
+					kept?.text === text && kept.keys === keys
+						? kept.payload
+						: await sealAnnouncement(keys, announcement);
+				channel.sealed = { text, keys, payload };
+				hub.send({ type: EFrame.Awareness, doc: CHANNEL_DOC, payload });
+			})
+			// Caught, or one failure would leave the chain rejected and the channel silent.
+			.catch((err: unknown) => {
+				if (channel.sent === text) channel.sent = null;
+				reportWarning("Presence could not announce this device.", err);
+			});
 	}
 
-	/** This device's open file inside the space, relative to its root. */
 	private noteIn(space: Space): string | null {
 		const { path } = this.here;
 		if (path === null) return null;
 		if (spaceOf(this.deps.spaces(), path).id !== space.id) return null;
-		return space.root === "" ? path : path.slice(space.root.length + 1);
+		return insideOf(space, path);
 	}
 
 	private viewsNow(): Views {
@@ -251,11 +281,11 @@ export class People {
 	}
 
 	private peopleIn(channel: Channel): Person[] {
-		const { root } = channel.space;
+		const { space } = channel;
 		return channel.presence.entries().map(({ key, name, note, idle }) => ({
 			key,
 			name,
-			note: note === null ? null : pathIn(root, note),
+			note: note === null ? null : vaultPathOf(space, note),
 			idle,
 		}));
 	}
@@ -263,8 +293,4 @@ export class People {
 	private emit(): void {
 		for (const listener of this.listeners) listener();
 	}
-}
-
-function pathIn(root: string, inside: string): string {
-	return root === "" ? inside : `${root}/${inside}`;
 }

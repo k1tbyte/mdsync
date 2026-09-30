@@ -1,10 +1,10 @@
 import type { App } from "obsidian";
 
 import type { DeviceName, LogService, PassphraseManager } from "@/core";
-import type { Unseen } from "@/presence/unseen";
+import type { Unseen } from "@/presence";
 import type { ObsyncSettings } from "@/settings/model";
 import type { SettingsTransferController } from "@/settings/transfer-controller";
-import type { SpaceRecords } from "@/spaces/records";
+import type { SpaceRecords } from "@/spaces";
 import type { SyncController } from "@/sync/controller";
 
 import type { IgnoreStateHandle } from "./ignore-state";

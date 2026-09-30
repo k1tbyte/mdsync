@@ -1,11 +1,13 @@
 import {
 	CHANNEL_DOC,
+	type ClientFrame,
 	EFrame,
 	ERefusal,
+	MAX_DOC_SUBS,
 	MAX_FRAME_BYTES,
 	UNAUTHORIZED_CLOSE_CODE,
 } from "@obsync/protocol";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { HubCore, RELAY_TAG } from "../../src/hub/core";
 import { SqlDocStore } from "../../src/hub/store";
@@ -108,7 +110,7 @@ describe("hub", () => {
 		for (let sent = 0; sent < 50; sent++) presence(Uint8Array.of(sent));
 
 		expect(owner.inbox.map((frame) => frame.type)).toEqual(
-			Array(20).fill(EFrame.Peer),
+			Array(40).fill(EFrame.Peer),
 		);
 	});
 
@@ -134,6 +136,17 @@ describe("hub", () => {
 		expect(other.inbox).toEqual([]);
 	});
 
+	it("drops an oversized frame whose document id is not valid text, instead of throwing", () => {
+		const sender = peer(1, [grant(VAULT)]);
+		const core = hub(sender);
+		const frame = new Uint8Array(3 + 255 + MAX_FRAME_BYTES);
+		frame.set([EFrame.Update, 0, 255]);
+		frame.fill(0xff, 3, 3 + 255);
+
+		expect(() => core.handle(sender, frame)).not.toThrow();
+		expect(sender.inbox).toEqual([]);
+	});
+
 	it("refuses a document frame past the cap to its sender, by document", () => {
 		const sender = peer(1, [grant(VAULT)]);
 		const other = peer(2, [grant(VAULT)]);
@@ -157,6 +170,46 @@ describe("hub", () => {
 			},
 		]);
 		expect(other.inbox).toEqual([]);
+	});
+
+	it("caps the frames one socket may send, without touching another's", () => {
+		const flooder = peer(1, [grant(VAULT)]);
+		const other = peer(2, [grant(VAULT)]);
+		const core = hub(flooder, other);
+		const frame = (type: ClientFrame["type"], body = {}) =>
+			({ type, slot: 0, doc: DOC, ...body }) as ClientFrame;
+		send(core, flooder, frame(EFrame.Sub, { since: 0 }));
+		send(core, other, frame(EFrame.Sub, { since: 0 }));
+		flooder.inbox = [];
+
+		vi.useFakeTimers({ toFake: ["Date"] });
+		for (let sent = 0; sent < 200; sent++) {
+			send(core, flooder, frame(EFrame.Update, { payload: Uint8Array.of(1) }));
+		}
+		send(core, other, frame(EFrame.Update, { payload: Uint8Array.of(2) }));
+		vi.useRealTimers();
+
+		const echoes = (who: typeof flooder) =>
+			who.inbox.filter(({ type }) => type === EFrame.Echo).length;
+		expect(echoes(flooder)).toBe(127);
+		expect(echoes(other)).toBe(1);
+	});
+
+	it("lets a socket follow its most documents at once", () => {
+		const device = peer(1, [grant(VAULT)]);
+		const core = hub(device);
+
+		for (let doc = 0; doc < MAX_DOC_SUBS; doc++) {
+			send(core, device, {
+				type: EFrame.Sub,
+				slot: 0,
+				doc: `doc-${doc}`,
+				since: 0,
+			});
+		}
+
+		expect(device.inbox).toHaveLength(MAX_DOC_SUBS);
+		expect(device.inbox.every(({ type }) => type === EFrame.State)).toBe(true);
 	});
 
 	it("announces a departure on every channel the socket held", () => {

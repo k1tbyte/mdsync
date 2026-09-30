@@ -2,8 +2,8 @@ import { LiveHub, type TestConnection } from "@tests/helpers/live-hub";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { deriveLiveKeys } from "@/crypto/live-keys";
-import { docIdFor } from "@/live/seal";
-import { LiveSession } from "@/live/session";
+import { docIdFor } from "@/live/doc-id";
+import { LiveSession } from "@/live/session/session";
 import { TEXT, type TextModel } from "@/live/text/model";
 
 const FLUSHED_MS = 300;

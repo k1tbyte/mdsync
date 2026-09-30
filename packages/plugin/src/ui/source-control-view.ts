@@ -9,7 +9,7 @@ import { DIFF_VIEW_TYPE, SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
 import type { SyncStatusSnapshot } from "@/sync/controller";
 import type { HistoryVersionRef } from "@/sync/projection";
-import { redrawOnPhoneChange } from "@/ui/common/phone-change";
+import { redrawOnPhoneChange } from "@/ui/common";
 import type { HistoryChange } from "./diff/history-state";
 import {
 	ChangesTab,

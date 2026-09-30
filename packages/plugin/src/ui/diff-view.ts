@@ -14,8 +14,7 @@ import {
 	type FileDiffModel,
 	type HistoryVersionRef,
 } from "@/sync/projection";
-import { notifyError } from "@/ui/common/notices";
-import { redrawOnPhoneChange } from "@/ui/common/phone-change";
+import { notifyError, redrawOnPhoneChange } from "@/ui/common";
 import {
 	ComparePanel,
 	MergeEditorPanel,
@@ -375,7 +374,10 @@ export class DiffView extends ItemView {
 		if (model.hunks.hunks.length === 0) {
 			parent.createDiv({
 				cls: "obsync-diff-empty",
-				text: "No textual differences.",
+				text:
+					model.movedFrom === undefined
+						? "No textual differences."
+						: `Moved from ${model.movedFrom}, unchanged.`,
 			});
 			return;
 		}
@@ -405,6 +407,7 @@ export class DiffView extends ItemView {
 			model.rightSize > HUNK_TEXT_MAX_BYTES;
 		return (
 			!tooLarge &&
+			model.movedFrom === undefined &&
 			this.against === null &&
 			this.historyChange === null &&
 			!(model.direction === EDiffDirection.History && !model.rightPresent)

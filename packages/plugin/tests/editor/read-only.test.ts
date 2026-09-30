@@ -30,6 +30,7 @@ function drawing(path: string, loaded = true) {
 			view.excalidrawAPI = api;
 		},
 		viewMode: () => appState.viewModeEnabled,
+		listening: () => listeners.size,
 		/** The user's own toggle. */
 		setViewMode: (on: boolean) =>
 			api.updateScene({ appState: { viewModeEnabled: on }, captureUpdate: "" }),
@@ -38,13 +39,20 @@ function drawing(path: string, loaded = true) {
 
 function host(...views: ExcalidrawView[]) {
 	let partition: { root: string; readOnly: boolean }[] = [];
+	let renamed: (file: { path: string }, oldPath: string) => void = () => {};
+	const updateOptions = vi.fn();
 	const changed = new Set<() => void>();
 	const cleanups: (() => void)[] = [];
 	const plugin = {
 		app: {
-			vault: { on: () => ({}) },
+			vault: {
+				on: (_: string, handler: typeof renamed) => {
+					renamed = handler;
+					return {};
+				},
+			},
 			workspace: {
-				updateOptions() {},
+				updateOptions,
 				getLeavesOfType: () => views.map((view) => ({ view })),
 				on: () => ({}),
 			},
@@ -64,6 +72,8 @@ function host(...views: ExcalidrawView[]) {
 		plugin as unknown as Parameters<typeof registerReadOnlyLock>[0],
 	);
 	return {
+		updateOptions,
+		rename: (path: string, oldPath: string) => renamed({ path }, oldPath),
 		share(root: string, readOnly: boolean) {
 			partition = [{ root, readOnly }];
 			for (const listener of changed) listener();
@@ -98,6 +108,18 @@ describe("the read-only lock on drawings", () => {
 		expect(free.viewMode()).toBe(false);
 	});
 
+	it("listens only to drawings it holds", () => {
+		const locked = drawing("s/a.excalidraw.md");
+		const free = drawing("b.excalidraw.md");
+		const plugin = host(locked.view, free.view);
+		expect(locked.listening()).toBe(0);
+
+		plugin.share("s", true);
+
+		expect(locked.listening()).toBe(1);
+		expect(free.listening()).toBe(0);
+	});
+
 	it("lets out only the drawings it locked", () => {
 		const locked = drawing("s/a.excalidraw.md");
 		const chosen = drawing("s/b.excalidraw.md");
@@ -123,5 +145,20 @@ describe("the read-only lock on drawings", () => {
 
 		plugin.unload();
 		expect(loading.viewMode()).toBe(false);
+	});
+});
+
+describe("the read-only lock on renames", () => {
+	it("is rebuilt only for a rename into or out of a read-only share", () => {
+		const plugin = host();
+		plugin.share("s", true);
+		plugin.updateOptions.mockClear();
+
+		plugin.rename("b.md", "a.md");
+		expect(plugin.updateOptions).not.toHaveBeenCalled();
+
+		plugin.rename("s/a.md", "a.md");
+		plugin.rename("b.md", "s/b.md");
+		expect(plugin.updateOptions).toHaveBeenCalledTimes(2);
 	});
 });

@@ -1,5 +1,5 @@
 import type { LiveKeys } from "@/crypto/live-keys";
-import { seal, unseal } from "@/live/seal";
+import { seal, unseal } from "@/crypto/seal";
 
 /** One device's place in a space, sealed whole: the relay learns no names or paths. */
 export interface Announcement {

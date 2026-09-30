@@ -5,13 +5,15 @@ import { type App, type DataAdapter, MarkdownView, TFile } from "obsidian";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
-import { AgreedTexts } from "@/live/agreed-texts";
-import { movedWith } from "@/live/rename";
-import { docIdFor, seal } from "@/live/seal";
-import type { LiveSession } from "@/live/session";
-import { LiveSessions } from "@/live/sessions";
-import type { LiveSpace } from "@/live/space";
+import { seal } from "@/crypto/seal";
+import type { SpaceFrame, SpaceHub } from "@/hub/connection";
+import { AgreedTexts } from "@/live/cold/agreed-texts";
+import { docIdFor } from "@/live/doc-id";
+import type { LiveSession } from "@/live/session/session";
 import type { TextModel } from "@/live/text/model";
+import { movedWith, moveRoom } from "@/live/workspace/rename";
+import { LiveSessions } from "@/live/workspace/sessions";
+import type { LiveSpace } from "@/live/workspace/space";
 
 vi.mock("@/live/text/binding", () => ({
 	bindEditor: vi.fn(() => ({ detach: vi.fn(), showAuthors: vi.fn() })),
@@ -285,5 +287,32 @@ describe("move notes", () => {
 		expect(
 			await movedAs({ path: "x.md", generation: -1 }, await idOf("x.md", -1)),
 		).toBeNull();
+	});
+});
+
+describe("a rename probe the hub never answers", () => {
+	it("drops the subscription it asked for", async () => {
+		vi.useFakeTimers();
+		const sent: SpaceFrame[] = [];
+		const silent: SpaceHub = {
+			isConnected: () => true,
+			listen: () => () => {},
+			send: (frame) => sent.push(frame),
+		};
+		let attempts = 0;
+
+		const moving = moveRoom(
+			{} as LiveSession,
+			vault(),
+			silent,
+			"b.md",
+			() => attempts++ === 0,
+		);
+		await vi.waitFor(() => expect(sent).toHaveLength(1));
+		await vi.runAllTimersAsync();
+		await moving;
+		vi.useRealTimers();
+
+		expect(sent.map((frame) => frame.type)).toEqual([EFrame.Sub, EFrame.Unsub]);
 	});
 });

@@ -2,7 +2,7 @@ import { type App, type ButtonComponent, Modal, Setting } from "obsidian";
 
 import { activeStorage, type ObsyncSettings } from "@/settings/model";
 import { describeStorageTarget } from "@/storage";
-import { onEnter } from "@/ui/common/enter-key";
+import { onEnter } from "@/ui/common";
 import { openPromiseModal } from "./promise-modal";
 
 const IMPORT_CONFIRMATION_TEXT = "IMPORT";

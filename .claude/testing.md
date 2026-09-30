@@ -3,7 +3,7 @@
 - vitest covers core logic (diff, hunks, concurrency, ignore, etc.). Run with `pnpm test`, or `pnpm --filter obsync test:watch` while iterating.
 - ALL domain logic (diffs, merging, concurrency, hunks matching, baseline cache) must have complete unit-test coverage.
 - Tests mirror `src/`: `tests/<area>/<module>.test.ts`, helpers in `tests/helpers/`.
-- Live sessions run against the relay's own hub logic and SQLite store in-process (`tests/helpers/live-hub.ts`, via the `obsync-relay` devDependency), with switches for lost frames and reconnects. `packages/relay/tests/hub/worker.test.ts` runs the real worker and Hub Durable Object under miniflare (admission, presence, fan-out, read-only, signal, stale sweep). `tests/live/chaos.test.ts` runs three devices through seeded edits, drops and half-open sockets and demands one text with every edit in it.
+- Live sessions run against the relay's own hub logic and SQLite store in-process (`tests/helpers/live-hub.ts`, via the `obsync-relay` devDependency), with switches for lost frames and reconnects. `tests/live/chaos.test.ts` runs three devices through seeded edits, drops and half-open sockets and demands one text with every edit in it.
 
 ## Driving a real Obsidian
 
@@ -37,7 +37,11 @@ re-injected only on reload.
   pauses and resumes it; the first renames the folder and the other follows.
 - `pnpm e2e:invite` - an owner and a participant with separate vaults: invite
   through the relay's broker, accept through the protocol handler; each
-  side's edit reaches the other on the share channel's signal alone.
+  side's edit reaches the other on the share channel's signal alone, and a
+  change or rename in the share pushes by itself (a rename lands as a rename).
+- `pnpm e2e:guest` - a participant with no vault storage joins and syncs the
+  share alone, then sets up a vault: the record goes there, the share's files
+  do not.
 - `pnpm e2e:people` - a read-only participant (its editor locked, following
   the owner's typing live), a re-invite
   that kills the old link and whose new one takes over the folder in place,
@@ -61,6 +65,9 @@ re-injected only on reload.
   off, a drawing view that saved takes what the sync writes under it.
   `E2E_SHOTS=1` saves screenshots of these under `artifacts/e2e-shots/`.
 
+On Windows the Obsidians run on a desktop of their own (`hidden-desktop.ps1`),
+so they never show or take focus; `E2E_VISIBLE=1` puts them on screen.
+
 `tools/e2e/device.ts` drives a device: sync, files, folder menus, modals.
 `tools/e2e/sharing.ts` holds the owner-and-participant setup and share steps.
 `tools/e2e/editor.ts` opens, types into and reads a device's editor.
@@ -76,11 +83,6 @@ keeps its storage in `packages/relay/.wrangler/e2e-state`, wiped when a run
 starts it first: tables an older build left would break the hub. New
 scenarios reuse `launchObsidian`, `startRelay`, `startWebDav`, `startS3` and
 `connectPeer`; several Obsidians need distinct CDP ports.
-
-`pnpm bench:share-pull` (`tools/bench/`) times a participant's first pull through
-the real broker adapter and relay against direct S3, with modelled round trips;
-results in `docs/share-pull-measurements.md`. It starts `wrangler dev` and two
-delay proxies on ports 8899-8903.
 
 ## Manual install for testing
 

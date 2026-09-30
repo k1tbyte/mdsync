@@ -1,10 +1,35 @@
 export interface Person {
-	/** Groups and colours: the person in a share, the device in the vault. */
+	/** The person in a share, the device in the vault. */
 	key: string;
 	name: string;
 	/** The vault path of their open file; null while it is elsewhere. */
 	note: string | null;
 	idle: boolean;
+}
+
+export function isAtNote({
+	note,
+	idle,
+}: Pick<Person, "note" | "idle">): boolean {
+	return note !== null && !idle;
+}
+
+/** Idle only while every device of theirs in the set is. */
+function addPerson(byKey: Map<string, Person>, person: Person): void {
+	const known = byKey.get(person.key);
+	byKey.set(person.key, {
+		...person,
+		idle: person.idle && (known?.idle ?? true),
+	});
+}
+
+export function mergePeople(
+	into: readonly Person[],
+	add: readonly Person[],
+): Person[] {
+	const byKey = new Map(into.map((person) => [person.key, person]));
+	for (const person of add) addPerson(byKey, person);
+	return [...byKey.values()];
 }
 
 export function onePerPerson(people: readonly Person[]): Person[] {
@@ -26,11 +51,7 @@ export function byNote(
 		for (const person of people) {
 			if (person.note === null) continue;
 			const here = byPath.get(person.note) ?? new Map<string, Person>();
-			const known = here.get(person.key);
-			here.set(person.key, {
-				...person,
-				idle: person.idle && (known?.idle ?? true),
-			});
+			addPerson(here, person);
 			byPath.set(person.note, here);
 		}
 	}

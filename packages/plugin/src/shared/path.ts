@@ -28,6 +28,11 @@ export function stripTrailingSlash(value: string): string {
 	return normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;
 }
 
+/** A relay URL that paths are appended to: trimmed, no trailing slash. */
+export function relayBase(url: string): string {
+	return url.trim().replace(/\/+$/, "");
+}
+
 /** Trims surrounding slashes and re-adds a single trailing one: `"/a/b/" → "a/b/"`. */
 export function normalizeKeyPrefix(prefix: string): string {
 	const trimmed = prefix.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");

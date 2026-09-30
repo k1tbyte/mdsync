@@ -2,9 +2,8 @@ import type * as Y from "yjs";
 
 import { type SceneElement, wins } from "@/drawing";
 
-import type { BoundEditor } from "../model";
-import { LOCAL_AWARENESS } from "../room-awareness";
-import type { LiveSession } from "../session";
+import type { BoundEditor } from "@/live/model";
+import { type LiveSession, LOCAL_AWARENESS } from "@/live/session";
 import {
 	type Collaborator,
 	type ExcalidrawView,
@@ -21,8 +20,8 @@ interface PointerState {
 
 /**
  * Keeps one Excalidraw view and its room in step, element by element, with
- * everyone's pointers; null while it loads. A view that reloads replaces its
- * API: the first event after that calls `onStale` instead.
+ * everyone's pointers; null while it loads. A reloaded view replaces its API:
+ * the first event after that calls `onStale` instead.
  */
 export function bindDrawing(
 	view: ExcalidrawView,

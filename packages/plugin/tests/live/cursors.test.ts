@@ -7,7 +7,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 
-import { watchCursor } from "@/live/text/cursors";
+import { cursorsIn, watchCursor } from "@/live/text/cursors";
 
 const live = useLiveRoom();
 
@@ -33,5 +33,22 @@ describe("a watched cursor", () => {
 		expect(cursor.at()).toBe(5);
 		expect(changed).toHaveBeenCalled();
 		unwatch();
+	});
+
+	it("resolves only the watched person's cursor", async () => {
+		const a = await live.synced("hello");
+		const b = await live.synced("hello");
+		const head = Y.relativePositionToJSON(
+			Y.createRelativePositionFromTypeIndex(b.session.model.text, 3),
+		);
+		b.session.awareness.setLocalStateField("user", { key: "bee", name: "B" });
+		b.session.awareness.setLocalStateField("cursor", { anchor: head, head });
+		await waitUntil(() => expect(cursorsIn(a.session)).toHaveLength(1));
+
+		expect(cursorsIn(a.session, "bee")).toEqual([
+			{ key: "bee", name: "B", at: 3 },
+		]);
+		expect(cursorsIn(a.session, "someone")).toEqual([]);
+		expect(watchCursor(a.session, "someone").at()).toBeNull();
 	});
 });

@@ -1,7 +1,5 @@
 import { setIcon } from "obsidian";
-import { makeActivatable } from "@/ui/common/activatable";
-import { appendIconButton } from "@/ui/common/icon-button";
-import { onLongPress } from "@/ui/common/long-press";
+import { appendIconButton, makeActivatable, onLongPress } from "@/ui/common";
 import type { SourceControlActions } from "./actions";
 import type { ConflictPreviewManager } from "./conflict-preview-manager";
 import { renderPath, renderSize } from "./row-parts";
@@ -89,7 +87,10 @@ export function renderFileRow(
 		ctx.setSelected(row.path, checkbox.checked);
 	});
 
-	renderPath(item, row.path, ctx.layout === "flat");
+	const copy = renderPath(item, row.path, ctx.layout === "flat");
+	if (row.from !== undefined) {
+		copy.createSpan({ cls: "obsync-file-parent", text: `from ${row.from}` });
+	}
 
 	if (row.isConflict) renderConflictRowControls(parent, item, row, ctx);
 

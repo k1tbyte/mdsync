@@ -1,6 +1,6 @@
 import { type App, type ButtonComponent, Modal, Setting } from "obsidian";
 
-import { onEnter } from "@/ui/common/enter-key";
+import { onEnter } from "@/ui/common";
 
 import { openPromiseModal } from "./promise-modal";
 

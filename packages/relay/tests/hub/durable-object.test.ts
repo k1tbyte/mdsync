@@ -3,12 +3,14 @@ import {
 	decodeServer,
 	EFrame,
 	encodeClient,
+	KEEPALIVE_STALE_MS,
 	type ServerFrame,
 } from "@obsync/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Hub, type HubEnv } from "../../src/hub/durable-object";
+import { Hub } from "../../src/hub/durable-object";
 import type { Grant } from "../../src/hub/peer";
+import type { HubEnv } from "../../src/hub/stub";
 import { grant } from "../helpers/hub";
 import { memorySql } from "../helpers/memory-sql";
 
@@ -16,7 +18,7 @@ const VAULT = "vault";
 const SHARE = "share";
 const DOC = "d".repeat(32);
 const NOW = 1_000_000;
-const STALE_MS = 75_000;
+const STALE_MS = KEEPALIVE_STALE_MS;
 
 class FakeSocket {
 	readyState: number = WebSocket.OPEN;
@@ -159,7 +161,7 @@ describe("socket close", () => {
 });
 
 describe("frames", () => {
-	it("reads each socket's attachment once, however many frames pass", () => {
+	it("reads each socket's attachment once, however many frames and sweeps pass", async () => {
 		const sender = new FakeSocket(1, NOW);
 		const follower = new FakeSocket(2, NOW);
 		const hub = makeHub(sender, follower);
@@ -175,6 +177,7 @@ describe("frames", () => {
 			);
 			hub.message(sender, frame(EFrame.Update, { payload: Uint8Array.of(at) }));
 		}
+		await hub.alarm();
 		hub.close(sender);
 
 		expect(follower.got(EFrame.Fanout)).toHaveLength(5);

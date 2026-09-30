@@ -63,8 +63,11 @@ function onRename(spaces: SpaceRecords) {
 		async () => {};
 	const scheduleScopeRefresh = vi.fn();
 	const cancel = vi.fn();
+	const renameFile = vi.fn(async () => {});
+	const cleanups: (() => void)[] = [];
 	const plugin = {
 		app: {
+			fileManager: { renameFile },
 			vault: {
 				on: (_: string, callback: (file: TFolder, oldPath: string) => void) => {
 					handler = async (file, oldPath) => {
@@ -75,6 +78,7 @@ function onRename(spaces: SpaceRecords) {
 			},
 		},
 		registerEvent: () => {},
+		register: (cleanup: () => void) => cleanups.push(cleanup),
 		spaces,
 		controller: { currentDevice: () => ({ id: "phone" }), cancel },
 		scheduleScopeRefresh,
@@ -85,6 +89,8 @@ function onRename(spaces: SpaceRecords) {
 	return {
 		scheduleScopeRefresh,
 		cancel,
+		renameFile,
+		cleanups,
 		fire: (path: string, oldPath: string) =>
 			handler(Object.assign(new TFolder(), { path, children: [] }), oldPath),
 	};
@@ -165,5 +171,29 @@ describe("following a shared folder moved on another device", () => {
 		expect(vault.rename).not.toHaveBeenCalled();
 		expect(notify).toHaveBeenCalledOnce();
 		expect(spaces.partition()).toMatchObject([{}, { root: "Team" }]);
+	});
+});
+
+describe("a rename into a place a share cannot go", () => {
+	it("moves the folder back, however many times, with one cleanup registered", async () => {
+		const { spaces } = setup({});
+		const renamed = onRename(spaces);
+
+		await renamed.fire(".hidden/Team", "Team");
+		await renamed.fire(".hidden/Team", "Team");
+
+		expect(renamed.renameFile).toHaveBeenCalledTimes(2);
+		expect(renamed.cleanups).toHaveLength(1);
+	});
+
+	it("does not move it back once the plugin unloaded", async () => {
+		const { spaces } = setup({});
+		const renamed = onRename(spaces);
+
+		const fired = renamed.fire(".hidden/Team", "Team");
+		for (const cleanup of renamed.cleanups) cleanup();
+		await fired;
+
+		expect(renamed.renameFile).not.toHaveBeenCalled();
 	});
 });

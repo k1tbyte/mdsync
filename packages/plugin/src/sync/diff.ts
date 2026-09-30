@@ -1,3 +1,4 @@
+import { pairMoves } from "./moves";
 import {
 	type Conflict,
 	type DiffResult,
@@ -96,7 +97,10 @@ export function diff(input: DiffInput): DiffResult {
 	const remoteMoved =
 		(input.baseline?.snapshotId ?? null) !== (input.remote?.snapshotId ?? null);
 
-	return { localChanges, remoteChanges, conflicts, converged, remoteMoved };
+	return pairMoves(
+		{ localChanges, remoteChanges, conflicts, converged, remoteMoved },
+		baselineFiles,
+	);
 }
 
 /** A drawing is its scene: saves of one scene differ only in the view state they carry. */

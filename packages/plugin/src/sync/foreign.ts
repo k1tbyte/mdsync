@@ -23,11 +23,43 @@ export function forgetDroppedForeign(
 	scope: ScopePolicy,
 ): Manifest | null {
 	if (!baseline) return null;
-	const dropped = Object.keys(baseline.files).filter(
-		(path) => !scope.owns(path) && !entryAt(remote.files, path),
-	);
+	const dropped = droppedForeign(baseline, remote, scope);
 	if (dropped.length === 0) return baseline;
 	const files = { ...baseline.files };
 	for (const path of dropped) delete files[path];
 	return { ...baseline, files };
+}
+
+/**
+ * A note that just became a share has no baseline there yet, so the frozen
+ * entry is its live merge base (`baseTextOf`). Kept apart once the baseline
+ * forgets it, until the share holds the path or the folder is this space's again.
+ */
+export function heldShareBases(
+	kept: Readonly<Record<string, ManifestEntry>> | undefined,
+	baseline: Manifest | null,
+	remote: Manifest,
+	scope: ScopePolicy,
+	shareHolds: (path: string) => boolean,
+): Record<string, ManifestEntry> {
+	const bases = { ...kept };
+	for (const path of baseline ? droppedForeign(baseline, remote, scope) : []) {
+		const entry = baseline?.files[path];
+		if (entry) bases[path] = entry;
+	}
+	return Object.fromEntries(
+		Object.entries(bases).filter(
+			([path]) => !scope.owns(path) && !shareHolds(path),
+		),
+	);
+}
+
+function droppedForeign(
+	baseline: Manifest,
+	remote: Manifest,
+	scope: ScopePolicy,
+): string[] {
+	return Object.keys(baseline.files).filter(
+		(path) => !scope.owns(path) && !entryAt(remote.files, path),
+	);
 }

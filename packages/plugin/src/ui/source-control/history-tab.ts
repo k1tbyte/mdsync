@@ -2,9 +2,13 @@ import { Menu, setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { errorMessage } from "@/shared/errors";
 import type { FileVersion } from "@/sync/history";
-import { makeActivatable } from "@/ui/common/activatable";
-import { appendIconButton, appendLabeledButton } from "@/ui/common/icon-button";
-import { notifyError, notifyInfo } from "@/ui/common/notices";
+import {
+	appendIconButton,
+	appendLabeledButton,
+	makeActivatable,
+	notifyError,
+	notifyInfo,
+} from "@/ui/common";
 import type { HistoryDiffTarget } from "@/ui/source-control-view";
 
 import { groupByDay } from "./day-groups";

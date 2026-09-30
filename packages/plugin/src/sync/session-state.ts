@@ -1,7 +1,9 @@
+import { entryAt } from "@/shared/records";
+
 import { diff } from "./diff";
 import type { CompareResult, EngineDependencies } from "./engine";
 import type { OperationOutcome } from "./operations/types";
-import type { Space } from "./space";
+import { type Space, spaceOf } from "./space";
 import { manifestMoved } from "./space-paths";
 import type {
 	LocalSnapshot,
@@ -68,27 +70,39 @@ export function projectSession(
 	};
 }
 
-/** Writes session back into its storage slot, leaving other storages untouched. */
+/**
+ * Writes session back into its storage slot, leaving other storages untouched.
+ * The slot's share bases stay unless `shareBases` replaces them or the vault id changes.
+ */
 export function mergeSessionIntoLocal(
 	current: LocalState,
 	session: SessionState,
 	identity: string,
 	space: Space,
+	shareBases?: Record<string, ManifestEntry>,
 ): LocalState {
 	const storages: LocalState["storages"] = { ...current.storages };
+	const slot = current.storages[identity];
 	const at = space.root === "" ? {} : { root: space.root, space: space.id };
+	const vaultId = session.vaultId ?? slot?.vaultId;
+	const bases =
+		shareBases ?? (slot?.vaultId === vaultId ? slot?.shareBases : undefined);
+	const kept =
+		bases && Object.keys(bases).length > 0 ? { shareBases: bases } : {};
 	if (session.vaultId !== null) {
 		storages[identity] = {
 			vaultId: session.vaultId,
 			baseline: session.baseline,
 			...at,
+			...kept,
 		};
-	} else if (current.storages[identity] && session.baseline !== null) {
+	} else if (slot && session.baseline !== null) {
 		// Preserve vaultId if engine returned baseline without vaultId (defensive).
 		storages[identity] = {
-			vaultId: current.storages[identity].vaultId,
+			vaultId: slot.vaultId,
 			baseline: session.baseline,
 			...at,
+			...kept,
 		};
 	} else {
 		delete storages[identity];
@@ -99,6 +113,44 @@ export function mergeSessionIntoLocal(
 		storages,
 		hashCache: session.hashCache,
 	};
+}
+
+/** Whether the share owning a path holds it in its baseline on this device. */
+export function sharesHold(
+	local: LocalState,
+	partition: readonly Space[],
+): (path: string) => boolean {
+	return (path) => {
+		const space = spaceOf(partition, path);
+		const slot = Object.values(local.storages).find(
+			(each) => each.space === space.id,
+		);
+		if (!slot?.baseline) return false;
+		const baseline = manifestMoved(slot.baseline, slot.root ?? "", space.root);
+		return entryAt(baseline.files, path) !== undefined;
+	};
+}
+
+/** A rename keeps content: the hashes of what moved go with it, so no scan reads it again. */
+export function carryHashes(
+	state: LocalState,
+	from: string,
+	to: string,
+	folder: boolean,
+): LocalState {
+	const { hashCache } = state;
+	const moved = folder
+		? Object.entries(hashCache).filter(([path]) => path.startsWith(`${from}/`))
+		: [];
+	const own = entryAt(hashCache, from);
+	if (own) moved.push([from, own]);
+	if (moved.length === 0) return state;
+	const next = { ...hashCache };
+	for (const [path, entry] of moved) {
+		next[`${to}${path.slice(from.length)}`] = entry;
+		delete next[path];
+	}
+	return { ...state, hashCache: next };
 }
 
 /** Drops a share's slot, wherever it was mounted: it mounts afresh, no session needed. */

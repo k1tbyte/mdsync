@@ -184,3 +184,93 @@ describe("diff", () => {
 		]);
 	});
 });
+
+describe("moves", () => {
+	const at = (hashes: Record<string, string>) =>
+		Object.fromEntries(
+			Object.entries(hashes).map(([path, hash]) => [path, { hash }]),
+		);
+	const run = (
+		local: Record<string, string>,
+		remote: Record<string, string>,
+		baseline: Record<string, string>,
+	) =>
+		diff({
+			local: mockLocal(at(local)),
+			remote: mockManifest("r", at(remote)),
+			baseline: mockManifest("b", at(baseline)),
+		});
+
+	it("pairs a file renamed here, keeping both halves as changes", () => {
+		const result = run({ "b.md": "h" }, { "a.md": "h" }, { "a.md": "h" });
+		expect(result.moves).toEqual([{ from: "a.md", to: "b.md", side: "local" }]);
+		expect(result.localChanges.map((c) => [c.path, c.type])).toEqual([
+			["b.md", EChangeType.LocalAdd],
+			["a.md", EChangeType.LocalDelete],
+		]);
+	});
+
+	it("pairs a file renamed remotely", () => {
+		const result = run({ "a.md": "h" }, { "b.md": "h" }, { "a.md": "h" });
+		expect(result.moves).toEqual([
+			{ from: "a.md", to: "b.md", side: "remote" },
+		]);
+		expect(result.conflicts).toEqual([]);
+	});
+
+	it("lets an edit here follow a remote rename instead of a conflict", () => {
+		const result = run({ "a.md": "mine" }, { "b.md": "h" }, { "a.md": "h" });
+		expect(result.conflicts).toEqual([]);
+		expect(result.moves).toEqual([
+			{ from: "a.md", to: "b.md", side: "remote" },
+		]);
+		expect(result.remoteChanges.map((c) => [c.path, c.type])).toEqual([
+			["b.md", EChangeType.RemoteAdd],
+			["a.md", EChangeType.RemoteDelete],
+		]);
+		expect(result.localChanges).toEqual([]);
+	});
+
+	it("holds a rename here back while the old path's remote edit comes in", () => {
+		const result = run({ "b.md": "h" }, { "a.md": "theirs" }, { "a.md": "h" });
+		expect(result.conflicts).toEqual([]);
+		expect(result.moves).toEqual([{ from: "a.md", to: "b.md", side: "local" }]);
+		expect(result.remoteChanges.map((c) => [c.path, c.type])).toEqual([
+			["a.md", EChangeType.RemoteModify],
+		]);
+		expect(result.localChanges).toEqual([]);
+	});
+
+	it("pairs same content by file name, and leaves what it cannot tell apart", () => {
+		const moved = run(
+			{ "New/x.md": "e", "New/y.md": "e" },
+			{ "Old/x.md": "e", "Old/y.md": "e" },
+			{ "Old/x.md": "e", "Old/y.md": "e" },
+		);
+		expect(moved.moves).toEqual([
+			{ from: "Old/x.md", to: "New/x.md", side: "local" },
+			{ from: "Old/y.md", to: "New/y.md", side: "local" },
+		]);
+		const unclear = run(
+			{ "p.md": "e", "q.md": "e" },
+			{ "x.md": "e", "y.md": "e" },
+			{ "x.md": "e", "y.md": "e" },
+		);
+		expect(unclear.moves).toEqual([]);
+	});
+
+	it("never pairs empty files: they share one hash", () => {
+		const empty =
+			"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+		expect(
+			run({ "b.md": empty }, { "a.md": empty }, { "a.md": empty }).moves,
+		).toEqual([]);
+	});
+
+	it("is no move when the other side changed the new path or the old one is gone there too", () => {
+		expect(
+			run({ "b.md": "h" }, { "b.md": "other" }, { "a.md": "h" }).moves,
+		).toEqual([]);
+		expect(run({ "b.md": "h" }, {}, { "a.md": "h" }).moves).toEqual([]);
+	});
+});

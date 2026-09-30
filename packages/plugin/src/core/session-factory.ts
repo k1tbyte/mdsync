@@ -3,10 +3,13 @@ import type { EncryptionKey } from "@/crypto";
 import { ESyncLogOperation } from "@/logs/store";
 import {
 	activeStorage,
+	isGuest,
 	isStorageConfigured,
 	type ObsyncSettings,
 } from "@/settings/model";
-import { shareIdentity, shareKey, shareStorage } from "@/spaces/access";
+import type { SpaceRecords } from "@/spaces";
+import { shareKey, shareStorage } from "@/spaces/access";
+import { shareIdentity } from "@/spaces/record";
 import { createStorageAdapter, type StorageAdapter } from "@/storage";
 import { clearRemoteTextCache } from "@/sync/content";
 import type { EngineDependencies } from "@/sync/engine";
@@ -31,6 +34,7 @@ import type { StatePersister } from "./state-persister";
 export interface SessionFactoryDeps {
 	app: App;
 	settings: ObsyncSettings;
+	spaces: Pick<SpaceRecords, "get">;
 	passphrase: PassphraseManager;
 	state: StatePersister;
 	logs: LogService;
@@ -50,15 +54,7 @@ export function createSessionOpener(deps: SessionFactoryDeps): SessionOpener {
 	const getScope = createScopeMatchers(deps);
 	const getStorage = createAdapterCache(deps);
 	return async (space, partition) => {
-		const { app, settings, state, logs, notify } = deps;
-		if (!isStorageConfigured(settings)) {
-			await logs.warn(
-				ESyncLogOperation.Session,
-				"Session blocked because storage is not configured.",
-			);
-			notify("Configure a storage backend first.");
-			return null;
-		}
+		const { app, settings, state } = deps;
 		const opened =
 			space.root === ""
 				? await openVault(deps, getStorage)
@@ -139,6 +135,16 @@ async function openVault(
 	deps: SessionFactoryDeps,
 	getStorage: AdapterCache,
 ): Promise<OpenedStorage | null> {
+	if (!isStorageConfigured(deps.settings)) {
+		// A guest's vault is not synced by design: nothing to tell.
+		if (isGuest(deps.settings)) return null;
+		await deps.logs.warn(
+			ESyncLogOperation.Session,
+			"Session blocked because storage is not configured.",
+		);
+		deps.notify("Configure a storage backend first.");
+		return null;
+	}
 	if (!(await deps.passphrase.prompt(false))) {
 		await deps.logs.warn(
 			ESyncLogOperation.Session,
@@ -163,7 +169,7 @@ async function openShare(
 	space: Space,
 	getStorage: AdapterCache,
 ): Promise<OpenedStorage> {
-	const record = deps.settings.spaces.find((each) => each.id === space.id);
+	const record = deps.spaces.get(space.id);
 	const storage =
 		record && shareStorage(record, activeStorage(deps.settings), space.root);
 	// Thrown, not notified: the refresh shows it by the folder and goes on.

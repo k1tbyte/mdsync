@@ -22,6 +22,11 @@ export const LAPTOP: Person = {
 	idle: false,
 };
 
+const RECORDS = [
+	{ id: "own", access: { kind: "owner" } },
+	{ id: "in", access: { kind: "participant", readOnly: false } },
+];
+
 export function host(
 	spaces: Space[],
 	people: Person[],
@@ -34,12 +39,9 @@ export function host(
 		},
 		ignoreState: { ignoredPaths: () => [], subscribe: () => () => {} },
 		unseen: new Unseen({ load: () => unseen, save: () => {} }),
-		spaces: { partition: () => spaces },
-		settings: {
-			spaces: [
-				{ id: "own", access: { kind: "owner" } },
-				{ id: "in", access: { kind: "participant", readOnly: false } },
-			],
+		spaces: {
+			partition: () => spaces,
+			get: (id: string) => RECORDS.find((record) => record.id === id),
 		},
 		realtime: {
 			people: {

@@ -45,12 +45,14 @@ function device(
 	};
 	let mounted = root;
 	let marks = flags;
+	let guest = false;
 	const controller = new SyncController({
 		spaces: async () =>
 			mounted === null
 				? [VAULT_SPACE]
 				: [VAULT_SPACE, { id: "share", root: mounted, ...marks }],
 		openSession: async (space, partition) => {
+			if (guest && space === VAULT_SPACE) return null;
 			const storage = space === VAULT_SPACE ? on.vault : on.share;
 			return {
 				space,
@@ -83,7 +85,11 @@ function device(
 	const mark = (next: typeof flags) => {
 		marks = next;
 	};
-	return { adapter, controller, state: () => local, mount, mark };
+	/** No vault storage: its session never opens, the share's does. */
+	const beGuest = (next: boolean) => {
+		guest = next;
+	};
+	return { adapter, controller, state: () => local, mount, mark, beGuest };
 }
 
 async function publishedPaths(
@@ -132,6 +138,78 @@ describe("spaces in the file sync", () => {
 
 		expect(laptop.adapter.readText("Shared/p/b.md")).toBe("B from the phone");
 		expect(laptop.controller.getSnapshot().conflicts).toBe(0);
+	});
+
+	it("pulls a new shared file on a signal while this device has unpushed edits", async () => {
+		const on = remote();
+		const laptop = device(on, "Shared/p");
+		laptop.adapter.putText("Shared/p/b.md", "B");
+		await laptop.controller.refreshAndAutoSync();
+		const phone = device(on, "Mine/q");
+		await phone.controller.refreshAndAutoSync();
+
+		phone.adapter.putText("Mine/q/b.md", "B from the phone");
+		laptop.adapter.putText("Shared/p/new.md", "N");
+		await laptop.controller.refreshAndAutoSync();
+		await phone.controller.refreshAndAutoPull();
+
+		expect(phone.adapter.readText("Mine/q/new.md")).toBe("N");
+		expect(phone.adapter.readText("Mine/q/b.md")).toBe("B from the phone");
+		expect(phone.controller.getSnapshot()).toMatchObject({
+			pendingLocal: 1,
+			conflicts: 0,
+		});
+	});
+
+	it("syncs a joined share with no vault storage, then the vault without the share's files", async () => {
+		const on = remote();
+		const laptop = device(on, "Shared/p");
+		laptop.adapter.putText("Shared/p/b.md", "B");
+		await laptop.controller.refreshAndAutoSync();
+
+		const own = { ...on, vault: new FakeStorage("guest") };
+		const guest = device(own, "Mine/q");
+		guest.beGuest(true);
+		guest.adapter.putText("note.md", "Mine");
+		guest.adapter.putText("Mine/q/c.md", "C");
+		await guest.controller.refreshAndAutoSync();
+		expect(guest.adapter.readText("Mine/q/b.md")).toBe("B");
+		expect(await publishedPaths(on.share, shareKey)).toEqual(["b.md", "c.md"]);
+		expect(await own.vault.list("")).toEqual([]);
+
+		guest.beGuest(false);
+		await guest.controller.refreshAndAutoSync();
+		expect(await publishedPaths(own.vault, vaultKey)).toEqual(["note.md"]);
+
+		laptop.adapter.putText("Shared/p/b.md", "B again");
+		await laptop.controller.refreshAndAutoSync();
+		await guest.controller.refreshAndAutoSync();
+		expect(guest.adapter.readText("Mine/q/b.md")).toBe("B again");
+		expect(guest.controller.getSnapshot()).toMatchObject({
+			error: null,
+			pendingLocal: 0,
+			conflicts: 0,
+		});
+	});
+
+	it("pushes a share's changes on their own, never the vault's nor a read-only share's", async () => {
+		const on = remote();
+		const laptop = device(on, "Shared/p");
+		await laptop.controller.refreshAndAutoSync();
+		laptop.adapter.putText("a.md", "A");
+		laptop.adapter.putText("Shared/p/b.md", "B");
+
+		await laptop.controller.autoPushShares(new Set(["a.md", "Shared/p/b.md"]));
+		expect([
+			await publishedPaths(on.vault, vaultKey),
+			await publishedPaths(on.share, shareKey),
+		]).toEqual([[], ["b.md"]]);
+
+		laptop.mark({ readOnly: true });
+		await laptop.controller.refresh();
+		laptop.adapter.putText("Shared/p/c.md", "C");
+		await laptop.controller.autoPushShares(new Set(["Shared/p/c.md"]));
+		expect(await publishedPaths(on.share, shareKey)).toEqual(["b.md"]);
 	});
 
 	it("routes by the partition of the last refresh, not by newer records", async () => {
@@ -271,6 +349,56 @@ describe("spaces in the file sync", () => {
 			error: null,
 			conflicts: 0,
 		});
+		expect(await publishedPaths(on.vault, vaultKey)).toEqual([
+			"Shared/p/b.md",
+			"mine.md",
+		]);
+	});
+
+	/** The owner shares `Shared/p` and pushes the drop; the laptop has the share paused. */
+	async function sharedWhilePaused() {
+		const on = remote();
+		const owner = device(on, null);
+		owner.adapter.putText("Shared/p/b.md", "B");
+		await owner.controller.refreshAndAutoSync();
+		const laptop = device(on, null);
+		await laptop.controller.refreshAndAutoSync();
+
+		owner.mount("Shared/p");
+		owner.adapter.putText("mine.md", "M");
+		await owner.controller.refreshAndAutoSync();
+		laptop.mark({ paused: true });
+		laptop.mount("Shared/p");
+		await laptop.controller.refreshAndAutoSync();
+		return { on, laptop };
+	}
+
+	it("keeps the dropped frozen entry as a live merge base until the share here holds the path", async () => {
+		const { laptop } = await sharedWhilePaused();
+
+		const vault = laptop.state().storages.vault;
+		expect(vault?.baseline?.files).not.toHaveProperty("Shared/p/b.md");
+		expect(vault?.shareBases).toHaveProperty("Shared/p/b.md");
+		const base = await laptop.controller.fileDiffs.loadBaselineForPath(
+			"Shared/p/b.md",
+			VAULT_SPACE,
+		);
+		expect(base?.text).toBe("B");
+
+		laptop.mark({});
+		await laptop.controller.refreshAndAutoSync();
+		await laptop.controller.refreshAndAutoSync();
+		expect(laptop.state().storages.vault).not.toHaveProperty("shareBases");
+	});
+
+	it("lets the merge base go without a deletion when the share closes before it was pulled", async () => {
+		const { on, laptop } = await sharedWhilePaused();
+
+		laptop.mount(null);
+		await laptop.controller.refreshAndAutoSync();
+
+		expect(laptop.state().storages.vault).not.toHaveProperty("shareBases");
+		expect(laptop.adapter.readText("Shared/p/b.md")).toBe("B");
 		expect(await publishedPaths(on.vault, vaultKey)).toEqual([
 			"Shared/p/b.md",
 			"mine.md",

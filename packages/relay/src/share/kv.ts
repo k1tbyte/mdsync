@@ -4,7 +4,7 @@
  * layout stays in this file.
  */
 
-import { type HubEnv, hubStub } from "../hub/durable-object";
+import { type HubEnv, hubStub } from "../hub/stub";
 import { fingerprint, type SecretEnv } from "../secret";
 import type { S3Target } from "./sigv4";
 
@@ -49,13 +49,20 @@ export async function shareGrantOf(
 	token: string,
 ): Promise<TokenRecord | null> {
 	if (!TOKEN_PATTERN.test(token)) return null;
-	const record = (await env.SHARE_TOKENS.get(
-		tokenKey(token),
-		"json",
-	)) as TokenRecord | null;
+	const record = await tokenRecord(env, token);
 	if (!record) return null;
 	const pointer = pointerKey(record.shareId, record.participantId);
 	return (await env.SHARE_TOKENS.get(pointer)) === token ? record : null;
+}
+
+async function tokenRecord(
+	env: ShareEnv,
+	token: string,
+): Promise<TokenRecord | null> {
+	return (await env.SHARE_TOKENS.get(
+		tokenKey(token),
+		"json",
+	)) as TokenRecord | null;
 }
 
 export async function readStorage(
@@ -87,11 +94,10 @@ export async function saveToken(
 	const token = base64Url(crypto.getRandomValues(new Uint8Array(TOKEN_BYTES)));
 	const record: TokenRecord = { ...grant, createdAt: Date.now() };
 	const pointer = pointerKey(record.shareId, record.participantId);
-	// Re-inviting replaces a person's token, so the previous one must be destroyed to avoid leaving unrevocable tokens.
 	const previous = await env.SHARE_TOKENS.get(pointer);
+	if (previous) await dropToken(env, previous);
 	await env.SHARE_TOKENS.put(tokenKey(token), JSON.stringify(record));
 	await env.SHARE_TOKENS.put(pointer, token);
-	if (previous) await dropToken(env, previous);
 	return { token, ...record };
 }
 
@@ -101,7 +107,8 @@ export async function listParticipants(env: ShareEnv, shareId: string) {
 			const token = await env.SHARE_TOKENS.get(
 				pointerKey(shareId, participantId),
 			);
-			const record = token ? await shareGrantOf(env, token) : null;
+			// The pointer names it, so it is current: no second pointer read.
+			const record = token ? await tokenRecord(env, token) : null;
 			return { participantId, label: record?.label ?? "", role: record?.role };
 		}),
 	);
@@ -113,11 +120,11 @@ export async function revokeHeldToken(
 	token: string,
 	record: TokenRecord,
 ): Promise<void> {
+	await dropToken(env, token);
 	const pointer = pointerKey(record.shareId, record.participantId);
 	if ((await env.SHARE_TOKENS.get(pointer)) === token) {
 		await env.SHARE_TOKENS.delete(pointer);
 	}
-	await dropToken(env, token);
 }
 
 export async function revokeParticipant(
@@ -127,9 +134,9 @@ export async function revokeParticipant(
 ): Promise<boolean> {
 	const pointer = pointerKey(shareId, participantId);
 	const token = await env.SHARE_TOKENS.get(pointer);
-	await env.SHARE_TOKENS.delete(pointer);
 	if (!token) return false;
 	await dropToken(env, token);
+	await env.SHARE_TOKENS.delete(pointer);
 	return true;
 }
 
@@ -162,10 +169,10 @@ async function participantIds(
 	return ids;
 }
 
-/** Deletes the token, then cuts any hub socket it admitted. */
+/** Cuts the hub sockets first: a retry after a failure still finds the pointer and cuts again. */
 async function dropToken(env: ShareEnv, token: string): Promise<void> {
-	await env.SHARE_TOKENS.delete(tokenKey(token));
 	await hubStub(env).dropGrant(await fingerprint(token));
+	await env.SHARE_TOKENS.delete(tokenKey(token));
 }
 
 function base64Url(bytes: Uint8Array): string {

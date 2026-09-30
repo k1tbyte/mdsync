@@ -3,6 +3,7 @@ import { ESyncLogOperation } from "@/logs/store";
 import { mergeWrittenIntoCache } from "@/sync/baseline";
 import { LOG_PATH_LIMIT } from "@/sync/constants";
 import { writeRemoteEntry } from "@/sync/content";
+import { withMoves } from "@/sync/moves";
 import { EChangeType, type ManifestEntry } from "@/sync/types";
 import { runWithConcurrency } from "@/utils/concurrency";
 import { deletePath } from "@/vault/io";
@@ -14,7 +15,9 @@ export const revertPathsOp: Operation<ReadonlyArray<string>> = async (
 	paths,
 	ctx,
 ) => {
-	const touched = new Set(paths);
+	// Half a move undone would leave the file at neither path.
+	const ours = result.diff.moves.filter(({ side }) => side === "local");
+	const touched = new Set(withMoves(paths, ours));
 	const localEntries = new Map<string, ManifestEntry | null>();
 	// Indexed once: scanning the change array per path is quadratic, and a
 	// revert of 5,000 files spends 76 ms of it against 1 ms indexed.

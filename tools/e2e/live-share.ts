@@ -118,15 +118,16 @@ await runSharing(
 						.getLeavesOfType("markdown")[0]
 						.view.containerEl.querySelector(".obsync-note-presence");
 					return [
-						header?.querySelector(".obsync-live-dot")?.className,
+						header?.querySelector(".obsync-note-state")?.className,
 						[...(header?.querySelectorAll(".obsync-avatar") ?? [])].map(
 							(face) => face.textContent,
 						),
 					];
 				},
-				([dot, faces]) => dot === "obsync-live-dot is-live" && faces.length > 0,
+				([state, faces]) =>
+					state === "obsync-note-state is-live" && faces.length > 0,
 			),
-			["obsync-live-dot is-live", ["F"]],
+			["obsync-note-state is-live", ["F"]],
 		);
 		await clickMenuItem(owner, "Team", "Obsync: Manage sharing");
 		check(
@@ -247,7 +248,7 @@ await runSharing(
 			);
 		}
 		check(
-			"follow cursor puts the owner where the friend is",
+			"follow cursor scrolls, the owner's caret stays",
 			await owner.evaluate(() => {
 				const { editor, containerEl } =
 					app.workspace.getLeavesOfType("markdown")[0].view;
@@ -258,11 +259,9 @@ await runSharing(
 				) as HTMLElement | undefined;
 				if (!item) throw new Error("no follow cursor in the header menu");
 				item.click();
-				return (
-					editor.posToOffset(editor.getCursor()) === editor.getValue().length
-				);
+				return editor.posToOffset(editor.getCursor());
 			}),
-			true,
+			0,
 		);
 		await follows(owner, friend);
 		await friend.evaluate(() =>

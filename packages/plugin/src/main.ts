@@ -9,17 +9,17 @@ import {
 } from "@/core";
 import { registerReadOnlyLock } from "@/editor/read-only";
 import { registerEditorSigns, type SignsHandle } from "@/editor/signs";
-import type { Unseen } from "@/presence/unseen";
+import type { Unseen } from "@/presence";
 import {
+	canSync,
 	DEFAULT_SETTINGS,
-	isStorageConfigured,
 	mergeSettings,
 	type ObsyncSettings,
 } from "@/settings/model";
 import type { ObsyncSettingTab } from "@/settings/tab";
 import { SettingsTransferController } from "@/settings/transfer-controller";
 import { reportWarning } from "@/shared/diagnostics";
-import type { SpaceRecords } from "@/spaces/records";
+import type { SpaceRecords } from "@/spaces";
 import type { SyncController } from "@/sync/controller";
 import { registerScheduler } from "@/sync/scheduler";
 import type { IndicatorHandle } from "@/ui";
@@ -29,6 +29,7 @@ import {
 	disposePluginRuntime,
 } from "./plugin/bootstrap";
 import {
+	registerHashCarry,
 	registerIgnoreFileRefresh,
 	registerStatePersistenceFlush,
 	registerWorkspaceMenus,
@@ -112,7 +113,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 			passphrase: this.passphrase,
 			controller: this.controller,
 			settings: () => this.settings,
-			partition: () => this.spaces.partition(),
+			spaces: this.spaces,
 		});
 		this.device = new DeviceName(this.statePersister, () =>
 			this.realtime.hub.restart(),
@@ -135,7 +136,8 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 		this.editorSigns = registerEditorSigns(this);
 		registerReadOnlyLock(this);
 
-		registerCommands(this);
+		registerCommands(this, registeredUi.openNoteMenu);
+		registerHashCarry(this, this.statePersister);
 		registerScheduler(this, this.controller);
 		registerWorkspaceMenus(this);
 		registerShareRenames(this);
@@ -202,7 +204,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 			return;
 		}
 		this.controller.invalidate(reason);
-		if (!isStorageConfigured(this.settings)) return;
+		if (!canSync(this.settings)) return;
 		if (this.scopeRefreshTimer !== null) {
 			window.clearTimeout(this.scopeRefreshTimer);
 		}

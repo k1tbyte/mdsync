@@ -2,7 +2,7 @@ import type { PluginHost } from "@/plugin/host";
 import { activeStorage } from "@/settings/model";
 import { describeStorageTarget } from "@/storage";
 import { cleanSummary } from "@/sync/maintenance";
-import { notifyError, notifyInfo, reportError } from "@/ui/common/notices";
+import { notifyError, notifyInfo, reportError } from "@/ui/common";
 import { confirmRemoteReset, openConfirmModal } from "@/ui/modals";
 
 const NO_STORAGE = "Configure a storage backend first.";

@@ -12,6 +12,7 @@ import {
 	confirm,
 	field,
 	fill,
+	loaded,
 	openSettings,
 	press,
 	read,
@@ -37,38 +38,46 @@ export interface SentInvite {
 	password: string;
 }
 
-/** Both devices launched, unlocked and synced once, then `body`. */
+/** Settings of a vault kept under `prefix` in the scenario's bucket. */
+export function s3Vault(s3: S3, prefix: string) {
+	return {
+		storageConfigs: {
+			s3: {
+				kind: "s3",
+				endpoint: s3.url,
+				region: "auto",
+				bucket: s3.bucket,
+				prefix,
+				accessKeyId: prefix,
+				secretAccessKey: prefix,
+				forcePathStyle: true,
+				concurrency: 4,
+			},
+		},
+		activeStorageKind: "s3",
+	};
+}
+
+/**
+ * Both devices launched, unlocked and synced once, then `body`. A `guest`
+ * friend has no vault storage and is only loaded.
+ */
 export function runSharing(
 	name: string,
 	files: { owner: Record<string, string>; friend: Record<string, string> },
 	body: (owner: Obsidian, friend: Obsidian, s3: S3) => Promise<void>,
+	{ guest = false } = {},
 ): Promise<never> {
 	return runScenario(name, async () => {
 		const relay = await startRelay(RELAY_PORT, SECRET);
 		const s3 = await startS3(S3_PORT);
 		const devices: Obsidian[] = [];
-		const vault = (prefix: string) => ({
-			storageConfigs: {
-				s3: {
-					kind: "s3",
-					endpoint: s3.url,
-					region: "auto",
-					bucket: s3.bucket,
-					prefix,
-					accessKeyId: prefix,
-					secretAccessKey: prefix,
-					forcePathStyle: true,
-					concurrency: 4,
-				},
-			},
-			activeStorageKind: "s3",
-			realtimeSync: true,
-		});
 		try {
 			const owner = await launchObsidian({
 				port: CDP_PORTS.owner,
 				settings: {
-					...vault("owner"),
+					...s3Vault(s3, "owner"),
+					realtimeSync: true,
 					relayUrl: relay.url,
 					relaySecret: SECRET,
 				},
@@ -77,14 +86,20 @@ export function runSharing(
 			devices.push(owner);
 			const friend = await launchObsidian({
 				port: CDP_PORTS.friend,
-				settings: vault("friend"),
+				settings: {
+					...(guest ? {} : s3Vault(s3, "friend")),
+					realtimeSync: true,
+				},
 				files: files.friend,
 			});
 			devices.push(friend);
 			await unlock(owner, "owner-passphrase");
-			await unlock(friend, "friend-passphrase");
 			check("the owner syncs", await sync(owner), CLEAN);
-			check("the friend syncs", await sync(friend), CLEAN);
+			if (guest) await loaded(friend);
+			else {
+				await unlock(friend, "friend-passphrase");
+				check("the friend syncs", await sync(friend), CLEAN);
+			}
 			await body(owner, friend, s3);
 		} finally {
 			relay.stop();

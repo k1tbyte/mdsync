@@ -2,7 +2,7 @@ import type { ObsidianProtocolData, Plugin } from "obsidian";
 
 import { LINK_PARAM } from "@/crypto/sealed-link";
 import { TRANSFER_ACTION } from "@/settings/transfer";
-import { INVITE_ACTION } from "@/spaces/invite";
+import { INVITE_ACTION } from "@/spaces";
 import { handleStorageProtocol } from "@/storage";
 import { notifyError, notifyInfo, openInvite } from "@/ui";
 

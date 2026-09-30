@@ -6,11 +6,12 @@ import {
 	PassphraseManager,
 	StatePersister,
 } from "@/core";
-import type { ObsyncSettings } from "@/settings/model";
+import { isStorageConfigured, type ObsyncSettings } from "@/settings/model";
 import { reportWarning } from "@/shared/diagnostics";
-import { SpaceRecords } from "@/spaces/records";
+import { SpaceRecords } from "@/spaces";
 import { SyncController } from "@/sync/controller";
 import type { LiveNotes } from "@/sync/live-notes";
+import { fetchRemoteManifest } from "@/sync/manifest";
 import { type Space, VAULT_SPACE } from "@/sync/space";
 import { askPassphrase, notifyError, notifyInfo } from "@/ui";
 
@@ -51,9 +52,11 @@ export async function bootstrapPluginRuntime(
 		settings,
 	);
 
+	const spaces = new SpaceRecords(settings, persistSettings);
 	const openSession = createSessionOpener({
 		app,
 		settings,
+		spaces,
 		passphrase: passphraseManager,
 		state: statePersister,
 		logs,
@@ -62,28 +65,36 @@ export async function bootstrapPluginRuntime(
 		liveNotes,
 	});
 
-	const spaces = new SpaceRecords(settings, persistSettings);
 	const followMoves = createMoveFollower(app.vault, spaces, notifyError);
 	const warnInert = createInertWarning(spaces);
 	const controller = new SyncController({
 		spaces: async () => {
-			const vault = await openSession(VAULT_SPACE, [VAULT_SPACE]);
-			if (!vault) return null;
-			const { published, closed, left } = await spaces.sync(
-				vault.storage,
-				vault.key,
-			);
-			if (published) options.onPushComplete?.(VAULT_SPACE);
-			if (left.length > 0) {
-				notifyError(
-					`The vault storage changed: ${left.length} shared folder(s) stay with the previous one and sync here as plain folders until you switch back.`,
+			// Without vault storage (a guest) the records stay here until there is a vault to keep them in.
+			if (isStorageConfigured(settings)) {
+				const vault = await openSession(VAULT_SPACE, [VAULT_SPACE]);
+				if (!vault) return null;
+				const { storage, key } = vault;
+				await spaces.admitJoined(storage, key, async () =>
+					Object.keys(
+						(await fetchRemoteManifest(storage, key, VAULT_SPACE.root))
+							?.files ?? {},
+					),
 				);
-			}
-			// Queued behind this refresh: a share reopened later must not start from this baseline.
-			for (const space of [...closed, ...left]) {
-				controller
-					.forgetSpace(space)
-					.catch((err) => reportWarning("A closed share kept its state.", err));
+				const { published, closed, left } = await spaces.sync(storage, key);
+				if (published) options.onPushComplete?.(VAULT_SPACE);
+				if (left.length > 0) {
+					notifyError(
+						`The vault storage changed: ${left.length} shared folder(s) stay with the previous one and sync here as plain folders until you switch back.`,
+					);
+				}
+				// Queued behind this refresh: a share reopened later must not start from this baseline.
+				for (const space of [...closed, ...left]) {
+					controller
+						.forgetSpace(space)
+						.catch((err) =>
+							reportWarning("A closed share kept its state.", err),
+						);
+				}
 			}
 			await followMoves();
 			warnInert();

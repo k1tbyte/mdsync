@@ -1,5 +1,5 @@
 import { FakeStorage } from "@tests/helpers/fake-storage";
-import { device, record } from "@tests/helpers/space-records";
+import { device, joined, record } from "@tests/helpers/space-records";
 import { beforeAll, describe, expect, it } from "vitest";
 import { deriveKey, type EncryptionKey, encryptJson } from "@/crypto";
 import { mountError, spacesOf } from "@/spaces/partition";
@@ -257,6 +257,76 @@ describe("records through the vault storage", () => {
 			{ id: "a", root: "Shared/a" },
 		]);
 		expect((await phone.records.sync(storage, key)).closed).toEqual([]);
+	});
+
+	it("keep a share joined before this device knew the vault over the vault's older close of it", async () => {
+		const storage = new FakeStorage();
+		const laptop = device([joined("a", "Shared/a")]);
+		await laptop.records.sync(storage, key);
+		await laptop.records.close("a", "laptop");
+		await laptop.records.sync(storage, key);
+		const guest = device([joined("a", "Mine/a", 1, "guest")]);
+
+		expect((await guest.records.sync(storage, key)).closed).toEqual([]);
+		await laptop.records.sync(storage, key);
+
+		const rejoined = joined("a", "Mine/a", 3, "guest");
+		expect([guest.records.list(), laptop.records.list()]).toEqual([
+			[rejoined],
+			[rejoined],
+		]);
+	});
+
+	it("keep the vault's own share its owner's over what a device joined or left before it knew the vault", async () => {
+		const mine = joined("a", "Mine/a", 5, "zz");
+		const cases = [
+			{ guestOf: mine, moves: { a: "Mine/a" } },
+			{ guestOf: { ...mine, closed: true as const }, moves: {} },
+		];
+		for (const { guestOf, moves } of cases) {
+			const storage = new FakeStorage();
+			const laptop = device([record("a", "Team")]);
+			await laptop.records.sync(storage, key);
+			const guest = device([guestOf]);
+
+			await guest.records.sync(storage, key);
+			await laptop.records.sync(storage, key);
+			expect([
+				guest.settings.spaces,
+				guest.settings.localRoots,
+				laptop.records.list(),
+			]).toEqual([[record("a", "Team")], moves, [record("a", "Team")]]);
+		}
+	});
+
+	it("admit a share joined before this device knew the vault only where the vault has nothing", async () => {
+		const storage = new FakeStorage();
+		await device([record("b", "Team")]).records.sync(storage, key);
+		const admit = (root: string, paths: string[] = []) =>
+			device([joined("a", root, 1, "guest")]).records.admitJoined(
+				storage,
+				key,
+				async () => paths,
+			);
+
+		await expect(admit("Mine/a")).resolves.toBeUndefined();
+		await expect(admit("Mine/a", ["Mine/a/x.md"])).rejects.toThrow(
+			'Rename "Mine/a"',
+		);
+		await expect(admit("Team/a")).rejects.toThrow('Rename "Team/a"');
+		// The vault holds another of this device's shares where it mounted this one.
+		await device([joined("c", "Mine/c")]).records.sync(storage, key);
+		const two = device([joined("c", "Other/c"), joined("d", "Mine/c")]);
+		await expect(
+			two.records.admitJoined(storage, key, async () => []),
+		).rejects.toThrow('Rename "Mine/c"');
+
+		// Bound: its records were traded with this vault already.
+		const bound = device([joined("a", "Team/a", 1, "guest")]);
+		bound.settings.spacesVault = storage.identity();
+		await expect(
+			bound.records.admitJoined(storage, key, async () => []),
+		).resolves.toBeUndefined();
 	});
 
 	it("keep the later edit of one record from two devices", async () => {

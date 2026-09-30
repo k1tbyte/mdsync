@@ -1,10 +1,9 @@
 import { MarkdownView, type Plugin, setIcon } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
-import { revealInFileExplorer } from "@/ui/common/obsidian-helpers";
+import { makeActivatable, revealInFileExplorer } from "@/ui/common";
 import { createSymlinkDetector, type SymlinkDetector } from "@/vault/symlinks";
 import type { IndicatorHandle } from "./indicator-handle";
-import { setIndicatorTooltip } from "./indicator-tooltip";
 
 export function registerFileContextIndicators(
 	plugin: Plugin & PluginHost,
@@ -20,7 +19,7 @@ export function registerFileContextIndicators(
 	let disposed = false;
 	let renderFrame: number | null = null;
 
-	makeInteractive(root, () => {
+	makeActivatable(root, null, () => {
 		if (revealPath) void revealInFileExplorer(plugin.app, revealPath);
 	});
 
@@ -39,14 +38,17 @@ export function registerFileContextIndicators(
 			detector = createDetector(plugin);
 		}
 
-		// Keep the last markdown view when clicking the file explorer.
+		// Keep the last markdown view while a sidebar is focused, not once another file view is active.
+		const file = plugin.app.workspace.getActiveFile();
 		const activeView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
 		if (activeView) contextView = activeView;
-		if (contextView && !contextView.containerEl.isConnected) {
+		if (
+			contextView &&
+			(!contextView.containerEl.isConnected || contextView.file !== file)
+		) {
 			contextView = null;
 		}
 		const view = contextView;
-		const file = view?.file ?? plugin.app.workspace.getActiveFile();
 		if (!file) {
 			root.addClass("obsync-hidden");
 			return;
@@ -69,13 +71,12 @@ export function registerFileContextIndicators(
 			});
 			setIcon(chip, "link-2");
 			chip.createSpan({ text: `Linked via ${linkRoot}` });
-			setIndicatorTooltip(chip, tooltip);
+			chip.setAttr("aria-label", tooltip);
 			if (view) {
 				const action = view.addAction("link-2", tooltip, () => {
 					void revealInFileExplorer(plugin.app, linkRoot);
 				});
 				action.addClass("obsync-link-context");
-				setIndicatorTooltip(action, tooltip);
 				actions.push(action);
 			}
 		}
@@ -92,13 +93,12 @@ export function registerFileContextIndicators(
 			});
 			setIcon(chip, "eye-off");
 			chip.createSpan({ text: "Ignored" });
-			setIndicatorTooltip(chip, tooltip);
+			chip.setAttr("aria-label", tooltip);
 			if (view) {
 				const action = view.addAction("eye-off", tooltip, () => {
 					void revealInFileExplorer(plugin.app, file.path);
 				});
 				action.addClass("obsync-ignored-context");
-				setIndicatorTooltip(action, tooltip);
 				actions.push(action);
 			}
 		}
@@ -156,15 +156,4 @@ function createDetector(plugin: Plugin & PluginHost): SymlinkDetector {
 		plugin.app.vault.adapter,
 		plugin.settings.ignoreSymlinks,
 	);
-}
-
-function makeInteractive(target: HTMLElement, activate: () => void): void {
-	target.setAttr("role", "button");
-	target.setAttr("tabindex", "0");
-	target.addEventListener("click", activate);
-	target.addEventListener("keydown", (event) => {
-		if (event.key !== "Enter" && event.key !== " ") return;
-		event.preventDefault();
-		activate();
-	});
 }

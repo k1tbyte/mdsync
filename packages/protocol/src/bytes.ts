@@ -1,5 +1,6 @@
 const encoder = new TextEncoder();
-const decoder = new TextDecoder();
+/** Fatal and BOM-keeping, so decoded text re-encodes to the bytes it came from. */
+const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const MAX_TEXT_BYTES = 255;
 
 export function toHex(bytes: ArrayBuffer | Uint8Array): string {
@@ -28,7 +29,6 @@ export class Writer {
 		return this;
 	}
 
-	/** Length-prefixed, for a field that is not last. */
 	block(value: Uint8Array): this {
 		return this.u32(value.length).bytes(value);
 	}

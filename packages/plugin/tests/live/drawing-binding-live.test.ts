@@ -13,10 +13,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { deriveLiveKeys } from "@/crypto/live-keys";
 import type { SceneElement } from "@/drawing";
+import { docIdFor } from "@/live/doc-id";
 import { bindDrawing } from "@/live/drawing/binding";
 import { DRAWING, type DrawingModel } from "@/live/drawing/model";
-import { docIdFor } from "@/live/seal";
-import { LiveSession } from "@/live/session";
+import { LiveSession } from "@/live/session/session";
 
 useExcalidrawLib();
 

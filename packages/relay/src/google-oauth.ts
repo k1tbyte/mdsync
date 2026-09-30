@@ -1,21 +1,19 @@
 /**
- * Google Drive OAuth for the plugin.
- *
- * `/auth` runs the browser consent flow and hands the tokens back through the
- * `obsidian://obsync-auth` protocol link. `/refresh` exchanges a stored refresh
- * token for a fresh access token. The client secret never leaves the worker.
+ * Google Drive OAuth proxy: `/auth` runs the consent flow and hands the tokens
+ * back through `obsidian://obsync-auth`; `/refresh` trades a refresh token for
+ * an access token. The client secret never leaves the worker.
  */
 
 import { toHex } from "@obsync/protocol";
+import { secretsEqual } from "./secret";
 
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const CONSENT_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const CALLBACK_PROTOCOL = "obsidian://obsync-auth";
 const STATE_COOKIE = "obsync_oauth_state";
-/** How long a consent round trip may take before its state is refused. */
 const STATE_TTL_MS = 10 * 60 * 1000;
-/** A Google refresh token; anything wildly outside this is not worth proxying. */
+/** Longer than any Google refresh token. */
 const REFRESH_TOKEN_MAX = 2048;
 
 const CORS_JSON_HEADERS = {
@@ -93,7 +91,7 @@ export async function handleAuthCallback(
 	const state = url.searchParams.get("state");
 	if (
 		!(await verifyState(env, state)) ||
-		!matchesCookie(request, state as string)
+		!(await matchesCookie(request, state as string))
 	) {
 		return new Response("This sign-in link is invalid or expired.", {
 			status: 400,
@@ -128,28 +126,22 @@ function stateCookie(state: string): string {
 
 const CLEARED_STATE_COOKIE = `${STATE_COOKIE}=; Path=/auth; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
 
-/** The consent round trip has to come back in the browser that started it. */
-function matchesCookie(request: Request, state: string): boolean {
+async function matchesCookie(
+	request: Request,
+	state: string,
+): Promise<boolean> {
 	const header = request.headers.get("Cookie");
 	if (!header) return false;
 	for (const part of header.split(";")) {
 		const [name, ...rest] = part.trim().split("=");
-		if (name !== STATE_COOKIE) continue;
-		const value = rest.join("=");
-		if (value.length !== state.length) continue;
-		let diff = 0;
-		for (let i = 0; i < value.length; i++) {
-			diff |= value.charCodeAt(i) ^ state.charCodeAt(i);
+		if (name === STATE_COOKIE && (await secretsEqual(rest.join("="), state))) {
+			return true;
 		}
-		if (diff === 0) return true;
 	}
 	return false;
 }
 
-/**
- * CSRF token: a timestamp plus an HMAC under a secret the worker holds.
- * The signature proves issue; the paired cookie ties it to one browser.
- */
+/** A timestamp plus an HMAC under the worker's secret: proves this worker issued it. */
 async function issueState(env: GoogleOAuthEnv): Promise<string> {
 	const issued = String(Date.now());
 	return `${issued}.${await signState(env, issued)}`;
@@ -164,13 +156,7 @@ async function verifyState(
 	if (!issued || !signature) return false;
 	const age = Date.now() - Number(issued);
 	if (!Number.isFinite(age) || age < 0 || age > STATE_TTL_MS) return false;
-	const expected = await signState(env, issued);
-	if (expected.length !== signature.length) return false;
-	let diff = 0;
-	for (let i = 0; i < expected.length; i++) {
-		diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
-	}
-	return diff === 0;
+	return secretsEqual(await signState(env, issued), signature);
 }
 
 async function signState(env: GoogleOAuthEnv, issued: string): Promise<string> {

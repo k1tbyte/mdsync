@@ -2,13 +2,13 @@ import { setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import type { SyncStatusSnapshot } from "@/sync/controller";
 import type { DiffResult, ManifestEntry } from "@/sync/types";
-import { notifyError } from "@/ui/common/notices";
+import { notifyError } from "@/ui/common";
 import { actionButton } from "./action-button";
 import type { SourceControlActions } from "./actions";
 import { ChangesSection, type ChangesSectionDeps } from "./changes-section";
 import type { ConflictPreviewManager } from "./conflict-preview-manager";
 import { diffEquals } from "./diff-identity";
-import { rowFromChange, rowFromConflict } from "./row-formatter";
+import { foldMoves, rowFromChange, rowFromConflict } from "./row-formatter";
 import { fillStatusLine, formatActionCount, hasSyncError } from "./status-line";
 import { ESection, type FileRow } from "./types";
 
@@ -137,14 +137,14 @@ export class ChangesTab {
 						sizeIn(remoteFiles, conflict.path),
 				),
 			),
-			[ESection.Local]: diff.localChanges.map((change) =>
+			[ESection.Local]: foldMoves(diff.localChanges, diff.moves, (change) =>
 				rowFromChange(
 					change,
 					sizeIn(localFiles, change.path) ?? sizeIn(remoteFiles, change.path),
 					sizeIn(remoteFiles, change.path),
 				),
 			),
-			[ESection.Remote]: diff.remoteChanges.map((change) =>
+			[ESection.Remote]: foldMoves(diff.remoteChanges, diff.moves, (change) =>
 				rowFromChange(
 					change,
 					sizeIn(remoteFiles, change.path) ?? sizeIn(localFiles, change.path),

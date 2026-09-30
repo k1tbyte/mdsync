@@ -1,20 +1,13 @@
 import type { View, Workspace } from "obsidian";
 
-/**
- * Abstracts the undocumented file explorer row map so Obsidian updates fail gracefully.
- */
+/** The explorer's row map is undocumented: a missing one makes every lookup null. */
 interface FileExplorerView extends View {
 	fileItems?: unknown;
 }
 
 export interface FileExplorerRows {
 	containerEl: HTMLElement;
-	/**
-	 * The element a badge attaches to, or null when the explorer has no row for
-	 * that path. Looked up rather than collected: this runs inside the frame the
-	 * explorer is scrolling in, and materialising every row of a 20k vault costs
-	 * 5.8 ms of it to answer for the handful of paths that changed.
-	 */
+	/** Looked up, not collected: this runs in the scroll frame, and materialising every row of a 20k vault costs 5.8 ms. */
 	row(path: string): HTMLElement | null;
 	/** Every path the explorer knows. Only the symlink scan wants them all. */
 	paths(): string[];

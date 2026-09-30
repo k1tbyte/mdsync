@@ -2,10 +2,13 @@ import { setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { errorMessage } from "@/shared/errors";
 import type { SnapshotListResult } from "@/sync/history";
-import { makeActivatable } from "@/ui/common/activatable";
-import { appendIconButton, appendLabeledButton } from "@/ui/common/icon-button";
-import { onLongPress } from "@/ui/common/long-press";
-import { notifyError } from "@/ui/common/notices";
+import {
+	appendIconButton,
+	appendLabeledButton,
+	makeActivatable,
+	notifyError,
+	onLongPress,
+} from "@/ui/common";
 import type { HistoryDiffTarget } from "@/ui/source-control-view";
 import { groupByDay } from "./day-groups";
 import { STATUS_CLASSES, STATUS_LETTERS } from "./row-formatter";

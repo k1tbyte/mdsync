@@ -171,6 +171,89 @@ describe("people", () => {
 		expect(friend.people.devices().locked).toBe(false);
 	});
 
+	it("drop what they read once the key is out of reach, and read it again when it is back", async () => {
+		const { relay, accessFor } = await setup();
+		const owner = relay.add(
+			spacesWith("Team"),
+			accessFor("d1", "owner", "Owner"),
+		);
+		let unlocked = true;
+		const access = accessFor("d9", "p1", "Alex");
+		const friend = relay.add(spacesWith("Team"), async (space) =>
+			unlocked ? access(space) : null,
+		);
+		relay.join(friend);
+		relay.join(owner);
+		owner.people.setHere({ path: "Team/a.md", idle: false });
+		await vi.waitFor(() =>
+			expect(friend.people.inNote("Team/a.md")).toHaveLength(1),
+		);
+
+		unlocked = false;
+		friend.people.refresh();
+		await vi.waitFor(() => expect(friend.people.devices().locked).toBe(true));
+		expect(friend.people.inNote("Team/a.md")).toEqual([]);
+
+		unlocked = true;
+		friend.people.refresh();
+		await vi.waitFor(() =>
+			expect(friend.people.inNote("Team/a.md")).toHaveLength(1),
+		);
+	});
+
+	it("go on announcing after one announcement failed to seal", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		const { relay, accessFor } = await setup();
+		const owner = relay.add(
+			spacesWith("Team"),
+			accessFor("d1", "owner", "Owner"),
+		);
+		const friend = relay.add(
+			spacesWith("Shared/Team"),
+			accessFor("d9", "p1", "Alex"),
+		);
+		relay.join(friend);
+		relay.join(owner);
+		await vi.waitFor(() =>
+			expect(friend.people.online(SHARE_ID)).toHaveLength(1),
+		);
+		const encrypt = vi
+			.spyOn(crypto.subtle, "encrypt")
+			.mockRejectedValueOnce(new Error("sealing failed"));
+
+		owner.people.setHere({ path: "Team/a.md", idle: false });
+		await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+		owner.people.setHere({ path: "Team/b.md", idle: false });
+
+		await vi.waitFor(() =>
+			expect(friend.people.inNote("Shared/Team/b.md")).toHaveLength(1),
+		);
+		encrypt.mockRestore();
+		warn.mockRestore();
+	});
+
+	it("tell a newcomer the unchanged announcement without sealing it again", async () => {
+		const { relay, accessFor } = await setup();
+		const forward = vi.spyOn(
+			relay as unknown as { forward: () => void },
+			"forward",
+		);
+		const owner = relay.add(
+			spacesWith("Team"),
+			accessFor("d1", "owner", "Owner"),
+		);
+		owner.people.setHere({ path: "Team/a.md", idle: false });
+		relay.join(owner);
+		await vi.waitFor(() => expect(forward).toHaveBeenCalledTimes(2));
+		const encrypt = vi.spyOn(crypto.subtle, "encrypt");
+
+		relay.join(relay.add(spacesWith("Team"), async () => null));
+
+		await vi.waitFor(() => expect(forward).toHaveBeenCalledTimes(4));
+		expect(encrypt).not.toHaveBeenCalled();
+		encrypt.mockRestore();
+	});
+
 	it("follow a person going idle and leaving", async () => {
 		const { relay, accessFor } = await setup();
 		const owner = relay.add(

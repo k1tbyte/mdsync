@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS_SYNC } from "@/settings/model";
 import type { CompareResult, EngineDependencies } from "@/sync/engine";
 import {
+	carryHashes,
 	mergeSessionIntoLocal,
 	projectSession,
 	recomputeAfterWrite,
+	sharesHold,
 } from "@/sync/session-state";
 import { VAULT_SPACE } from "@/sync/space";
 import type {
@@ -55,6 +57,7 @@ function compareResult(local: Record<string, string>): CompareResult {
 			localChanges: [],
 			remoteChanges: [],
 			conflicts: [],
+			moves: [],
 			converged: [],
 			remoteMoved: false,
 		},
@@ -208,6 +211,58 @@ describe("session projection", () => {
 		expect(next.storages["s3:one"]?.root).toBe("Projects/Team");
 	});
 
+	it("keeps a slot's share bases through writes that do not name them, not past a new vault", () => {
+		const bases = { "Team/a.md": entry("aa") };
+		const held = mergeSessionIntoLocal(
+			local,
+			projectSession(local, "s3:one", ""),
+			"s3:one",
+			VAULT_SPACE,
+			bases,
+		);
+		const session = projectSession(held, "s3:one", "");
+
+		const pushed = mergeSessionIntoLocal(held, session, "s3:one", VAULT_SPACE);
+		expect(pushed.storages["s3:one"]?.shareBases).toEqual(bases);
+
+		const adopted = mergeSessionIntoLocal(
+			held,
+			{ ...session, vaultId: "v9" },
+			"s3:one",
+			VAULT_SPACE,
+		);
+		expect(adopted.storages["s3:one"]?.shareBases).toBeUndefined();
+
+		const pruned = mergeSessionIntoLocal(
+			held,
+			session,
+			"s3:one",
+			VAULT_SPACE,
+			{},
+		);
+		expect(pruned.storages["s3:one"]).not.toHaveProperty("shareBases");
+	});
+
+	it("says whether the share owning a path holds it, wherever it was mounted", () => {
+		const state: LocalState = {
+			...local,
+			storages: {
+				...local.storages,
+				"broker|team": {
+					vaultId: "t",
+					baseline: manifest({ "Old/a.md": "aa" }),
+					root: "Old",
+					space: "team",
+				},
+			},
+		};
+		const holds = sharesHold(state, [VAULT_SPACE, TEAM]);
+
+		expect(holds("Team/a.md")).toBe(true);
+		expect(holds("Team/b.md")).toBe(false);
+		expect(holds("a.md")).toBe(false);
+	});
+
 	it("forgets the slot when the session no longer has a vault", () => {
 		const next = mergeSessionIntoLocal(
 			local,
@@ -222,5 +277,41 @@ describe("session projection", () => {
 		);
 		expect(next.storages["s3:one"]).toBeUndefined();
 		expect(next.storages["s3:two"]).toBeDefined();
+	});
+});
+
+describe("carryHashes", () => {
+	const entry = (hash: string) => ({ mtime: 1, size: 1, hash });
+	const state = {
+		deviceId: "d",
+		storages: {},
+		hashCache: {
+			"a.md": entry("a"),
+			"Team/b.md": entry("b"),
+			"Team/c/d.md": entry("d"),
+			"Teams/e.md": entry("e"),
+		},
+	};
+
+	it("moves a renamed file's hash to its new path", () => {
+		expect(carryHashes(state, "a.md", "x.md", false).hashCache).toEqual({
+			"x.md": entry("a"),
+			"Team/b.md": entry("b"),
+			"Team/c/d.md": entry("d"),
+			"Teams/e.md": entry("e"),
+		});
+	});
+
+	it("moves every hash under a renamed folder, and only those", () => {
+		expect(carryHashes(state, "Team", "Old/Team", true).hashCache).toEqual({
+			"a.md": entry("a"),
+			"Old/Team/b.md": entry("b"),
+			"Old/Team/c/d.md": entry("d"),
+			"Teams/e.md": entry("e"),
+		});
+	});
+
+	it("keeps the state itself when nothing it knows moved", () => {
+		expect(carryHashes(state, "new.md", "newer.md", false)).toBe(state);
 	});
 });

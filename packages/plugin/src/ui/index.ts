@@ -20,14 +20,11 @@ export { DiffView } from "./diff-view";
 export { registerFileContextIndicators } from "./explorer/file-context-indicators";
 export { registerFileExplorerIndicators } from "./explorer/file-explorer-indicators";
 export type { IndicatorHandle } from "./explorer/indicator-handle";
-export {
-	rebuildLiveNote,
-	sharedFolderOf,
-	toggleAuthors,
-} from "./live/live-actions";
-export { registerLiveStatusBar } from "./live/live-status-bar";
-export { registerNotePresence } from "./live/note-presence";
-export { openWhereMenu } from "./live/where-menu";
+export { rebuildLiveNote, toggleAuthors } from "./live/header/live-actions";
+export { canRebuild } from "./live/header/note-menu-items";
+export { registerNotePresence } from "./live/header/note-presence";
+export { registerLiveStatusBar } from "./live/status/live-status-bar";
+export { openWhereMenu } from "./live/status/where-menu";
 export {
 	askNewPassphrase,
 	askPassphrase,
@@ -40,11 +37,8 @@ export {
 } from "./modals";
 export { registerRibbon } from "./ribbon";
 export { openInvite } from "./shares/invite-action";
-export {
-	addShareMenuItem,
-	openShareWindow,
-	shareAt,
-} from "./shares/share-window";
+export { shareSummary } from "./shares/share-summary";
+export { addShareMenuItem, openShareWindow } from "./shares/share-window";
 export {
 	confirmAdoptNewVault,
 	confirmBatchResolve,

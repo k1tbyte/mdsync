@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EChangeType } from "@/sync/types";
 import {
+	foldMoves,
 	rowFromChange,
 	rowFromConflict,
 } from "@/ui/source-control/row-formatter";
@@ -70,5 +71,27 @@ describe("source control row formatting", () => {
 		);
 
 		expect(row.sizeDelta).toBeUndefined();
+	});
+
+	it("folds a move into one row at its new path", () => {
+		const change = (path: string, type: EChangeType) => ({
+			path,
+			type,
+			localHash: null,
+			remoteHash: null,
+		});
+		const rows = foldMoves(
+			[
+				change("a.md", EChangeType.LocalDelete),
+				change("x.md", EChangeType.LocalModify),
+				change("b.md", EChangeType.LocalAdd),
+			],
+			[{ from: "a.md", to: "b.md", side: "local" }],
+			(c) => rowFromChange(c),
+		);
+		expect(rows.map((r) => [r.path, r.from, r.statusLetter])).toEqual([
+			["b.md", "a.md", "R"],
+			["x.md", undefined, "M"],
+		]);
 	});
 });

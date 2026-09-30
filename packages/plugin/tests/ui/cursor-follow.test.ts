@@ -1,8 +1,12 @@
-import type { Editor } from "obsidian";
+import type { Editor, MarkdownView, WorkspaceLeaf } from "obsidian";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { WatchedCursor } from "@/live/text/cursors";
-import { CursorFollow } from "@/ui/live/cursor-follow";
+import type { LiveSession } from "@/live/session/session";
+import { type WatchedCursor, watchCursor } from "@/live/text/cursors";
+import type { PluginHost } from "@/plugin/host";
+import { CursorFollow, followCursor } from "@/ui/live/header/cursor-follow";
+
+vi.mock("@/live/text/cursors", () => ({ watchCursor: vi.fn() }));
 
 const ROOM = {};
 
@@ -116,5 +120,51 @@ describe("following a cursor", () => {
 
 		expect(unwatch).toHaveBeenCalledOnce();
 		expect(follows.of(ROOM, editor)).toBeNull();
+	});
+});
+
+describe("starting to follow", () => {
+	it("scrolls to their cursor and leaves the caret where it was", () => {
+		const editor = {
+			offsetToPos: (offset: number) => ({ line: 0, ch: offset }),
+			scrollIntoView: vi.fn(),
+			setCursor: vi.fn(),
+		};
+		const contentEl = new EventTarget();
+		const file = { path: "a.md" };
+		const session = {} as LiveSession;
+		const markdown = { editor, file, contentEl } as unknown as MarkdownView;
+		const leaf = { view: markdown } as unknown as WorkspaceLeaf;
+		const setActiveLeaf = vi.fn();
+		const plugin = {
+			app: { workspace: { setActiveLeaf } },
+			realtime: { live: { roomOf: () => session } },
+		} as unknown as PluginHost;
+		vi.mocked(watchCursor).mockReturnValue({
+			at: () => 5,
+			present: () => true,
+			watch: () => () => {},
+		});
+		const follows = new CursorFollow();
+
+		followCursor({
+			plugin,
+			leaf,
+			markdown,
+			session,
+			key: "alex",
+			offset: 5,
+			follows,
+		});
+
+		expect(setActiveLeaf).toHaveBeenCalledWith(leaf, { focus: true });
+		expect(editor.scrollIntoView).toHaveBeenCalled();
+		expect(editor.setCursor).not.toHaveBeenCalled();
+		expect(follows.of(session, editor as unknown as Editor)).toBe("alex");
+
+		contentEl.dispatchEvent(new Event("keydown"));
+
+		expect(follows.of(session, editor as unknown as Editor)).toBeNull();
+		expect(editor.setCursor).not.toHaveBeenCalled();
 	});
 });

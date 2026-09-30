@@ -2,12 +2,9 @@ import { setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import type { SyncController } from "@/sync/controller";
 import type { EChangeType } from "@/sync/types";
-import { type ChangeAction, changeActionOf } from "@/ui/common/change-action";
-import {
-	type PresenceMarks,
-	renderPresenceMarks,
-} from "./file-explorer-presence";
-import { setIndicatorTooltip } from "./indicator-tooltip";
+import { type ChangeAction, changeActionOf } from "@/ui/common";
+import { renderPresenceMarks } from "./file-explorer-badges";
+import type { PresenceMarks } from "./file-explorer-marks";
 
 type ChangeIndicatorClass =
 	| "obsync-changed-added"
@@ -75,7 +72,7 @@ export function sameDecoration(
 		(left.change === right.change &&
 			left.linkRoot === right.linkRoot &&
 			left.ignored === right.ignored &&
-			left.unseen === right.unseen &&
+			sameFlat(left.unseen, right.unseen) &&
 			sameFlat(left.share, right.share) &&
 			sameList(left.people, right.people))
 	);
@@ -84,6 +81,7 @@ export function sameDecoration(
 export function renderDecoration(
 	target: HTMLElement,
 	decoration: PathDecoration,
+	plugin: PluginHost,
 ): void {
 	if (decoration.change) target.addClass(decoration.change);
 	if (decoration.ignored) target.addClass("obsync-explorer-ignored");
@@ -96,7 +94,7 @@ export function renderDecoration(
 		target.addClass("obsync-has-path-badge");
 	}
 	if (decoration.linkRoot) renderLinkBadge(target, decoration.linkRoot);
-	renderPresenceMarks(target, decoration);
+	renderPresenceMarks(target, decoration, plugin);
 }
 
 export function clearDecoration(target: HTMLElement): void {
@@ -149,8 +147,10 @@ function sameList(
 function renderLinkBadge(target: HTMLElement, linkRoot: string): void {
 	const badge = target.createSpan({
 		cls: "obsync-path-badge obsync-link-badge",
-		attr: { role: "img" },
+		attr: {
+			role: "img",
+			"aria-label": `Linked path: ${linkRoot}\nExcluded from sync`,
+		},
 	});
 	setIcon(badge, "link-2");
-	setIndicatorTooltip(badge, `Linked path: ${linkRoot}\nExcluded from sync`);
 }

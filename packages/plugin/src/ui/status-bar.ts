@@ -3,6 +3,7 @@ import type { Plugin } from "obsidian";
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import { formatRelativeTime } from "@/shared/format";
 import type { SyncController, SyncStatusSnapshot } from "@/sync/controller";
+import { makeActivatable } from "./common/activatable";
 import { openSourceControlView } from "./source-control-view";
 
 export function registerStatusBar(
@@ -11,17 +12,8 @@ export function registerStatusBar(
 ): void {
 	const root = plugin.addStatusBarItem();
 	root.addClass("obsync-status-bar");
-	root.setAttr("role", "button");
-	root.setAttr("tabindex", "0");
-	root.setAttr("aria-label", "Open Obsync source control");
-	const open = (): void => {
+	makeActivatable(root, "Open Obsync source control", () => {
 		void openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
-	};
-	root.addEventListener("click", open);
-	root.addEventListener("keydown", (event: KeyboardEvent) => {
-		if (event.key !== "Enter" && event.key !== " ") return;
-		event.preventDefault();
-		open();
 	});
 
 	const spinner = root.createSpan({
@@ -46,7 +38,7 @@ export function registerStatusBar(
 	render(controller.getSnapshot());
 	const unsubscribe = controller.subscribe(render);
 	plugin.register(unsubscribe);
-	// An error caused by a dropped connection should not read as a broken remote.
+	// A dropped connection must not read as a broken remote.
 	const renderCurrent = (): void => render(controller.getSnapshot());
 	plugin.registerDomEvent(window, "online", renderCurrent);
 	plugin.registerDomEvent(window, "offline", renderCurrent);
@@ -74,7 +66,7 @@ function buildTooltip(snapshot: SyncStatusSnapshot): string {
 	const last = snapshot.lastCompareAt
 		? `Last compared ${formatRelativeTime(snapshot.lastCompareAt)}`
 		: "Not compared yet";
-	return `${last}. Click to open source control.`;
+	return `${last}. Select to open source control.`;
 }
 
 /** A shared folder that failed counts: the rest syncs, it does not. */

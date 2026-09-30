@@ -1,7 +1,6 @@
 /**
  * Who typed what: each session names the person behind its client id at its
- * first edit. Advisory: the entry is written by the client itself, inside the
- * ciphertext, so anyone who may write the note may also misname it.
+ * first edit. Advisory: anyone who may write the note may also misname it.
  */
 
 import type * as Y from "yjs";
@@ -19,6 +18,13 @@ export interface AuthorRange {
 	from: number;
 	to: number;
 	author: Author;
+}
+
+/** Names `author` as the person behind this doc's client, once: on their first edit. */
+export function attribute(doc: Y.Doc, author: Author): void {
+	const users = doc.getMap(USERS);
+	const client = String(doc.clientID);
+	if (!users.has(client)) users.set(client, author);
 }
 
 /** Null for a client nobody named, or an entry that is not an Author. */

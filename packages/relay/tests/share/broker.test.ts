@@ -276,6 +276,23 @@ describe("token revocation", () => {
 		expect(env.dropped).toEqual([await fingerprint(token)]);
 	});
 
+	it("cuts the sockets again when a revoke is retried after the hub was unreachable", async () => {
+		const env = makeEnv();
+		const token = await issue(env, "p1");
+		const revoke = () =>
+			call(env, `/share/tokens/p1?shareId=${SHARE}`, {
+				method: "DELETE",
+				admin: true,
+			});
+
+		env.hubFailures.left = 1;
+		await expect(revoke()).rejects.toThrow("hub unreachable");
+		expect(await (await revoke()).json()).toEqual({ revoked: true });
+
+		expect(env.dropped).toEqual([await fingerprint(token)]);
+		expect(await (await revoke()).json()).toEqual({ revoked: false });
+	});
+
 	it("survives a participant id that is not valid percent-encoding", async () => {
 		const env = makeEnv();
 		const response = await call(
@@ -312,6 +329,31 @@ describe("token revocation", () => {
 		expect((await sign(env, token, { op: "get", key: "a" })).status).toBe(401);
 		expect((await sign(env, other, { op: "get", key: "a" })).status).toBe(200);
 		expect(env.dropped).toEqual([await fingerprint(token)]);
+	});
+
+	it("cuts the sockets again when a leave is retried after the hub was unreachable", async () => {
+		const env = await registeredEnv();
+		const token = await issue(env, "p1");
+		const leave = () => call(env, "/share/token", { method: "DELETE", token });
+
+		env.hubFailures.left = 1;
+		await expect(leave()).rejects.toThrow("hub unreachable");
+		expect(await (await leave()).json()).toEqual({ revoked: true });
+
+		expect(env.dropped).toEqual([await fingerprint(token)]);
+	});
+
+	it("cuts the replaced token's sockets when a re-invite is retried after the hub was unreachable", async () => {
+		const env = await registeredEnv();
+		const old = await issue(env, "p1");
+
+		env.hubFailures.left = 1;
+		await expect(issue(env, "p1")).rejects.toThrow("hub unreachable");
+		const fresh = await issue(env, "p1");
+
+		expect(env.dropped).toEqual([await fingerprint(old)]);
+		expect((await sign(env, old, { op: "get", key: "a" })).status).toBe(401);
+		expect((await sign(env, fresh, { op: "get", key: "a" })).status).toBe(200);
 	});
 
 	it("never lets a stale token take down the one issued after it", async () => {

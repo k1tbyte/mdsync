@@ -9,8 +9,8 @@ import {
 } from "@tests/helpers/live-session";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { docIdFor } from "@/live/seal";
-import { LiveSession } from "@/live/session";
+import { docIdFor } from "@/live/doc-id";
+import { LiveSession } from "@/live/session/session";
 import { TEXT } from "@/live/text/model";
 
 const live = useLiveRoom();

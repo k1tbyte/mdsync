@@ -15,15 +15,13 @@ async function pair() {
 			? { keys: shareKeys, key: "owner", name: ownerName }
 			: { keys: vaultKeys, key: "d1", name: "d1" },
 	);
-	const friendSpaces = spacesWith("Team");
-	const friend = relay.add(friendSpaces, accessFor("d9", "p1", "Alex"));
+	const friend = relay.add(spacesWith("Team"), accessFor("d9", "p1", "Alex"));
 	relay.join(owner);
 	relay.join(friend);
 	return {
 		relay,
 		owner,
 		friend,
-		friendSpaces,
 		rename: (name: string) => {
 			ownerName = name;
 			owner.people.refresh();
@@ -60,6 +58,7 @@ describe("people's derived views", () => {
 		await vi.waitFor(() =>
 			expect(friend.people.online(VAULT_SPACE.id)).toHaveLength(1),
 		);
+		friend.spaces = [...friend.spaces];
 		friend.people.refresh();
 		const entries = vi.spyOn(ChannelPresence.prototype, "entries");
 
@@ -129,38 +128,55 @@ describe("people's derived views", () => {
 	});
 
 	it("follow a folder moved, paused and closed", async () => {
-		const { friend, friendSpaces, seen } = await ownerInNote();
-		const vault = friendSpaces[0] as Space;
+		const { friend, seen } = await ownerInNote();
+		const vault = friend.spaces[0] as Space;
 
-		friendSpaces[1] = { id: SHARE_ID, root: "Moved" };
+		friend.spaces = [vault, { id: SHARE_ID, root: "Moved" }];
 		friend.people.refresh();
 		expect(seen.at(-1)).toEqual([]);
 		expect(friend.people.inNote("Moved/a.md")).toHaveLength(1);
 
-		friendSpaces[1] = { id: SHARE_ID, root: "Moved", paused: true };
+		friend.spaces = [vault, { id: SHARE_ID, root: "Moved", paused: true }];
 		friend.people.refresh();
 		expect(friend.people.inNote("Moved/a.md")).toEqual([]);
 		expect(friend.people.online(SHARE_ID)).toEqual([]);
 
-		friendSpaces.splice(0, friendSpaces.length, vault);
+		friend.spaces = [vault];
 		friend.people.refresh();
 		expect(friend.people.online(SHARE_ID)).toEqual([]);
 	});
 
 	it("follow a folder mounted", async () => {
-		const { owner, friend, friendSpaces } = await pair();
-		const vault = friendSpaces[0] as Space;
-		const share = friendSpaces[1] as Space;
-		friendSpaces.splice(0, friendSpaces.length, vault);
+		const { owner, friend } = await pair();
+		const [vault, share] = friend.spaces as [Space, Space];
+		friend.spaces = [vault];
 		friend.people.refresh();
 		expect(friend.people.online(SHARE_ID)).toEqual([]);
 
-		friendSpaces.push(share);
+		friend.spaces = [vault, share];
 		friend.people.refresh();
 		owner.people.setHere({ path: NOTE, idle: false });
 
 		await vi.waitFor(() => expect(friend.people.inNote(NOTE)).toHaveLength(1));
 		expect(friend.people.online(SHARE_ID)).toHaveLength(1);
+	});
+
+	it("repaint on a refresh only when the partition changed", async () => {
+		const { friend } = await ownerInNote();
+		const repainted = vi.fn();
+		friend.people.subscribe(repainted);
+		const notes = friend.people.notes();
+
+		friend.people.refresh();
+
+		expect(repainted).not.toHaveBeenCalled();
+		expect(friend.people.notes()).toBe(notes);
+
+		friend.spaces = [...friend.spaces];
+		friend.people.refresh();
+
+		expect(repainted).toHaveBeenCalledOnce();
+		expect(friend.people.notes()).not.toBe(notes);
 	});
 
 	it("follow this device taking another key", async () => {

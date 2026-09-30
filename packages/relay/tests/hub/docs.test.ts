@@ -239,7 +239,7 @@ describe("hub documents", () => {
 		sub(core, follower);
 
 		sub(core, newcomer);
-		sub(core, newcomer);
+		expect(sub(core, newcomer).type).toBe(EFrame.State);
 
 		expect(follower.inbox).toEqual([
 			{

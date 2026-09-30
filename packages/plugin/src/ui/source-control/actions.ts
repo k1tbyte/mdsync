@@ -3,11 +3,7 @@ import { Menu } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { EConflictStrategy } from "@/sync/controller";
 import { addIgnoreMenuItem } from "@/ui/actions/ignore-action";
-import { runWithNotice } from "@/ui/common/notices";
-import {
-	openInEditor,
-	revealInFileExplorer,
-} from "@/ui/common/obsidian-helpers";
+import { openInEditor, revealInFileExplorer, runWithNotice } from "@/ui/common";
 import { isIgnoreNote } from "@/vault/ignore";
 import {
 	confirmAdoptNewVault,

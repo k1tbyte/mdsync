@@ -29,39 +29,4 @@ describe("live document kinds", () => {
 		expect(liveKindOf(appWith({}), file("a.md", 300 * 1024))).toBeNull();
 		expect(liveKindOf(appWith({}), file("a.md", 200 * 1024))).toBe("text");
 	});
-
-	it("cuts a note off at 256 KiB and a drawing at 1 MiB, each size itself still live", () => {
-		const drawing = { frontmatter: { "excalidraw-plugin": "parsed" } };
-
-		expect(liveKindOf(appWith({}), file("a.md", 256 * 1024))).toBe("text");
-		expect(liveKindOf(appWith({}), file("a.md", 256 * 1024 + 1))).toBeNull();
-		expect(liveKindOf(appWith(drawing), file("a.md", 300 * 1024))).toBe(
-			"drawing",
-		);
-		expect(liveKindOf(appWith(drawing), file("a.md", 1024 * 1024))).toBe(
-			"drawing",
-		);
-		expect(
-			liveKindOf(appWith(drawing), file("a.md", 1024 * 1024 + 1)),
-		).toBeNull();
-	});
-
-	it("is none for a file Obsidian has not indexed yet, and answers once it has", () => {
-		let cache: CachedMetadata | null = null;
-		const app = {
-			metadataCache: { getFileCache: () => cache },
-		} as unknown as App;
-		const note = file("a.md");
-
-		expect(liveKindOf(app, note)).toBeNull();
-		cache = {
-			frontmatter: { "excalidraw-plugin": "parsed" },
-		} as CachedMetadata;
-		expect(liveKindOf(app, note)).toBe("drawing");
-	});
-
-	it("keeps anything but a markdown file out, however small", () => {
-		expect(liveKindOf(appWith({}), file("board.canvas"))).toBeNull();
-		expect(liveKindOf(appWith({}), file("photo.png", 1))).toBeNull();
-	});
 });

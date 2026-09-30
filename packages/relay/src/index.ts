@@ -11,7 +11,6 @@ import type { ShareEnv } from "./share/kv";
 
 export interface Env extends ShareEnv, GoogleOAuthEnv {}
 
-/** The Durable Object class the HUB binding routes sockets to. */
 export { Hub };
 
 const CORS_PREFLIGHT_HEADERS = {

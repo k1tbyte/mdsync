@@ -1,7 +1,8 @@
 import type { Plugin, TAbstractFile } from "obsidian";
 
-import { isStorageConfigured, type ObsyncSettings } from "@/settings/model";
+import { canSync, type ObsyncSettings } from "@/settings/model";
 import type { SyncController } from "./controller";
+import { VAULT_SPACE } from "./space";
 
 const AUTO_PULL_STARTUP_DELAY_MS = 3_000;
 
@@ -9,6 +10,9 @@ const AUTO_PULL_STARTUP_DELAY_MS = 3_000;
 const AUTO_PULL_INDEX_WAIT_MS = 60_000;
 
 const AUTO_SYNC_BUSY_COOLDOWN_MS = 30_000;
+
+/** Long enough that moving a folder goes out as one push. */
+const SHARE_PUSH_QUIET_MS = 2_000;
 
 /** How often the auto-sync timer wakes up to check what is due. */
 export const SCHEDULER_HEARTBEAT_MS = 30_000;
@@ -33,7 +37,7 @@ export function registerScheduler(
 
 	const tick = async (): Promise<void> => {
 		if (!navigator.onLine) return;
-		if (!isStorageConfigured(host.settings)) return;
+		if (!canSync(host.settings)) return;
 		const now = Date.now();
 		if (now - lastRun < AUTO_SYNC_BUSY_COOLDOWN_MS) return;
 		if (now < backoffUntil) return;
@@ -105,27 +109,37 @@ export function registerScheduler(
 		}, SCHEDULER_HEARTBEAT_MS),
 	);
 
-	const pendingPaths = new Set<string>();
-	let queuedPushTimer: number | null = null;
-	const scheduleQueuedPush = (): void => {
-		if (queuedPushTimer !== null) window.clearTimeout(queuedPushTimer);
-		// Read per event so a changed quiet period applies to the queue in flight.
-		queuedPushTimer = window.setTimeout(() => {
-			queuedPushTimer = null;
-			const tracked = new Set(pendingPaths);
-			pendingPaths.clear();
-			void runQueuedPush(host, controller, tracked);
-		}, host.settings.autoPushSettleSeconds * 1000);
+	const queueVaultPush = quietQueue(
+		host,
+		() => host.settings.autoPushSettleSeconds * 1000,
+		(paths) => void runQueuedPush(host, controller, paths),
+	);
+	// One per share: typing in one must not hold back another's push.
+	const shareQueues = new Map<string, (path: string) => void>();
+	const queueSharePush = (space: string, path: string): void => {
+		let queue = shareQueues.get(space);
+		if (!queue) {
+			queue = quietQueue(
+				host,
+				() => SHARE_PUSH_QUIET_MS,
+				(paths) => {
+					if (host.settings.pushSharesRightAway && canSync(host.settings)) {
+						void controller.autoPushShares(paths);
+					}
+				},
+			);
+			shareQueues.set(space, queue);
+		}
+		queue(path);
 	};
 	const onVaultEvent = (file: TAbstractFile, oldPath?: string): void => {
-		if (!host.settings.autoPushAfterChange) return;
-		pendingPaths.add(file.path);
-		if (oldPath) pendingPaths.add(oldPath);
-		scheduleQueuedPush();
+		for (const path of oldPath ? [file.path, oldPath] : [file.path]) {
+			const { id } = controller.spaceFor(path);
+			const shared = id !== VAULT_SPACE.id;
+			if (shared && host.settings.pushSharesRightAway) queueSharePush(id, path);
+			else if (host.settings.autoPushAfterChange) queueVaultPush(path);
+		}
 	};
-	host.register(() => {
-		if (queuedPushTimer !== null) window.clearTimeout(queuedPushTimer);
-	});
 	host.registerEvent(host.app.vault.on("modify", onVaultEvent));
 	host.registerEvent(host.app.vault.on("create", onVaultEvent));
 	host.registerEvent(host.app.vault.on("delete", onVaultEvent));
@@ -162,6 +176,30 @@ function scheduleFirstRun(host: SchedulerHost, run: () => void): void {
 	host.registerEvent(host.app.metadataCache.on("resolved", fire));
 }
 
+/** Paths gathered until `quietMs()` pass without a new one, then handed to `run` together. */
+function quietQueue(
+	host: SchedulerHost,
+	quietMs: () => number,
+	run: (paths: Set<string>) => void,
+): (path: string) => void {
+	const pending = new Set<string>();
+	let timer: number | null = null;
+	host.register(() => {
+		if (timer !== null) window.clearTimeout(timer);
+	});
+	return (path) => {
+		pending.add(path);
+		if (timer !== null) window.clearTimeout(timer);
+		// Read per event so a changed quiet period applies to the queue in flight.
+		timer = window.setTimeout(() => {
+			timer = null;
+			const paths = new Set(pending);
+			pending.clear();
+			run(paths);
+		}, quietMs());
+	};
+}
+
 function dueAfter(minutes: number): number {
 	return minutes > 0 ? Date.now() + minutes * 60_000 : 0;
 }
@@ -171,7 +209,7 @@ async function runQueuedPush(
 	controller: SyncController,
 	trackedPaths: ReadonlySet<string>,
 ): Promise<void> {
-	if (!isStorageConfigured(host.settings)) return;
+	if (!canSync(host.settings)) return;
 	if (!host.settings.autoPushAfterChange) return;
 	await controller.refresh();
 	await controller.autoPushFromSnapshot(

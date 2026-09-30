@@ -8,7 +8,9 @@ import {
 	type ObsyncSettings,
 } from "@/settings/model";
 import { reportWarning } from "@/shared/diagnostics";
-import { shareIdentity, shareLiveKeys } from "@/spaces/access";
+import type { SpaceRecords } from "@/spaces";
+import { shareLiveKeys } from "@/spaces/access";
+import { shareIdentity } from "@/spaces/record";
 import { createStorageAdapter } from "@/storage";
 import type { SyncController } from "@/sync/controller";
 import { type Space, VAULT_SPACE } from "@/sync/space";
@@ -19,6 +21,7 @@ export interface SpaceAccessHost {
 	passphrase: PassphraseManager;
 	controller: SyncController;
 	settings(): ObsyncSettings;
+	spaces: Pick<SpaceRecords, "get">;
 }
 
 /** What this device holds in a space's relay channel: its keys and who it is there. */
@@ -46,7 +49,7 @@ export function createSpaceAccess(
 			const { id, name } = host.controller.currentDevice();
 			return keys && { keys, person: OWNER, key: id, name };
 		}
-		const record = settings.spaces.find((each) => each.id === space.id);
+		const record = host.spaces.get(space.id);
 		if (!record || record.closed) return null;
 		const memo = `${record.id}|${record.key}`;
 		const keys = shareKeys.get(memo) ?? shareLiveKeys(record);
@@ -56,11 +59,7 @@ export function createSpaceAccess(
 	};
 }
 
-/**
- * Never prompts: waits for a passphrase the sync already knows. Every caller
- * shares one unlock, and a failed one is not tried again for a while: each try
- * is a storage read and a key derivation.
- */
+/** Never prompts. One shared unlock, and a failed one waits before retrying: each try is a storage read and a key derivation. */
 function createVaultKeys(
 	host: SpaceAccessHost,
 ): () => Promise<LiveKeys | null> {

@@ -3,14 +3,17 @@ import { afterEach, beforeEach, expect, vi } from "vitest";
 import * as Y from "yjs";
 
 import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
-import { docIdFor, seal } from "@/live/seal";
-import { LiveSession } from "@/live/session";
+import { seal } from "@/crypto/seal";
+import { docIdFor } from "@/live/doc-id";
+import { LiveSession } from "@/live/session/session";
 import { TEXT, type TextModel } from "@/live/text/model";
 import { LiveHub, type TestConnection } from "./live-hub";
 
 /** Longer than the session's batching window, so a typed edit has left. */
 export const FLUSHED_MS = 400;
 const HANG_GUARD_MS = 4_000;
+/** Under the hub's per-socket burst limit. */
+const FRAMES_PER_SOCKET = 100;
 export const OWNER = { person: "owner", name: "Laptop" };
 
 export interface Device {
@@ -99,18 +102,20 @@ export function useLiveRoom() {
 
 	/** Another device's keystrokes, each landing in the room's log as its own delta. */
 	async function typedElsewhere(count: number): Promise<void> {
-		const raw = live.hub.connection();
-		raw.connect();
-		raw.send({ type: EFrame.Sub, doc: live.docId, since: 0 });
 		const doc = new Y.Doc();
-		for (let left = count; left > 0; left--) {
-			const before = Y.encodeStateVector(doc);
-			doc.getText("body").insert(0, "z");
-			const update = Y.encodeStateAsUpdate(doc, before);
-			const payload = await seal(live.keys, update, `doc:${live.docId}`);
-			raw.send({ type: EFrame.Update, doc: live.docId, payload });
+		for (let left = count; left > 0; ) {
+			const raw = live.hub.connection();
+			raw.connect();
+			raw.send({ type: EFrame.Sub, doc: live.docId, since: 0 });
+			for (let sent = 0; sent < FRAMES_PER_SOCKET && left > 0; sent++, left--) {
+				const before = Y.encodeStateVector(doc);
+				doc.getText("body").insert(0, "z");
+				const update = Y.encodeStateAsUpdate(doc, before);
+				const payload = await seal(live.keys, update, `doc:${live.docId}`);
+				raw.send({ type: EFrame.Update, doc: live.docId, payload });
+			}
+			raw.disconnect();
 		}
-		raw.disconnect();
 	}
 
 	/** What the room hands a device opening it now. */

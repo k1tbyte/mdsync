@@ -1,7 +1,7 @@
 /**
  * Hub logic with no Durable Object in sight, so tests drive it with plain
  * objects. Channel-level frames (presence, the cold-sync signal) live here;
- * document frames go to `docs`.
+ * document frames go to `Documents`.
  */
 
 import {
@@ -10,79 +10,54 @@ import {
 	decodeClient,
 	EFrame,
 	ERefusal,
-	encodeServer,
 	MAX_FRAME_BYTES,
 	UNAUTHORIZED_CLOSE_CODE,
 } from "@obsync/protocol";
-import { type DocStore, docHandlers, leaveDocs, refuse } from "./docs";
-import {
-	addressed,
-	hereFrame,
-	joinFrame,
-	leaveFrame,
-	peerFrame,
-	revokedFrame,
-	type ServerBody,
-	signalFrame,
-} from "./frames";
+import { type DocStore, Documents, type FrameContext, leaveDocs } from "./docs";
 import {
 	broadcast,
-	type Grant,
-	type Handler,
-	type Handlers,
-	type HubPeer,
-	type Peers,
-	resolved,
-	slotOf,
-} from "./peer";
-import { ReadOnlyLimits } from "./read-only";
+	leaveFrame,
+	peerFrame,
+	refuse,
+	send,
+	signalFrame,
+	toChannel,
+	vouchedFrame,
+} from "./frames";
+import { FrameLimits } from "./limits";
+import { type Grant, grantOn, type HubPeer } from "./peer";
 
 /** Sender tag of a signal posted over HTTP, which no socket sent. */
 export const RELAY_TAG = 0;
 
-const CHANNEL_HANDLERS: Handlers = {
-	[EFrame.Signal]: ({ peers, peer, grant }) =>
-		toChannel(peers, grant.channel, signalFrame(peer.tag), peer.tag),
-	[EFrame.Awareness]: ({ peers, peer, grant }, frame) =>
-		toChannel(
-			peers,
-			grant.channel,
-			peerFrame(peer.tag, frame.payload),
-			peer.tag,
-		),
-};
-
 export class HubCore {
-	private readonly docs: Handlers;
-	private readonly readOnly = new ReadOnlyLimits();
+	private readonly documents: Documents;
+	private readonly limits = new FrameLimits();
 
 	constructor(
-		private readonly peers: Peers,
+		private readonly peers: () => readonly HubPeer[],
 		private readonly store: DocStore,
 	) {
-		this.docs = docHandlers(store);
+		this.documents = new Documents(store);
 	}
 
 	join(peer: HubPeer): void {
-		const others = [...this.peers()].filter(({ tag }) => tag !== peer.tag);
+		const peers = this.peers();
 		peer.slots.forEach((grant, slot) => {
 			if (!grant) {
-				peer.send(encodeServer(revokedFrame(slot)));
+				send(peer, slot, CHANNEL_DOC, { type: EFrame.Revoked });
 				return;
 			}
 			// Before any announcement: the newcomer shows only people the hub vouches for.
-			for (const other of others) {
-				const theirs = other.slots[slotOf(other, grant.channel)];
+			for (const other of peers) {
+				const theirs =
+					other.tag === peer.tag ? undefined : grantOn(other, grant.channel);
 				if (!theirs) continue;
-				const here = addressed(hereFrame(other.tag, theirs), CHANNEL_DOC, slot);
-				peer.send(encodeServer(here));
+				const here = vouchedFrame(EFrame.Here, other.tag, theirs);
+				send(peer, slot, CHANNEL_DOC, here);
 			}
-			toChannel(
-				this.peers,
-				grant.channel,
-				joinFrame(peer.tag, grant),
-				peer.tag,
-			);
+			const join = vouchedFrame(EFrame.Join, peer.tag, grant);
+			toChannel(peers, grant.channel, join, peer.tag);
 		});
 	}
 
@@ -91,38 +66,34 @@ export class HubCore {
 		if (!frame) return;
 		const grant = peer.slots[frame.slot];
 		if (!grant) return;
+		const readOnly = grant.readOnly === true;
+		if (!this.limits.allows(peer.tag, frame, readOnly, bytes.length)) return;
 		if (bytes.length > MAX_FRAME_BYTES) {
 			if (frame.doc !== CHANNEL_DOC) refuse(peer, frame, ERefusal.TooLarge);
 			return;
 		}
-		if (
-			grant.readOnly &&
-			!this.readOnly.allows(peer.tag, frame, bytes.length)
-		) {
-			return;
-		}
-		const handlers = frame.doc === CHANNEL_DOC ? CHANNEL_HANDLERS : this.docs;
-		const handler = handlers[frame.type] as Handler<ClientFrame> | undefined;
-		handler?.({ peers: this.peers, peer, grant }, frame);
+		const context = { peers: this.peers(), peer, grant };
+		if (frame.doc === CHANNEL_DOC) this.handleChannel(context, frame);
+		else this.documents.handle(context, frame);
 	}
 
 	leave(peer: HubPeer): void {
-		this.readOnly.forget(peer.tag);
-		const peers = resolved(this.peers);
+		this.limits.forget(peer.tag);
+		const peers = this.peers();
 		leaveDocs(peers, peer);
 		for (const grant of peer.slots) {
-			if (grant) {
+			if (grant)
 				toChannel(peers, grant.channel, leaveFrame(peer.tag), peer.tag);
-			}
 		}
 	}
 
 	/** The cold-sync ping for a device whose socket is down. */
 	signal(channel: string, exceptDevice: string): void {
 		broadcast(
-			this.peers,
+			this.peers(),
 			channel,
-			addressed(signalFrame(RELAY_TAG)),
+			CHANNEL_DOC,
+			signalFrame(RELAY_TAG),
 			(peer) => !exceptDevice || peer.device !== exceptDevice,
 		);
 	}
@@ -138,15 +109,27 @@ export class HubCore {
 		this.store.purge(channel);
 	}
 
+	private handleChannel(
+		{ peers, peer, grant }: FrameContext,
+		frame: ClientFrame,
+	): void {
+		if (frame.type === EFrame.Signal) {
+			toChannel(peers, grant.channel, signalFrame(peer.tag), peer.tag);
+		} else if (frame.type === EFrame.Awareness) {
+			const body = peerFrame(peer.tag, frame.payload);
+			toChannel(peers, grant.channel, body, peer.tag);
+		}
+	}
+
 	private drop(matches: (grant: Grant) => boolean): void {
-		const peers = resolved(this.peers);
-		for (const peer of peers()) {
+		const peers = this.peers();
+		for (const peer of peers) {
 			let dropped = false;
 			peer.slots.forEach((grant, slot) => {
 				if (!grant || !matches(grant)) return;
 				leaveDocs(peers, peer, slot);
 				peer.revoke(slot);
-				peer.send(encodeServer(revokedFrame(slot)));
+				send(peer, slot, CHANNEL_DOC, { type: EFrame.Revoked });
 				toChannel(peers, grant.channel, leaveFrame(peer.tag), peer.tag);
 				dropped = true;
 			});
@@ -155,13 +138,4 @@ export class HubCore {
 			}
 		}
 	}
-}
-
-function toChannel(
-	peers: Peers,
-	channel: string,
-	body: ServerBody,
-	exceptTag: number,
-): void {
-	broadcast(peers, channel, addressed(body), (peer) => peer.tag !== exceptTag);
 }

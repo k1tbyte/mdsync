@@ -21,6 +21,7 @@ function diffWith(parts: Partial<DiffResult>): DiffResult {
 		localChanges: [],
 		remoteChanges: [],
 		conflicts: [],
+		moves: [],
 		converged: [],
 		remoteMoved: false,
 		...parts,
@@ -35,6 +36,7 @@ function serviceOver(diffs: DiffResult[]): {
 	const service = new FileDiffService({
 		openSession: () => Promise.resolve(null),
 		getResult: () => ({ diff: diffs[at] }) as unknown as CompareResult,
+		shareBases: () => undefined,
 	});
 	return {
 		service,
@@ -55,6 +57,20 @@ describe("file diff path index", () => {
 		expect(service.getStatusForPath("a.md")?.change?.type).toBe(
 			EChangeType.LocalModify,
 		);
+	});
+
+	it("finds a moved file at its new path while its change is at the old one", () => {
+		const move = { from: "a.md", to: "b.md", side: "local" } as const;
+		const { service } = serviceOver([
+			diffWith({
+				remoteChanges: [change("a.md", EChangeType.RemoteModify)],
+				moves: [move],
+			}),
+		]);
+		expect(service.getStatusForPath("b.md")).toMatchObject({
+			change: { path: "a.md" },
+			move,
+		});
 	});
 
 	it("prefers the remote side in the explorer status map", () => {

@@ -15,16 +15,20 @@ const MODAL_WAIT_MS = 30_000;
 /** What `sync` reports once a device has nothing left to move. */
 export const CLEAN = { error: null, conflicts: 0, pendingLocal: 0, remote: 0 };
 
-/** Waits for the plugin to finish loading, then sets its vault passphrase. */
-export async function unlock(
-	device: Obsidian,
-	passphrase: string,
-): Promise<void> {
+export async function loaded(device: Obsidian): Promise<void> {
 	await device.waitFor(
 		"plugin loaded",
 		() => app.plugins.plugins.obsync.spaces !== undefined,
 		Boolean,
 	);
+}
+
+/** Waits for the plugin to finish loading, then sets its vault passphrase. */
+export async function unlock(
+	device: Obsidian,
+	passphrase: string,
+): Promise<void> {
+	await loaded(device);
 	await device.evaluate(
 		(value) => app.plugins.plugins.obsync.passphrase.replacePassphrase(value),
 		passphrase,

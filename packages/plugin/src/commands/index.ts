@@ -3,10 +3,12 @@ import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
 import { spaceOf } from "@/sync/space";
 import {
+	canRebuild,
 	deepCleanOrphanedObjects,
 	notifyError,
 	notifyInfo,
 	openDiffView,
+	openInvite,
 	openShareWindow,
 	openSourceControlDeleted,
 	openSourceControlHistory,
@@ -15,12 +17,14 @@ import {
 	rebuildLiveNote,
 	resetRemoteStorage,
 	runWithNotice,
-	sharedFolderOf,
 	toggleAuthors,
 	verifyRemoteIntegrity,
 } from "@/ui";
 
-export function registerCommands(plugin: Plugin & PluginHost): void {
+export function registerCommands(
+	plugin: Plugin & PluginHost,
+	openNoteMenu: (checking: boolean) => boolean,
+): void {
 	plugin.addCommand({
 		id: "compare",
 		name: "Compare with remote",
@@ -107,9 +111,12 @@ export function registerCommands(plugin: Plugin & PluginHost): void {
 		id: "rebuild-live-note",
 		name: "Rebuild live note",
 		checkCallback: (checking) => {
-			const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-			const path = view?.file?.path;
-			if (!path || !plugin.realtime.live.roomOf(path)) return false;
+			const path =
+				plugin.app.workspace.getActiveViewOfType(MarkdownView)?.file?.path;
+			if (!path) return false;
+			const liveText = plugin.realtime.live.roomOf(path) !== null;
+			const locked = spaceOf(plugin.spaces.partition(), path).readOnly === true;
+			if (!canRebuild({ liveText, locked })) return false;
 			if (checking) return true;
 			rebuildLiveNote(plugin, path);
 			return true;
@@ -124,22 +131,34 @@ export function registerCommands(plugin: Plugin & PluginHost): void {
 
 	plugin.addCommand({
 		id: "show-live-status",
-		name: "Show live status",
+		name: "Show relay status",
 		callback: () => openWhereMenu(plugin),
 	});
 
 	plugin.addCommand({
+		id: "show-note-live-menu",
+		name: "Show live menu of this note",
+		checkCallback: openNoteMenu,
+	});
+
+	plugin.addCommand({
 		id: "manage-shared-folder",
-		name: "Manage shared folder",
+		name: "Manage sharing",
 		checkCallback: (checking) => {
 			const path = plugin.app.workspace.getActiveFile()?.path;
 			if (path === undefined) return false;
 			const space = spaceOf(plugin.spaces.partition(), path);
-			const record = sharedFolderOf(plugin, space);
+			const record = plugin.spaces.shareOf(space);
 			if (!record) return false;
 			if (!checking) openShareWindow(plugin, record);
 			return true;
 		},
+	});
+
+	plugin.addCommand({
+		id: "accept-shared-folder-invite",
+		name: "Accept shared folder invite",
+		callback: () => openInvite(plugin),
 	});
 
 	plugin.addCommand({

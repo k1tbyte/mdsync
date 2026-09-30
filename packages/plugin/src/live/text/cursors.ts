@@ -12,12 +12,11 @@ export interface RoomCursor {
 	/** The presence key: whose cursor this is. */
 	key: string;
 	name: string;
-	/** Offset in the room's text. */
 	at: number;
 }
 
-/** Every other device's cursor in the room; none in a drawing. */
-export function cursorsIn(session: LiveSession): RoomCursor[] {
+/** Every other device's cursor in the room, or only `key`'s; none in a drawing. */
+export function cursorsIn(session: LiveSession, key?: string): RoomCursor[] {
 	const { model } = session;
 	if (!(model instanceof TextModel)) return [];
 	const out: RoomCursor[] = [];
@@ -25,6 +24,7 @@ export function cursorsIn(session: LiveSession): RoomCursor[] {
 		if (client === session.doc.clientID) continue;
 		const { user, cursor } = state as CursorState;
 		if (typeof user?.key !== "string" || !cursor?.head) continue;
+		if (key !== undefined && user.key !== key) continue;
 		const at = Y.createAbsolutePositionFromRelativePosition(
 			Y.createRelativePositionFromJSON(cursor.head),
 			session.doc,
@@ -47,7 +47,7 @@ export interface WatchedCursor {
 export function watchCursor(session: LiveSession, key: string): WatchedCursor {
 	const { awareness } = session;
 	return {
-		at: () => cursorsIn(session).find((each) => each.key === key)?.at ?? null,
+		at: () => cursorsIn(session, key)[0]?.at ?? null,
 		present: () =>
 			[...awareness.getStates().values()].some(
 				(state) => (state as CursorState).user?.key === key,

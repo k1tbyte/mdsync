@@ -1,7 +1,6 @@
 import { type App, Modal, Setting } from "obsidian";
 
-import { alertLine } from "@/ui/common/alert-line";
-import { onEnter } from "@/ui/common/enter-key";
+import { alertLine, onEnter } from "@/ui/common";
 
 import { openPromiseModal } from "./promise-modal";
 

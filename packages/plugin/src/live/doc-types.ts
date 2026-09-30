@@ -2,6 +2,13 @@ import type { App, TFile } from "obsidian";
 
 export type LiveDocKind = "text" | "drawing";
 
+const LIVE_EXTENSION = "md";
+
+/** Only notes go live (a drawing is one, see `docKindOf`): anything else would cost a key derivation per file. */
+export function hasLiveExtension(path: string): boolean {
+	return path.endsWith(`.${LIVE_EXTENSION}`);
+}
+
 /** The view type that edits each kind live. */
 export const LIVE_VIEWS: Record<LiveDocKind, string> = {
 	text: "markdown",
@@ -15,13 +22,12 @@ const MAX_LIVE_BYTES: Record<LiveDocKind, number> = {
 };
 
 /**
- * What a file is to live editing, size aside. The name does not say: an
- * Excalidraw drawing is a plain `.md` named by its front matter, and a text
- * CRDT merging two edits of its compressed scene yields a drawing that no
- * longer opens. Null until Obsidian has indexed the file.
+ * What a file is to live editing, size aside. Front matter tells: a drawing is a
+ * plain `.md`, and a text CRDT merging its compressed scene would corrupt it.
+ * Null until Obsidian has indexed the file.
  */
 export function docKindOf(app: App, file: TFile): LiveDocKind | null {
-	if (file.extension !== "md") return null;
+	if (file.extension !== LIVE_EXTENSION) return null;
 	const cache = app.metadataCache.getFileCache(file);
 	if (!cache) return null;
 	return cache.frontmatter && "excalidraw-plugin" in cache.frontmatter
