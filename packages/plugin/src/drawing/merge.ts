@@ -16,8 +16,8 @@ export function wins(a: SceneElement, b: SceneElement): boolean {
 }
 
 /**
- * Three-way by element: an element both sides hold keeps the winner; one only
- * a side holds stays unless the other dropped it unchanged since `base`.
+ * Three-way by element: both-sides elements keep the winner; one held by a single side stays unless the other
+ * dropped it unchanged since `base`.
  */
 export function mergeElements(
 	base: readonly SceneElement[],
@@ -39,11 +39,7 @@ export function mergeElements(
 	return byIndex(out);
 }
 
-/**
- * Two versions of a drawing file as one, or null when the notes around the
- * scene changed on both sides. The scene merges by element; images either
- * side added keep their links.
- */
+/** Null when the notes around the scene changed on both sides. Images either side added keep their links. */
 export function mergeDrawings(
 	base: string,
 	local: string,

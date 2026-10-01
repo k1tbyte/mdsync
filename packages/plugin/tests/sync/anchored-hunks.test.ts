@@ -6,10 +6,8 @@ import { MAX_EDIT_LENGTH } from "@/sync/hunks";
 import { threeWayRegions } from "@/sync/merge-model";
 
 /**
- * Rebuilds the right side from the left one and the hunks. It can only match
- * when the stretches between hunks really are equal line for line and their
- * offsets line up - the assumption `threeWayRegions` makes about every hunk
- * list it is given.
+ * Rebuilds the right side from the left and the hunks; matches only if the stretches between hunks are
+ * equal and offsets line up, as `threeWayRegions` assumes.
  */
 function rebuild(
 	base: readonly string[],

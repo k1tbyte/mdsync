@@ -1,8 +1,6 @@
 /**
- * Shared-folder broker: a participant's share token buys a short-lived
- * presigned S3 URL for one key under `shares/<shareId>/`; object bytes bypass
- * the broker. The owner's plugin registers each share's storage, so a deploy
- * needs no storage secrets.
+ * Shared-folder broker: a share token buys a short-lived presigned S3 URL for one key under
+ * `shares/<shareId>/`; the owner's plugin registers the storage.
  */
 
 import { SIGN_BATCH_MAX } from "@obsync/protocol";

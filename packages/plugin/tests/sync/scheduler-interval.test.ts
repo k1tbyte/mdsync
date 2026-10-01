@@ -168,9 +168,8 @@ describe("auto-sync intervals", () => {
 	it("recovers from error backoff after a successful manual sync", async () => {
 		const h = harness({ autoSyncIntervalMinutes: 1 });
 		h.setSyncError("backend down");
-		// Three failed cycles (3s, 60s, 120s) arm the backoff until 240s; the
-		// 180s tick is suppressed by it, and the 240s one fails again, growing
-		// the backoff until 480s.
+		// Failures at 3s, 60s and 120s arm the backoff until 240s: the 180s tick is suppressed, the 240s
+		// one fails again and extends it to 480s.
 		await vi.advanceTimersByTimeAsync(3_000);
 		await vi.advanceTimersByTimeAsync(57_000);
 		await vi.advanceTimersByTimeAsync(60_000);

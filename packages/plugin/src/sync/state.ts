@@ -1,7 +1,7 @@
 import type { DataAdapter } from "obsidian";
 import { PLUGIN_ID } from "@/constants";
 import { randomId } from "@/crypto";
-import { reportWarning } from "@/shared/diagnostics";
+import { reportWarning } from "@/shared";
 import { writeAtomic } from "@/vault/atomic-write";
 import { ensureParent } from "@/vault/io";
 import { defaultDeviceName } from "./device";
@@ -50,9 +50,8 @@ async function keepUnreadable(
 }
 
 /**
- * Split from the write so a caller can compare payloads and skip a write that
- * would land the bytes already on disk. Compact: indenting a 20k-file hash
- * cache adds 0.74 MB to every rewrite and nothing reads this file by eye.
+ * Split from the write so callers can skip identical payloads. Compact: indenting a 20k-file hash cache adds
+ * 0.74 MB per rewrite.
  */
 export function serializeState(state: LocalState): string {
 	return JSON.stringify(state);

@@ -8,8 +8,8 @@ export interface OperationOutcome {
 	newRemote: Manifest | null;
 	touchedPaths: ReadonlySet<string>;
 	/**
-	 * Actual on-disk state of touched paths. Prevents `recomputeAfterWrite` from incorrectly
-	 * assuming baseline/remote state after partial hunk apply.
+	 * On-disk state of touched paths, so `recomputeAfterWrite` does not assume baseline/remote state after a
+	 * partial hunk apply.
 	 */
 	localEntries?: ReadonlyMap<string, ManifestEntry | null>;
 	/** Stopped early at the user's request, having done part of the work. */

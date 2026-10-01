@@ -130,7 +130,6 @@ describe("batch operations", () => {
 
 		const stat = await b.adapter.stat("note.md");
 		expect(b.state.hashCache["note.md"]?.mtime).toBe(stat?.mtime);
-		// A second compare must see nothing to do.
 		const after = await b.compare();
 		expect(after.diff.localChanges).toHaveLength(0);
 		expect(after.diff.remoteChanges).toHaveLength(0);

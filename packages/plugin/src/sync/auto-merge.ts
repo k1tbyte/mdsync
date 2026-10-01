@@ -1,12 +1,12 @@
 import { DEFAULT_CONCURRENCY } from "@/constants";
 import { ESyncLogOperation } from "@/logs/store";
-import { sortedByPath } from "@/shared/records";
+import { sortedByPath } from "@/shared";
 import {
 	advanceBaselineForPaths,
 	mergeWrittenIntoCache,
 } from "@/sync/baseline";
 import { HUNK_TEXT_MAX_BYTES, LOG_PATH_LIMIT } from "@/sync/constants";
-import { runWithConcurrency } from "@/utils/concurrency";
+import { runWithConcurrency } from "@/utils";
 import { tryAutoMergeConflict } from "./conflict-merge";
 import {
 	hasKnownBinaryExtension,
@@ -24,8 +24,7 @@ export async function autoMergeOp(
 	ctx: OperationContext,
 ): Promise<OperationOutcome> {
 	const localEntries = new Map<string, ManifestEntry | null>();
-	// Indexed by conflict position so the log and the baseline pass stay in diff
-	// order no matter which download finishes first.
+	// Indexed by conflict position so order holds whichever download finishes first.
 	const merged: Array<string | null> = new Array(
 		result.diff.conflicts.length,
 	).fill(null);
@@ -54,8 +53,7 @@ export async function autoMergeOp(
 		result.updatedCache,
 	);
 
-	// Advances baseline for merged paths so the merged content is treated as a
-	// new local edit, not a conflict.
+	// Advances the baseline so merged content reads as a new local edit, not a conflict.
 	const freshState: SessionState = ctx.getFreshState();
 	const baseline = nextBaseline(deps, result, freshState.baseline, mergedPaths);
 	if (baseline) {
@@ -122,8 +120,7 @@ async function settleConflict(
 	}
 	// No common ancestor: nothing to merge against, and no reason to stat.
 	if (!conflict.baselineHash) return undefined;
-	// Rules out binary/oversized files via path and manifest sizes - never
-	// downloads megabytes just to discover the file can't be merged.
+	// Rules out binary/oversized files by path and manifest size without downloading them.
 	const mergeable = await isTextMergeCandidate(
 		deps,
 		conflict.path,
@@ -138,10 +135,7 @@ async function settleConflict(
 	return written;
 }
 
-/**
- * Pre-flight for three-way text merge: rejects known binary types and oversized
- * files using stat and manifest sizes without reading or downloading.
- */
+/** Rejects known binary types and oversized files by stat and manifest size, without reading or downloading. */
 export async function isTextMergeCandidate(
 	deps: Pick<EngineDependencies, "adapter">,
 	path: string,

@@ -9,7 +9,6 @@ export function hasLiveExtension(path: string): boolean {
 	return path.endsWith(`.${LIVE_EXTENSION}`);
 }
 
-/** The view type that edits each kind live. */
 export const LIVE_VIEWS: Record<LiveDocKind, string> = {
 	text: "markdown",
 	drawing: "excalidraw",
@@ -22,8 +21,7 @@ const MAX_LIVE_BYTES: Record<LiveDocKind, number> = {
 };
 
 /**
- * What a file is to live editing, size aside. Front matter tells: a drawing is a
- * plain `.md`, and a text CRDT merging its compressed scene would corrupt it.
+ * Front matter decides: a drawing is a plain `.md` whose compressed scene a text CRDT merge would corrupt.
  * Null until Obsidian has indexed the file.
  */
 export function docKindOf(app: App, file: TFile): LiveDocKind | null {

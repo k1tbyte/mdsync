@@ -1,6 +1,5 @@
 import { decryptJson, type EncryptionKey, encryptJson } from "@/crypto";
-import { reportWarning } from "@/shared/diagnostics";
-import { errorMessage } from "@/shared/errors";
+import { errorMessage, reportWarning } from "@/shared";
 import type { ObjectStorage } from "@/storage/types";
 import { REMOTE_HISTORY_LOG_KEY, REMOTE_PINS_PREFIX } from "@/sync/constants";
 import { fetchRemoteManifest } from "@/sync/manifest";
@@ -59,10 +58,7 @@ export async function writeHistoryLog(
 	await storage.put(REMOTE_HISTORY_LOG_KEY, blob, "application/octet-stream");
 }
 
-/**
- * Applies a change and confirms survival. Log updates are not serialised by the
- * manifest guard, so a concurrent writer could otherwise drop entries.
- */
+/** Applies a change and confirms it survived: log updates are not serialised by the manifest guard. */
 export async function updateHistoryLog(
 	storage: ObjectStorage,
 	key: EncryptionKey,
@@ -114,11 +110,7 @@ export async function readPinManifest(
 	}
 }
 
-/**
- * The manifest for one snapshot. Replay is tried first because the log is one
- * object; a pin's stored manifest is the fallback for snapshots the chain can
- * no longer reach.
- */
+/** Replay first, as the log is one object; a pin's stored manifest covers snapshots the chain can no longer reach. */
 export async function resolveSnapshotManifest(
 	storage: ObjectStorage,
 	key: EncryptionKey,
@@ -134,10 +126,7 @@ export async function resolveSnapshotManifest(
 	return readPinManifest(storage, key, root, snapshotId);
 }
 
-/**
- * Pins keep a full manifest so they outlive their chain: once the snapshots
- * between HEAD and the pin are evicted, a replay can no longer reach it.
- */
+/** Pins keep a full manifest so they outlive their chain once the snapshots between HEAD and the pin are evicted. */
 export async function setSnapshotPinned(
 	storage: ObjectStorage,
 	key: EncryptionKey,
@@ -148,10 +137,8 @@ export async function setSnapshotPinned(
 	label?: string,
 ): Promise<void> {
 	let wroteManifest = false;
-	// A readable manifest for this very snapshot is the pin; re-pinning then needs
-	// no replay, which stops working once the snapshots in between are evicted.
-	// Anything else there - corrupt, half-written, from another snapshot - must be
-	// replaced, or GC would trust a pin it cannot read.
+	// A readable manifest for this snapshot is the pin (no replay needed); anything else there must be
+	// replaced, or GC would trust an unreadable pin.
 	const stored = pinned
 		? await readPinManifest(storage, key, root, snapshotId)
 		: null;
@@ -167,8 +154,7 @@ export async function setSnapshotPinned(
 				"That snapshot can no longer be rebuilt from the history log, so it cannot be pinned.",
 			);
 		}
-		// Store the manifest before flagging: a flag without its manifest would let
-		// GC believe objects are protected that nothing actually references.
+		// Manifest before flag: a flag without its manifest lets GC believe objects are protected.
 		const blob = await encryptJson(key, manifestToSpace(manifest, root));
 		await storage.put(pinKey(snapshotId), blob, "application/octet-stream");
 		wroteManifest = true;

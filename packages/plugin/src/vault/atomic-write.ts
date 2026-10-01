@@ -1,7 +1,8 @@
 import type { DataAdapter } from "obsidian";
 
 /**
- * Replaces a file atomically using a .new temp file and a .bak backup, preventing missing files and parallel write collisions.
+ * Replaces a file via a .new temp file and a .bak backup, so it is never missing and parallel writes cannot
+ * collide.
  */
 export async function writeAtomic(
 	adapter: DataAdapter,

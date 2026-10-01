@@ -65,7 +65,6 @@ export class SpaceRecords {
 		return this.settings.spaces.find((each) => each.id === id);
 	}
 
-	/** The open share mounted at `root`. */
 	shareAt(root: string): SpaceRecord | undefined {
 		return this.list().find((record) => record.root === root && !record.closed);
 	}
@@ -150,7 +149,10 @@ export class SpaceRecords {
 		return record ? pauseOf(record, this.settings) : null;
 	}
 
-	/** "here" stays on this device; "everywhere" is published like `add`, so every device of the person holds the share out. */
+	/**
+	 * "here" stays on this device; "everywhere" is published like `add`, so every device of the person
+	 * holds the share out.
+	 */
 	async setPause(
 		id: string,
 		pause: Exclude<PauseKind, "off"> | null,
@@ -167,8 +169,8 @@ export class SpaceRecords {
 	}
 
 	/**
-	 * Shares joined before this device knew a vault enter it as accepting them
-	 * there would: at a root no share of it holds and it has no files in.
+	 * Shares joined before this device knew a vault enter it as accepting them there would: at a root no
+	 * share of it holds and it has no files in.
 	 */
 	async admitJoined(
 		storage: StorageAdapter,
@@ -192,7 +194,10 @@ export class SpaceRecords {
 		}
 	}
 
-	/** Trades records with the vault's storage and keeps what wins; a root moved elsewhere stays here until followed. */
+	/**
+	 * Trades records with the vault's storage and keeps what wins; a root moved elsewhere stays here until
+	 * followed.
+	 */
 	async sync(
 		storage: StorageAdapter,
 		key: EncryptionKey,
@@ -210,7 +215,8 @@ export class SpaceRecords {
 		);
 		// Bound once the trade went through, so a failed one is tried again whole.
 		const left = spacesVault === vault ? null : this.bindTo(vault);
-		// A record added while the trade was in flight must stay; those sent are in `records` as the trade settled them.
+		// A record added while the trade was in flight must stay; those sent are in `records` as the trade
+		// settled them.
 		const merged = mergeRecords(
 			records,
 			this.settings.spaces.filter((record) => !sent.includes(record)),
@@ -235,8 +241,8 @@ export class SpaceRecords {
 	}
 
 	/**
-	 * A closed share is paused no more; one new here arrives paused when this
-	 * device asks so. In the records' own save, so no refresh pulls it first.
+	 * A closed share is paused no more; one new here arrives paused when this device asks so. In the
+	 * records' own save, so no refresh pulls it first.
 	 */
 	private repause(
 		here: readonly SpaceRecord[],
@@ -260,9 +266,8 @@ export class SpaceRecords {
 	}
 
 	/**
-	 * Records belong to the vault storage they were traded with. Pointed at another
-	 * vault, this device drops them and their folders stay as plain files. Returns
-	 * the shares it leaves.
+	 * Records belong to the vault storage they were traded with. Pointed at another vault, this device
+	 * drops them and their folders stay as plain files; returns the shares it leaves.
 	 */
 	private bindTo(vault: string): Space[] {
 		const { spacesVault } = this.settings;

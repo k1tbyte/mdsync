@@ -62,9 +62,8 @@ export function registerScheduler(
 		}
 	};
 
-	// Any finished cycle - the user's manual pull or push, a realtime-signal
-	// pull, the queued settle push - counts as a fresh sync, so a due tick
-	// never duplicates work that just ran.
+	// Any finished cycle (manual, realtime-signal, settle push) counts as a fresh sync, so a due tick never
+	// duplicates it.
 	let wasBusy = false;
 	host.register(
 		controller.subscribe((snapshot) => {
@@ -72,8 +71,7 @@ export function registerScheduler(
 			else if (wasBusy) {
 				wasBusy = false;
 				lastRun = Date.now();
-				// A clean finish - the user's manual sync included - proves the
-				// backend works again, so leave the error backoff behind.
+				// A clean finish, manual included, proves the backend works again.
 				if (!snapshot.error) {
 					consecutiveFailures = 0;
 					backoffUntil = 0;
@@ -82,8 +80,7 @@ export function registerScheduler(
 		}),
 	);
 
-	// Interval 0 with the toggle on is a deliberate mode: sync once after
-	// startup, then stay quiet until the next reload.
+	// Interval 0 with the toggle on is deliberate: sync once after startup, then stay quiet until reload.
 	if (host.settings.autoSyncEnabled) {
 		scheduleFirstRun(host, () => void tick());
 	}
@@ -101,8 +98,7 @@ export function registerScheduler(
 			const now = Date.now();
 			if (!host.settings.autoSyncEnabled || dueAt <= 0 || now < dueAt) return;
 			if (now - lastRun < AUTO_SYNC_BUSY_COOLDOWN_MS) {
-				// A cycle just ran by hand: retry once the cooldown passes, not a
-				// whole interval later.
+				// A cycle just ran by hand: retry after the cooldown, not a whole interval later.
 				dueAt = lastRun + AUTO_SYNC_BUSY_COOLDOWN_MS;
 				return;
 			}
@@ -163,16 +159,12 @@ export function registerScheduler(
 }
 
 /**
- * The first scan reads Obsidian's metadata cache. Starting before that cache
- * resolves costs three times as much, because the scan competes with Obsidian's
- * own indexing for the main thread. A cache that has already settled waits out
- * the old delay instead: `resolved` would not fire again there until something
- * in the vault changed.
+ * Starting before the metadata cache resolves costs 3x, as the scan competes with Obsidian's indexing. An
+ * already-settled cache never re-fires `resolved`, so it uses the fixed delay.
  */
 function scheduleFirstRun(host: SchedulerHost, run: () => void): void {
-	// `initialized` is not in the typings; without it only `layoutReady` tells a
-	// settled cache from one still filling, and a small vault that resolved
-	// before this ran would wait out the cap.
+	// `initialized` is not in the typings; without it a small vault that resolved before this ran would wait
+	// out the cap.
 	const cache = host.app.metadataCache as { initialized?: boolean };
 	if (host.app.workspace.layoutReady || cache.initialized === true) {
 		const timer = window.setTimeout(run, AUTO_PULL_STARTUP_DELAY_MS);

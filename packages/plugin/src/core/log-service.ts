@@ -9,12 +9,11 @@ import {
 	type SyncLogEntry,
 	saveSyncLogs,
 } from "@/logs/store";
-import { setDiagnosticsSink } from "@/shared/diagnostics";
+import { setDiagnosticsSink } from "@/shared";
 
 export class LogService {
 	private entries: SyncLogEntry[] = [];
-	/** Serialises writes: append and clear share one file, and interleaving them
-	 * lets the older snapshot land last. */
+	/** Append and clear share one file; serialising stops the older snapshot landing last. */
 	private writes: Promise<void> = Promise.resolve();
 
 	constructor(
@@ -79,11 +78,7 @@ export class LogService {
 		await this.save();
 	}
 
-	/**
-	 * Diagnostics are not worth failing a sync over: a log write that cannot
-	 * reach the disk is reported to the console and swallowed, because callers
-	 * await this in the middle of push and pull.
-	 */
+	/** A failed log write goes to the console and is swallowed: callers await it mid push and pull. */
 	private save(): Promise<void> {
 		const entries = this.entries;
 		const write = async (): Promise<void> => {

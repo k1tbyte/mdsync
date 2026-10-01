@@ -86,9 +86,8 @@ describe("S3 adapter over requestUrl", () => {
 		const adapter = createS3Adapter(config());
 		replies = [{ status: 404, text: NO_SUCH_BUCKET }];
 
-		// Absence means the object is gone. A bucket that is not there means the
-		// configuration is wrong, and treating it as absence re-uploads the whole
-		// vault into nowhere.
+		// A missing bucket is a configuration error; reading it as absence would re-upload the whole vault
+		// into nowhere.
 		await expect(adapter.get("a.bin")).rejects.toThrow("HTTP 404");
 	});
 

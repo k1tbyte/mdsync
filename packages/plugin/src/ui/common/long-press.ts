@@ -6,16 +6,8 @@ const RELEASE_GRACE_MS = 300;
 const OWN_TAP_TARGETS = "button, label, input";
 
 /**
- * Opens a context menu on touch, which has neither a right click nor the hover
- * that reveals a row's menu button.
- *
- * Register this before any click or contextmenu handler on the same element:
- * its suppressors have to run first to swallow the click a hold ends with and
- * the contextmenu Android sends beside it, so exactly one menu opens.
- *
- * The click a lifted finger synthesises is retargeted to the menu that opened
- * under it, and would fire whatever item is there; preventing touchend on the
- * row stops it being made at all.
+ * Context menu on touch. Register before the element's click/contextmenu handlers: its suppressors must swallow
+ * the hold's trailing click and Android's contextmenu. Preventing touchend stops a click retargeted onto the menu.
  */
 export function onLongPress(
 	el: HTMLElement,

@@ -53,7 +53,10 @@ export function renderPresenceMarks(
 	if (marks.share) renderShareBadge(target, marks.share);
 }
 
-/** A share badge opens the share's window instead of folding the folder; a phone has no hover, so a tap shows the tooltip. */
+/**
+ * A share badge opens the share's window instead of folding the folder; a phone has no hover, so a tap
+ * shows the tooltip.
+ */
 export function badgeActivation(
 	plugin: PluginHost,
 ): (event: MouseEvent | KeyboardEvent) => void {

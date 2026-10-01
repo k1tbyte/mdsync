@@ -1,10 +1,9 @@
 /**
- * The file sync's side of live editing: a version marked `live` is a room
- * snapshot, never merged into its room; a note whose room is open here is never
- * written. Declared here so `sync/` never imports `live/`.
+ * File sync's side of live editing, declared here so `sync/` never imports `live/`: a `live` version is a
+ * room snapshot; a note with an open room is never written.
  */
 
-import { entryAt } from "@/shared/records";
+import { entryAt } from "@/shared";
 
 import {
 	bytesToText,
@@ -28,8 +27,8 @@ export interface LiveNotes {
 	/** The room snapshot a local version with this hash is, or null for a plain edit. */
 	mark(path: string, hash: string): Promise<LiveMark | "later" | null>;
 	/**
-	 * Offers an incoming version to the note's open room, which saves what it
-	 * took to the file. `texts` resolves null for a deletion.
+	 * Offers an incoming version to the note's open room, which saves what it took to the file. `texts`
+	 * resolves null for a deletion.
 	 */
 	absorb(
 		path: string,
@@ -91,10 +90,7 @@ export function isNewerMark(
 	return a.gen !== b.gen ? a.gen > b.gen : a.seq > b.seq;
 }
 
-/**
- * Marks the live notes among `paths` and holds back those an open room has
- * not settled on, or that would publish a snapshot older than the remote's.
- */
+/** Holds back live notes whose open room has not settled, or that would publish a snapshot older than the remote's. */
 export async function liveMarks(
 	deps: EngineDependencies,
 	result: CompareResult,

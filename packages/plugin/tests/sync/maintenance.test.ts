@@ -72,7 +72,6 @@ describe("deepCleanOrphans", () => {
 		expect(await storage.exists(objectKey("ORPHAN"))).toBe(false);
 		expect((await storage.list(REMOTE_PINS_PREFIX)).length).toBe(0);
 
-		// A second pass is a no-op.
 		const again = await deepCleanOrphans(storage, key, "");
 		expect(again.deletedObjects).toBe(0);
 		expect(again.deletedPins).toBe(0);

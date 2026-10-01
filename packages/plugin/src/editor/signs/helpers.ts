@@ -47,9 +47,7 @@ export function findChunkForLine(
 	return null;
 }
 
-/**
- * Baseline must keep the empty last line a trailing newline implies to prevent phantom "added line" diffs at the end.
- */
+/** Keeps the empty last line a trailing newline implies, so the baseline shows no phantom "added line" at the end. */
 export function toCmText(raw: string): Text {
 	return Text.of(raw.replace(/\r\n?/g, "\n").split("\n"));
 }
@@ -110,9 +108,8 @@ export function presentChunk(
 }
 
 /**
- * The sync hunk a gutter line belongs to. CodeMirror chunks are finer-grained
- * than `computeHunks` hunks, so the popup must show (and the push must apply)
- * this one, otherwise a nearby edit rides along unannounced.
+ * The sync hunk a gutter line belongs to. CodeMirror chunks are finer than `computeHunks` hunks, so the popup and push
+ * must use this one, or a nearby edit rides along unannounced.
  */
 export function findSyncHunkForLine(
 	lineNumber: number,

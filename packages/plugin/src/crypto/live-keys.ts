@@ -1,7 +1,6 @@
 /**
- * Keys of the live layer, one per purpose, derived from the vault's data key.
- * The content key is imported non-extractable, so these are derived where the
- * raw key is unwrapped rather than from the finished CryptoKey.
+ * One key per live-layer purpose, derived where the raw data key is unwrapped, since the content key is
+ * non-extractable.
  */
 
 export interface LiveKeys {

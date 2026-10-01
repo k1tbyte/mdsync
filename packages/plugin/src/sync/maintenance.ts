@@ -2,7 +2,7 @@ import { DEFAULT_CONCURRENCY } from "@/constants";
 import { decryptBytes, type EncryptionKey, sha256Hex } from "@/crypto";
 import type { StorageAdapter } from "@/storage/types";
 import { REMOTE_OBJECTS_PREFIX, REMOTE_PINS_PREFIX } from "@/sync/constants";
-import { runWithConcurrency } from "@/utils/concurrency";
+import { runWithConcurrency } from "@/utils";
 import {
 	collectChangeHashes,
 	collectHashes,
@@ -75,10 +75,7 @@ async function reachableHashes(
 	return { hashes, head, log, complete };
 }
 
-/**
- * Checks referenced content objects are present (and optionally decrypts/hashes via `deep`).
- * Catches missing objects or silent backend corruption.
- */
+/** Catches missing objects or silent backend corruption; `deep` also decrypts and hashes. */
 export async function verifyRemote(
 	storage: StorageAdapter,
 	key: EncryptionKey,
@@ -115,10 +112,7 @@ export async function verifyRemote(
 	return { checked: list.length, missing, corrupt };
 }
 
-/**
- * Removes objects and pin manifests not reachable from HEAD or the history log.
- * Requires a backend that can list.
- */
+/** Removes objects and pin manifests unreachable from HEAD or the history log. Needs a backend that can list. */
 export async function deepCleanOrphans(
 	storage: StorageAdapter,
 	key: EncryptionKey,
@@ -151,15 +145,14 @@ export async function deepCleanOrphans(
 		settledKeys(storage, REMOTE_PINS_PREFIX),
 	]);
 
-	// If another device published during listing, its new objects appear as orphans. Bail.
+	// Another device publishing during the listing makes its new objects look like orphans: bail.
 	const headNow = await fetchRemoteManifest(storage, key, root);
 	if ((headNow?.snapshotId ?? null) !== (reachable.head?.snapshotId ?? null)) {
 		throw new Error(
 			"Another device pushed while cleaning; nothing was deleted. Try again.",
 		);
 	}
-	// Pinning does not move HEAD, so the head check alone would let a pin created
-	// during the listing look like an orphan.
+	// Pinning does not move HEAD, so a pin created during the listing needs its own check.
 	const logNow = await readHistoryLog(storage, key, root);
 	if (pinnedSignature(logNow) !== pinnedSignature(reachable.log)) {
 		throw new Error(

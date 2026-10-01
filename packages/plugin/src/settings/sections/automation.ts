@@ -17,7 +17,7 @@ import {
 	type SettingsField,
 	SUB_SETTING_CLASS,
 } from "@/settings/fields";
-import { EFieldKind } from "@/storage/field-spec";
+import { EFieldKind } from "@/storage";
 import { clampMaxSnapshots } from "@/sync/history";
 import { VAULT_SPACE } from "@/sync/space";
 import { RELAY_TEXT } from "@/ui/common";
@@ -176,7 +176,6 @@ function renderConnectedDevices(
 	};
 }
 
-/** Reconnects relay with new settings. */
 function restartRelay(plugin: PluginHost): void {
 	plugin.realtime.hub.restart();
 }

@@ -1,6 +1,6 @@
 /**
- * A Y.Doc only grows: deleted text stays as tombstones. Rotation moves a note
- * into a fresh document holding just its text, and the authorship with it.
+ * A Y.Doc only grows (deleted text stays as tombstones): rotation moves a note into a fresh document
+ * holding just its text and authorship.
  */
 
 import * as Y from "yjs";

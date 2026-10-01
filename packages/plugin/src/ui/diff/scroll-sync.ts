@@ -1,6 +1,6 @@
 import type { EditorView } from "@codemirror/view";
 import type { Span } from "@/sync/merge-model";
-import { firstIndex } from "@/utils/search";
+import { firstIndex } from "@/utils";
 import { docBottom, spanBounds } from "./geometry";
 
 /** IntelliJ keeps the line a third of the way down the viewport aligned. */
@@ -25,10 +25,7 @@ export interface ScrollLink {
 	pairs(): ScrollAnchors;
 }
 
-/**
- * The anchors of paired spans, measured on demand: both documents' tops, each
- * pair's top and bottom, then both documents' ends.
- */
+/** Anchors of paired spans, measured on demand: document tops, each pair's top and bottom, then document ends. */
 export function spanAnchors(
 	a: EditorView,
 	b: EditorView,
@@ -52,11 +49,7 @@ export function spanAnchors(
 	};
 }
 
-/**
- * Soft scroll sync over a graph of pane links: panes keep their own heights,
- * and each change's top and bottom act as anchors interpolated between, so a
- * scroll in one pane propagates breadth-first through its links.
- */
+/** Soft scroll sync over pane links: each change's top and bottom anchor an interpolation, propagated breadth-first. */
 export class PaneScrollSync {
 	private readonly expected = new Map<EditorView, number>();
 	private readonly detach: Array<() => void> = [];
@@ -146,10 +139,7 @@ export class PaneScrollSync {
 
 type Edge = "top" | "bottom" | null;
 
-/**
- * A pane at either end cannot go further, so the anchor mapping would leave
- * the others short of theirs; at the ends the panes line up on the end itself.
- */
+/** At either end a pane cannot go further, so the panes line up on the end itself rather than via the anchors. */
 function edgeOf(view: EditorView): Edge {
 	const el = view.scrollDOM;
 	if (el.scrollTop <= 0) return "top";

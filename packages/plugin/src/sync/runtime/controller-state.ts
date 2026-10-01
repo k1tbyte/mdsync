@@ -96,9 +96,7 @@ export class SyncControllerRuntimeState {
 		this.broadcaster.dispose();
 		// A push or pull left running would finish against the next instance's state.
 		this.cancel();
-		// Obsidian keeps a plugin's bundle scope alive through any closure that
-		// outlives unload, and other plugins hold detached elements of ours. What
-		// survives should be an empty controller, not 20k files worth of compare.
+		// Closures outliving unload keep this scope alive; what survives should be empty, not 20k files of compare.
 		this.clearResult();
 		this.error = null;
 		this.spaceErrors = [];
@@ -182,10 +180,8 @@ export class SyncControllerRuntimeState {
 	}
 
 	/**
-	 * Opens a cancellation scope for one operation. Nested calls share the outer
-	 * scope so an inner step cannot revoke the user's ability to stop the whole.
-	 * Only open one around work that actually reads the signal - a Cancel button
-	 * over an operation that ignores it is worse than no button.
+	 * Nested calls share the outer scope so an inner step cannot revoke stopping the whole. Open only around
+	 * work that reads the signal: a Cancel button over an ignoring operation is worse than none.
 	 */
 	beginCancellable(): { signal: AbortSignal; end: () => void } {
 		if (this.aborter) {
@@ -205,8 +201,7 @@ export class SyncControllerRuntimeState {
 	}
 
 	cancel(): void {
-		// Without a scope there is nothing to stop, and a status nobody clears
-		// would sit there for good.
+		// Without a scope nothing can stop, and an uncleared status would stick.
 		if (!this.aborter || this.aborter.signal.aborted) return;
 		this.aborter.abort();
 		this.publishProgress("Cancelling…");

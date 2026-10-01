@@ -1,8 +1,6 @@
 /**
- * The relay's one Durable Object: every socket of this deployment, each
- * carrying the channels the worker admitted it to. Socket state lives in its
- * attachment and document logs in SQLite, so it hibernates between frames and
- * pings never wake it; an alarm sweeps stale sockets while any are open.
+ * The relay's one Durable Object. Socket state lives in attachments and document logs in SQLite, so it
+ * hibernates between frames and pings never wake it.
  */
 
 import { DurableObject } from "cloudflare:workers";
@@ -97,9 +95,8 @@ export class Hub extends DurableObject<HubEnv> {
 	}
 
 	/**
-	 * Keepalives never wake the hub, so a half-open socket would stay in every
-	 * presence list until the runtime noticed. Its missing pings give it away;
-	 * sweeping twice per window bounds a ghost's life at 1.5 windows.
+	 * Keepalives never wake the hub, so missing pings are the only sign of a half-open socket; sweeping
+	 * twice per window bounds a ghost's life at 1.5 windows.
 	 */
 	async alarm(): Promise<void> {
 		const cutoff = Date.now() - this.staleMs;
@@ -159,7 +156,10 @@ interface Attached {
 	peer: HubPeer;
 }
 
-/** One object per socket: reading a 16 KB attachment and rebuilding its peer for every socket on every frame was the hub's hot path. */
+/**
+ * One object per socket: reading a 16 KB attachment and rebuilding its peer for every socket on every frame
+ * was the hub's hot path.
+ */
 const attached = new WeakMap<WebSocket, Attached>();
 
 function attach(ws: WebSocket, state: Attachment): Attached {

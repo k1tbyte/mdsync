@@ -1,4 +1,7 @@
-/** Owner-side broker routes: registering a share's storage and managing its participants, all behind the relay secret. */
+/**
+ * Owner-side broker routes: registering a share's storage and managing its participants, all behind the
+ * relay secret.
+ */
 
 import { shareChannel } from "@obsync/protocol";
 import { hubStub } from "../hub/stub";

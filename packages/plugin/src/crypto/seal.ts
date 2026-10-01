@@ -1,6 +1,6 @@
 /**
- * Everything the relay carries is sealed here: live frames, cursors, presence.
- * The hub routes and stores ciphertext, so neither paths nor keystrokes leave the device.
+ * Seals everything the relay carries (frames, cursors, presence): the hub sees only ciphertext, so no paths
+ * or keystrokes leave the device.
  */
 
 import { IV_BYTES } from "./constants";
@@ -8,7 +8,10 @@ import type { LiveKeys } from "./live-keys";
 
 const encoder = new TextEncoder();
 
-/** Sealed in as additional data: the relay cannot move a frame to another document, or a cursor or rename note into one. */
+/**
+ * Sealed in as additional data: the relay cannot move a frame to another document, or a cursor or rename note
+ * into one.
+ */
 export type SealedFor =
 	| `doc:${string}`
 	| `awareness:${string}`

@@ -12,7 +12,6 @@ describe("space root translation at the codec boundary", () => {
 
 	it("publishes relative keys but compare() sees vault paths", async () => {
 		const session = new TestSession();
-		// Override space to a non-empty root.
 		const deps = () => ({
 			...session.deps(),
 			space: { id: "shared", root: "Shared/p" },
@@ -24,7 +23,6 @@ describe("space root translation at the codec boundary", () => {
 		expect(cmp.diff.localChanges.map((c) => c.path)).toEqual(["Shared/p/a.md"]);
 
 		const manifest = await pushPaths(deps(), cmp, ["Shared/p/a.md"]);
-		// Engine returns vault paths.
 		expect(manifest.files["Shared/p/a.md"]).toBeTruthy();
 
 		// The encrypted blob on storage holds relative paths.
@@ -33,7 +31,6 @@ describe("space root translation at the codec boundary", () => {
 		const raw = await decryptJson<Manifest>(deps().key, blob);
 		expect(Object.keys(raw.files)).toEqual(["a.md"]);
 
-		// After advancing, a clean compare sees vault paths.
 		session.state = advanceSessionAfterPush(session.state, cmp, manifest);
 		const cmp2 = await compare(deps());
 		expect(cmp2.remote).not.toBeNull();

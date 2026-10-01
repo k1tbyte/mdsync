@@ -1,11 +1,6 @@
 /*
- * Obsync's own design tokens.
- *
- * Spacing is NOT here: Obsidian publishes a 4px grid (--size-4-1 = 4px ...
- * --size-4-18, plus --size-2-* for 2px steps). Use those directly; a parallel
- * --obsync-space-* scale would duplicate a source of truth we do not own.
- *
- * Only values Obsidian has no variable for belong here.
+ * Obsync's own design tokens: only values Obsidian has no variable for.
+ * Spacing uses Obsidian's 4px grid directly; a parallel scale would duplicate a source of truth we do not own.
  */
 
 body {

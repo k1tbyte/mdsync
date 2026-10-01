@@ -3,7 +3,7 @@ import { TFile, TFolder } from "obsidian";
 import { randomId } from "@/crypto";
 import type { PluginHost } from "@/plugin/host";
 import { ownerStorage } from "@/settings/model";
-import { normalizePath, stripTrailingSlash } from "@/shared/path";
+import { normalizePath, stripTrailingSlash } from "@/shared";
 import {
 	acceptInvite,
 	brokerStorage,

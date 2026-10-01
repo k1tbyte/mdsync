@@ -1,18 +1,20 @@
 import { Setting } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
-import { getDescriptor, googleLoginUrl } from "@/storage";
 import {
+	EFieldKind,
 	EStorageBackend,
 	type GoogleDriveStorageConfig,
+	getDescriptor,
+	googleLoginUrl,
+	type SettingsFieldSpec,
 	type StorageAdapterConfig,
-} from "@/storage/config";
-import { EFieldKind, type SettingsFieldSpec } from "@/storage/field-spec";
+} from "@/storage";
 import { notifyError } from "@/ui";
 
 /**
- * Renders one backend's credential fields. Takes the kind explicitly so the
- * shares section can edit S3 without the vault having to switch to it.
+ * Renders one backend's credential fields. Takes the kind explicitly so the shares section can edit S3
+ * without the vault switching to it.
  */
 export function renderStorageFields(
 	parent: HTMLElement,

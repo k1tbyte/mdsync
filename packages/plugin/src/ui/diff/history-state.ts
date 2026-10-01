@@ -5,7 +5,6 @@ import type {
 	HistoryVersionRef,
 } from "@/sync/projection";
 
-/** Serialised history-change field in DiffViewState. */
 export interface HistoryChange {
 	before: HistoryVersionRef | null;
 	after: HistoryVersionRef | null;
@@ -18,7 +17,6 @@ export interface HistoryModeInput {
 	historyChange: HistoryChange | null;
 	historyPreviewIfMissing: boolean;
 	against: HistoryVersionRef | null;
-	/** Whether the file currently exists in the vault. */
 	localExists: boolean;
 }
 

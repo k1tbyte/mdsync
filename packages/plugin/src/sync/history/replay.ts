@@ -3,11 +3,8 @@ import { contiguousLength, undoChanges } from "./changes";
 import type { HistoryLog } from "./types";
 
 /**
- * Rebuilds the file map at `snapshotId` by undoing change records back from HEAD.
- * Returns null when the log does not start at HEAD or the chain breaks before
- * reaching the target - a partial replay would silently invent a vault state.
- *
- * Empty folders are not tracked per snapshot, so the result carries none.
+ * Null when the log does not start at HEAD or the chain breaks before the target: a partial replay would
+ * invent a state. Empty folders are not tracked per snapshot, so the result carries none.
  */
 export function replayTo(
 	head: Manifest,

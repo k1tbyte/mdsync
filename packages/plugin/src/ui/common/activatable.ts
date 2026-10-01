@@ -1,4 +1,3 @@
-/** Gives a clickable non-button the semantics a keyboard user needs. */
 export function makeActivatable(
 	el: HTMLElement,
 	label: string | null,

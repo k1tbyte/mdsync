@@ -1,7 +1,7 @@
 import type { Plugin } from "obsidian";
 
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
-import { formatRelativeTime } from "@/shared/format";
+import { formatRelativeTime } from "@/shared";
 import type { SyncController, SyncStatusSnapshot } from "@/sync/controller";
 import { makeActivatable } from "./common/activatable";
 import { openSourceControlView } from "./source-control-view";

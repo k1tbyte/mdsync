@@ -20,7 +20,7 @@ import {
 	selectionSize,
 } from "@/sync/hunks";
 import type { Manifest, ManifestEntry } from "@/sync/types";
-import { withEolOf } from "@/utils/eol";
+import { withEolOf } from "@/utils";
 import { trashPath } from "@/vault/io";
 import {
 	assertSidesUnchanged,
@@ -41,9 +41,8 @@ export interface LocalHunksArgs {
 }
 
 /**
- * Push and revert of one diff's segments in a single operation: both texts
- * derive from the same Baseline/Local pair, so a revert cannot shift the
- * indices the push was chosen against.
+ * Push and revert in one operation: both derive from the same Baseline/Local pair, so a revert cannot shift
+ * the push's indices.
  */
 export const localHunksOp: Operation<LocalHunksArgs> = async (
 	deps,
@@ -158,9 +157,8 @@ export const pullHunksOp: Operation<PullHunksArgs> = async (
 	const merged = withEolOf(sides.left, applyHunks(sides.left, hunks, selected));
 	const localEntry = await writeLocalFile(deps, path, textToBytes(merged));
 
-	// Only a pull that took every segment has acknowledged the remote version.
-	// Moving the baseline after a partial pull would hide the segments that were
-	// left behind and let the next push overwrite them.
+	// Only a pull taking every segment acknowledges the remote; a partial pull's baseline would hide
+	// left-behind segments and let the next push overwrite them.
 	const baseline = advanceBaselineForPaths(
 		deps.state.baseline,
 		result.remote,

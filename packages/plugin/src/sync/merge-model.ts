@@ -1,6 +1,6 @@
 import { diffArrays } from "diff";
 
-import { toLf } from "@/utils/eol";
+import { toLf } from "@/utils";
 
 import { anchoredHunks, hunksFromChanges } from "./anchored-hunks";
 import { MAX_EDIT_LENGTH } from "./hunks";
@@ -108,9 +108,8 @@ export function patchTaken(taken: Taken, patch: TakenPatch): Taken {
 }
 
 /**
- * Groups both sides' hunks by overlapping-or-touching base lines, the way diff3
- * does (`groupTouching`), and reports all three ranges for every region: the
- * side that did not change still owns the base-equal lines the region maps onto.
+ * Groups both sides' hunks by overlapping-or-touching base lines, as diff3 does; an unchanged side still owns
+ * the base-equal lines of the region.
  */
 export function threeWayRegions(
 	base: string[],
@@ -142,8 +141,7 @@ export function threeWayRegions(
 				const offset = cursor[side] - cursor.base;
 				return [start + offset, end + offset];
 			}
-			// Outside its own hunks a side equals the base line for line, so the
-			// region's extra base lines map onto that many side lines.
+			// Outside its own hunks a side equals the base, so extra base lines map onto as many side lines.
 			const first = own[0] as SideHunk;
 			const last = own[own.length - 1] as SideHunk;
 			const minBase = first.base[0];
@@ -180,10 +178,7 @@ function joins(
 	return groupTouching || insertsAtSamePoint;
 }
 
-/**
- * Initial Result: non-conflicting regions already carry the changed side and
- * count as applied; a real conflict keeps the base lines and waits for a choice.
- */
+/** Non-conflicting regions start applied with the changed side; a real conflict keeps the base lines until chosen. */
 export function buildMergeSession(
 	base: string,
 	local: string,
@@ -257,8 +252,8 @@ export function buildMergeSession(
 /** Widens a span to whole lines: from a line start to the next line start or the doc end. */
 export function snapToLines(doc: LineDoc, span: Span): Span {
 	if (span.to <= span.from) {
-		// An empty span sits before a line, or after the last line of a file
-		// without a final newline; anywhere mid-line it moves to the next line.
+		// An empty span sits before a line, or after the last line of a file without a final newline;
+		// mid-line it moves to the next line.
 		const line = doc.lineAt(span.from);
 		const at =
 			span.from === line.from || span.from === doc.length
@@ -273,10 +268,7 @@ export function snapToLines(doc: LineDoc, span: Span): Span {
 	return { from, to };
 }
 
-/**
- * The edit that takes `side` into the Result. A conflict whose other side is
- * already in gets this side appended below it, so click order is line order.
- */
+/** A conflict whose other side is already in gets this side appended below it, so click order is line order. */
 export function applyPlan(
 	doc: LineDoc,
 	change: MergeChange,
@@ -324,10 +316,7 @@ export function applyPlan(
 	};
 }
 
-/**
- * The edit that takes `side` back out. With the other side still in, only this
- * side's lines go; otherwise the base lines return.
- */
+/** With the other side still in, only this side's lines go; otherwise the base lines return. */
 export function revertPlan(
 	doc: LineDoc,
 	change: MergeChange,

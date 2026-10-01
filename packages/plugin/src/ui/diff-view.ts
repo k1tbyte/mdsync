@@ -7,7 +7,7 @@ import {
 } from "obsidian";
 import { DIFF_VIEW_TYPE, SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
-import { errorMessage } from "@/shared/errors";
+import { errorMessage } from "@/shared";
 import { HUNK_TEXT_MAX_BYTES } from "@/sync/constants";
 import {
 	EDiffDirection,
@@ -230,7 +230,6 @@ export class DiffView extends ItemView {
 					this.renderMessage("Waiting for a compare…");
 					return;
 				}
-				// No differences remaining; auto-close.
 				this.leaf.detach();
 				return;
 			}

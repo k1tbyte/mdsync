@@ -1,5 +1,5 @@
 import { ESyncLogOperation } from "@/logs/store";
-import { errorMessage } from "@/shared/errors";
+import { errorMessage } from "@/shared";
 import { ShareRefusedError, StorageRequestError } from "@/storage";
 import { publishedByOthers, publisher } from "@/sync/authors";
 import { advanceBaselineForPaths } from "@/sync/baseline";
@@ -232,16 +232,15 @@ export class OperationRunner {
 		};
 	}
 
-	/**
-	 * Drops this device's state of a share so it mounts afresh: an old baseline
-	 * would read the new, empty folder as deleted. `deleteRemote` empties a
-	 * closed share's storage too.
-	 */
 	/** The next full refresh lists the disk too; the first one after launch does. */
 	walkDiskNext(): void {
 		this.walkDisk = true;
 	}
 
+	/**
+	 * Drops this device's state of a share so it mounts afresh (an old baseline would read the new empty
+	 * folder as deleted); `deleteRemote` also empties a closed share's storage.
+	 */
 	forget(space: Space, { deleteRemote = false } = {}): Promise<void> {
 		return this.deps.runtimeState.enqueue(async () => {
 			const { host } = this.deps;

@@ -1,7 +1,6 @@
 /**
- * Live documents inside a channel. The hub never reads a document's encrypted
- * log: clients merge, it only orders updates, keeps what a client snapshot
- * covers and forwards the rest to the document's followers.
+ * Live documents in a channel. The hub never reads the encrypted log: clients merge, it only orders updates
+ * and forwards them to followers.
  */
 
 import {
@@ -51,8 +50,8 @@ export interface DocStore {
 	/** Null while the document is live. */
 	movedTo(channel: string, doc: string): Pointer | null;
 	/**
-	 * Seeds the pointer's target and replaces this log with the pointer, only
-	 * while the log ends at `upto` and the target has none; false changes nothing.
+	 * Seeds the pointer's target and replaces this log with the pointer, only while the log ends at `upto`
+	 * and the target has none; false changes nothing.
 	 */
 	rotate(
 		channel: string,
@@ -67,7 +66,10 @@ export interface DocStore {
 	seed(channel: string, doc: string, payload: Uint8Array): number | null;
 	/** The snapshot only when `since` predates it; deltas after both. */
 	state(channel: string, doc: string, since: number): DocState;
-	/** Replaces the deltas up to `upto` (clamped to the head) with the snapshot. Empty or older snapshots are refused: they would lose log. */
+	/**
+	 * Replaces the deltas up to `upto` (clamped to the head) with the snapshot. Empty or older snapshots
+	 * are refused: they would lose log.
+	 */
 	compact(
 		channel: string,
 		doc: string,

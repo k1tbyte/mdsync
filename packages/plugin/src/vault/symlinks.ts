@@ -1,8 +1,8 @@
 import { type DataAdapter, FileSystemAdapter, Platform } from "obsidian";
 
 /**
- * Links appear as folders to Obsidian. They belong to one machine, so they are skipped like device-local ignores: never pushed, never read as local deletions.
- * Only the filesystem can identify links. Mobile lacks Node and symlinks, so it degrades to a no-op.
+ * Links look like folders to Obsidian but belong to one machine: skipped like device-local ignores, never
+ * pushed or read as deletions. Mobile has no Node, so it is a no-op.
  */
 export interface SymlinkDetector {
 	isLink(path: string): boolean;
@@ -61,9 +61,8 @@ export function createSymlinkDetector(
 }
 
 /**
- * @param ignoreCase For a filesystem that resolves names case-insensitively, as
- * Windows and macOS do by default. A listing reports the spelling on disk, and a
- * path spelled differently reaches the same file there.
+ * @param ignoreCase For case-insensitive filesystems (Windows, macOS default), where a differently spelled
+ * path reaches the same file.
  */
 export function symlinkDetector(
 	base: string,
@@ -71,10 +70,8 @@ export function symlinkDetector(
 	ignoreCase = false,
 ): SymlinkDetector {
 	/**
-	 * One listing answers for every child of a folder. Asking the filesystem
-	 * about each path instead costs an lstat per file - 20k round trips and 20k
-	 * `fs.Stats` per scan to learn what ~700 listings already say, plus a thrown
-	 * ENOENT for every remote path with no local counterpart.
+	 * One listing answers for every child of a folder; per-path lstat costs 20k round trips per scan to learn
+	 * what ~700 listings say.
 	 */
 	const cache = new Map<string, ReadonlySet<string> | null>();
 	const fold = (name: string): string =>
@@ -94,8 +91,7 @@ export function symlinkDetector(
 			if (!segment) continue;
 			const parent = prefix;
 			prefix = prefix ? `${prefix}/${segment}` : segment;
-			// A linked ancestor settles it: the folder is never descended into,
-			// so nothing below it is ever listed.
+			// A linked ancestor settles it: nothing below it is ever listed.
 			if (linksIn(parent)?.has(fold(segment))) return prefix;
 		}
 		return null;

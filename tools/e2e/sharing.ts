@@ -1,7 +1,6 @@
 /**
- * An owner and a friend with vaults of their own, on one relay and one
- * in-memory S3, and the share steps their scenarios take through menus,
- * modals and settings.
+ * An owner and a friend with vaults of their own on one relay and in-memory S3, plus the share steps
+ * scenarios take through the UI.
  */
 
 import {
@@ -59,8 +58,8 @@ export function s3Vault(s3: S3, prefix: string) {
 }
 
 /**
- * Both devices launched, unlocked and synced once, then `body`. A `guest`
- * friend has no vault storage and is only loaded.
+ * Both devices launched, unlocked and synced once, then `body`; a `guest` friend has no vault storage and
+ * is only loaded.
  */
 export function runSharing(
 	name: string,

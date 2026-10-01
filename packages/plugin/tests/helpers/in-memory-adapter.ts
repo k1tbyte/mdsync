@@ -13,7 +13,6 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 	return bytes.slice().buffer as ArrayBuffer;
 }
 
-/** Minimal in-memory DataAdapter. */
 export class InMemoryAdapter {
 	private readonly files = new Map<string, FileEntry>();
 	private readonly dirs = new Set<string>();
@@ -24,7 +23,6 @@ export class InMemoryAdapter {
 		return ++this.mtimeSeq;
 	}
 
-	/** Test helper: seed/replace a text file. */
 	putText(path: string, text: string): void {
 		this.writeFile(
 			norm(path),
@@ -33,7 +31,6 @@ export class InMemoryAdapter {
 		);
 	}
 
-	/** Test helper: read a file back as text (throws if missing). */
 	readText(path: string): string {
 		const entry = this.files.get(norm(path));
 		if (!entry) throw new Error(`Missing file: ${path}`);

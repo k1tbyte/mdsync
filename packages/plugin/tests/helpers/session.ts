@@ -11,7 +11,6 @@ import { InMemoryAdapter } from "./in-memory-adapter";
 
 let sharedKey: EncryptionKey;
 
-/** Derives the shared AES key. */
 export function useEncryptionKey(): void {
 	beforeAll(async () => {
 		sharedKey = await deriveKey("pw", new Uint8Array(16));

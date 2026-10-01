@@ -69,10 +69,7 @@ export class DiffCache {
 		return model;
 	}
 
-	/**
-	 * Evicts LRU entries when count or retained bytes exceed budget - avoids
-	 * pinning megabytes of strings from forced diffs.
-	 */
+	/** Evicts LRU entries past the count or byte budget so forced diffs do not pin megabytes of strings. */
 	private evict(): void {
 		for (const [key, model] of this.entries) {
 			if (

@@ -46,8 +46,7 @@ const jsContext = await esbuild.context({
 	minify: prod,
 });
 
-// Obsidian reads styles.css from the plugin folder, so the bundle keeps that
-// name and stays unminified: it is the file a user or theme author inspects.
+// styles.css keeps its name (Obsidian reads it) and stays unminified for users and theme authors to inspect.
 // The target lowers nesting; color-mix() already sets the floor at Chrome 111.
 const cssContext = await esbuild.context({
 	banner: {

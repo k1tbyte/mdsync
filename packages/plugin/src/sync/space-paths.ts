@@ -1,6 +1,6 @@
 /**
- * A space's remote blobs hold paths relative to its root, so participants who
- * mount a share at different folders agree; locally everything is vault paths.
+ * Remote blobs hold root-relative paths so participants mounting a share at different folders agree; locally
+ * everything is vault paths.
  */
 
 import type { HistoryLog } from "./history/types";

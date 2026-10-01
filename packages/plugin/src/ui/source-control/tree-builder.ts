@@ -31,11 +31,7 @@ function createFolderNode(name: string, fullPath: string): MutableTreeNode {
 	return { name, fullPath, children: [], folders: new Map() };
 }
 
-/**
- * Walks the tree in display order, skipping what a collapsed folder hides. The
- * old markup built every descendant and left CSS to hide it, so collapsing a
- * folder saved nothing at all.
- */
+/** Walks the tree in display order, skipping what a collapsed folder hides, so collapsing saves work. */
 export function flattenTree(
 	node: TreeNode,
 	isExpanded: (folderPath: string) => boolean,

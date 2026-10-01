@@ -1,18 +1,16 @@
 /**
- * Per note (keyed by its first docId), the text its room last agreed on: the
- * merge base when it opens again, and the generation it reopens in. Kept in the
- * plugin folder, which never syncs; a lost file falls back to the sync baseline.
+ * Per note (by its first docId), the text its room last agreed on: its merge base and generation when it
+ * reopens. Kept in the plugin folder, which never syncs; a lost file falls back to the sync baseline.
  */
 
 import type { DataAdapter } from "obsidian";
 
 import { PLUGIN_ID } from "@/constants";
-import { reportWarning } from "@/shared/diagnostics";
+import { reportWarning } from "@/shared";
 import { ensureDir } from "@/vault/io";
 
 export interface AgreedText {
 	text: string;
-	/** The room's rotation generation. */
 	gen: number;
 	seq: number;
 }

@@ -19,9 +19,8 @@ interface PointerState {
 }
 
 /**
- * Keeps one Excalidraw view and its room in step, element by element, with
- * everyone's pointers; null while it loads. A reloaded view replaces its API:
- * the first event after that calls `onStale` instead.
+ * Keeps one Excalidraw view and its room in step, element by element, with everyone's pointers; null while
+ * it loads. A reloaded view replaces its API: the first event after that calls `onStale`.
  */
 export function bindDrawing(
 	view: ExcalidrawView,

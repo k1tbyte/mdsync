@@ -41,9 +41,8 @@ function entry(hash: string): ManifestEntry {
 }
 
 /**
- * Anything that reaches disk or the wire is compared against its previous
- * bytes before being rewritten, so a record whose key order moves costs a
- * megabyte-scale write for content that did not change.
+ * Disk and wire records are compared against their previous bytes, so a moved key order costs a
+ * megabyte-scale rewrite for unchanged content.
  */
 describe("path-keyed records stay ordered", () => {
 	it("keeps the manifest sorted across an incremental push", async () => {

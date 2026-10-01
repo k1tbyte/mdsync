@@ -22,7 +22,6 @@ export class ConflictPreviewManager {
 		this.pendingTargets.clear();
 	}
 
-	/** Keeps only the previews of conflicts that still exist. */
 	prune(conflictPaths: ReadonlyArray<string>): void {
 		if (this.expandedPreviews.size === 0) return;
 		const current = new Set(conflictPaths);

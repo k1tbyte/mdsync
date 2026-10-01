@@ -1,9 +1,7 @@
 /**
- * Reads the two S3 responses that carry XML. A parser dependency would undo
- * what removing the SDK bought, and `DOMParser` does not exist in the test
- * runner; the documents are machine-generated and only a few tags are read.
- * A value can never contain a raw `<`, so a non-greedy match between a tag and
- * its close is exact for any well-formed document.
+ * Reads the two S3 responses that carry XML without a parser: a dependency would undo what dropping the SDK
+ * bought, `DOMParser` is missing in the test runner, and a value never contains a raw `<`, so a non-greedy
+ * match is exact for well-formed documents.
  */
 
 import type { ListedObject } from "@/storage/types";
@@ -16,9 +14,8 @@ export interface ListPage {
 }
 
 /**
- * Throws rather than under-report. A listing that silently loses keys is read
- * as "the remote does not have these", which is the input to deciding what to
- * delete and what to upload.
+ * Throws rather than under-report: a listing that silently loses keys reads as "the remote lacks these",
+ * which decides what is deleted and uploaded.
  */
 export function parseListObjects(xml: string): ListPage {
 	if (!LIST_ROOT.test(xml)) {
@@ -39,8 +36,8 @@ export function parseListObjects(xml: string): ListPage {
 		});
 	}
 	const nextToken = tagValue(xml, "NextContinuationToken")?.trim();
-	// S3 always names the token alongside a truncated listing. A backend that
-	// does not has told us the page is partial without saying how to continue.
+	// S3 always names the token with a truncated listing: a backend that does not has said the page is
+	// partial without saying how to continue.
 	if (!nextToken && tagValue(xml, "IsTruncated")?.trim() === "true") {
 		throw new Error(
 			"S3 reported a truncated listing without a continuation token, so the object list would be incomplete.",

@@ -26,8 +26,7 @@ export function bytesToBase64Url(bytes: Uint8Array): string {
 }
 
 export function base64UrlToBytes(value: string): Uint8Array {
-	// Strip anything that is not base64url first: a token pasted with a trailing
-	// newline would otherwise be padded to an invalid length and throw.
+	// Strip non-base64url first: a pasted trailing newline would pad to an invalid length and throw.
 	const normalized = value
 		.replace(/[^A-Za-z0-9\-_]/g, "")
 		.replace(/-/g, "+")

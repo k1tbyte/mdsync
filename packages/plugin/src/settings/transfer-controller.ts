@@ -22,7 +22,6 @@ export interface SettingsTransferDeps {
 	onSettingsReplaced(): void;
 }
 
-/** Export and import of the encrypted device-transfer token. */
 export class SettingsTransferController {
 	constructor(private readonly deps: SettingsTransferDeps) {}
 

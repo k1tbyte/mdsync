@@ -7,7 +7,7 @@ import {
 	withRetry,
 	withTimeout,
 } from "@/storage/adapters/util";
-import { toArrayBuffer } from "@/utils/bytes";
+import { toArrayBuffer } from "@/utils";
 
 describe("storage error semantics", () => {
 	it("treats only 'come back later' statuses as retryable", () => {

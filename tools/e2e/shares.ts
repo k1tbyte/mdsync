@@ -1,9 +1,6 @@
 /**
- * A share between two devices of its owner, in real Obsidians over one
- * in-memory S3: the laptop shares a folder through its menu, the desktop mounts
- * it by itself, edits cross both ways and the vault's next push leaves it out; the
- * desktop pauses the share and resumes it; the laptop moves the folder and the
- * desktop follows.
+ * A share between two devices of its owner in real Obsidians: the laptop shares and moves a folder, the
+ * desktop mounts, follows, pauses and resumes it.
  */
 
 import {

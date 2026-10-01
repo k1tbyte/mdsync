@@ -18,14 +18,17 @@ import {
 } from "@/settings/model";
 import type { ObsyncSettingTab } from "@/settings/tab";
 import { SettingsTransferController } from "@/settings/transfer-controller";
-import { reportWarning } from "@/shared/diagnostics";
+import { reportWarning } from "@/shared";
 import type { SpaceRecords } from "@/spaces";
 import type { SyncController } from "@/sync/controller";
 import { registerScheduler } from "@/sync/scheduler";
-import { createSpaceGone, type IndicatorHandle } from "@/ui";
-import { notifyInfo } from "@/ui/common";
-import { createDeletedElsewhere } from "@/ui/live/deleted-elsewhere";
-import { createAccessEnded } from "@/ui/shares/access-ended";
+import {
+	createAccessEnded,
+	createDeletedElsewhere,
+	createSpaceGone,
+	type IndicatorHandle,
+	notifyInfo,
+} from "@/ui";
 import {
 	bootstrapPluginRuntime,
 	disposePluginRuntime,
@@ -105,9 +108,8 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 			persistSettings: () => this.saveSettings(),
 			liveNotes: (space) => this.realtime?.liveNotes(space),
 		});
-		// Obsidian can unload a plugin while its onload is still awaiting, and this
-		// one awaits a 3 MB state file. A teardown registered past that point is
-		// never run, so the sockets, timers and views would outlive the plugin.
+		// Obsidian can unload mid-onload (it awaits a 3 MB state file); a teardown registered past that point
+		// never runs and leaks sockets, timers and views.
 		if (this.unloaded) {
 			disposePluginRuntime(runtime);
 			return;
@@ -155,8 +157,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 		registerIgnoreFileRefresh(this);
 		registerStatePersistenceFlush(this, this.statePersister);
 
-		// Re-render the open Settings tab so auth status updates without the
-		// user closing and reopening it.
+		// Re-render the open Settings tab so auth status updates live.
 		registerProtocolHandlers(this, () => this.settingsTab?.display());
 	}
 
@@ -166,8 +167,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 			window.clearTimeout(this.scopeRefreshTimer);
 			this.scopeRefreshTimer = null;
 		}
-		// Each teardown is isolated: one that throws must not leave the rest of
-		// the plugin timers, sockets and listeners running after unload.
+		// Isolated: one throwing teardown must not leave the rest running after unload.
 		safely(() => this.editorSigns?.dispose());
 		this.editorSigns = null;
 		this.fileIndicators = null;
@@ -187,9 +187,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 		const save = this.savingSettings.then(() => this.saveData(this.settings));
 		this.savingSettings = save.catch(() => undefined);
 		await save;
-		// Every settings write funnels through here, and any of them can change
-		// the room or the credentials the relay client is using, or which space a
-		// note is in: a record synced, accepted, closed, paused or moved.
+		// Any settings write can change the room, the relay credentials or a note's space.
 		this.realtime.refresh();
 	}
 
@@ -229,9 +227,8 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 	}
 
 	/**
-	 * Imported settings change the backend and the relay; without this the
-	 * services keep running against the previous configuration until Obsidian
-	 * is restarted.
+	 * Imported settings change the backend and relay; services would otherwise keep the old configuration
+	 * until restart.
 	 */
 	private onSettingsReplaced(): void {
 		void this.ignoreState.refresh();

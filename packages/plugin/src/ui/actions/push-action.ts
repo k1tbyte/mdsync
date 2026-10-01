@@ -5,10 +5,7 @@ import type { PluginHost } from "@/plugin/host";
 import { notifyError, notifyInfo, runWithNotice } from "@/ui/common";
 import { openSourceControlView } from "@/ui/source-control-view";
 
-/**
- * Changes from `changes` that sit inside `scope`: a file matches itself, a
- * folder matches everything below it (the vault root, path "/", covers all).
- */
+/** Changes inside `scope`: a file matches itself, a folder everything below it (the vault root "/" covers all). */
 export function scopedPaths(
 	changes: ReadonlyArray<{ path: string }>,
 	scope: string,
@@ -44,7 +41,6 @@ export function addPushMenuItem(
 	);
 }
 
-/** Compares first, then pushes the local changes under `path`. */
 export async function pushScope(
 	plugin: PluginHost,
 	path: string,
@@ -52,8 +48,7 @@ export async function pushScope(
 ): Promise<void> {
 	const target = isFolder ? "folder" : "file";
 	try {
-		// Acting on a stale diff could push a file another device has since
-		// changed, so compare first - the same preflight as the push command.
+		// A stale diff could push a file another device changed since; compare first, as the push command does.
 		await plugin.controller.refresh();
 	} catch (err) {
 		notifyError(`Could not push ${target}`, err);

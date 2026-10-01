@@ -1,8 +1,6 @@
 /**
- * Live editing in a shared folder, in real Obsidians: the owner and a
- * participant type into one note of the share, each at its own path, in the
- * share's room on the owner's relay; a sync afterwards is no conflict. What
- * one changes shows as new in the other's tree until opened.
+ * Live editing in a shared folder in real Obsidians: owner and participant type into one note in the
+ * share's room; a later sync is no conflict.
  */
 
 import { CLEAN, clickMenuItem, closeModals, read, sync, write } from "./device";

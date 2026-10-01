@@ -2,7 +2,7 @@ import { pairedSessions, useEncryptionKey } from "@tests/helpers/session";
 import { describe, expect, it, vi } from "vitest";
 
 import { pullPaths, pushPaths } from "@/sync/engine";
-import { LARGE_FILE_BYTES } from "@/utils/file-concurrency";
+import { LARGE_FILE_BYTES } from "@/utils";
 
 useEncryptionKey();
 

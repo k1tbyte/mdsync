@@ -37,9 +37,8 @@ export interface ComparePanelOptions extends LineWrappingOptions {
 }
 
 /**
- * The two-way compare: two read-only panes joined by a divider, or one
- * combined pane with source blocks when narrow. Clicking a rail button only
- * picks the segment; Apply carries every pick out in one operation.
+ * Two read-only panes and a divider, or one combined pane when narrow. A rail click only picks; Apply
+ * carries all picks out.
  */
 export class ComparePanel {
 	private readonly choices = new HunkChoices();

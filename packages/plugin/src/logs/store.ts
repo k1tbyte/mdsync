@@ -57,8 +57,7 @@ export async function loadSyncLogs(
 		if (!Array.isArray(parsed)) {
 			return [];
 		}
-		// Entries were already trimmed when they were written; trimming again
-		// would drop the "... N more" line and cut a real detail in its place.
+		// Already trimmed on write; trimming again would drop the "... N more" line and cut a real detail.
 		return parsed.filter(isSyncLogEntry).slice(0, MAX_LOG_ENTRIES);
 	} catch {
 		return [];

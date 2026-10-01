@@ -30,7 +30,7 @@ import {
 	notifyInfo,
 	runWithNotice,
 } from "@/ui/common";
-import { eolOf } from "@/utils/eol";
+import { eolOf } from "@/utils";
 import { Divider } from "./divider";
 import { sideSpan, spanBounds, updatePaneViewportWidth } from "./geometry";
 import { LayoutMode } from "./layout-mode";
@@ -197,7 +197,7 @@ export class MergeEditorPanel {
 			}
 			this.scheduleLayout();
 		});
-		this.wrapping!.mount(toolbar);
+		this.wrapping?.mount(toolbar);
 	}
 
 	private renderDesktop(root: HTMLElement): void {
@@ -276,7 +276,7 @@ export class MergeEditorPanel {
 					EditorState.readOnly.of(true),
 					changeNavigation((delta) => this.jumpUnresolved(delta)),
 					lineNumbers(),
-					this.wrapping!.extension(),
+					this.wrapping?.extension() ?? [],
 					sideDecorations(side, marks),
 					EditorView.updateListener.of((update) => {
 						if (update.geometryChanged || update.viewportChanged) {
@@ -306,7 +306,7 @@ export class MergeEditorPanel {
 					changeNavigation((delta) => this.jumpUnresolved(delta)),
 					keymap.of(historyKeymap),
 					lineNumbers(),
-					this.wrapping!.extension(),
+					this.wrapping?.extension() ?? [],
 					EditorView.updateListener.of((update) => {
 						const modelChanged =
 							update.startState.field(mergeChangesField) !==

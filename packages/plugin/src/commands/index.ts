@@ -189,8 +189,7 @@ async function runCompare(plugin: Plugin & PluginHost): Promise<void> {
 
 async function runPushAll(plugin: Plugin & PluginHost): Promise<void> {
 	try {
-		// Always re-compare first: acting on a stale diff can push a file another
-		// device has since changed, and can miss conflicts entirely.
+		// Re-compare first: a stale diff can push a file another device changed, or miss conflicts.
 		await plugin.controller.refresh();
 		const diff = comparedDiff(plugin);
 		if (!diff || (await announceConflicts(plugin, diff.conflicts.length))) {

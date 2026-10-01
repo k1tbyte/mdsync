@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 /**
- * Drives a running Obsidian over the Chrome DevTools Protocol, so plugin UI can
- * be exercised without a human clicking. Obsidian must have been started with
- * `--remote-debugging-port=9222`; a normally launched instance exposes nothing.
+ * Drives a running Obsidian over the Chrome DevTools Protocol; it must be started with
+ * `--remote-debugging-port=9222` (see `launch`), a normal instance exposes nothing.
  *
  *   node tools/obsidian.mjs launch            start Obsidian with the port open
  *   node tools/obsidian.mjs shot out.png      screenshot the whole window

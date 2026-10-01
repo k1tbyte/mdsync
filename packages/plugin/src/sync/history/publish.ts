@@ -1,5 +1,5 @@
 import type { EncryptionKey } from "@/crypto";
-import { reportWarning } from "@/shared/diagnostics";
+import { reportWarning } from "@/shared";
 import type { ObjectStorage } from "@/storage/types";
 import { publishManifestWithGuard } from "@/sync/manifest";
 import type { Manifest } from "@/sync/types";
@@ -9,13 +9,8 @@ import { prependSnapshot, updateHistoryLog } from "./store";
 import type { HistoryConfig, SnapshotEntry } from "./types";
 
 /**
- * Publishes via the concurrency guard, then - only on the winner - records the
- * parent-relative change set. The guard has already proven remote head equals
- * `parent`, so the diff is the snapshot's true delta.
- *
- * History is best-effort: failures log but never fail the push.
- * GC here is safe: the guard serialises publishers, and GC never deletes objects
- * reachable from HEAD.
+ * Records the change set only on the guard's winner, which proved remote head equals `parent`.
+ * Best-effort: failures log but never fail the push. GC is safe, as the guard serialises publishers.
  */
 export async function publishManifestWithHistory(
 	storage: ObjectStorage,

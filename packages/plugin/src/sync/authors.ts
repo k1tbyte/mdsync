@@ -25,9 +25,8 @@ export function publisher(
 }
 
 /**
- * Entries this publish changed are the author's; the rest keep their parent's
- * author. The table only grows, so an unchanged entry stays byte-identical and
- * an index read from any earlier manifest still names the same person.
+ * Changed entries are the author's, the rest keep their parent's. The table only grows, so an index from any
+ * earlier manifest still names the same person.
  */
 export function attribute(
 	files: Record<string, ManifestEntry>,

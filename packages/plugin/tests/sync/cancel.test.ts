@@ -8,7 +8,7 @@ import {
 import { REMOTE_OBJECTS_PREFIX } from "@/sync/constants";
 import { compare, pullPaths, pushPaths } from "@/sync/engine";
 import { fetchRemoteManifest } from "@/sync/manifest";
-import { runWithConcurrency } from "@/utils/concurrency";
+import { runWithConcurrency } from "@/utils";
 
 describe("throwIfCancelled", () => {
 	it("passes through when there is no signal or it is live", () => {
@@ -188,7 +188,6 @@ describe("cancelling a pull", () => {
 
 	it("keeps the folders it knew and does not adopt the remote's new ones", async () => {
 		const { source, target } = await seedRemote();
-		// Settle the target so it has a baseline with the first folder in it.
 		const firstPull = await pullPaths(
 			target.deps(),
 			await compare(target.deps()),
@@ -197,7 +196,6 @@ describe("cancelling a pull", () => {
 		target.state = { ...target.state, baseline: firstPull.baseline };
 		expect(target.state.baseline?.folders).toContain("empty-folder");
 
-		// The remote gains a folder this device has never seen.
 		await source.adapter.mkdir("added-later");
 		source.adapter.write("later.md", "later");
 		const sourceCompare = await compare(source.deps());

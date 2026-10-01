@@ -1,6 +1,5 @@
 import { ESyncLogOperation } from "@/logs/store";
-import { formatBytes, sumBytes } from "@/shared/format";
-import { entryAt } from "@/shared/records";
+import { entryAt, formatBytes, sumBytes } from "@/shared";
 import { buildSessionState, mergeWrittenIntoCache } from "@/sync/baseline";
 import { LOG_PATH_LIMIT } from "@/sync/constants";
 import { pullPaths } from "@/sync/engine";
@@ -24,8 +23,7 @@ export const pullPathsOp: Operation<ReadonlyArray<string>> = async (
 	);
 	const pullSet = new Set(paths);
 	const bytesDownloaded = sumBytes(paths, files);
-	// Coalesced for the same reason as the push: one synchronous broadcast per
-	// file is 0.16 ms of main thread that nobody can read at 20k files.
+	// Coalesced like the push: a broadcast per file costs 0.16 ms of main thread at 20k files.
 	const pulled = await pullPaths(deps, result, paths, (done, total) => {
 		ctx.reportProgressSoon(`Pulling ${done}/${total}…`);
 	});
@@ -34,8 +32,7 @@ export const pullPathsOp: Operation<ReadonlyArray<string>> = async (
 	await ctx.persistState(
 		buildSessionState(deps.state, pulled.baseline, hashCache),
 	);
-	// A cancelled pull really did land these files, so report what happened
-	// rather than the number that was asked for.
+	// A cancelled pull landed only these files: report what happened, not what was asked.
 	const landed = pulled.cancelled
 		? [...pulled.written.keys()]
 		: Array.from(pullSet);
@@ -48,8 +45,7 @@ export const pullPathsOp: Operation<ReadonlyArray<string>> = async (
 	);
 	return {
 		newRemote: result.remote,
-		// Only what landed was touched; claiming the rest would advance state
-		// for files that were never downloaded, or that an open room held back.
+		// Claiming more would advance state for files never downloaded or held back by an open room.
 		touchedPaths: new Set(pulled.written.keys()),
 		localEntries: pulled.written,
 		cancelled: pulled.cancelled,

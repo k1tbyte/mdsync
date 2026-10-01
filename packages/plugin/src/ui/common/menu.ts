@@ -1,7 +1,7 @@
 import type { Menu } from "obsidian";
 
 import type { Person } from "@/presence";
-import { withDevices } from "@/shared/format";
+import { withDevices } from "@/shared";
 
 import { renderAvatar } from "./avatars";
 

@@ -1,7 +1,6 @@
 /**
- * A live note renamed while its room is open takes the room along: it rotates
- * into the new path's first free generation with a sealed note of that path, so
- * every device renames its file and follows.
+ * A renamed live note takes its open room along: it rotates into the new path's first free generation with
+ * a sealed note of that path, so every device renames its file and follows.
  */
 
 import { EFrame } from "@obsync/protocol";
@@ -10,7 +9,7 @@ import type { SpaceHub } from "@/hub";
 import { hasLiveExtension } from "@/live/doc-types";
 import type { LiveSession } from "@/live/session";
 import type { Rotation } from "@/live/session/session-deps";
-import { hasDotSegment, normalizePath } from "@/shared/path";
+import { hasDotSegment, normalizePath } from "@/shared";
 import { bytesToText, textToBytes } from "@/sync/content";
 import { insideOf, vaultPathOf } from "@/sync/space";
 import { docIdIn, type LiveSpace } from "./space";
@@ -56,7 +55,10 @@ export async function moveRoom(
 	return "busy";
 }
 
-/** Where a room moved with its file; null for a plain rotation, or a note that names another room than the pointer's. */
+/**
+ * Where a room moved with its file; null for a plain rotation, or a note that names another room than the
+ * pointer's.
+ */
 export async function movedWith(
 	space: LiveSpace,
 	session: LiveSession,

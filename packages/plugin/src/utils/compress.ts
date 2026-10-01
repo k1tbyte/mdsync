@@ -1,10 +1,6 @@
 const FORMAT: CompressionFormat = "deflate-raw";
 
-/**
- * Widest support of the three formats: shipped with CompressionStream itself,
- * where "deflate-raw" arrived three Chromium releases later. Worth the 18-byte
- * header for a payload a stranger's device has to be able to read back.
- */
+/** Widest support: shipped with CompressionStream itself, while "deflate-raw" came three Chromium releases later. */
 export const GZIP: CompressionFormat = "gzip";
 
 /** Returns null when the platform lacks CompressionStream. */

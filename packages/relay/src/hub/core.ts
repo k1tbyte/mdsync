@@ -1,8 +1,4 @@
-/**
- * Hub logic with no Durable Object in sight, so tests drive it with plain
- * objects. Channel-level frames (presence, the cold-sync signal) live here;
- * document frames go to `Documents`.
- */
+/** Hub logic with no Durable Object, so tests drive it with plain objects; document frames go to `Documents`. */
 
 import {
 	CHANNEL_DOC,

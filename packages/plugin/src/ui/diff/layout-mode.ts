@@ -2,10 +2,7 @@ import { setIcon } from "obsidian";
 
 const COMBINED_BELOW_PX = 900;
 
-/**
- * Side-by-side panes or one combined pane: automatic below a width, or
- * forced from a toolbar button while there is room for both.
- */
+/** Automatic below a width, or forced from a toolbar button while there is room for both layouts. */
 export class LayoutMode {
 	private readonly button: HTMLButtonElement;
 	private readonly observer: ResizeObserver;

@@ -3,7 +3,7 @@ import {
 	formatSizeDelta,
 	formatTimestamp,
 	pluralize,
-} from "@/shared/format";
+} from "@/shared";
 import type {
 	SnapshotChanges,
 	SnapshotSummary,

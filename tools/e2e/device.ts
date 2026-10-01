@@ -206,7 +206,6 @@ export function field(device: Obsidian, name: string): Promise<string> {
 	);
 }
 
-/** Opens Obsync's settings on the tab labelled `tab`. */
 export async function openSettings(
 	device: Obsidian,
 	tab: string,
@@ -253,7 +252,6 @@ export function confirm(device: Obsidian, action: string): Promise<void> {
 	);
 }
 
-/** Flips the toggle of the open modal's setting named `name`. */
 export function toggle(device: Obsidian, name: string): Promise<void> {
 	return device.evaluate((label) => {
 		const row = [...activeDocument.querySelectorAll(".modal .setting-item")]

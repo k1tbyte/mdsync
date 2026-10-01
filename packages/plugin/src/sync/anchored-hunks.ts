@@ -9,17 +9,8 @@ export interface LineHunk {
 }
 
 /**
- * Mismatch hunks for texts whose exact diff ran out of edit budget.
- *
- * Trimming the common ends and calling the rest one replaced block is correct
- * but useless: every side-hunk then spans the file, so the merge reports one
- * conflict region the size of the note and a hunk view offers one hunk. Anchor
- * on lines that occur exactly once in both texts instead - those are the ones a
- * mismatch cannot have moved past - and run the exact differ only in the gaps
- * between them, which are small by construction.
- *
- * Anchoring, and the choice of uniqueness as the anchor test, are adapted from
- * No-Instructions/Relay's adaptive diff3 kernel (MIT).
+ * For texts whose exact diff ran out of edit budget: one replaced block would make a note-sized conflict, so anchor
+ * on lines unique to both texts and run the exact differ only in the gaps. Adapted from No-Instructions/Relay (MIT).
  */
 export function anchoredHunks(
 	base: readonly string[],
@@ -48,8 +39,7 @@ export function anchoredHunks(
 		) {
 			return;
 		}
-		// The same budget bounds the retry, so a gap the differ cannot afford
-		// stays one coarse hunk rather than costing more than the diff it replaced.
+		// The same budget bounds the retry: an unaffordable gap stays one coarse hunk.
 		const changes = diffArrays(
 			base.slice(baseAt, baseTo),
 			lines.slice(lineAt, lineTo),
@@ -75,10 +65,7 @@ export function anchoredHunks(
 	return hunks;
 }
 
-/**
- * Changes as hunks over the original arrays, offset by where the diff started.
- * A removal and the insertion right after it are one hunk.
- */
+/** Offset by where the diff started; a removal and the insertion right after it are one hunk. */
 export function hunksFromChanges(
 	changes: readonly ArrayChange<string>[],
 	baseFrom = 0,
@@ -106,9 +93,8 @@ export function hunksFromChanges(
 }
 
 /**
- * Anchor pairs in ascending order on both sides. Candidates are lines unique to
- * both texts; the longest chain that advances in both keeps them consistent, so
- * a block that moved cannot pull later anchors backwards.
+ * Anchors are lines unique to both texts; the longest chain advancing on both sides stops a moved block
+ * pulling later anchors backwards.
  */
 function anchorChain(
 	base: readonly string[],

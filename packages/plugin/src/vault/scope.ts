@@ -1,17 +1,12 @@
 import { PLUGIN_ID } from "@/constants";
 import type { SettingsSyncCategories } from "@/settings/model";
-import {
-	hasDotSegment,
-	normalizePath,
-	stripTrailingSlash,
-} from "@/shared/path";
+import { hasDotSegment, normalizePath, stripTrailingSlash } from "@/shared";
 import { isUnder } from "@/sync/space";
 import { EFileKind } from "@/sync/types";
 import { type IgnoreMatcher, ignoreNoteOf } from "./ignore";
 import type { SymlinkDetector } from "./symlinks";
 
-/** community-plugins.json is deliberately absent: it has its own toggle, and
- * listing it here would let "core settings" sync it behind that toggle. */
+/** community-plugins.json is absent on purpose: it has its own toggle, which "core settings" would bypass. */
 const CONFIG_CORE_FILES: ReadonlyArray<string> = [
 	"app.json",
 	"appearance.json",

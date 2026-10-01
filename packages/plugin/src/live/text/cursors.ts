@@ -9,7 +9,6 @@ interface CursorState {
 }
 
 export interface RoomCursor {
-	/** The presence key: whose cursor this is. */
 	key: string;
 	name: string;
 	at: number;
@@ -35,7 +34,6 @@ export function cursorsIn(session: LiveSession, key?: string): RoomCursor[] {
 	return out;
 }
 
-/** One person in the room, watched: where their cursor is, and whether they are still here. */
 export interface WatchedCursor {
 	/** Null while they have no cursor, as with their window out of focus. */
 	at(): number | null;

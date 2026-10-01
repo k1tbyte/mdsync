@@ -1,7 +1,6 @@
 /**
- * The slice of the Excalidraw plugin a live drawing uses, undeclared by it and
- * checked against 2.x: the view keeps the React API on `excalidrawAPI`, the
- * bundled library sits on `window.ExcalidrawLib`.
+ * The slice of the Excalidraw plugin a live drawing uses, undeclared by it and checked against 2.x: the
+ * React API sits on the view's `excalidrawAPI`, the bundled library on `window.ExcalidrawLib`.
  */
 
 import type { TextFileView, TFile, View } from "obsidian";
@@ -10,7 +9,6 @@ import type { SceneElement } from "@/drawing";
 
 import { LIVE_VIEWS } from "@/live/doc-types";
 
-/** Another device's pointer, as Excalidraw draws it. */
 export interface Collaborator {
 	pointer: { x: number; y: number; tool: "pointer" };
 	username: string;
@@ -99,8 +97,8 @@ export function saveDrawing(view: ExcalidrawView): Promise<void> {
 }
 
 /**
- * The flag a save sets outlives it (checked against 2.27): the next write under
- * the view is dropped as that save's. Cleared, Excalidraw folds it into the scene.
+ * The flag a save sets outlives it (checked against 2.27): the next write under the view is dropped as that
+ * save's; cleared, Excalidraw folds it into the scene.
  */
 export function letWriteIn(view: ExcalidrawView): void {
 	if (view.semaphores) view.semaphores.preventReload = false;

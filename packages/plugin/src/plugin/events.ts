@@ -7,7 +7,7 @@ import {
 } from "obsidian";
 import type { StatePersister } from "@/core";
 import type { PluginHost } from "@/plugin/host";
-import { reportWarning } from "@/shared/diagnostics";
+import { reportWarning } from "@/shared";
 import { carryHashes } from "@/sync/session-state";
 import {
 	addIgnoreMenuItem,
@@ -19,8 +19,8 @@ import {
 import { isIgnoreNote } from "@/vault/ignore";
 
 /**
- * History is only discoverable from the side panel otherwise, and a deleted file
- * has no menu of its own - so the entry rides on whatever the user right-clicks.
+ * History is otherwise only in the side panel and a deleted file has no menu, so the entry rides on whatever
+ * the user right-clicks.
  */
 export function registerWorkspaceMenus(plugin: Plugin & PluginHost): void {
 	plugin.registerEvent(

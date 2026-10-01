@@ -4,7 +4,7 @@ import { CHANNEL_DOC, EFrame } from "@obsync/protocol";
 
 import type { LiveKeys } from "@/crypto/live-keys";
 import type { HubConnection, SpaceHub } from "@/hub";
-import { reportWarning } from "@/shared/diagnostics";
+import { reportWarning } from "@/shared";
 import {
 	insideOf,
 	type Space,

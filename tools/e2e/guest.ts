@@ -1,7 +1,6 @@
 /**
- * A friend with no vault storage joins a share: only the share syncs, the
- * vault stays on the device. Once the friend sets up a vault of their own, the
- * share's record goes there and the vault never takes the share's files.
+ * A friend with no vault storage joins a share: only the share syncs.
+ * Once they set up a vault, the share's record goes there and the vault never takes its files.
  */
 
 import { CLEAN, read, sync, unlock, write } from "./device";

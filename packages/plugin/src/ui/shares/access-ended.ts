@@ -10,11 +10,7 @@ import { closeHere } from "./share-action";
 /** Past the broker's KV lag (~60 s) and its cached refusal (60 s). */
 const RECHECK_MS = 90_000;
 
-/**
- * The owner ended this person's link: the share closes here as on Leave, and
- * they choose what happens to its files. A new link is refused too until the
- * broker's KV knows it, so only a refusal that outlasts that ends access.
- */
+/** The owner ended this link: the share closes as on Leave and the person chooses what happens to its files. */
 export function createAccessEnded(
 	plugin: Plugin & PluginHost,
 ): (space: Space) => void {

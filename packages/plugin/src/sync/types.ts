@@ -55,10 +55,7 @@ export interface HashCacheEntry {
 	scene?: string;
 }
 
-/**
- * Per-storage remembered state. One entry per `storage.identity()` so switching
- * backends does not lose what we adopted/synced elsewhere.
- */
+/** One entry per `storage.identity()`, so switching backends keeps what was synced elsewhere. */
 export interface StorageState {
 	vaultId: string;
 	baseline: Manifest | null;
@@ -70,11 +67,7 @@ export interface StorageState {
 	shareBases?: Record<string, ManifestEntry>;
 }
 
-/**
- * What gets persisted to state.json. Device identity + a per-storage map +
- * a local content cache that is storage-agnostic (it indexes the vault's own
- * files by mtime/size/hash).
- */
+/** Persisted to state.json; the hash cache is storage-agnostic. */
 export interface LocalState {
 	deviceId: string;
 	deviceName?: string;
@@ -83,9 +76,8 @@ export interface LocalState {
 }
 
 /**
- * The flat view the sync engine and operations work with. Built per session
- * from the active storage's slot in {@link LocalState.storages}; the
- * controller translates back when persisting.
+ * Flat per-session view of the active storage's slot in {@link LocalState.storages}; the controller
+ * translates back when persisting.
  */
 export interface SessionState {
 	deviceId: string;
@@ -101,9 +93,8 @@ export interface LocalSnapshot {
 	emptyFolders: string[];
 	ignoredPaths: string[];
 	/**
-	 * Directories the adapter refused to list. Everything under them is unknown
-	 * rather than absent, and the diff has to leave those paths alone: an empty
-	 * string means the vault root itself could not be listed.
+	 * Directories the adapter refused to list: unknown, not absent, so the diff leaves them alone. An empty
+	 * string is the vault root.
 	 */
 	unreadableDirs: string[];
 	/** On disk yet missing from Obsidian's index: synced, shown by Obsidian only after a restart. */
@@ -142,8 +133,8 @@ export interface Conflict {
 }
 
 /**
- * A file moved within its space, on the `side` that moved it: its two paths
- * stay in the change lists, and act as one. The other side's edit follows it.
+ * A file moved within its space on `side`: both paths stay in the change lists and act as one; the other
+ * side's edit follows it.
  */
 export interface Move {
 	from: string;
@@ -157,9 +148,8 @@ export interface DiffResult {
 	conflicts: Conflict[];
 	moves: Move[];
 	/**
-	 * Paths both sides changed to the same content. Nothing to sync, but the
-	 * baseline still points at the old hash: leaving it there turns the next
-	 * edit on either side into a spurious conflict.
+	 * Both sides changed to the same content: nothing to sync, but a stale baseline hash would turn the next
+	 * edit into a spurious conflict.
 	 */
 	converged: string[];
 	remoteMoved: boolean;

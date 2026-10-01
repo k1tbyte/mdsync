@@ -10,9 +10,8 @@ const encoder = new TextEncoder();
 const remembered = new WeakMap<LiveKeys, Map<string, Promise<string>>>();
 
 /**
- * The hub routes by this id, never the path. The generation is signed with the
- * path: rotation gives a document a new room by deriving its id, so two devices
- * rotating at once land in the same room.
+ * The hub routes by this id, never the path. The generation is signed with the path: rotation derives a new
+ * room's id, so two devices rotating at once land in the same room.
  */
 export function docIdFor(
 	keys: LiveKeys,

@@ -3,7 +3,7 @@ import type { EditorView } from "@codemirror/view";
 import type { App } from "obsidian";
 
 import { sha256Hex } from "@/crypto";
-import { reportWarning } from "@/shared/diagnostics";
+import { reportWarning } from "@/shared";
 import { textToBytes } from "@/sync/content";
 import type { SyncController } from "@/sync/controller";
 import { type SyncHunk, wholeHunks } from "@/sync/hunks";

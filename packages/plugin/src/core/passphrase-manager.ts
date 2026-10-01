@@ -12,7 +12,7 @@ import {
 	isStorageConfigured,
 	type ObsyncSettings,
 } from "@/settings/model";
-import { reportWarning } from "@/shared/diagnostics";
+import { reportWarning } from "@/shared";
 import {
 	createStorageAdapter,
 	type ObjectStorage,
@@ -78,15 +78,10 @@ export class PassphraseManager {
 		this.cachedKey = null;
 	}
 
-	/**
-	 * Startup autosync and a user command can ask at once; they share one
-	 * prompt instead of stacking two modals.
-	 */
+	/** Concurrent askers share one prompt instead of stacking modals. */
 	async prompt(replace: boolean): Promise<boolean> {
 		if (this.passphrase && !replace) return true;
-		// A forced prompt is a recovery path (the stored passphrase no longer
-		// opens the vault); joining an in-flight one would answer it with the
-		// very passphrase that failed.
+		// A forced prompt is recovery: joining an in-flight one would answer with the passphrase that failed.
 		while (this.pendingPrompt) {
 			// A forced one already asks past the passphrase that failed.
 			if (!replace || this.pendingReplace) return this.pendingPrompt;
@@ -110,10 +105,7 @@ export class PassphraseManager {
 		return true;
 	}
 
-	/**
-	 * Rotates the vault passphrase by re-wrapping the data key. No content is
-	 * re-encrypted. Returns the new key epoch, or null if it could not run.
-	 */
+	/** Re-wraps the data key without re-encrypting content. Returns the new key epoch, or null if it could not run. */
 	async rotate(next: string): Promise<number | null> {
 		if (!isStorageConfigured(this.settings)) {
 			throw new Error("Configure a storage backend first.");

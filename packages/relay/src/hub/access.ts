@@ -1,6 +1,6 @@
 /**
- * Admission to the hub, decided in the stateless worker before the Durable
- * Object wakes, so a request with no valid grant costs the hub nothing.
+ * Hub admission is decided in the stateless worker, so a request with no valid grant never wakes the
+ * Durable Object.
  */
 
 import {
@@ -54,10 +54,7 @@ function asciiJson(value: unknown): string {
 	);
 }
 
-/**
- * A grant is the channel's unexpired HMAC under the deployment secret, or a
- * live share token of that channel's share. Anything else admits nothing.
- */
+/** Admits the channel's unexpired HMAC grant or a live share token of its share; anything else gets nothing. */
 export async function grantFor(
 	env: ShareEnv,
 	channel: string,

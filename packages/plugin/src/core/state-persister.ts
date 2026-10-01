@@ -8,15 +8,11 @@ export class StatePersister {
 	private pendingHashCacheState: LocalState | null = null;
 	private flushTimer: number | null = null;
 	/**
-	 * A digest of the last successful write, seeded from the file as loaded. A
-	 * settled refresh persists a state identical to the one on disk, which at 20k
-	 * files is a 3.3 MB rewrite for no new bytes. The digest rather than the
-	 * payload: the payload is that same 3.3 MB, pinned for as long as the plugin
-	 * is loaded.
+	 * Digest of the last write, to skip rewriting identical state (3.3 MB at 20k files); a digest, not the
+	 * payload, to avoid pinning it.
 	 */
 	private lastWritten: string | null = null;
-	/** Serialises every write: a debounced flush and a direct persist otherwise
-	 * interleave and the older state can land last. */
+	/** Serialises writes so an older state cannot land last. */
 	private writes: Promise<void> = Promise.resolve();
 	/** Unloaded: an operation still running must not write over the next instance's state. */
 	private disposed = false;
@@ -27,10 +23,7 @@ export class StatePersister {
 		private current: LocalState,
 	) {}
 
-	/**
-	 * Writes the loaded state back unless the file already holds it: loading can
-	 * mint a device id, and that has to reach disk before anything syncs.
-	 */
+	/** Loading can mint a device id, which must reach disk before anything syncs. */
 	static async load(
 		adapter: DataAdapter,
 		configDir: string,
@@ -64,16 +57,13 @@ export class StatePersister {
 			const serialized = serializeState(state);
 			const digest = fingerprint(serialized);
 			if (digest === this.lastWritten) return;
-			// writeAtomic can fail between renaming the old file aside and moving
-			// the new one in. Keeping the memo would then skip a retry of the very
-			// state that is no longer on disk.
+			// writeAtomic can fail after moving the old file aside; keeping the memo would skip retrying that state.
 			this.lastWritten = null;
 			await saveState(this.adapter, this.configDir, serialized);
 			this.lastWritten = digest;
 		});
 	}
 
-	/** Every write to the state file goes through here, in order. */
 	private enqueue<T>(task: () => Promise<T>): Promise<T> {
 		const run = this.writes.then(task);
 		// The chain must survive a failed write, or every later one is skipped.
@@ -85,10 +75,8 @@ export class StatePersister {
 	}
 
 	/**
-	 * Writes any debounced state immediately. Call from lifecycle points that
-	 * still run while the app is alive (visibilitychange→hidden, beforeunload)
-	 * so the hash cache survives a quit/close instead of being lost to the
-	 * pending debounce - losing it forces a full vault re-hash next launch.
+	 * Call while the app is still alive (visibilitychange, beforeunload): losing the pending hash cache
+	 * forces a full re-hash next launch.
 	 */
 	async flush(): Promise<void> {
 		const pending = this.takePending();
@@ -98,8 +86,7 @@ export class StatePersister {
 
 	async reset(): Promise<LocalState> {
 		this.cancelTimer();
-		// resetState writes the same file the chain does, so it has to take its
-		// turn rather than race a persist that is already in flight.
+		// Takes its turn in the chain rather than racing an in-flight persist.
 		this.lastWritten = null;
 		const next = await this.enqueue(() =>
 			resetState(this.adapter, this.configDir, this.current),
@@ -109,11 +96,7 @@ export class StatePersister {
 		return next;
 	}
 
-	/**
-	 * Last-ditch write. `onunload` is synchronous so it may not complete, and
-	 * the promise is deliberately detached - but never unhandled: a rejection
-	 * here would surface long after the plugin is gone.
-	 */
+	/** Last-ditch write from synchronous `onunload`: deliberately detached, but never unhandled. */
 	dispose(): void {
 		this.disposed = true;
 		const pending = this.takePending();
@@ -157,19 +140,12 @@ function canDebounce(prev: LocalState | null, next: LocalState): boolean {
 	if (prev.deviceId !== next.deviceId) return false;
 	if (prev.deviceName !== next.deviceName) return false;
 	if (!storagesEqual(prev.storages, next.storages)) return false;
-	// Never debounce the first hash-cache population. Going from no cache to a
-	// full scan is the single most expensive thing to lose: dropping it forces
-	// a complete vault re-hash on the next launch. Subsequent deltas are cheap
-	// to recompute (mtime/size cache still skips unchanged files), so those
-	// stay debounced.
+	// The first hash-cache population is the most expensive thing to lose, so it is never debounced.
 	if (!hasHashCacheEntries(prev) && hasHashCacheEntries(next)) return false;
 	return true;
 }
 
-/** Shallow structural compare: same set of identities, each pointing at the
- * same `vaultId`, `root` and `baseline` reference. The controller patches
- * `storages` immutably, so per-slot reference equality is enough to tell
- * "nothing critical changed" from "vaultId/baseline moved." */
+/** The controller patches `storages` immutably, so per-slot reference equality detects vaultId/baseline moves. */
 function storagesEqual(
 	prev: LocalState["storages"],
 	next: LocalState["storages"],
@@ -193,10 +169,7 @@ function hasHashCacheEntries(state: LocalState): boolean {
 	return Object.keys(state.hashCache ?? {}).length > 0;
 }
 
-/**
- * Two independent FNV-1a passes plus the length. One 32-bit pass collides often
- * enough over a multi-megabyte payload to skip a write that was needed.
- */
+/** Two FNV-1a passes plus length: one 32-bit pass collides often enough on megabyte payloads to skip a needed write. */
 function fingerprint(text: string): string {
 	let a = 0x811c9dc5;
 	let b = 0xcbf29ce4;

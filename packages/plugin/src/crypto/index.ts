@@ -10,7 +10,7 @@ import {
 	KDF_SALT_LABEL,
 	MIN_PASSPHRASE_LENGTH,
 } from "@/crypto/constants";
-import { deflateBytes, GZIP, inflateBytes } from "@/utils/compress";
+import { deflateBytes, GZIP, inflateBytes } from "@/utils";
 
 const subtle = window.crypto.subtle;
 const encoder = new TextEncoder();
@@ -102,11 +102,8 @@ async function sealBytes(
 }
 
 /**
- * The version byte sits outside the ciphertext, so without this a blob could be
- * relabelled as compressed and its plaintext fed to the inflater. Only the new
- * version is bound: {@link BLOB_VERSION} predates this and its blobs were
- * sealed without it, and binding it now would make every stored blob
- * undecryptable. Relabelling either way fails the tag instead.
+ * The version byte sits outside the ciphertext, so bind it to stop a blob being relabelled compressed. Only
+ * the new version: {@link BLOB_VERSION} blobs were sealed without it.
  */
 function versionAad(version: number): Uint8Array | undefined {
 	return version === BLOB_VERSION ? undefined : new Uint8Array([version]);
@@ -180,9 +177,8 @@ export async function encryptJson(
 }
 
 /**
- * Null keeps the document at {@link BLOB_VERSION}, which every build reads. A
- * device whose web engine has no CompressionStream still writes a remote its
- * peers can use.
+ * Null keeps the document at {@link BLOB_VERSION}, so a device without CompressionStream still writes a
+ * remote its peers can read.
  */
 async function gzipJson(json: Uint8Array): Promise<Uint8Array | null> {
 	if (json.length < JSON_GZIP_MIN_BYTES) return null;
@@ -225,9 +221,8 @@ export function randomId(): string {
 }
 
 /**
- * WebCrypto takes `BufferSource`; a `Uint8Array` over a `SharedArrayBuffer` is
- * not assignable to it under the DOM types, and every array here is a plain
- * one. Narrowing in a single helper keeps the cast off the call sites.
+ * Every array here is plain, but a `Uint8Array` over a `SharedArrayBuffer` is not assignable under the DOM
+ * types; the cast lives here.
  */
 function toBufferSource(bytes: Uint8Array): BufferSource {
 	return bytes as BufferSource;

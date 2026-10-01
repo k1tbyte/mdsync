@@ -42,7 +42,6 @@ describe("scanner carry-forward for unowned cache entries", () => {
 			"shared/photos/pic.png": "photo bytes",
 		});
 
-		// First: full vault scan to populate cache.
 		const vaultScope = policy();
 		const full = await scanVault(
 			adapter.asDataAdapter(),
@@ -53,7 +52,6 @@ describe("scanner carry-forward for unowned cache entries", () => {
 		expect(full.updatedCache["notes/a.md"]).toBeDefined();
 		expect(full.updatedCache["shared/photos/pic.png"]).toBeDefined();
 
-		// Second: share-rooted scan with the full cache.
 		const shareScope = policy({ root: "shared/photos" });
 		const shareScan = await scanVault(
 			adapter.asDataAdapter(),
@@ -62,11 +60,9 @@ describe("scanner carry-forward for unowned cache entries", () => {
 			full.updatedCache,
 		);
 
-		// The share scan only scanned share paths.
 		expect(shareScan.snapshot.files["shared/photos/pic.png"]).toBeDefined();
 		expect(shareScan.snapshot.files["notes/a.md"]).toBeUndefined();
 
-		// But the vault's cache entry survived in updatedCache.
 		expect(shareScan.updatedCache["notes/a.md"]).toBeDefined();
 		expect(shareScan.updatedCache["shared/photos/pic.png"]).toBeDefined();
 	});
@@ -77,7 +73,6 @@ describe("scanner carry-forward for unowned cache entries", () => {
 			"shared/photos/pic.png": "photo bytes",
 		});
 
-		// Full scan first.
 		const fullScope = policy();
 		const full = await scanVault(
 			adapter.asDataAdapter(),
@@ -86,7 +81,6 @@ describe("scanner carry-forward for unowned cache entries", () => {
 			{},
 		);
 
-		// Vault scope with share root excluded.
 		const vaultScope = policy({ otherRoots: ["shared/photos"] });
 		const vaultScan = await scanVault(
 			adapter.asDataAdapter(),
@@ -95,11 +89,9 @@ describe("scanner carry-forward for unowned cache entries", () => {
 			full.updatedCache,
 		);
 
-		// The vault scan only scanned vault paths.
 		expect(vaultScan.snapshot.files["notes/a.md"]).toBeDefined();
 		expect(vaultScan.snapshot.files["shared/photos/pic.png"]).toBeUndefined();
 
-		// But the share's cache entry survived.
 		expect(vaultScan.updatedCache["shared/photos/pic.png"]).toBeDefined();
 		expect(vaultScan.updatedCache["notes/a.md"]).toBeDefined();
 	});
@@ -130,7 +122,6 @@ describe("vault baseline entries under a share root are frozen", () => {
 			"shared/photos/pic.png": "photo",
 		});
 
-		// Simulate: both files were previously synced (baseline has them).
 		const fullScope = policy();
 		const full = await scanVault(
 			adapter.asDataAdapter(),
@@ -140,7 +131,6 @@ describe("vault baseline entries under a share root are frozen", () => {
 		);
 		const synced = manifestOf(full.snapshot.files);
 
-		// Now the vault scope excludes the share root.
 		const vaultScope = policy({ otherRoots: ["shared/photos"] });
 		const vaultScan = await scanVault(
 			adapter.asDataAdapter(),

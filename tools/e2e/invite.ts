@@ -1,10 +1,6 @@
 /**
- * Someone else's share, in real Obsidians: the owner shares a folder and
- * invites through the relay's broker; a participant with a vault of their own
- * opens the link, and edits cross both ways without the participant ever
- * holding the owner's storage credentials. Neither side syncs by hand to get
- * the other's edit: a push signals the share's channel on the owner's relay,
- * and a change in the share pushes by itself, a rename as a rename.
+ * Someone else's share in real Obsidians: edits cross both ways without the participant holding the owner's
+ * storage credentials. Pushes signal the share's channel, so neither side syncs by hand.
  */
 
 import { CLEAN, read, sync, write } from "./device";
@@ -126,9 +122,8 @@ async function pushesByItself(
 }
 
 /**
- * The friend leaves while the share goes on, which kills their token; invited
- * again, they open it into another folder: this device's old state of the
- * share must not read the new, empty folder as every file deleted.
+ * The friend leaves and is invited again into another folder: the old share state must not read the new,
+ * empty folder as every file deleted.
  */
 async function rejoin(owner: Obsidian, friend: Obsidian): Promise<void> {
 	await closeFromSettings(friend, "Leave");
@@ -149,10 +144,7 @@ async function rejoin(owner: Obsidian, friend: Obsidian): Promise<void> {
 	check("the friend settles again", await sync(friend), CLEAN);
 }
 
-/**
- * The owner stops sharing, which deletes the share's objects: the friend's
- * vault syncs on and names the lost share; the friend leaves it, and both keep the folder in their own vault.
- */
+/** The owner stops sharing: the friend's vault names the lost share, they leave it, and both keep the folder. */
 async function shareCloses(
 	owner: Obsidian,
 	friend: Obsidian,

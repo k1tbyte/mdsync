@@ -20,6 +20,7 @@ export { DiffView } from "./diff-view";
 export { registerFileContextIndicators } from "./explorer/file-context-indicators";
 export { registerFileExplorerIndicators } from "./explorer/file-explorer-indicators";
 export type { IndicatorHandle } from "./explorer/indicator-handle";
+export { createDeletedElsewhere } from "./live/deleted-elsewhere";
 export { rebuildLiveNote, toggleAuthors } from "./live/header/live-actions";
 export { canRebuild } from "./live/header/note-menu-items";
 export { registerNotePresence } from "./live/header/note-presence";
@@ -36,6 +37,7 @@ export {
 	showSettingsTransferExport,
 } from "./modals";
 export { registerRibbon } from "./ribbon";
+export { createAccessEnded } from "./shares/access-ended";
 export { openInvite } from "./shares/invite-action";
 export { shareSummary } from "./shares/share-summary";
 export { addShareMenuItem, openShareWindow } from "./shares/share-window";

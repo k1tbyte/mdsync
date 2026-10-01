@@ -1,6 +1,6 @@
 import { type ButtonComponent, Setting } from "obsidian";
 
-import { errorMessage } from "@/shared/errors";
+import { errorMessage } from "@/shared";
 import { alertLine, onEnter, runWithNotice, serial } from "@/ui/common";
 import type { CreatedInvite } from "./invite-action";
 

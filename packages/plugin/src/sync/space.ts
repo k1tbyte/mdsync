@@ -1,6 +1,6 @@
 /**
- * A space is one unit of the file sync: the vault, or a shared folder with its
- * own storage and key. Every path belongs to exactly one space.
+ * One unit of file sync: the vault, or a shared folder with its own storage and key. Every path belongs to
+ * exactly one space.
  */
 
 export interface Space {

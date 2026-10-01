@@ -1,6 +1,6 @@
 import { EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import { type LiveSession, LOCAL_AWARENESS } from "@/live/session";
-import { personColor } from "@/shared/colors";
+import { personColor } from "@/shared";
 import { cursorsIn, type RoomCursor } from "./cursors";
 import type { TextModel } from "./model";
 

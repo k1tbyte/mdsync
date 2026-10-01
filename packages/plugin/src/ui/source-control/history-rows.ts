@@ -1,4 +1,4 @@
-import { formatRelativeTime, formatTimestamp } from "@/shared/format";
+import { formatRelativeTime, formatTimestamp } from "@/shared";
 import type { FileVersion } from "@/sync/history";
 import { deviceText } from "./row-formatter";
 

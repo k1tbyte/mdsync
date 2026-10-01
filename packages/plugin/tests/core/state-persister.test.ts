@@ -210,9 +210,8 @@ describe("StatePersister writes", () => {
 		await persister.persist(changed);
 		await expect(persister.flush()).rejects.toThrow("rename failed");
 
-		// writeAtomic can fail with the old file already renamed aside, so what
-		// is on disk after a failure is unknown. Reverting to the payload the
-		// memo still names has to write rather than trust it.
+		// writeAtomic can fail after renaming the old file aside, so disk state is unknown: reverting to
+		// the memoised payload must still write.
 		const before = adapter.writes;
 		await persister.persist(initial);
 		await persister.flush();

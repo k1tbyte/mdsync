@@ -1,6 +1,6 @@
 import type { EditorView } from "@codemirror/view";
 import type { Span } from "@/sync/merge-model";
-import { firstIndex } from "@/utils/search";
+import { firstIndex } from "@/utils";
 import { type Bounds, shiftBounds, spanBounds } from "./geometry";
 import { type RailAction, renderRailButton } from "./rail";
 
@@ -22,9 +22,8 @@ export interface DividerItem {
 const CURVE = 0.3;
 
 /**
- * The strip between two panes: curved connectors that join a change on the
- * near side to where it lands on the far side, and the buttons that act on it.
- * Only the changes on screen are drawn or hold buttons.
+ * Curved connectors joining a change to where it lands on the far side, plus its buttons; only changes on
+ * screen are drawn.
  */
 export class Divider {
 	private readonly canvas: HTMLCanvasElement;

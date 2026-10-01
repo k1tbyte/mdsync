@@ -1,10 +1,8 @@
 import type { ObjectStorage } from "@/storage/types";
 
 /**
- * Blobs this device uploaded that no published manifest names yet, so a push
- * that never published resumes instead of starting over. Any other blob outside
- * the head may be swept by history GC or deep clean between a probe and the
- * publish, so a push uploads it again rather than trusting that it is there.
+ * Blobs uploaded here but not yet in a published manifest, so an unpublished push resumes. Any other non-head
+ * blob may be swept between probe and publish, so it is re-uploaded.
  */
 export const UPLOAD_TRUST_MS = 12 * 60 * 60 * 1000;
 

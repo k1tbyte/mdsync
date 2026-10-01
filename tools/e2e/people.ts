@@ -1,10 +1,6 @@
 /**
- * Who can open a share, in real Obsidians: a read-only friend follows the
- * owner's typing live, and their own edits stay on their device without an
- * error; inviting the same name again replaces their link, so the old one
- * dies and the new one takes over their folder; the
- * owner's new S3 key reaches the relay with no new invite; the owner lists
- * people and revokes one.
+ * Who can open a share, in real Obsidians: read-only followers, re-invites replacing a link, a new S3 key
+ * reaching the relay, listing and revoking.
  */
 
 import {

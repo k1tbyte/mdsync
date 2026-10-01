@@ -5,7 +5,7 @@ import { LOG_PATH_LIMIT } from "@/sync/constants";
 import { writeRemoteEntry } from "@/sync/content";
 import { withMoves } from "@/sync/moves";
 import { EChangeType, type ManifestEntry } from "@/sync/types";
-import { runWithConcurrency } from "@/utils/concurrency";
+import { runWithConcurrency } from "@/utils";
 import { trashPath } from "@/vault/io";
 import type { Operation } from "./types";
 
@@ -19,14 +19,12 @@ export const revertPathsOp: Operation<ReadonlyArray<string>> = async (
 	const ours = result.diff.moves.filter(({ side }) => side === "local");
 	const touched = new Set(withMoves(paths, ours));
 	const localEntries = new Map<string, ManifestEntry | null>();
-	// Indexed once: scanning the change array per path is quadratic, and a
-	// revert of 5,000 files spends 76 ms of it against 1 ms indexed.
+	// Indexed once: a per-path scan is quadratic (76 ms vs 1 ms for 5,000 files).
 	const localChanges = new Map(
 		result.diff.localChanges.map((change) => [change.path, change]),
 	);
 	await runWithConcurrency(
-		// The deduped set, not the argument: a path listed twice would otherwise
-		// have two workers writing the same cache entry at once.
+		// Deduped: a path listed twice would have two workers writing one cache entry.
 		[...touched],
 		deps.concurrency ?? DEFAULT_CONCURRENCY,
 		async (path) => {

@@ -3,7 +3,7 @@ import { RevalidatingStorage } from "@tests/helpers/revalidating-storage";
 import { record } from "@tests/helpers/space-records";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { deriveKey, type EncryptionKey, encryptJson } from "@/crypto";
-import { reportWarning } from "@/shared/diagnostics";
+import { reportWarning } from "@/shared";
 import type { SpaceRecord } from "@/spaces/record";
 import { syncRecords } from "@/spaces/remote";
 import type { ConditionalRead, ListedObject } from "@/storage/types";

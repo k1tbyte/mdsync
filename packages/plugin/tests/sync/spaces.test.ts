@@ -28,10 +28,7 @@ function remote(): Remote {
 	return { vault: new FakeStorage("vault"), share: new FakeStorage("share") };
 }
 
-/**
- * One device syncing its vault plus the share mounted at `root`, if any.
- * `mount` and `mark` change its records; a refresh picks the change up.
- */
+/** One device syncing its vault plus the share mounted at `root`, if any; a refresh picks up `mount` and `mark`. */
 function device(
 	on: Remote,
 	root: string | null,

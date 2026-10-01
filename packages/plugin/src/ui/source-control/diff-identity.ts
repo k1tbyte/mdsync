@@ -1,10 +1,6 @@
 import type { DiffResult } from "@/sync/types";
 
-/**
- * The fields every row is drawn from, walked rather than described. Short
- * circuits on the first difference, so an unchanged 20k diff costs one pass and
- * a changed one usually costs less.
- */
+/** The fields every row is drawn from, walked rather than described: short-circuits on the first difference. */
 export function diffEquals(
 	a: DiffResult | null,
 	b: DiffResult | null,

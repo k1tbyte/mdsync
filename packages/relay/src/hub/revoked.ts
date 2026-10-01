@@ -1,8 +1,6 @@
 /**
- * Grants the broker revoked lately: KV is eventually consistent, so the worker
- * may admit a revoked token for a minute more, which the hub (told at once)
- * refuses. A closed channel is refused for good, or devices still holding its
- * grant would refill its rows.
+ * Grants revoked lately: KV lags up to a minute, so the hub (told at once) refuses what the worker may
+ * admit. A closed channel stays refused for good.
  */
 
 import type { Grant } from "./peer";

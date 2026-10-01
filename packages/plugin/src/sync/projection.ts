@@ -41,18 +41,12 @@ export interface FileDiffModel {
 	leftLabel: string;
 	rightLabel: string;
 	isBinary: boolean;
-	/**
-	 * sha256 of each side. Hunk ops verify them before applying so a concurrently
-	 * edited file cannot be misaddressed.
-	 */
+	/** sha256 of each side; hunk ops verify them first so a concurrently edited file is not misaddressed. */
 	leftHash: string;
 	rightHash: string;
 	/** True when binary purely due to diff size cap; a force-text diff would succeed. */
 	forceTextAvailable: boolean;
-	/**
-	 * Whether each side exists at all. An absent side reads as empty text, which
-	 * is indistinguishable from an empty file without this.
-	 */
+	/** An absent side reads as empty text, indistinguishable from an empty file without this. */
 	leftPresent: boolean;
 	rightPresent: boolean;
 	leftSize: number;
@@ -79,11 +73,7 @@ interface DiffSide {
 	present: boolean;
 }
 
-/**
- * Diff side without reading content. `size` is `null` if absent, `undefined`
- * if unknown without loading. Opens large or binary diffs without pulling bytes
- * into memory.
- */
+/** A diff side without reading content: `size` is `null` if absent, `undefined` if unknown without loading. */
 interface SideSource {
 	path: string;
 	size: number | null | undefined;
@@ -103,10 +93,8 @@ function binarySide(size: number, capped: boolean): DiffSide {
 }
 
 /**
- * Resolves diff side presentation without unnecessary loading. Absent is
- * empty/non-binary. Known extensions are binary, not forceable, content never
- * read. Oversized is binary unless forceText and within FORCE_DIFF_MAX_BYTES.
- * Only sides passing these gates are NUL-sniffed.
+ * Absent is empty/non-binary; known binary extensions are never read or forceable; oversized is binary unless
+ * forceText within FORCE_DIFF_MAX_BYTES. Only sides passing these gates are NUL-sniffed.
  */
 async function resolveSide(
 	source: SideSource,
@@ -159,7 +147,6 @@ function localSource(adapter: DataAdapter, path: string): SideSource {
 	};
 }
 
-/** Resolves local size via `stat` to classify oversized/binary files without reading. */
 async function statLocalSource(
 	adapter: DataAdapter,
 	path: string,
@@ -213,8 +200,7 @@ async function assemble(
 		resolveSide(rightSource, forceText),
 	]);
 	const isBinary = left.binary || right.binary;
-	// Forceable only if every binary side is binary *due to size* (capped),
-	// i.e. no NUL side and nothing over the force ceiling.
+	// Forceable only if every binary side is binary due to size: no NUL side and nothing over the force ceiling.
 	const forceTextAvailable =
 		isBinary &&
 		(left.capped || right.capped) &&

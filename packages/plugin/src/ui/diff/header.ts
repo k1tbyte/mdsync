@@ -30,10 +30,7 @@ export interface DiffHeaderActions {
 	goBack: () => void;
 }
 
-/**
- * Path, file-level actions and file navigation. Change navigation and the
- * layout toggle live in the panel toolbars, next to the changes they move.
- */
+/** Path, file-level actions and file navigation; change navigation and the layout toggle live in the panel toolbars. */
 export function renderDiffHeader(
 	parent: HTMLElement,
 	state: DiffHeaderState,

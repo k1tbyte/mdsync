@@ -1,7 +1,6 @@
 /**
- * Google Drive OAuth proxy: `/auth` runs the consent flow and hands the tokens
- * back through `obsidian://obsync-auth`; `/refresh` trades a refresh token for
- * an access token. The client secret never leaves the worker.
+ * Google Drive OAuth proxy: `/auth` returns tokens via `obsidian://obsync-auth`, `/refresh` swaps a refresh
+ * token; the client secret stays here.
  */
 
 import { toHex } from "@obsync/protocol";

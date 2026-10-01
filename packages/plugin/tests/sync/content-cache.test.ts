@@ -70,9 +70,8 @@ describe("remote text cache", () => {
 	});
 
 	it("never serves one remote's content to another", async () => {
-		// A shared folder's manifest is written by someone else. If naming a hash
-		// were enough to receive this vault's plaintext, a participant could read
-		// a file back out through the share.
+		// A shared folder's manifest is written by someone else: naming a hash must not be enough to read
+		// this vault's plaintext.
 		const hash = await seed(storage, key, textToBytes("private content"));
 		expect(await loadRemoteText({ storage, key }, hash)).toBe(
 			"private content",
@@ -84,10 +83,7 @@ describe("remote text cache", () => {
 	});
 
 	it("keeps its budget intact when callers race the same hash", async () => {
-		// All three miss, all three download, all three remember. Charging the
-		// length once per caller shrinks the 4 MB budget for good, one race at a
-		// time - here it would be 6 MB claimed for 4 MB of text, evicting the
-		// raced entry that three more of its size are meant to fit alongside.
+		// All three miss and download; charging the length once per caller would shrink the 4 MB budget for good.
 		const deps = { storage, key };
 		const big = "x".repeat(1_000_000);
 		const raced = await seed(storage, key, textToBytes(big));

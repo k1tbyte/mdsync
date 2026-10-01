@@ -7,7 +7,7 @@ import {
 } from "@codemirror/view";
 import type { LineRange } from "@/sync/hunks";
 import type { Span } from "@/sync/merge-model";
-import { firstIndex } from "@/utils/search";
+import { firstIndex } from "@/utils";
 
 export interface Bounds {
 	top: number;
@@ -73,10 +73,7 @@ export function viewportDecorations(
 	);
 }
 
-/**
- * Visits the items whose 0-based line range meets the viewport, passing that
- * range clipped to it. Items must run in document order.
- */
+/** Visits items whose 0-based line range meets the viewport, clipped to it; items must run in document order. */
 export function forEachVisibleRange<T>(
 	view: EditorView,
 	items: readonly T[],

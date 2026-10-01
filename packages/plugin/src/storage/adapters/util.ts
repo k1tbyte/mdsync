@@ -2,7 +2,6 @@ const RETRY_DELAYS_MS: ReadonlyArray<number> = [500, 2_000, 5_000];
 
 export const STORAGE_TIMEOUT_MS = 30_000;
 
-/** Remote call answered with non-2xx. */
 export class StorageHttpError extends Error {
 	constructor(
 		readonly status: number,
@@ -58,8 +57,7 @@ export function isRetryableError(err: unknown): boolean {
 	if (err instanceof StorageHttpError) return isRetryableStatus(err.status);
 	if (!err || typeof err !== "object") return false;
 	const e = err as { name?: string; message?: string };
-	// A cancelled request is a decision, not a hiccup: retrying it ignores the
-	// caller that asked to stop.
+	// A cancelled request is a decision, not a hiccup: retrying it ignores the caller that asked to stop.
 	if (e.name === "AbortError") return false;
 	if (e.name === "TimeoutError") return true;
 	return typeof e.message === "string" && NETWORK_FAILURE.test(e.message);

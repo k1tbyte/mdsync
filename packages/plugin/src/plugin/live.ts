@@ -8,8 +8,7 @@ import {
 	LiveSessions,
 	type LiveSpace,
 } from "@/live";
-import { personColor } from "@/shared/colors";
-import { reportWarning } from "@/shared/diagnostics";
+import { personColor, reportWarning } from "@/shared";
 import type { SpaceRecords } from "@/spaces";
 import type { LiveNotes } from "@/sync/live-notes";
 import { type Space, spaceOf, VAULT_SPACE } from "@/sync/space";
@@ -141,9 +140,8 @@ function isShown(workspace: Workspace, file: TFile): boolean {
 }
 
 /**
- * The cold baseline, the merge base for a note never agreed here. A note that
- * just became a share has none there yet: the vault's frozen entry is what
- * every copy of it grew from, where an empty base would double the text.
+ * The merge base for a note never agreed here. A note that just became a share falls back to the vault's
+ * frozen entry, which every copy grew from; an empty base would double the text.
  */
 export async function baseTextOf(
 	host: Pick<LiveHost, "controller" | "spaces">,

@@ -5,7 +5,7 @@ import {
 	type SyncLogEntry,
 } from "@/logs/store";
 import type { PluginHost } from "@/plugin/host";
-import { formatTimestamp } from "@/shared/format";
+import { formatTimestamp } from "@/shared";
 
 const LOG_LEVEL_LABELS: Record<ESyncLogLevel, string> = {
 	[ESyncLogLevel.Info]: "Info",

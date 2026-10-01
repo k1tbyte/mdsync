@@ -14,19 +14,15 @@ export interface DiffInput {
 	remote: Manifest | null;
 	baseline: Manifest | null;
 	/**
-	 * Which remote and baseline paths are in scope. Applied here rather than by
-	 * copying both manifests first, which at 20k files is two records rebuilt
-	 * per compare. The local snapshot is already scoped by the scan, and the
-	 * scan's predicate is the stricter of the two, so a local path is always in
-	 * scope here too.
+	 * Filters remote and baseline paths here to avoid rebuilding two 20k-file records per compare. Local is
+	 * already scoped by the stricter scan predicate.
 	 */
 	includes?: (path: string) => boolean;
 }
 
 export function diff(input: DiffInput): DiffResult {
 	const localFiles = input.local.files;
-	// Unreadable is not absent: unreadable files are skipped, not treated as
-	// deleted, avoiding accidental pushes.
+	// Unreadable is not absent: skipped, not treated as deleted, so no accidental push.
 	const unreadable = new Set(input.local.skipped.map((entry) => entry.path));
 	const unreadableDirs = input.local.unreadableDirs;
 	const remoteFiles = input.remote?.files ?? {};

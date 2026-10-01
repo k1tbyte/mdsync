@@ -1,6 +1,5 @@
 import type { Person } from "@/presence";
-import { personColor } from "@/shared/colors";
-import { withDevices } from "@/shared/format";
+import { personColor, withDevices } from "@/shared";
 
 /** More faces than this collapse into a "+N". */
 const STACK_MAX = 3;

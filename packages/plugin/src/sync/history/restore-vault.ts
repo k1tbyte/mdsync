@@ -1,4 +1,4 @@
-import { entryAt } from "@/shared/records";
+import { entryAt } from "@/shared";
 import type { LocalSnapshot, Manifest, ManifestEntry } from "@/sync/types";
 
 export interface VaultRestoreWrite {
@@ -12,20 +12,13 @@ export interface VaultRestorePlan {
 	/** Vault files the target snapshot does not have. */
 	remove: string[];
 	unchanged: number;
-	/**
-	 * Paths the sync scope excludes. A restore leaves them exactly as they are,
-	 * in either direction, so an ignore rule is never overridden by history.
-	 */
+	/** Paths the sync scope excludes: left untouched in either direction, so history never overrides an ignore rule. */
 	ignored: string[];
 }
 
 /**
- * What it would take to make the vault match a past snapshot. Pure, so the
- * confirmation modal and the operation act on the same numbers.
- *
- * Only files the scan actually read can be removed: a directory it could not
- * list leaves its contents unknown, and deleting on that basis would destroy
- * files the snapshot never claimed to replace.
+ * Pure, so the confirmation modal and the operation act on the same numbers.
+ * Only files the scan read can be removed: an unlistable directory's contents are unknown, not absent.
  */
 export function planVaultRestore(
 	target: Manifest,

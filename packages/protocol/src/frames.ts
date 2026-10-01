@@ -1,8 +1,6 @@
 /**
- * Wire format between the plugin and the relay hub. Every frame is
- * `[type:u8][slot:u8][docLen:u8][doc][body]`: the slot names a channel within
- * one socket, the doc is an opaque HMAC ("" addresses the whole channel), and
- * payloads are ciphertext the hub never reads.
+ * Frame: `[type:u8][slot:u8][docLen:u8][doc][body]`; slot names a channel within one socket, doc is an
+ * opaque HMAC ("" = channel), body is ciphertext.
  */
 
 export const HUB_PATH = "/hub";
@@ -92,9 +90,8 @@ export type ClientFrame = Address &
 		| { type: typeof EFrame.Awareness; payload: Uint8Array }
 		| { type: typeof EFrame.Snapshot; upto: number; payload: Uint8Array }
 		/**
-		 * Seeds `target` with the rebuilt document and seals this one with a
-		 * pointer, as one step, only while the log still ends at `upto`. `note`
-		 * goes out with the pointer: sealed, empty unless the note moved path.
+		 * Atomically seeds `target` and seals this log with a pointer, only while it ends at `upto`; `note`
+		 * is sealed, empty unless the note moved path.
 		 */
 		| {
 				type: typeof EFrame.Rotate;

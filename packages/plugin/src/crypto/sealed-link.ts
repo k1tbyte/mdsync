@@ -1,7 +1,11 @@
 /** Password-sealed payloads in obsidian:// links: settings transfers and share invites. */
 
-import { base64UrlToBytes, bytesToBase64Url } from "@/utils/base64";
-import { deflateBytes, inflateBytes } from "@/utils/compress";
+import {
+	base64UrlToBytes,
+	bytesToBase64Url,
+	deflateBytes,
+	inflateBytes,
+} from "@/utils";
 
 import { decryptBytes, deriveKey, encryptBytes, randomBytes } from "./index";
 

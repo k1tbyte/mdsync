@@ -1,13 +1,12 @@
-import { hasDotSegment } from "@/shared/path";
+import { hasDotSegment } from "@/shared";
 import { isUnder, type Space, VAULT_SPACE } from "@/sync/space";
 
 import type { SpaceRecord } from "./record";
 
 /**
- * The vault, then every open record whose root is free. Roots never overlap: two
- * devices that shared one folder offline both keep the smaller id's space, and
- * the other stays out until its owner closes it. A paused share stays in,
- * so its folder stays out of the vault.
+ * The vault, then every open record whose root is free. Roots never overlap: two devices that shared one
+ * folder offline both keep the smaller id's space, the other stays out until its owner closes it. A paused
+ * share stays in, so its folder stays out of the vault.
  */
 export function spacesOf(
 	records: readonly SpaceRecord[],

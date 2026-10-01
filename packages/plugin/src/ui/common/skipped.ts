@@ -1,11 +1,10 @@
-import { formatBytes } from "@/shared/format";
+import { formatBytes } from "@/shared";
 import type { SyncController } from "@/sync/controller";
 import type { SkippedFile } from "@/sync/types";
 
 /** One instance: callers cache by identity. */
 const NONE: readonly SkippedFile[] = [];
 
-/** What the last compare left out. */
 export function skippedFiles(
 	controller: Pick<SyncController, "getSnapshot">,
 ): readonly SkippedFile[] {

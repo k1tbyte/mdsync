@@ -1,8 +1,7 @@
 # Spaces, shares and live editing
 
 How shared folders and live editing are built, and why. The rules that keep
-data safe are in [sync invariants](sync-invariants.md); open work is in
-[docs/spaces-and-live.md](../docs/spaces-and-live.md).
+data safe are in [sync invariants](sync-invariants.md).
 
 ## Decisions
 

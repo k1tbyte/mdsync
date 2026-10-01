@@ -1,19 +1,10 @@
 import type { DataAdapter } from "obsidian";
 
-import { toArrayBuffer } from "@/utils/bytes";
+import { toArrayBuffer } from "@/utils";
 
 /**
- * Folders {@link writeBinary} has already put a file into. Without it a
- * 20k-file pull pays one `exists` per path segment per file - 60k round trips
- * to learn the same ~700 folders over and over.
- *
- * Only that one caller reads it, because only that one caller finds out when it
- * is wrong: a write into a folder removed behind the cache fails, and the retry
- * below repairs both the folder and the entry. Everything else probes, since
- * nothing follows it that would notice a stale yes.
- *
- * Keyed per adapter so one adapter never vouches for a folder another one owns,
- * and so the entry dies with the adapter rather than outliving it.
+ * Folders {@link writeBinary} already wrote into: a 20k-file pull otherwise pays 60k `exists` round trips.
+ * Only its retry notices a stale yes, so only it reads this; everything else probes. Keyed per adapter.
  */
 const ensuredDirs = new WeakMap<DataAdapter, Set<string>>();
 
@@ -43,8 +34,7 @@ export async function writeBinary(
 	} catch (err) {
 		if (parent === null || !trustedCache) throw err;
 		dirs.delete(parent);
-		// Only a folder that had gone missing is the cache's fault. Any other
-		// failure is the write's own, and a second attempt would just wait twice.
+		// Only a missing folder is the cache's fault; a second attempt at any other failure would just wait twice.
 		if (!(await ensureDir(adapter, parent))) throw err;
 		dirs.add(parent);
 		await adapter.writeBinary(path, buffer);
@@ -58,8 +48,8 @@ export async function deletePath(
 	try {
 		await adapter.remove(path);
 	} catch (err) {
-		// Absent is the outcome asked for. Anything still on disk is a real
-		// failure, and callers record a deletion the moment this returns.
+		// Absent is the outcome asked for; anything still on disk is a real failure, as callers record a
+		// deletion on return.
 		if (await adapter.exists(path)) throw err;
 	}
 }
@@ -111,8 +101,7 @@ export async function removeEmptyDir(
 	} catch {
 		// Ignore if not empty or already gone.
 	}
-	// Unconditionally, including the not-empty failure: one wasted probe later
-	// beats an entry claiming a folder is there when it is not.
+	// Unconditional, even on not-empty: one wasted probe beats an entry claiming a missing folder exists.
 	knownDirs(adapter).delete(path);
 }
 
@@ -125,9 +114,8 @@ export async function ensureParent(
 }
 
 /**
- * Obsidian's desktop `mkdir` creates the intermediate folders, measured. The
- * walk is the fallback for an adapter whose mkdir does not; it is what this did
- * before, at one probe per segment.
+ * Obsidian's desktop `mkdir` creates intermediate folders; the walk is the fallback for an adapter whose
+ * mkdir does not.
  */
 async function mkdirDeep(adapter: DataAdapter, path: string): Promise<void> {
 	try {

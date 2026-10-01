@@ -1,4 +1,4 @@
-import { formatBytes } from "@/shared/format";
+import { formatBytes } from "@/shared";
 import type { FileDiffModel } from "@/sync/projection";
 
 export function renderBinaryDiff(

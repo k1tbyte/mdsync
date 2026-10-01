@@ -1,7 +1,7 @@
 import { toHex } from "@obsync/protocol";
 import type { ObsidianProtocolData } from "obsidian";
 import { randomBytes } from "@/crypto";
-import { relayBase } from "@/shared/path";
+import { relayBase } from "@/shared";
 import {
 	EStorageBackend,
 	type GoogleDriveStorageConfig,

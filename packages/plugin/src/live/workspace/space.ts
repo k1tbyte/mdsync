@@ -2,7 +2,6 @@ import type { LiveKeys } from "@/crypto/live-keys";
 import { docIdFor } from "@/live/doc-id";
 import { insideOf } from "@/sync/space";
 
-/** How this device shows up in a room: its cursor, and the name its text carries. */
 export interface LiveUser {
 	/** The presence key: whose cursor this is, for a jump to it. */
 	key: string;

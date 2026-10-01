@@ -9,7 +9,7 @@ import {
 
 import { IGNORE_FILE_NAME } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
-import { EFieldKind } from "@/storage/field-spec";
+import { EFieldKind } from "@/storage";
 import { defaultDeviceName } from "@/sync/device";
 import type { Manifest } from "@/sync/types";
 import {

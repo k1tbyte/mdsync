@@ -1,6 +1,6 @@
 /**
- * Who typed what: each session names the person behind its client id at its
- * first edit. Advisory: anyone who may write the note may also misname it.
+ * Who typed what: each session names the person behind its client id at its first edit. Advisory: anyone
+ * who may write the note may misname it.
  */
 
 import type * as Y from "yjs";
@@ -38,8 +38,8 @@ export function authorOf(users: Y.Map<unknown>, client: number): Author | null {
 }
 
 /**
- * What others typed inside `ranges` (sorted, as CodeMirror's visible ranges),
- * in document order. Walks the text only up to the last range.
+ * What others typed inside `ranges` (sorted, as CodeMirror's visible ranges), in document order; walks the
+ * text only up to the last range.
  */
 export function authorRanges(
 	text: Y.Text,

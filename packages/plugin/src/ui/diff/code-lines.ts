@@ -23,9 +23,8 @@ const NO_MARKS: LineMarks = { removed: [], added: [] };
 const CODE_MARK = Decoration.mark({ class: "obsync-code-mark" });
 
 /**
- * One line of a source block or preview: number column, text, tone bar. The
- * same DOM the CodeMirror panes imitate with their gutter and line classes,
- * so a widget line and an editor line look alike.
+ * One line of a source block or preview, in the DOM the CodeMirror panes imitate so widget and editor lines
+ * look alike.
  */
 export function renderCodeLine(
 	parent: HTMLElement,
@@ -52,7 +51,6 @@ export function renderCodeLine(
 	return row;
 }
 
-/** The same word marks inside one CodeMirror line. */
 export function addCodeMarks(
 	ranges: Range<Decoration>[],
 	line: { from: number; to: number },

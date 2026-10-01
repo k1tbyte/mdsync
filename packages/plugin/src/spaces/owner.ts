@@ -6,7 +6,7 @@ import {
 	type S3StorageConfig,
 	type StorageAdapterConfig,
 } from "@/storage";
-import { bytesToBase64 } from "@/utils/base64";
+import { bytesToBase64 } from "@/utils";
 
 import { isNewer, type ShareLocation, type SpaceRecord } from "./record";
 

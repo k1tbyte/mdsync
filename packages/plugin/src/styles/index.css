@@ -1,8 +1,6 @@
 /*
  * Bundled to packages/plugin/styles.css by esbuild.config.mjs.
- *
- * Import order is the cascade: rules of equal specificity are resolved by it,
- * so append within a slice rather than reordering this list.
+ * Import order is the cascade (equal specificity): append within a slice rather than reordering.
  */
 
 @import "./tokens.css";

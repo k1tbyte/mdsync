@@ -1,7 +1,7 @@
 import { DEFAULT_CONCURRENCY } from "@/constants";
 import { sceneOfBytes } from "@/drawing";
 import { ESyncLogOperation } from "@/logs/store";
-import { entryAt } from "@/shared/records";
+import { entryAt } from "@/shared";
 import {
 	advanceBaselineForPaths,
 	buildSessionState,
@@ -24,7 +24,7 @@ import {
 	storeObject,
 } from "@/sync/engine";
 import type { ManifestEntry } from "@/sync/types";
-import { runWithConcurrency } from "@/utils/concurrency";
+import { runWithConcurrency } from "@/utils";
 import { trashPath, unchangedSince, writeBinary } from "@/vault/io";
 import type { Operation, OperationContext, OperationOutcome } from "./types";
 
@@ -146,10 +146,8 @@ export const batchKeepLocalOp: Operation<ReadonlySet<string>> = async (
 };
 
 /**
- * Resolves one conflict by keeping the local file and parking the remote
- * version beside it as a conflict copy. The copy lands before the resolution
- * publishes, so a failed push cannot lose it; as a new local file it publishes
- * with the next push, not with this one.
+ * The copy lands before the resolution publishes, so a failed push cannot lose it; as a new local file it
+ * publishes with the next push.
  */
 export const keepBothConflictOp: Operation<string> = async (
 	deps,

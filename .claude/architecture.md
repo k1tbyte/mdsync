@@ -58,12 +58,12 @@ tell the user something returns a result for the caller to surface - see
 - Tests reach source through `@/` and their own helpers through `@tests/`; a
   test imports the module it tests directly.
 - Cross-area behaviour goes through the area barrel: `@/ui`, `@/ui/common`,
-  `@/storage`, `@/live`, `@/hub`, `@/presence`, `@/spaces`; inside `live/`,
-  `@/live/session`. A slice never imports its own barrel; `ui/index.ts` reaches
-  its folders relatively. Leaf type modules (`@/storage/types`, `@/sync/types`,
-  `@/hub/status`, `@/spaces/record`, `@/live/model`,
-  `@/live/session/session-deps`) are imported directly so a type never drags in
-  its slice. `@/spaces/access` (drags `@/storage`) stays out of its barrel.
+  `@/storage`, `@/live`, `@/hub`, `@/presence`, `@/spaces`, `@/shared`,
+  `@/utils`; inside `live/`, `@/live/session`. A slice never imports its own
+  barrel; `ui/index.ts` reaches its folders relatively. Leaf type modules
+  (`@/storage/types`, `@/sync/types`, `@/hub/status`, `@/spaces/record`,
+  `@/live/model`, `@/live/session/session-deps`) are imported directly so a
+  type never drags in its slice. `@/spaces/access` (drags `@/storage`) stays out of its barrel.
 - No barrel for `sync/`: `sync` and `vault` import each other, and a barrel
   would risk their init order.
 

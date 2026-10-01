@@ -1,5 +1,5 @@
 import { randomId } from "@/crypto";
-import { entryAt, sortedByPath } from "@/shared/records";
+import { entryAt, sortedByPath } from "@/shared";
 import type { ScopePolicy } from "@/vault/scope";
 import { reconcileBaselineResetGenerations } from "./config-reset";
 import type { CompareResult } from "./engine";
@@ -20,10 +20,8 @@ export function buildSessionState(
 		deviceName: previous.deviceName,
 		vaultId: baseline.vaultId,
 		baseline,
-		// Every persisted hash cache passes through here. Pulls and conflict
-		// resolutions add their paths at the end, and the next scan produces the
-		// same entries sorted - which would rewrite the state file for the order
-		// alone. Sorting once at the choke point beats sorting at each caller.
+		// Single choke point for every persisted hash cache: unsorted additions would rewrite the state file
+		// for order alone.
 		hashCache: sortedByPath(hashCache),
 	};
 }
@@ -50,14 +48,8 @@ export function advanceSessionAfterPush(
 }
 
 /**
- * Moves the baseline forward for `paths` only; `onDisk` holds the empty folders
- * on disk once the operation is done.
- *
- * Adopting the whole published manifest would also adopt remote changes this
- * device never pulled: their entries would sit in the baseline while the old
- * content sits on disk, so the next compare calls them local edits and the next
- * push overwrites the other device's work. A folder listed but not on disk
- * reads the same way, as a local deletion.
+ * Only `paths` advance; `onDisk` holds the empty folders on disk afterwards.
+ * Adopting the whole manifest would adopt never-pulled remote changes, which a push then overwrites.
  */
 export function advanceBaselineForPaths(
 	previous: Manifest | null,
@@ -96,11 +88,7 @@ export function advanceBaselineForPaths(
 	};
 }
 
-/**
- * The empty folders at least two of baseline, remote and disk have. A folder the
- * baseline shares with one side was deleted on the other and that deletion has
- * yet to propagate; a folder on one side only is not agreed on yet.
- */
+/** Empty folders at least two of baseline, remote and disk have; a folder on one side only is not agreed on yet. */
 export function majorityFolders(
 	baseline: ReadonlyArray<string> | undefined,
 	remote: ReadonlyArray<string> | undefined,
@@ -128,10 +116,7 @@ export function publishedDelta(
 	return paths;
 }
 
-/**
- * Folds written entries into hash cache. Uses local file mtime to avoid
- * re-hashing pulled files on next scan.
- */
+/** Uses the local file mtime so pulled files are not re-hashed on the next scan. */
 export function mergeWrittenIntoCache(
 	written: ReadonlyMap<string, ManifestEntry | null>,
 	previous: Record<string, HashCacheEntry>,
@@ -148,7 +133,6 @@ export function mergeWrittenIntoCache(
 	return next;
 }
 
-/** Clears vaultId and baseline. Local hashCache is preserved. */
 export function resetSessionState(state: SessionState): SessionState {
 	return {
 		deviceId: state.deviceId || randomId(),
@@ -159,11 +143,7 @@ export function resetSessionState(state: SessionState): SessionState {
 	};
 }
 
-/**
- * Three-way merge of the empty-folder list: keep everything either side knows
- * about, but a folder the baseline recorded stays only while both sides still
- * have it - otherwise a deletion on either side is resurrected by every push.
- */
+/** A baseline folder stays only while both sides still have it, or every push resurrects a deletion. */
 export function mergeFolderArrays(
 	remoteFolders: ReadonlyArray<string> | undefined,
 	localFolders: ReadonlyArray<string>,

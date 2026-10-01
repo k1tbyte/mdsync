@@ -4,7 +4,7 @@ import {
 	ownerStorage,
 	type RelayConfig,
 } from "@/settings/model";
-import { relayBase } from "@/shared/path";
+import { relayBase } from "@/shared";
 import { createShare, mountError, ownerNameOf } from "@/spaces";
 import type { SpaceRecord } from "@/spaces/record";
 import {

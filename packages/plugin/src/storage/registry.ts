@@ -148,7 +148,8 @@ export function storageIdentity(config: StorageAdapterConfig): string {
 	return getDescriptor(config.kind).identity(config);
 }
 /**
- * Routes obsidian:// callbacks to owning backend, not active one (e.g. configuring Drive while S3 is active).
+ * Routes obsidian:// callbacks to the owning backend, not the active one (e.g. configuring Drive while S3
+ * is active).
  */
 export async function handleStorageProtocol(
 	params: ObsidianProtocolData,

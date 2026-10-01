@@ -1,7 +1,6 @@
 /**
- * The plugin's realtime link in a real Obsidian against a real relay, with a
- * scripted peer as the other device. `E2E_SOAK_MS` adds an idle stretch that
- * must not cost a reconnect (the hub answers keepalives without waking).
+ * The plugin's realtime link in a real Obsidian against a real relay with a scripted peer; `E2E_SOAK_MS`
+ * adds an idle stretch that must not cost a reconnect.
  */
 
 import { createHash, randomBytes } from "node:crypto";

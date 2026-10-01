@@ -1,8 +1,6 @@
 /**
- * A live note whose folder becomes a share, in two real Obsidians of one owner
- * over an in-memory S3 and a relay: both type while the laptop shares the
- * folder, the desktop still in the vault's room until the record reaches it,
- * and both end in the share's room with every edit once.
+ * A live note whose folder becomes a share, in two real Obsidians of one owner: both end in the share's
+ * room with every edit once.
  */
 
 import { CLEAN, clickMenuItem, closeModals, sync, unlock } from "./device";

@@ -1,6 +1,6 @@
 /**
- * Live notes as the file sync sees them: a version is a room snapshot when it is
- * the note's agreed text, and an open room takes incoming text itself.
+ * Live notes as the file sync sees them: a version is a room snapshot when it is the note's agreed text,
+ * and an open room takes incoming text itself.
  */
 
 import { sha256Hex } from "@/crypto";
@@ -16,7 +16,7 @@ import {
 	type LiveTake,
 } from "@/sync/live-notes";
 import type { LiveMark } from "@/sync/types";
-import { toLf } from "@/utils/eol";
+import { toLf } from "@/utils";
 import type { AgreedTexts } from "./agreed-texts";
 
 export interface LiveColdSyncDeps {
@@ -25,7 +25,6 @@ export interface LiveColdSyncDeps {
 		"roomOf" | "joining" | "save" | "spaceOf" | "expectWrite"
 	>;
 	agreed: AgreedTexts;
-	/** Id of the space this sync session runs in. */
 	space: string;
 	/** Its keys and root; null while it cannot go live. */
 	live(): Promise<LiveSpace | null>;

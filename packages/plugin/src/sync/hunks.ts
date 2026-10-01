@@ -1,6 +1,6 @@
 import { structuredPatch } from "diff";
 
-import { toLf } from "@/utils/eol";
+import { toLf } from "@/utils";
 
 export const EHunkKind = {
 	Added: "added",
@@ -31,9 +31,8 @@ export interface ComputedHunks {
 export type LineRange = readonly [number, number];
 
 /**
- * One run of changed lines inside a hunk, bounded by context on both ends: the
- * smallest unit a user can take or leave. Segment `k` of hunk `h` is stable
- * for as long as the two texts are, exactly like the hunk index itself.
+ * One run of changed lines inside a hunk: the smallest unit a user can take or leave. Segment `k` of hunk `h`
+ * is stable while the texts are.
  */
 export interface HunkSegment {
 	hunk: number;
@@ -232,8 +231,8 @@ export function commonEnds<T>(
 }
 
 /**
- * The hunk jsdiff prints when the whole differing middle is one change: common
- * lines trimmed from both ends, up to three of them kept on each side as context.
+ * The hunk jsdiff prints when the whole differing middle is one change: common ends trimmed, up to three
+ * lines kept as context.
  */
 function replacedBlock(left: string, right: string): RawHunk {
 	const a = lineTokens(left);

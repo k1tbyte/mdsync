@@ -1,8 +1,4 @@
-/**
- * Extensions that are always binary. Used to classify a diff side without
- * reading its content - opening a diff for e.g. a large video must not load
- * the file (locally or from remote) at all.
- */
+/** Always-binary extensions, so a diff side is classified without loading the file (e.g. a large video). */
 export const KNOWN_BINARY_EXTENSIONS: ReadonlySet<string> = new Set([
 	// Images
 	"png",

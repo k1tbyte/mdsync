@@ -1,7 +1,4 @@
-/**
- * Raised when the user stops an operation. Distinct from a failure: callers
- * report it as a normal outcome and must not leave an error on the status.
- */
+/** The user stopped an operation: a normal outcome, so callers must not leave an error on the status. */
 export class SyncCancelledError extends Error {
 	constructor(message = "Cancelled.") {
 		super(message);

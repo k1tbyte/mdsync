@@ -15,7 +15,6 @@ export class RoomLog {
 	/** The lost log this socket asked to move on from. */
 	private left: { upto: number; log: string } | null = null;
 
-	/** `knownSeq`: the seq this device knew the room at before this session. */
 	constructor(private readonly knownSeq = 0) {}
 
 	/** A log other than the one this device knew: the hub lost it, and it may have grown again since. */

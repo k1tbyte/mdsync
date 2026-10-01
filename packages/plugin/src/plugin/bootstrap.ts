@@ -7,7 +7,7 @@ import {
 	StatePersister,
 } from "@/core";
 import { isStorageConfigured, type ObsyncSettings } from "@/settings/model";
-import { reportWarning } from "@/shared/diagnostics";
+import { reportWarning } from "@/shared";
 import { SpaceRecords } from "@/spaces";
 import { SyncController } from "@/sync/controller";
 import type { LiveNotes } from "@/sync/live-notes";

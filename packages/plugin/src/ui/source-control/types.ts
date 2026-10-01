@@ -24,9 +24,8 @@ export interface TreeNode {
 }
 
 /**
- * One line as it appears on screen. Flattening the tree into these is what
- * lets a collapsed folder cost one row instead of its whole subtree, and what
- * gives the virtual list something to index.
+ * One on-screen line: flattening the tree makes a collapsed folder cost one row and gives the virtual list
+ * an index.
  */
 export interface VisualRow {
 	depth: number;

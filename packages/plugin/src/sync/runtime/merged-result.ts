@@ -1,10 +1,10 @@
-import { sortedByPath } from "@/shared/records";
+import { sortedByPath } from "@/shared";
 import type { CompareResult } from "@/sync/engine";
 import type { Manifest } from "@/sync/types";
 
 /**
- * One view of every space's compare for the UI. Spaces own disjoint paths, so
- * the union loses nothing; operations never read it, only their own space's.
+ * One UI view of every space's compare. Spaces own disjoint paths, so the union loses nothing; operations
+ * read only their own space's.
  */
 export function mergeResults(
 	results: readonly CompareResult[],

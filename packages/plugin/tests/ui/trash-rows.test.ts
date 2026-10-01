@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRelativeTime } from "@/shared/format";
+import { formatRelativeTime } from "@/shared";
 import type { DeletedFile } from "@/sync/history";
 import type { EFileKind } from "@/sync/types";
 import {

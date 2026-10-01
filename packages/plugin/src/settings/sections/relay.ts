@@ -1,16 +1,14 @@
 import { Setting } from "obsidian";
-
+import { testRelay } from "@/settings/connection-test";
 import {
 	type FieldContext,
 	renderCheckRow,
 	renderField,
 } from "@/settings/fields";
-import { relayBase } from "@/shared/path";
-import { EFieldKind } from "@/storage/field-spec";
+import { relayBase } from "@/shared";
+import { EFieldKind } from "@/storage";
 import { runWithNotice } from "@/ui/common";
-import { bytesToBase64Url } from "@/utils/base64";
-
-import { testRelay } from "../connection-test";
+import { bytesToBase64Url } from "@/utils";
 
 const SECRET_BYTES = 32;
 

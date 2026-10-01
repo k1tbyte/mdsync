@@ -1,11 +1,9 @@
 import type { ListedObject, StorageAdapter } from "@/storage/types";
 
-/** In-memory StorageAdapter. */
 export class FakeStorage implements StorageAdapter {
 	readonly map = new Map<string, Uint8Array>();
 	/** Last write per key, epoch ms; tests age objects by editing it. */
 	readonly modified = new Map<string, number>();
-	/** Count requests for test assertions. */
 	existsCalls = 0;
 	getCalls = 0;
 	listCalls = 0;

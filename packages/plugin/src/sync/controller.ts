@@ -51,8 +51,8 @@ export type EConflictStrategy =
 
 export interface SyncControllerHost {
 	/**
-	 * The vault first. Asked once per refresh: the partition holds until the
-	 * next. Null when the vault cannot open, which ends the refresh.
+	 * The vault first. Asked once per refresh; the partition holds until the next. Null when the vault cannot
+	 * open, which ends the refresh.
 	 */
 	spaces(): Promise<readonly Space[] | null>;
 	/** Builds the space's scope from `partition` alone, never from newer records. */
@@ -225,7 +225,10 @@ export class SyncController {
 		this.runtimeState.invalidate(reason);
 	}
 
-	/** A relay signal's pull; local changes elsewhere do not hold it back, a path changed on both sides is a conflict. */
+	/**
+	 * A relay signal's pull; local changes elsewhere do not hold it back, a path changed on both sides is a
+	 * conflict.
+	 */
 	refreshAndAutoPull(spaces?: ReadonlySet<string>): Promise<void> {
 		return this.refreshes.request(spaces, true);
 	}
@@ -375,10 +378,7 @@ export class SyncController {
 		);
 	}
 
-	/**
-	 * Resolves a conflict by keeping the local file and parking the remote
-	 * version beside it as a conflict copy, which publishes with the next push.
-	 */
+	/** Keeps the local file and parks the remote version beside it as a conflict copy, published with the next push. */
 	async resolveConflictKeepBoth(path: string): Promise<SyncOperationResult> {
 		return this.operations.runOperation(
 			this.spaceFor(path),
@@ -399,11 +399,7 @@ export class SyncController {
 		);
 	}
 
-	/**
-	 * Resolves conflict with user-merged content: writes locally, then keeps
-	 * local side - uploading the file and publishing a manifest.
-	 * Unlike auto-merge, this pushes immediately.
-	 */
+	/** Writes the user-merged content locally and pushes it immediately, unlike auto-merge. */
 	async resolveConflictMerged(
 		path: string,
 		content: string,

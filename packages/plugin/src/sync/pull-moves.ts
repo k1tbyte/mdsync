@@ -1,10 +1,9 @@
 /**
- * The pull's tree: moves (`sync/moves.ts`) and folders. A file moved remotely is renamed
- * here, never downloaded again, and an edit made here goes with it; a file moved
- * here takes the remote edit of its old path. Each move lands whole or waits.
+ * The pull's tree: moves (`sync/moves.ts`) and folders. A remotely moved file is renamed here, never
+ * re-downloaded, and a local edit goes with it. Each move lands whole or waits.
  */
 
-import { entryAt } from "@/shared/records";
+import { entryAt } from "@/shared";
 import {
 	ensureDir,
 	ensureParent,
@@ -60,9 +59,8 @@ export async function pullMoves(
 }
 
 /**
- * Mirrors the remote folder set, so empty directories survive a round trip, and
- * returns the folders it put on disk. Filtered by scope: unfiltered folders
- * would recreate ignored and out-of-scope directories on every pull.
+ * Mirrors the remote folder set so empty directories survive a round trip; scope-filtered, or ignored
+ * directories would be recreated every pull.
  */
 export async function syncFolders(
 	deps: EngineDependencies,
@@ -94,8 +92,8 @@ export async function syncFolders(
 }
 
 /**
- * Folders this pull emptied go too: the next push would publish them back as
- * empty folders. Never the space's root, nor one the remote keeps empty.
+ * Folders this pull emptied go too, or the next push publishes them back. Never the space's root, nor one the
+ * remote keeps empty.
  */
 async function removeEmptied(
 	deps: EngineDependencies,

@@ -1,4 +1,4 @@
-import { entryAt } from "@/shared/records";
+import { entryAt } from "@/shared";
 
 import { diff } from "./diff";
 import type { CompareResult, EngineDependencies } from "./engine";
@@ -70,10 +70,7 @@ export function projectSession(
 	};
 }
 
-/**
- * Writes session back into its storage slot, leaving other storages untouched.
- * The slot's share bases stay unless `shareBases` replaces them or the vault id changes.
- */
+/** Share bases stay unless `shareBases` replaces them or the vault id changes. */
 export function mergeSessionIntoLocal(
 	current: LocalState,
 	session: SessionState,

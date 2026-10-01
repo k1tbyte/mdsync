@@ -1,5 +1,5 @@
 import { DEFAULT_CONCURRENCY } from "@/constants";
-import { normalizeKeyPrefix } from "@/shared/path";
+import { normalizeKeyPrefix } from "@/shared";
 import { EStorageBackend, type S3StorageConfig } from "@/storage/config";
 import {
 	CONCURRENCY_FIELD,

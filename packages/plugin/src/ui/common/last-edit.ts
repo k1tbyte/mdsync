@@ -1,5 +1,5 @@
 import type { PluginHost } from "@/plugin/host";
-import { formatRelativeTime } from "@/shared/format";
+import { formatRelativeTime } from "@/shared";
 import { shareIdentity } from "@/spaces/record";
 import { type Space, spaceOf, VAULT_SPACE } from "@/sync/space";
 

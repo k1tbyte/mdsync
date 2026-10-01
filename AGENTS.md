@@ -27,7 +27,7 @@ diff, hunk, baseline, history or GC code.
 
 - [Architecture](.claude/architecture.md) - layout, layering, imports, conventions
 - [Sync invariants](.claude/sync-invariants.md) - data-integrity rules of the engine
-- [Spaces, shares and live](.claude/shares.md) - the model, relay hub, protocol and live layer, and why; open work in [docs/spaces-and-live.md](docs/spaces-and-live.md)
+- [Spaces, shares and live](.claude/shares.md) - the model, relay hub, protocol and live layer, and why
 - [Commands & settings](.claude/commands-and-settings.md) - commands, settings, transfer, UI copy
 - [Testing](.claude/testing.md) - vitest, CDP driver, manual install
 - [Releasing](.claude/releasing.md) - manifest, versioning, release assets

@@ -1,7 +1,6 @@
 /**
- * One live document: a Y.Doc kept in step with its room on the hub. Everything
- * runs through one queue, because sealing is asynchronous and updates must
- * leave in the order of the counters their echoes name.
+ * One live document: a Y.Doc kept in step with its room. One queue runs everything: sealing is async and
+ * updates must leave in the order their echoes' counters name.
  */
 
 import {
@@ -15,8 +14,8 @@ import { type SealedFor, seal, unseal } from "@/crypto/seal";
 import type { SpaceFrame, SpaceListener } from "@/hub";
 import { attribute } from "@/live/authors";
 import type { LiveModel } from "@/live/model";
-import { reportWarning } from "@/shared/diagnostics";
-import { runWithConcurrency } from "@/utils/concurrency";
+import { reportWarning } from "@/shared";
+import { runWithConcurrency } from "@/utils";
 import { closingUntil } from "./closing";
 import { Outbox } from "./outbox";
 import { RoomAwareness } from "./room-awareness";
@@ -128,12 +127,10 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		return this.synced && !this.disposed && this.outbox.idle;
 	}
 
-	/** The last room seq applied here. */
 	get seq(): number {
 		return this.log.seq;
 	}
 
-	/** Where the room continued once another device rebuilt it. */
 	get movedTo(): string | null {
 		return this.moved?.target ?? null;
 	}
@@ -241,9 +238,8 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	}
 
 	/**
-	 * Replays this device's own changes since the base onto the room: diffing the
-	 * room straight to the disk would turn an overwrite into deletions of what
-	 * others wrote meanwhile.
+	 * Replays this device's own changes since the base onto the room: diffing the room straight to the disk
+	 * would delete what others wrote meanwhile.
 	 */
 	protected async reconcile(): Promise<boolean> {
 		// Base first: a file sync writes the disk before the base, so the pair read is never base-ahead.
@@ -255,9 +251,8 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	}
 
 	/**
-	 * Rebuilds a room that lost its log as its next generation. Refilled in
-	 * place, its seq would restart under marks ordered by it, and a log grown
-	 * again from another device's disk would double the text applied here.
+	 * Rebuilds a room that lost its log as its next generation: refilled in place, its seq would restart
+	 * under marks ordered by it, and a regrown log would double the text.
 	 */
 	protected async moveOn(frame: StateFrame, epoch: number): Promise<void> {
 		this.online = false;
@@ -338,8 +333,7 @@ export class LiveSession<M extends LiveModel = LiveModel>
 
 	/** False while the join is still out: a seed offered, or a disk a reader cannot follow. */
 	private async join(head: number, epoch: number): Promise<boolean> {
-		// Only a room with no history is seeded: an empty one with a log is a
-		// deleted note, and one this device knew had a log lost it.
+		// Only a room with no history is seeded: an empty one with a log is a deleted note, or a lost log.
 		if (head === 0) {
 			await this.offerSeed(epoch);
 			return false;
@@ -368,8 +362,8 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		payload: Uint8Array,
 		epoch: number,
 	): Promise<void> {
-		// A pending seed is answered by its echo or by the whole room, so these add nothing;
-		// a lost log's are another history.
+		// A pending seed is answered by its echo or by the whole room, so these add nothing; a lost log's
+		// are another history.
 		if (!this.hasJoined || this.log.leaving) return;
 		const applied = await this.apply(payload, epoch);
 		if (epoch !== this.epoch || this.disposed) return;
@@ -392,7 +386,10 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		await this.settle();
 	}
 
-	/** With nothing local outstanding the doc is exactly the room at `seq`: agreed, and a snapshot can replace the log. */
+	/**
+	 * With nothing local outstanding the doc is exactly the room at `seq`: agreed, and a snapshot can
+	 * replace the log.
+	 */
 	private async settle(): Promise<void> {
 		if (!this.settled) return;
 		this.deps.onAgreed(this.model.agreed(), this.log.seq);

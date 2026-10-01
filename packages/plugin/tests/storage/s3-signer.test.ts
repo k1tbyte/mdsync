@@ -28,9 +28,7 @@ afterEach(() => {
 
 describe("S3 request signing", () => {
 	it("reproduces the signature AWS publishes for its own example", async () => {
-		// "Example: GET Object" from the SigV4 documentation. Recomputing the
-		// algorithm in the test would only prove it agrees with itself; this
-		// pins it to an answer written down outside this repository.
+		// "Example: GET Object" from the SigV4 docs: pins the signer to an answer written outside this repo.
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2013-05-24T00:00:00Z"));
 

@@ -8,9 +8,8 @@ const encoder = new TextEncoder();
 const HEAD_BYTES = 1024;
 
 /**
- * What a drawing is, whatever view state it was saved with: its text outside
- * the scene, and which elements show at which version. Undefined for anything
- * that is not a drawing.
+ * A drawing's identity regardless of view state: its text outside the scene plus element versions. Undefined
+ * for anything that is not a drawing.
  */
 export async function sceneOf(text: string): Promise<string | undefined> {
 	const drawing = readDrawing(text);

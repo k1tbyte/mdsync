@@ -7,10 +7,9 @@ import {
 	wholeHunks,
 } from "@/sync/hunks";
 
-// Locks semantics of controller.history.restoreHistoryHunks: applyHunks(current, computeHunks(current, version).hunks, selected)
-// Selected hunks restore OLD content; unselected keep CURRENT.
-// Forward/reverse hunk counts must match so the view's per-hunk index stays valid.
-// Regions are separated by >3 context lines to prevent merging into one hunk.
+// Locks controller.history.restoreHistoryHunks: selected hunks restore OLD content, unselected keep
+// CURRENT. Forward/reverse hunk counts must match so the view's per-hunk index stays valid; regions sit >3
+// context lines apart so they never merge.
 const pad = ["p1", "p2", "p3", "p4", "p5", "p6", "p7"];
 const version = ["a", "OLD1", ...pad, "OLD2", "z"].join("\n");
 const current = ["a", "NEW1", ...pad, "NEW2", "z"].join("\n");
@@ -84,9 +83,8 @@ describe("selected EOF line endings", () => {
 });
 
 /**
- * The history view numbers its hunks from version-to-current, so a per-hunk
- * restore must use that same patch. Keeping one hunk on the version's side means
- * selecting every other hunk, which is easy to get backwards.
+ * The history view numbers hunks version-to-current, so per-hunk restore must use that patch; keeping one
+ * hunk means selecting all the others.
  */
 describe("restoring one hunk from an older version", () => {
 	const version = ["one", ...pad, "two", ...pad, "three"].join("\n");

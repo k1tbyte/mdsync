@@ -2,12 +2,10 @@ import type { DataAdapter } from "obsidian";
 import { DEFAULT_CONCURRENCY } from "@/constants";
 import { type EncryptionKey, encryptBytes, sha256Hex } from "@/crypto";
 import { sceneOfBytes } from "@/drawing";
-import { reportWarning } from "@/shared/diagnostics";
-import { entryAt, sortedByPath } from "@/shared/records";
+import { entryAt, reportWarning, sortedByPath } from "@/shared";
 import type { StorageAdapter } from "@/storage/types";
 import { REMOTE_OBJECTS_PREFIX } from "@/sync/constants";
-import { runWithConcurrency } from "@/utils/concurrency";
-import { runWithFileConcurrency } from "@/utils/file-concurrency";
+import { runWithConcurrency, runWithFileConcurrency } from "@/utils";
 import type { VaultIndex } from "@/vault/file-index";
 import { deletePath, readBinary, unchangedSince } from "@/vault/io";
 import { scanVault } from "@/vault/scanner";
@@ -181,9 +179,7 @@ export async function pushPaths(
 		},
 		deps.signal,
 	);
-	// Publishing a manifest for objects that were never uploaded would leave
-	// dangling references, so a cancelled push publishes nothing at all. The
-	// blobs that did upload stay and make the next attempt cheaper.
+	// A manifest for never-uploaded objects would dangle, so a cancelled push publishes nothing; uploaded blobs stay.
 	throwIfCancelled(deps.signal);
 
 	const nextFiles = buildPartialFileMap({
@@ -282,18 +278,15 @@ export async function pullPaths(
 		deps.signal,
 	);
 
-	// Unlike a push there is nothing atomic to withhold: every file already
-	// written is correct on its own, and the baseline only advances for those.
-	// The folder pass is skipped though - it reconciles the whole tree, which a
-	// partial pull has not reached.
+	// Unlike a push nothing is withheld: written files are correct alone. The folder pass is skipped since a
+	// partial pull has not reached the whole tree.
 	const cancelled = deps.signal?.aborted === true;
 	const onDisk = cancelled
 		? compareResult.snapshot.emptyFolders
 		: await syncFolders(deps, remote, written);
 
-	// `written`, not `paths`: a requested path with no remote change was never
-	// downloaded, and advancing its baseline would turn an unresolved conflict
-	// into a local edit that the next push publishes over the remote.
+	// `written`, not `paths`: advancing the baseline of a never-downloaded path would turn an unresolved
+	// conflict into a local edit pushed over the remote.
 	const baseline = advanceBaselineForPaths(
 		deps.state.baseline,
 		remote,
@@ -347,10 +340,6 @@ export async function pushSingleFile(
 	return publishFileMap(deps, compareResult, nextFiles);
 }
 
-/**
- * Builds and publishes the next manifest. Centralizes folder merge, vault-id
- * fallback, and parent selection.
- */
 export async function publishFileMap(
 	deps: EngineDependencies,
 	compareResult: CompareResult,
@@ -417,9 +406,7 @@ function buildPartialFileMap(input: {
 		const live = input.marks.get(change.path);
 		if (entry) next[change.path] = live ? { ...entry, live } : entry;
 	}
-	// Added paths land at the end, so a manifest drifts out of order over
-	// successive pushes. Sorted paths share longer prefixes and gzip 8.5%
-	// smaller, and an unchanged vault republishes identical bytes.
+	// Sorted paths gzip 8.5% smaller, and an unchanged vault republishes identical bytes.
 	return sortedByPath(next);
 }
 
@@ -436,9 +423,8 @@ export function knownRemoteHashes(compareResult: CompareResult): Set<string> {
 const UPLOAD_LIST_THRESHOLD = 256;
 
 /**
- * Hashes the bucket appeared to hold, or null when probing per object is
- * cheaper. Used only to decide which objects need no probe at all: every
- * positive answer is still confirmed before an upload is skipped.
+ * Hashes the bucket appeared to hold, or null when per-object probing is cheaper; positives are still
+ * confirmed before an upload is skipped.
  */
 async function listStoredHashes(
 	storage: EngineDependencies["storage"],
@@ -449,8 +435,7 @@ async function listStoredHashes(
 		const keys = await storage.list(REMOTE_OBJECTS_PREFIX);
 		return new Set(keys.map((key) => key.slice(REMOTE_OBJECTS_PREFIX.length)));
 	} catch {
-		// Listing is only an optimisation; a backend that refuses it still gets
-		// a correct push out of the per-object probe.
+		// Listing is only an optimisation; the per-object probe still gives a correct push.
 		return null;
 	}
 }
@@ -475,8 +460,7 @@ function collectUploads(
 	changes: ReadonlyArray<{ path: string; type: EChangeType }>,
 	snapshot: LocalSnapshot,
 ): Array<{ path: string; hash: string; size: number }> {
-	// One upload per hash: identical content under two paths would otherwise both
-	// miss the known-hash check and upload the same blob twice.
+	// One upload per hash: identical content under two paths would otherwise upload twice.
 	const byHash = new Map<
 		string,
 		{ path: string; hash: string; size: number }

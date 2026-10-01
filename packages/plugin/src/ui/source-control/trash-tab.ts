@@ -1,6 +1,6 @@
 import { TFolder } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
-import { errorMessage } from "@/shared/errors";
+import { errorMessage } from "@/shared";
 import type { DeletedFilesResult } from "@/sync/history";
 import {
 	appendLabeledButton,

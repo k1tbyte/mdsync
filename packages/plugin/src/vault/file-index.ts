@@ -12,13 +12,8 @@ export interface IndexedFolder {
 }
 
 /**
- * Obsidian's in-memory view of the vault. It already holds path, size and mtime
- * for every non-hidden file, so a scan that reads it costs nothing, while the
- * equivalent `adapter.list` walk plus one `adapter.stat` per file is thousands
- * of IPC round trips.
- *
- * It cannot see hidden folders, so `configDir` still has to be walked through
- * the adapter.
+ * Obsidian's in-memory path, size and mtime for every non-hidden file; reading it avoids thousands of adapter
+ * IPC round trips. Hidden folders (`configDir`) still need the adapter.
  */
 export interface VaultIndex {
 	files(): ReadonlyArray<IndexedFile>;

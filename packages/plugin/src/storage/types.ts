@@ -29,17 +29,20 @@ export interface ListedObject {
 
 export interface ObjectStorage {
 	exists(key: string): Promise<boolean>;
-	/** Bytes, or null only when genuinely absent. Any other failure throws, preventing mistaking outage for empty remote. */
+	/**
+	 * Bytes, or null only when genuinely absent. Any other failure throws, preventing mistaking outage for
+	 * empty remote.
+	 */
 	get(key: string): Promise<Uint8Array | null>;
 	/**
-	 * Reads only if the validator no longer matches, and reports the new one.
-	 * Optional: a backend with no validator to offer leaves it out and callers
-	 * fall back to {@link get}.
+	 * Reads only if the validator no longer matches, and reports the new one. Optional: a backend with no
+	 * validator leaves it out and callers fall back to {@link get}.
 	 */
 	getIfChanged?(key: string, etag: string | null): Promise<ConditionalRead>;
 	put(key: string, body: Uint8Array, contentType?: string): Promise<void>;
 	/**
-	 * Writes only if absent; returns false if present. Prevents concurrent onboarding devices from overwriting each other's data key.
+	 * Writes only if absent; returns false if present. Prevents concurrent onboarding devices from
+	 * overwriting each other's data key.
 	 */
 	putIfAbsent(
 		key: string,
@@ -50,15 +53,13 @@ export interface ObjectStorage {
 	/** List all object keys matching the prefix. Returned keys are guaranteed to start with the prefix. */
 	list(prefix: string): Promise<string[]>;
 	/**
-	 * {@link list} with each object's validator and last write, from the same
-	 * request. A validator that is unchanged means the bytes are. Optional: a
-	 * backend without it leaves it out and callers read every object.
+	 * {@link list} with each object's validator and last write, from the same request: an unchanged
+	 * validator means unchanged bytes. Optional: without it callers read every object.
 	 */
 	listDetailed?(prefix: string): Promise<ListedObject[]>;
 	/**
-	 * A hint that these objects are about to be read, in this order, so a backend
-	 * that signs each request may sign them in batches. Never needed for
-	 * correctness; replaces an earlier hint.
+	 * A hint that these objects are about to be read, in this order, so a backend that signs each request
+	 * may sign them in batches; never needed for correctness, replaces an earlier hint.
 	 */
 	prepareReads?(keys: string[]): void;
 	/** Lazy write-signing hint; never needed for correctness. */

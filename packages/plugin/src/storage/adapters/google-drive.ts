@@ -1,7 +1,7 @@
 import { type RequestUrlParam, requestUrl } from "obsidian";
 import type { GoogleDriveStorageConfig } from "@/storage/config";
 import type { ListedObject, StorageAdapter } from "@/storage/types";
-import { toArrayBuffer } from "@/utils/bytes";
+import { toArrayBuffer } from "@/utils";
 import {
 	computeExpiresAt,
 	googleAuthUrl,
@@ -43,10 +43,9 @@ function escapeDriveQueryValue(value: string): string {
 }
 
 /**
- * Google Drive is a best-effort backend for a content-addressed store: it has
- * no conditional write and no atomic create-by-name, so two devices writing the
- * same new key at the same moment can produce duplicate files. Everything else
- * here follows the shared contract - an error is never reported as absence.
+ * Best-effort backend for a content-addressed store: no conditional write or atomic create-by-name, so two
+ * devices writing the same new key at once can produce duplicate files. Everything else follows the shared
+ * contract: an error is never reported as absence.
  */
 export function createGoogleDriveAdapter(
 	config: GoogleDriveStorageConfig,
@@ -55,9 +54,8 @@ export function createGoogleDriveAdapter(
 	let cachedFolderId: string | null = null;
 	let folderLookup: Promise<string> | null = null;
 	let tokenRefresh: Promise<void> | null = null;
-	// name -> file id. Only positive entries are cached: a negative one would
-	// keep reporting a file another device uploaded during this session as
-	// missing, and the pull would fail on a "missing object".
+	// name -> file id. Only positive entries are cached: a negative one would keep reporting a file another
+	// device uploaded this session as missing, failing the pull.
 	const fileIdCache = new Map<string, string>();
 	let readHint: {
 		keys: Set<string>;
@@ -88,15 +86,14 @@ export function createGoogleDriveAdapter(
 			throw new Error("Google Drive token refresh returned no access token");
 		}
 		config.accessToken = tokenData.access_token;
-		// Google rotates refresh tokens on some accounts; dropping the new one
-		// leaves the next refresh holding a revoked credential.
+		// Google rotates refresh tokens on some accounts: dropping the new one leaves the next refresh
+		// holding a revoked credential.
 		if (tokenData.refresh_token) config.refreshToken = tokenData.refresh_token;
 		config.expiresAt = computeExpiresAt(tokenData.expires_in);
 		onTokenRefreshed?.();
 	};
 
-	// Every worker shares one refresh: eight parallel uploads must not fire
-	// eight refreshes and race each other's tokens.
+	// Every worker shares one refresh: parallel uploads must not each refresh and race each other's tokens.
 	const refreshOnce = async (): Promise<void> => {
 		tokenRefresh ??= refreshAccessToken().finally(() => {
 			tokenRefresh = null;
@@ -112,9 +109,7 @@ export function createGoogleDriveAdapter(
 		};
 	};
 
-	/**
-	 * Drive answers 401 mid-run (not retryable); replaces token to avoid failing long syncs.
-	 */
+	/** Drive answers 401 mid-run (not retryable); replaces the token so long syncs do not fail. */
 	const authorized: AuthorizedRequest = async (params) => {
 		const build = async (): Promise<Parameters<typeof requestUrl>[0]> => ({
 			...params,
@@ -133,8 +128,7 @@ export function createGoogleDriveAdapter(
 			url: `${DRIVE_API}?q=${encodeURIComponent(q)}&fields=files(id)`,
 			method: "GET",
 		});
-		// A failed search must not fall through to "create": that is how a 5xx
-		// ends up making a second sync folder.
+		// A failed search must not fall through to "create": a 5xx would make a second sync folder.
 		assertOk(res, "find folder", config.folderName);
 		const data = res.json as GoogleDriveListResponse;
 		return data.files?.[0]?.id ?? null;
@@ -302,7 +296,8 @@ export function createGoogleDriveAdapter(
 		},
 
 		async putIfAbsent(key, body, contentType) {
-			// Drive has no conditional create. Probing closes ordinary race; genuine tie leaves duplicate resolved arbitrarily - documented, not solved.
+			// Drive has no conditional create. Probing closes ordinary race; genuine tie leaves duplicate
+			// resolved arbitrarily - documented, not solved.
 			if (await findFileId(key)) return false;
 			await upload(key, body, contentType, null);
 			return true;
@@ -330,8 +325,7 @@ export function createGoogleDriveAdapter(
 function needsRefresh(config: GoogleDriveStorageConfig): boolean {
 	if (!config.refreshToken) return false;
 	if (!config.accessToken) return true;
-	// A config restored without an expiry (or one that just elapsed) must refresh
-	// rather than send a token that is probably already dead.
+	// A config restored without an expiry, or past it, must refresh rather than send a probably dead token.
 	return (
 		!config.expiresAt || Date.now() > config.expiresAt - TOKEN_REFRESH_MARGIN_MS
 	);
@@ -340,8 +334,8 @@ function needsRefresh(config: GoogleDriveStorageConfig): boolean {
 type DriveResponse = Awaited<ReturnType<typeof requestUrl>>;
 
 /**
- * Sends a request with a fresh Authorization header, replacing the token once
- * if Drive answers 401. Uploads use it too: a long sync outlives a token.
+ * Sends a request with a fresh Authorization header, replacing the token once on a 401; uploads use it too
+ * since a long sync outlives a token.
  */
 type AuthorizedRequest = (
 	params: Omit<RequestUrlParam, "throw">,
@@ -420,7 +414,6 @@ async function multipartUpload(
 	return existingId ?? (res.json as { id?: string } | null)?.id ?? null;
 }
 
-/** Sends >5MB file as resumable chunks. */
 async function resumableUpload(
 	key: string,
 	body: Uint8Array,

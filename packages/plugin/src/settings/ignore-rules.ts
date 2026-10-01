@@ -1,4 +1,4 @@
-import { normalizePath } from "@/shared/path";
+import { normalizePath } from "@/shared";
 
 const GITIGNORE_SPECIAL_CHARACTERS = /([*[\]\\])/g;
 

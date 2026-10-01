@@ -11,9 +11,8 @@ import type { IgnoreStateHandle } from "./ignore-state";
 import type { Realtime } from "./realtime";
 
 /**
- * The plugin surface feature modules are allowed to reach for. Obsidian's own
- * registration API stays on the Plugin instance, so a module that registers
- * something takes `Plugin & PluginHost` instead.
+ * The plugin surface feature modules may use; Obsidian's registration API stays on the Plugin, so registering
+ * modules take `Plugin & PluginHost`.
  */
 export interface PluginHost {
 	readonly app: App;

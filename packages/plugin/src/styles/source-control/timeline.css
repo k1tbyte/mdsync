@@ -125,12 +125,7 @@
 	outline-offset: -2px;
 }
 
-/*
- * A file row is too tight to spare a column, so its menu floats over the right
- * edge on hover. It spans the row exactly and the button itself paints the
- * background, so the whole block is clickable rather than a button sat on a
- * larger backdrop. Touch reaches the same menu by holding the row.
- */
+/* A file row has no spare column: its menu floats over the right edge on hover and paints its own background. */
 .obsync-timeline-file .obsync-timeline-actions {
 	position: absolute;
 	top: 0;

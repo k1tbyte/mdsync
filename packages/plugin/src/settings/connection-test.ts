@@ -6,8 +6,7 @@ import {
 	isRelayConfigured,
 	type RelayConfig,
 } from "@/settings/model";
-import { errorMessage } from "@/shared/errors";
-import { relayBase } from "@/shared/path";
+import { errorMessage, relayBase } from "@/shared";
 import {
 	createStorageAdapter,
 	describeStorageTarget,
@@ -21,9 +20,8 @@ export interface ConnectionTestResult {
 }
 
 /**
- * Reaches the remote without a passphrase, so credentials can be checked before
- * anything is encrypted. Reads only the manifest key: an absent one is a healthy
- * empty remote, and anything else is a real connection problem.
+ * Reaches the remote without a passphrase, so credentials can be checked before anything is encrypted.
+ * Reads only the manifest key: absent is a healthy empty remote, anything else a real connection problem.
  */
 export async function testConnection(
 	plugin: PluginHost,
@@ -72,8 +70,10 @@ export async function testRelay(
 	}
 }
 
-/** An edge error page is HTML, and Obsidian parses `.json` lazily: reading it
- * would throw a SyntaxError over the status the caller actually needs. */
+/**
+ * An edge error page is HTML and Obsidian parses `.json` lazily: reading it would throw a SyntaxError over
+ * the status the caller needs.
+ */
 function relayMessage(res: { status: number; json?: unknown }): string {
 	try {
 		const detail = res.json as { message?: string } | undefined;

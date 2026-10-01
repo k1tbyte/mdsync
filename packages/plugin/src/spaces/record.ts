@@ -1,8 +1,8 @@
 import { isShareId, OWNER } from "@obsync/protocol";
 
 /**
- * Where a share's objects live: its owner's S3 location when it was created.
- * Pinned for good; re-deriving it from later settings would orphan them.
+ * Where a share's objects live: its owner's S3 location when it was created. Pinned for good; re-deriving
+ * it from later settings would orphan them.
  */
 export interface ShareLocation {
 	endpoint: string;
@@ -13,7 +13,6 @@ export interface ShareLocation {
 	forcePathStyle: boolean;
 }
 
-/** How this person reaches a share's objects. */
 export type ShareAccess =
 	| {
 			kind: "owner";

@@ -1,20 +1,14 @@
-/**
- * Runs `worker` over `items` with a bounded number in flight. An aborted signal
- * stops new work; whatever is already running is allowed to finish, so nothing
- * is left half-written.
- */
+/** An aborted signal stops new work; running work finishes, so nothing is left half-written. */
 export async function runWithConcurrency<T>(
 	items: ReadonlyArray<T>,
 	concurrency: number,
 	worker: (item: T, index: number) => Promise<void>,
 	signal?: AbortSignal,
 ): Promise<void> {
-	// A NaN here would make the worker loop run zero times and resolve as if
-	// every item had been handled.
+	// NaN would run the worker loop zero times and resolve as if every item were handled.
 	const limit = Number.isFinite(concurrency) ? Math.max(1, concurrency) : 1;
 	let cursor = 0;
-	// One worker failing aborts the run, so the others must stop pulling work:
-	// a failed push should not keep uploading behind the error the user sees.
+	// One failure aborts the run, so the others stop pulling work instead of uploading behind the shown error.
 	let failed = false;
 	const runners: Promise<void>[] = [];
 	for (let i = 0; i < limit; i++) {

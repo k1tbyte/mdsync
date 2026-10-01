@@ -1,6 +1,5 @@
 import type * as Y from "yjs";
 
-/** What a live room holds, and how a version edited outside it folds in. */
 export interface LiveModel {
 	/** Folds `incoming` in, three-way against the version it grew from. */
 	merge(base: string, incoming: string): void;
@@ -19,7 +18,6 @@ export interface BoundEditor {
 	detach(): void;
 }
 
-/** A kind of live document: text, or a drawing. */
 export interface LiveKind<M extends LiveModel = LiveModel> {
 	model(doc: Y.Doc): M;
 	/** An empty room's first update: just the file's content. */

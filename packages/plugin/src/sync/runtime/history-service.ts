@@ -35,8 +35,7 @@ import {
 	type HistoryDiffRequest,
 } from "@/sync/projection";
 import type { LocalSnapshot, Manifest } from "@/sync/types";
-import { runWithConcurrency } from "@/utils/concurrency";
-import { withEolOf } from "@/utils/eol";
+import { runWithConcurrency, withEolOf } from "@/utils";
 import { trashPath, writeBinary } from "@/vault/io";
 import { scanVault } from "@/vault/scanner";
 
@@ -99,8 +98,8 @@ export class HistoryService {
 	}
 
 	/**
-	 * Makes the vault match a past snapshot, local only; removed files go to the trash.
-	 * Applies nothing and returns the fresh plan when the vault moved since `confirmed`.
+	 * Makes the vault match a past snapshot, local only; removed files go to the trash. Applies nothing and
+	 * returns the fresh plan if the vault moved since `confirmed`.
 	 */
 	async restoreVault(
 		snapshotId: string,
@@ -225,12 +224,11 @@ export class HistoryService {
 					"This file changed since the diff was drawn, so the hunk numbers no longer line up. Reopen the diff and try again.",
 				);
 			}
-			// Same argument order as the projection: the view numbers its hunks from
-			// version-to-current, and an index only means anything against that patch.
+			// Same argument order as the projection: the view numbers hunks version-to-current.
 			const versionText = bytesToText(versionBytes);
 			const { hunks } = computeHunks(versionText, currentText);
-			// `applyHunks` takes the right side for selected segments, so keeping the
-			// version's side for one segment means selecting all the others.
+			// `applyHunks` takes the right side of selected segments, so keeping the version's side means
+			// selecting all the others.
 			const merged = withEolOf(
 				currentText,
 				applyHunks(versionText, hunks, complementSelection(hunks, selected)),
@@ -247,10 +245,7 @@ export class HistoryService {
 	}
 }
 
-/**
- * The local half of a compare. A restore plan needs only what is on disk, and
- * `compare` would additionally download the remote manifest and diff against it.
- */
+/** The local half of a compare: a restore plan needs only the disk, not the remote manifest download. */
 async function scanLocal(session: EngineDependencies): Promise<LocalSnapshot> {
 	const { snapshot } = await scanVault(
 		session.adapter,

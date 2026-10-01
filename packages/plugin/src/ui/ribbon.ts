@@ -10,9 +10,8 @@ export function registerRibbon(
 	controller: SyncController,
 	hub: Pick<HubConnection, "isConnected" | "listen">,
 ): void {
-	// Through a holder rather than `plugin` directly: the click listener rides on
-	// a DOM element other plugins keep in their own event maps after unload, and
-	// whatever its closure captures is kept with it.
+	// A holder, not `plugin`: other plugins keep this element in event maps after unload, retaining the
+	// click closure's captures.
 	const host: { app: App | null } = { app: plugin.app };
 	plugin.register(() => {
 		host.app = null;
@@ -31,10 +30,8 @@ export function registerRibbon(
 		icon.setAttr("aria-label", buildLabel(snapshot));
 	};
 
-	// A class on the button, drawn by CSS. Obsidian's `setIcon` takes the first
-	// child for the icon and appends a new one after removing it, so an element
-	// of ours sitting beside the icon makes a second call throw our element away
-	// and leave two icons behind - which is what a ribbon re-skin does.
+	// A CSS class, not an element: `setIcon` removes the first child and appends a new one, so an element of ours
+	// beside the icon makes a second call throw it away and leave two icons behind.
 	const applyRelay = (connected: boolean): void => {
 		icon.toggleClass("is-relay-connected", connected);
 	};

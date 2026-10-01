@@ -27,7 +27,6 @@ export class RoomRotation {
 
 	constructor(private readonly io: RotationIo) {}
 
-	/** Rebuilds the document into `target` and moves the room there, unless the log moved on meanwhile. */
 	ask(target: string, note: Uint8Array): Promise<Rotation> {
 		return new Promise((resolve) =>
 			this.io.enqueue(async () => {

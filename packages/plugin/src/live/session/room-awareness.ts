@@ -1,6 +1,6 @@
 /**
- * Who else is in a room and where their cursor is. Awareness is never stored
- * on the hub, so a newcomer only learns about us from what we announce.
+ * Who else is in a room and where their cursor is. The hub never stores awareness: a newcomer learns about
+ * us only from what we announce.
  */
 
 import {
@@ -31,7 +31,6 @@ interface AwarenessChanges {
 export interface RoomAwarenessIo {
 	keys: LiveKeys;
 	docId: string;
-	/** Announcements may go out: the socket has answered. */
 	canSend(): boolean;
 	send(payload: Uint8Array): void;
 	/** Runs `step` in the session's queue, behind everything already sealing. */
@@ -40,7 +39,10 @@ export interface RoomAwarenessIo {
 
 export class RoomAwareness {
 	readonly awareness: Awareness;
-	/** Awareness client -> the hub socket that last announced it: a late Leave of an old socket clears nothing re-announced since. */
+	/**
+	 * Awareness client -> the hub socket that last announced it: a late Leave of an old socket clears
+	 * nothing re-announced since.
+	 */
 	private readonly sources = new Map<number, number>();
 	private timer: number | null = null;
 	private disposed = false;

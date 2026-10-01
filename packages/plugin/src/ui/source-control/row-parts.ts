@@ -1,4 +1,4 @@
-import { formatBytes } from "@/shared/format";
+import { formatBytes } from "@/shared";
 
 /** The compact size badge: signed delta stacked over the current size. */
 export function renderSize(

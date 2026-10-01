@@ -55,11 +55,9 @@ export function registerEditorSigns(plugin: Plugin & PluginHost): SignsHandle {
 
 function createActiveRuntime(plugin: Plugin & PluginHost): ActiveSignsRuntime {
 	const provider = new SignsProvider(plugin.controller, plugin.app);
-	// Progress broadcasts arrive once a frame while an operation runs, and
-	// invalidating on each one re-downloads every open file's baseline dozens of
-	// times per refresh. Only a new compare result can have moved the baseline -
-	// and the operation settling, because a scan-progress frame can deliver that
-	// result before the baseline it advanced has been persisted.
+	// Progress broadcasts arrive every frame during an operation; invalidating on each re-downloads every
+	// open baseline. Also invalidate on settle: a scan-progress frame can deliver the result before its
+	// baseline is persisted.
 	let seen = false;
 	let lastResult: SyncStatusSnapshot["result"] = null;
 	let lastBusy = false;
@@ -101,7 +99,7 @@ function onRename(
 				handler(oldPath, file.path);
 				return;
 			}
-			// A folder rename moves all its open files; updating their paths prevents views from pointing to non-existent paths.
+			// A folder rename moves its open files; remap their paths so views do not point at missing ones.
 			for (const open of plugin.app.vault.getFiles()) {
 				if (!open.path.startsWith(`${file.path}/`)) continue;
 				const tail = open.path.slice(file.path.length);

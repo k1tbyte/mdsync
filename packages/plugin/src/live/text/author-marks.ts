@@ -13,14 +13,17 @@ import {
 } from "@codemirror/view";
 import type * as Y from "yjs";
 import { type Author, authorRanges } from "@/live/authors";
-import { personTint } from "@/shared/colors";
+import { personTint } from "@/shared";
 
 /** Typing and scrolling recompute the tint at most this often; in between it is only mapped. */
 const REDRAW_MS = 250;
 
 const redraw = StateEffect.define<null>();
 
-/** Tints what anyone but `me` typed in the visible part of the note; hovering names them, as the relay does while they are here. */
+/**
+ * Tints what anyone but `me` typed in the visible part of the note; hovering names them, as the relay does
+ * while they are here.
+ */
 export function authorMarks(
 	text: Y.Text,
 	users: Y.Map<unknown>,

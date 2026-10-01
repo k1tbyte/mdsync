@@ -1,6 +1,6 @@
 import { setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
-import { errorMessage } from "@/shared/errors";
+import { errorMessage } from "@/shared";
 import type { SnapshotListResult } from "@/sync/history";
 import {
 	appendIconButton,

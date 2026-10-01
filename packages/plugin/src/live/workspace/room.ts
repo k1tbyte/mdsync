@@ -5,9 +5,8 @@ import type { HubConnection } from "@/hub";
 import type { AgreedTexts } from "@/live/cold/agreed-texts";
 import { closedBefore } from "@/live/session";
 import type { Refused, Unfollowed } from "@/live/session/session-deps";
-import { reportWarning } from "@/shared/diagnostics";
-import { withDevices } from "@/shared/format";
-import { toLf } from "@/utils/eol";
+import { reportWarning, withDevices } from "@/shared";
+import { toLf } from "@/utils";
 import { type LiveEditor, type LiveRoom, readOpen } from "./editors";
 import { type MoveNote, movedWith } from "./rename";
 import { docIdIn, type LiveSpace, sameSpace } from "./space";
@@ -35,7 +34,6 @@ export interface Room extends LiveRoom {
 	file: TFile;
 	/** The path its docIds are named by: the file's, until a rename here moves the room. */
 	lineage: string;
-	/** Where this device is moving the room. */
 	renamingTo: string | null;
 }
 
@@ -63,11 +61,9 @@ export interface RoomDeps {
 export interface RoomHooks {
 	alive(): boolean;
 	refresh(): void;
-	/** Leaves an open note to the file sync until it is closed. */
 	leave(path: string, cause: ColdCause): void;
 }
 
-/** Opens a note's room, and finds where a room that moved continues. */
 export class RoomOpener {
 	constructor(
 		private readonly deps: RoomDeps,
@@ -133,9 +129,8 @@ export class RoomOpener {
 	}
 
 	/**
-	 * Where a moved note continues: its next generation, or the room it moved
-	 * to with its file. A pointer anywhere else would pour this note into
-	 * another one's room; null leaves it to the file sync.
+	 * Where a moved note continues: its next generation or the room it moved to with its file (anywhere
+	 * else would pour it into another's room); null leaves it to the file sync.
 	 */
 	async follow(path: string, from: Room): Promise<OpenAt | null> {
 		const { session, space, lineage } = from;

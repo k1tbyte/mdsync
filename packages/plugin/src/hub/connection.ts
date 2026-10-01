@@ -1,7 +1,6 @@
 /**
- * This device's hub sockets across settings changes: one HubLink per relay,
- * rebuilt when its channels or credentials change, and listeners that outlive
- * the rebuilds (presence, the pull on signal, live documents).
+ * This device's hub sockets across settings changes: one HubLink per relay, rebuilt when its channels or
+ * credentials change; listeners outlive the rebuilds.
  */
 
 import { type ClientFrame, EFrame, type ServerFrame } from "@obsync/protocol";

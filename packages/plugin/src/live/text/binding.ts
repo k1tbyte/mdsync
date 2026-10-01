@@ -16,10 +16,9 @@ import type { TextModel } from "./model";
 import { scrollMarks } from "./scroll-marks";
 
 /**
- * Attaches a session to one leaf through a Compartment, since
- * `registerEditorExtension` reaches every editor. A file switch replaces the
- * whole EditorState, so the binding never carries the next file's text into this
- * room. CodeMirror is reached through Obsidian's undocumented `editor.cm`.
+ * Attaches a session to one leaf through a Compartment (`registerEditorExtension` reaches every editor); a
+ * file switch replaces the EditorState, so the binding never carries another file's text into this room.
+ * Reaches CodeMirror via Obsidian's undocumented `editor.cm`.
  */
 export function bindEditor(
 	view: MarkdownView,

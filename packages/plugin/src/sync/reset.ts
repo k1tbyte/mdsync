@@ -7,7 +7,7 @@ import {
 	REMOTE_PINS_PREFIX,
 } from "@/sync/constants";
 import type { EngineDependencies } from "@/sync/engine";
-import { runWithConcurrency } from "@/utils/concurrency";
+import { runWithConcurrency } from "@/utils";
 
 export interface RemoteResetResult {
 	deletedKeys: string[];

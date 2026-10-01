@@ -1,8 +1,6 @@
 /**
- * An Excalidraw drawing as the Obsidian plugin saves it: markdown whose front
- * matter names it, with the scene as JSON (plain or LZString) fenced under
- * "## Drawing". The scene also carries the view state of whichever device
- * saved it last.
+ * An Excalidraw drawing as the plugin saves it: markdown with front matter, and the scene as JSON (plain or
+ * LZString) fenced under "## Drawing". The scene carries the last saver's view state.
  */
 
 import { decompressFromBase64 } from "lz-string";

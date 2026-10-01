@@ -20,11 +20,7 @@ export interface FileChange {
 	to: ManifestEntry;
 }
 
-/**
- * One snapshot's difference from its parent. Records carry both sides so a
- * restore never needs a replay and a lost update leaves a detectable gap
- * rather than a corrupted chain.
- */
+/** Carries both sides so a restore needs no replay and a lost update leaves a detectable gap, not a corrupted chain. */
 export interface SnapshotChanges {
 	added: Record<string, ManifestEntry>;
 	modified: Record<string, FileChange>;
@@ -65,9 +61,8 @@ export interface DeletedFile {
 	deviceId: string;
 	deviceName?: string;
 	/**
-	 * Position among non-pinned snapshots, newest first, so the record survives
-	 * `retentionLimit - rank` more pushes. `null` when a pin holds the file and
-	 * nothing evicts it.
+	 * Position among non-pinned snapshots, newest first: survives `retentionLimit - rank` more pushes. `null`
+	 * when a pin holds the file.
 	 */
 	rank: number | null;
 }
@@ -75,14 +70,11 @@ export interface DeletedFile {
 export interface DeletedFilesResult {
 	files: DeletedFile[];
 	/**
-	 * The log does not describe HEAD yet, so recent deletions are unknown. History
-	 * updates are best-effort; the next successful push clears this.
+	 * The log does not describe HEAD yet (updates are best-effort), so recent deletions are unknown; the next
+	 * push clears this.
 	 */
 	lagging: boolean;
-	/**
-	 * The walk stopped at a missing change record, so deletions older than that
-	 * point are unknown unless a pin happens to cover them.
-	 */
+	/** The walk stopped at a missing change record: older deletions are unknown unless a pin covers them. */
 	truncated: boolean;
 }
 

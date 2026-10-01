@@ -1,5 +1,5 @@
 import { ESyncLogOperation } from "@/logs/store";
-import { formatBytes, sumBytes } from "@/shared/format";
+import { formatBytes, sumBytes } from "@/shared";
 import { advanceSessionAfterPush } from "@/sync/baseline";
 import { LOG_PATH_LIMIT } from "@/sync/constants";
 import { pushPaths } from "@/sync/engine";
@@ -41,8 +41,7 @@ export const pushPathsOp: Operation<ReadonlyArray<string>> = async (
 		return { newRemote: result.remote, touchedPaths: pushSet };
 	}
 	const bytesUploaded = sumBytes(ready, result.snapshot.files);
-	// Coalesced: a synchronous broadcast per file costs 0.16 ms of main thread,
-	// which is 3.2 s of jank spread across a 20k-file push.
+	// Coalesced: a broadcast per file is 3.2 s of main-thread jank across a 20k-file push.
 	const manifest = await pushPaths(
 		deps,
 		result,

@@ -1,7 +1,6 @@
 /**
- * A throwaway Obsidian: its own user-data dir (so the user's vaults and config
- * stay out of reach) and a fresh vault running this build of the plugin,
- * driven over CDP. Run `pnpm build` first; the vault gets the built bundle.
+ * A throwaway Obsidian with its own user-data dir and a fresh vault running the built bundle over CDP; run
+ * `pnpm build` first.
  */
 
 import { spawn } from "node:child_process";

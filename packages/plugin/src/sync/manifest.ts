@@ -34,9 +34,8 @@ export async function fetchRemoteManifest(
 		cached?.key === key && cached.root === root ? cached : undefined;
 	const read = await readManifest(storage, validator?.etag ?? null);
 	if (read.status === "unchanged") {
-		// Only ever an answer about the validator we sent. A backend that says it
-		// to an unconditional read is describing nothing we hold, and reading that
-		// as an empty remote would look like a vault that has never been pushed.
+		// Only an answer about the validator we sent; for an unconditional read it describes nothing we hold
+		// and would look like a never-pushed vault.
 		if (!validator) {
 			throw new Error(
 				"Storage answered 'not modified' to a read that carried no validator.",
@@ -121,8 +120,8 @@ export class ConcurrentPushError extends Error {
 }
 
 /**
- * Publishes a manifest if remote head matches expectedParentSnapshotId.
- * Post-publish verify guards against races where two writers pass precheck.
+ * Publishes if the remote head matches expectedParentSnapshotId; the post-publish verify guards races where
+ * two writers pass the precheck.
  */
 export async function publishManifestWithGuard(
 	storage: ObjectStorage,
@@ -132,9 +131,7 @@ export async function publishManifestWithGuard(
 	expectedParentSnapshotId: string | null,
 	baseline: Manifest | null = null,
 ): Promise<void> {
-	// Sealed first: gzipping a 20k-file manifest is ~50 ms of main thread, and
-	// spending it after the precheck would widen the window a competing writer
-	// has to slip through.
+	// Sealed first: ~50 ms of gzip after the precheck would widen the competing-writer window.
 	const blob = await encryptJson(key, manifestToSpace(manifest, root));
 	// Stale-read reconciliation prevents a lagging backend from appearing as a competing writer.
 	const fetched = await fetchRemoteManifest(storage, key, root);
@@ -166,10 +163,7 @@ export async function publishManifestWithGuard(
 	);
 }
 
-/**
- * Snapshot ids this device published on the way to `published`. Reading one
- * back indicates a stale read, not a lost push.
- */
+/** Reading one of these ids back means a stale read, not a lost push. */
 function ownSnapshotIds(
 	published: Manifest,
 	storage: ObjectStorage,

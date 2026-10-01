@@ -50,7 +50,6 @@ export const expandedGapsField = StateField.define<DecorationSet>({
 	},
 });
 
-/** Collapsed run of unchanged lines; one click shows them. */
 class GapWidget extends WidgetType {
 	constructor(
 		private readonly start: number,
@@ -108,7 +107,6 @@ class FoldWidget extends WidgetType {
 	}
 }
 
-/** A full-width row that reveals or hides lines. */
 export function gapRow(
 	icon: string,
 	text: string,
@@ -128,10 +126,7 @@ export function gapRow(
 	return button;
 }
 
-/**
- * Collapses every run of unchanged lines that lies more than three lines away
- * from a visible span, and marks the runs the user has expanded with a fold row.
- */
+/** Collapses runs of unchanged lines more than three lines from a visible span; expanded runs get a fold row. */
 export function addCollapsedGaps(
 	ranges: Range<Decoration>[],
 	doc: Text,

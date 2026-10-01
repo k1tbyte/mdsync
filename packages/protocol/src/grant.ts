@@ -6,8 +6,8 @@ const encoder = new TextEncoder();
 export const GRANT_TTL_S = 24 * 60 * 60;
 
 /**
- * `<expiry>.<HMAC-SHA256(relay secret, "<expiry>:<channel>")>`, unix seconds
- * and lowercase hex: opens that channel and no other, until then.
+ * `<expiry>.<HMAC-SHA256(relay secret, "<expiry>:<channel>")>` in unix seconds and lowercase hex; opens
+ * that channel only.
  */
 export async function deriveChannelGrant(
 	secret: string,

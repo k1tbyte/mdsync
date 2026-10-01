@@ -1,5 +1,5 @@
 import type { EditorView } from "@codemirror/view";
-import { firstIndex } from "@/utils/search";
+import { firstIndex } from "@/utils";
 import type { CompareSegment, CompareSide } from "./compare-decorations";
 import { type Bounds, shiftBounds, sideSpan, spanBounds } from "./geometry";
 import { renderRailButton } from "./rail";
@@ -7,10 +7,7 @@ import { renderRailButton } from "./rail";
 /** A shorter change is cheaper to scroll past than to fold. */
 const MIN_FOLD_LINES = 10;
 
-/**
- * What floats over one pane's changes: fold buttons on the tall ones, riding at
- * the top of their visible part, and a brief ring on the change navigation landed on.
- */
+/** Fold buttons riding the top of tall changes' visible part, and a brief ring on the change navigation landed on. */
 export class ChangeOverlay {
 	private readonly layer: HTMLElement;
 	private readonly buttons = new Map<number, HTMLElement>();

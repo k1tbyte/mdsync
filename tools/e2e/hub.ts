@@ -1,7 +1,6 @@
 /**
- * The relay hub under a real workerd: the only coverage of the Durable Object
- * shell, its hibernating sockets, the keepalive auto-response and the document
- * logs in its SQLite, which must outlive a relay restart.
+ * The relay hub under a real workerd: the only coverage of the Durable Object shell,
+ * hibernating sockets, keepalive auto-response and SQLite logs that must outlive a restart.
  */
 
 import {

@@ -15,7 +15,7 @@ import {
 	type Span,
 	snapToLines,
 } from "@/sync/merge-model";
-import { firstIndex } from "@/utils/search";
+import { firstIndex } from "@/utils";
 import { addCodeMarks, type LineMarks, lineMarks } from "./code-lines";
 import { addCollapsedGaps, expandedGapsField } from "./gap-widgets";
 import { forEachVisibleRange, sideSpan, viewportDecorations } from "./geometry";
@@ -63,9 +63,8 @@ export const combinedModeField = StateField.define<boolean>({
 });
 
 /**
- * One marks function per change side for the whole session: a change's side
- * and base ranges never move, so each line is diffed once and a combined
- * block keeps its identity across redraws.
+ * One marks function per change side for the session: ranges never move, so lines are diffed once and
+ * blocks keep identity.
  */
 export function sideMarks(
 	base: readonly string[],
@@ -235,10 +234,7 @@ function sideTints(
 	return Decoration.set(ranges, true);
 }
 
-/**
- * Combined mode's source blocks and collapsed gaps. A block's Result counters
- * are recomputed only for a change whose result lines moved, not on every keystroke.
- */
+/** Combined mode's source blocks and gaps; Result counters recompute only for changes whose result lines moved. */
 function combinedBlocks(config: CombinedMergeConfig) {
 	const counted = new Map<number, { text: string; counters: LineCounters }>();
 	const countersOf = (doc: Text, change: MergeChange): LineCounters => {
@@ -286,8 +282,8 @@ function combinedBlocks(config: CombinedMergeConfig) {
 }
 
 /**
- * One side's block of a change in combined mode: LOCAL opens the change's
- * region and carries the Result trailer, REMOTE closes it.
+ * One side's block of a change in combined mode: LOCAL opens the region and carries the Result trailer,
+ * REMOTE closes it.
  */
 function sourceBlock(
 	change: MergeChange,

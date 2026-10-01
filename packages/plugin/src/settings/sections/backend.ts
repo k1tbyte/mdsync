@@ -1,11 +1,10 @@
 import { Setting } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
+import { testConnection } from "@/settings/connection-test";
 import { renderCheckRow } from "@/settings/fields";
+import type { EStorageBackend } from "@/storage";
 import { getDescriptor, listBackends } from "@/storage";
-import type { EStorageBackend } from "@/storage/config";
-
-import { testConnection } from "../connection-test";
 import { renderStorageFields } from "./storage-fields";
 
 const BACKEND_SETTINGS_CHANGED = "Storage backend changed.";

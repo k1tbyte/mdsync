@@ -1,23 +1,20 @@
 /**
- * Vault-relative form: forward slashes, no leading slash, NFC.
- *
- * Separators are normalised first, or a Windows-style leading `\` survives as
- * a leading `/`. macOS hands out decomposed filenames while every other
- * platform composes them, and the two spellings must not look like two files.
+ * Vault-relative form: forward slashes, no leading slash, NFC. Separators go first so a leading `\` cannot
+ * become `/`; NFC because macOS hands out decomposed names.
  */
 export function normalizePath(path: string): string {
 	return path.replace(/\\/g, "/").replace(/^\/+/, "").normalize("NFC");
 }
 
-/**
- * True when any segment starts with a dot. Dot-directories (`.obsidian`,
- * `.trash`, `.git`) are outside every sync scope.
- */
+/** Dot-directories (`.obsidian`, `.trash`, `.git`) are outside every sync scope. */
 export function hasDotSegment(path: string): boolean {
 	return path.startsWith(".") || path.includes("/.");
 }
 
-/** A name as one folder on every platform: separators and reserved characters become "-", no leading or trailing dots. */
+/**
+ * A name as one folder on every platform: separators and reserved characters become "-", no leading or
+ * trailing dots.
+ */
 export function folderName(name: string): string {
 	return name.replace(/[\\/:*?"<>|]/g, "-").replace(/^[.\s]+|[.\s]+$/g, "");
 }

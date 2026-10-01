@@ -1,6 +1,6 @@
 /**
- * An invite link carries everything a participant's devices need to reach a
- * share, sealed under a one-time password that travels another way.
+ * An invite link carries everything a participant's devices need to reach a share, sealed under a one-time
+ * password that travels another way.
  */
 
 import { isShareId } from "@obsync/protocol";

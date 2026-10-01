@@ -1,7 +1,7 @@
 import { debounce, Setting } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
-import { EFieldKind } from "@/storage/field-spec";
+import { EFieldKind } from "@/storage";
 
 import type { ConnectionTestResult } from "./connection-test";
 import type { ObsyncSettings } from "./model";

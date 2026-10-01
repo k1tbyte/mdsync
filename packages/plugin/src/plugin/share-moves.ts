@@ -1,5 +1,5 @@
 import { type Plugin, TFolder, type Vault } from "obsidian";
-import { reportWarning } from "@/shared/diagnostics";
+import { reportWarning } from "@/shared";
 import {
 	mountError,
 	type PendingMove,
@@ -20,9 +20,8 @@ type MoveVault = Pick<
 const following = new Set<string>();
 
 /**
- * Moves here the folders the person moved on another device, before the partition
- * is fixed, so an old root never turns into vault content. A blocked move keeps
- * syncing where it is and is tried again every refresh.
+ * Follows moves from another device before the partition is fixed, so an old root never becomes vault
+ * content. A blocked move syncs in place and retries every refresh.
  */
 export function createMoveFollower(
 	vault: MoveVault,

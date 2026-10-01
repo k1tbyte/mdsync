@@ -1,7 +1,6 @@
 /**
- * Which relays this device holds a socket to and the channels on each: its own
- * relay for the vault and the shares it owns, each owner's relay for the shares
- * it joined. One socket per relay, however many channels it carries.
+ * Which relays this device holds a socket to and the channels on each: its own relay for the vault and
+ * owned shares, each owner's relay for joined shares. One socket per relay.
  */
 
 import { deriveChannelGrant, MAX_SLOTS, shareChannel } from "@obsync/protocol";
@@ -13,7 +12,7 @@ import {
 	isStorageConfigured,
 	type ObsyncSettings,
 } from "@/settings/model";
-import { relayBase } from "@/shared/path";
+import { relayBase } from "@/shared";
 import { pauseOf } from "@/spaces";
 import type { SpaceRecord } from "@/spaces/record";
 import { storageIdentity } from "@/storage";

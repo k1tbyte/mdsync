@@ -1,9 +1,6 @@
 /**
- * Windows a long list against a scroll container that is not the list itself:
- * the whole pane scrolls and each section's list is one slice of it.
- *
- * Rows sit at a fixed pitch on absolute positions, so the list has its full
- * height from the first frame and the scrollbar never moves under the user.
+ * Windows a long list against a scroll container that is not the list itself: the whole pane scrolls.
+ * Fixed-pitch absolute rows give the list its full height from the first frame, so the scrollbar never jumps.
  */
 
 /** Used until a row can be measured, which a hidden view cannot do. */
@@ -12,7 +9,6 @@ const FALLBACK_PITCH_PX = 26;
 const OVERSCAN_ROWS = 8;
 
 export interface VirtualListHandle {
-	/** Re-windows after the underlying row list changed length. */
 	setCount(count: number): void;
 	/** Re-windows after the list moved without the scroller scrolling. */
 	refresh(): void;
@@ -76,9 +72,8 @@ export function mountVirtualList(
 			mounted.set(index, el);
 		}
 		if (measured) return;
-		// A view laid out while hidden reads every height as zero. The first row
-		// that reports one settles the pitch, and everything placed against the
-		// fallback has to move.
+		// A view laid out while hidden reads every height as zero: the first row that reports one settles the pitch,
+		// and everything placed against the fallback has to move.
 		const sample = mounted.get(first)?.getBoundingClientRect().height ?? 0;
 		if (sample <= 0) return;
 		pitch = sample + rowGap(container);
@@ -101,8 +96,8 @@ export function mountVirtualList(
 
 	return {
 		/**
-		 * Synchronous: the callers are points where the pane has just moved, and
-		 * waiting a frame would show the rows for where it used to be.
+		 * Synchronous: callers are points where the pane just moved, and waiting a frame would show rows
+		 * for the old position.
 		 */
 		refresh(): void {
 			if (frame) cancelAnimationFrame(frame);
@@ -126,8 +121,8 @@ export function mountVirtualList(
 }
 
 /**
- * The first two rows, because a tree interleaves folders with files and the
- * two are styled apart. Zero means the view is not visible yet.
+ * The first two rows, since a tree interleaves folders and files styled apart. Zero means the view is not
+ * visible yet.
  */
 function measureRows(
 	container: HTMLElement,
@@ -143,11 +138,7 @@ function measureRows(
 	return height > 0 ? height + rowGap(container) : 0;
 }
 
-/**
- * Every windowed row is pinned to the measured height. Placing rows on a pitch
- * only holds while they all have the one height, and leaving that to whatever
- * padding the two kinds happen to carry is a 2 px drift waiting to happen.
- */
+/** Rows are pinned to the measured height: a pitch only holds while all share one, and padding alone drifts 2 px. */
 function applyPitch(
 	container: HTMLElement,
 	pitch: number,

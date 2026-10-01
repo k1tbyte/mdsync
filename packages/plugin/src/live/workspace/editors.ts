@@ -1,6 +1,6 @@
 /**
- * Each kind of live document in the view that edits it: a note in the markdown
- * editor's source mode, a drawing in Excalidraw. Sessions see them only through `LiveEditor`.
+ * Each kind of live document in the view that edits it: notes in the markdown editor's source mode,
+ * drawings in Excalidraw.
  */
 
 import {
@@ -27,7 +27,6 @@ import { bindEditor } from "@/live/text/binding";
 import { TEXT } from "@/live/text/model";
 import type { LiveSpace } from "./space";
 
-/** A room, and how a view of its file binds to it. */
 export interface LiveRoom {
 	session: LiveSession;
 	/** Null when `view` does not edit the file live, or is still loading; `onStale` asks for a new binding. */
@@ -53,7 +52,6 @@ export interface LiveEditor {
 	): LiveRoom;
 }
 
-/** A file a view edits live now, and the space it goes live in. */
 export interface OpenNote {
 	file: TFile;
 	space: LiveSpace;
@@ -62,7 +60,6 @@ export interface OpenNote {
 
 interface EditorSpec<V extends FileView, M extends LiveModel> {
 	kind: LiveKind<M>;
-	/** `view` narrowed, when it edits its file live now. */
 	editing(view: View): V | null;
 	/** Null while the view is loading: its file is as new. */
 	read(view: V): string | null;

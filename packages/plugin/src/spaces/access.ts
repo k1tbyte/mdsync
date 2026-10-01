@@ -6,7 +6,7 @@ import {
 	type StorageAdapter,
 	type StorageAdapterConfig,
 } from "@/storage";
-import { base64ToBytes } from "@/utils/base64";
+import { base64ToBytes } from "@/utils";
 
 import { ownerStorageConfig } from "./owner";
 import type { SpaceRecord } from "./record";
@@ -19,9 +19,9 @@ export interface ShareStorage {
 }
 
 /**
- * The owner reaches a share with the device's own S3 credentials, a
- * participant through the owner's relay. Null when this device cannot.
- * `root` is where the folder is on this device, which a pending move keeps apart from the record's.
+ * The owner reaches a share with the device's own S3 credentials, a participant through the owner's relay;
+ * null when this device cannot. `root` is where the folder is on this device, which a pending move keeps
+ * apart from the record's.
  */
 export function shareStorage(
 	record: SpaceRecord,

@@ -3,11 +3,11 @@ import {
 	FILE_HISTORY_MIN_SNAPSHOTS,
 } from "@/constants";
 import type { EncryptionKey } from "@/crypto";
-import { reportWarning } from "@/shared/diagnostics";
+import { reportWarning } from "@/shared";
 import type { ObjectStorage } from "@/storage/types";
 import { fetchRemoteManifest, objectKey } from "@/sync/manifest";
 import type { Manifest } from "@/sync/types";
-import { runWithConcurrency } from "@/utils/concurrency";
+import { runWithConcurrency } from "@/utils";
 import { collectChangeHashes } from "./changes";
 import { pinKey, readPinManifest, updateHistoryLog } from "./store";
 import type { HistoryLog, SnapshotEntry } from "./types";
@@ -30,8 +30,8 @@ export function clampMaxSnapshots(value: number): number {
 }
 
 /**
- * GC is amortised: runs when retained count overshoots limit by a buffer.
- * Buffer ensures small limits still get meaningful batches.
+ * Amortised: runs only once retained count overshoots the limit by a buffer, so small limits still get
+ * meaningful batches.
  */
 export function gcExcessBuffer(maxSnapshots: number): number {
 	const max = clampMaxSnapshots(maxSnapshots);
@@ -63,10 +63,8 @@ export interface GcResult {
 }
 
 /**
- * Change-log GC. Orphans are the hashes an evicted record mentions that nothing
- * retained still references. If a pinned snapshot's manifest is unreadable the
- * object sweep is skipped for the round - a bounded blob leak is acceptable,
- * a dangling reference is not.
+ * Orphans are hashes an evicted record mentions that nothing retained references. An unreadable pinned
+ * manifest skips the sweep: a bounded blob leak beats a dangling reference.
  */
 export async function collectGarbage(input: GcInput): Promise<GcResult> {
 	const { storage, key, root, log } = input;
@@ -110,9 +108,8 @@ export async function collectGarbage(input: GcInput): Promise<GcResult> {
 		if (changes) collectChangeHashes(changes, evictedHashes);
 	}
 
-	// Prune before sweeping. A crash in between then leaves orphan blobs, which
-	// deep-clean collects; the other order leaves the log offering versions whose
-	// content is already gone.
+	// Prune before sweeping: a crash in between leaves orphan blobs (deep-clean collects them), not log
+	// versions whose content is gone.
 	const evictedIds = new Set(evicted.map((entry) => entry.id));
 	const nextLog = await updateHistoryLog(
 		storage,
@@ -125,20 +122,16 @@ export async function collectGarbage(input: GcInput): Promise<GcResult> {
 			),
 	);
 
-	// Re-read head as late as possible: a device that published while we pruned
-	// may reference, by content hash, a blob we were about to sweep.
+	// Re-read head late: a device that published while we pruned may reference a blob we were about to sweep.
 	const headNow = await readHead(storage, key, root);
 	if (headNow.manifest) collectHashes(headNow.manifest, liveHashes);
-	// A head we cannot read, or one that has vanished, might have moved; sweeping
-	// now risks deleting what it references.
+	// An unreadable or vanished head might have moved; sweeping risks deleting what it references.
 	const headUnchanged =
 		headNow.read &&
 		headNow.manifest !== null &&
 		headNow.manifest.snapshotId === input.headManifest.snapshotId;
 
-	// A device pinning one of these keeps it, and its objects must survive too.
-	// Their hashes are not in liveHashes, so withhold the sweep and let the next
-	// round account for them properly.
+	// A pinned snapshot's objects must survive but are not in liveHashes: withhold the sweep until the next round.
 	const rescued = await pinnedAmong(storage, evictedIds, nextLog);
 	const skippedObjectSweep =
 		!retainedComplete || !headUnchanged || rescued.size > 0;
@@ -164,9 +157,8 @@ export async function collectGarbage(input: GcInput): Promise<GcResult> {
 }
 
 /**
- * Which of these snapshots something is pinning. A pin manifest is written
- * before its flag, so storage - not the log - is the reliable signal: a racing
- * writer's flag can still be lost to our own log rewrite.
+ * Pin manifests are written before their flag, so storage, not the log, is the reliable signal: a racing flag
+ * can be lost to our log rewrite.
  */
 async function pinnedAmong(
 	storage: ObjectStorage,
@@ -240,9 +232,7 @@ async function safeDelete(
 	}
 }
 
-/**
- * Returns head and whether it was read. Differentiates "no vault published" from fetch failure.
- */
+/** Separates "no vault published" from a failed fetch. */
 async function readHead(
 	storage: ObjectStorage,
 	key: EncryptionKey,

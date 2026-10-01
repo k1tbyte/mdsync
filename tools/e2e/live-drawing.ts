@@ -1,9 +1,6 @@
 /**
- * Live drawing between two real Obsidians with the Excalidraw plugin: shapes
- * drawn on either side reach the other, concurrent edits keep both, a deletion
- * spreads, pointers show, the file sync of the saved drawings settles
- * although each device saves its own view state into the file, and a drawing
- * open but not live takes what the file sync writes.
+ * Live drawing between two real Obsidians with Excalidraw: shapes, concurrent edits, deletions and pointers cross.
+ * File sync settles despite per-device view state; a drawing open but not live takes the file sync's writes.
  */
 
 import { excalidrawPlugin } from "./excalidraw";

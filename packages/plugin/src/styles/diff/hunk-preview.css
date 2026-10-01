@@ -1,4 +1,3 @@
-/* Read-only hunk preview (restore confirmations). */
 .obsync-hunk-preview {
 	margin-bottom: var(--size-4-2);
 	border: 1px solid var(--background-modifier-border);
@@ -40,10 +39,7 @@
 	white-space: pre;
 }
 
-/*
- * Tint from the theme's own hue, never `--background-modifier-error/success`:
- * those are solid danger/confirm fills, and same-hue text on them is invisible.
- */
+/* Tint from the theme's own hue, not `--background-modifier-error/success`: solid fills make same-hue text invisible. */
 .obsync-unified-line.is-add {
 	background-color: rgba(var(--color-green-rgb), 0.15);
 	color: var(--text-normal);

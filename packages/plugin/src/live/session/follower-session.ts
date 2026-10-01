@@ -1,12 +1,11 @@
 /**
- * A read-only person's room: it follows the document and never writes, since the
- * hub refuses a read-only grant's writes. Anything that would write leaves the
- * note to the file sync instead.
+ * A read-only person's room: follows, never writes (the hub refuses it); anything that would write is left
+ * to the file sync.
  */
 
 import { EFrame } from "@obsync/protocol";
 import type { LiveModel } from "@/live/model";
-import { toLf } from "@/utils/eol";
+import { toLf } from "@/utils";
 import { FOLLOWS } from "./room-awareness";
 import { LiveSession, type Unaddressed } from "./session";
 import type { Follower, LiveSessionDeps, Rotation } from "./session-deps";

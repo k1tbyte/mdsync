@@ -1,8 +1,11 @@
-import { entryAt } from "@/shared/records";
+import { entryAt } from "@/shared";
 import type { ScopePolicy } from "@/vault/scope";
 import type { Manifest, ManifestEntry } from "./types";
 
-/** Paths another space owns are frozen in a manifest; left there they hold the blobs of a folder this space no longer syncs. */
+/**
+ * Paths another space owns are frozen in a manifest; left there they hold the blobs of a folder this space no
+ * longer syncs.
+ */
 export function ownedFiles(
 	files: Record<string, ManifestEntry>,
 	scope: ScopePolicy,
@@ -13,10 +16,7 @@ export function ownedFiles(
 	);
 }
 
-/**
- * A baseline must not claim frozen entries the remote dropped: once the share
- * closes, the folder is this space's again and they would read as deletions.
- */
+/** A baseline must not claim frozen entries the remote dropped: once the share closes they would read as deletions. */
 export function forgetDroppedForeign(
 	baseline: Manifest | null,
 	remote: Manifest,
@@ -31,9 +31,8 @@ export function forgetDroppedForeign(
 }
 
 /**
- * A note that just became a share has no baseline there yet, so the frozen
- * entry is its live merge base (`baseTextOf`). Kept apart once the baseline
- * forgets it, until the share holds the path or the folder is this space's again.
+ * A just-shared note has no baseline there yet, so the frozen entry is its live merge base (`baseTextOf`);
+ * kept until the share holds the path or the folder is this space's again.
  */
 export function heldShareBases(
 	kept: Readonly<Record<string, ManifestEntry>> | undefined,

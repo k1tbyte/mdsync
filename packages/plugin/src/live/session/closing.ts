@@ -1,7 +1,4 @@
-/**
- * Sessions of a docId still closing here. Their Unsub goes out after their last
- * edit is sent; landing after a reopened session's Sub, it would unsubscribe it.
- */
+/** Sessions of a docId still closing: their Unsub, landing after a reopened session's Sub, would unsubscribe it. */
 const closing = new Map<string, Promise<void>>();
 
 export function closedBefore(docId: string): Promise<void> | undefined {

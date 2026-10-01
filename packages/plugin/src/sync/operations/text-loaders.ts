@@ -35,10 +35,8 @@ export interface HunkSidesHash {
 }
 
 /**
- * The single source of the two texts a hunk index refers to. The diff
- * projection and the operation that applies a hunk MUST read their sides from
- * here: index `i` in the view is only index `i` in the operation while both
- * diff the same pair.
+ * Single source of the texts a hunk index refers to: the diff projection and the applying operation MUST both
+ * read here, or index `i` differs between view and operation.
  */
 export async function loadHunkSides(
 	deps: EngineDependencies,
@@ -67,9 +65,7 @@ async function hashSides(sides: HunkSides): Promise<HunkSidesHash> {
 	};
 }
 
-/**
- * Refuses operation if either side moved since diff computation, as selected indices would address other regions.
- */
+/** Refuses if either side moved since the diff was computed, as indices would address other regions. */
 export async function assertSidesUnchanged(
 	sides: HunkSides,
 	expected: HunkSidesHash | undefined,

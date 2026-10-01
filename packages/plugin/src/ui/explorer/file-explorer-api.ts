@@ -7,7 +7,10 @@ interface FileExplorerView extends View {
 
 export interface FileExplorerRows {
 	containerEl: HTMLElement;
-	/** Looked up, not collected: this runs in the scroll frame, and materialising every row of a 20k vault costs 5.8 ms. */
+	/**
+	 * Looked up, not collected: this runs in the scroll frame, and materialising every row of a 20k vault
+	 * costs 5.8 ms.
+	 */
 	row(path: string): HTMLElement | null;
 	/** Every path the explorer knows. Only the symlink scan wants them all. */
 	paths(): string[];

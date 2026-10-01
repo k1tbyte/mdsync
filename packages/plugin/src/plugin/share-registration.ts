@@ -5,7 +5,7 @@ import {
 	type ObsyncSettings,
 	ownerStorage,
 } from "@/settings/model";
-import { errorMessage } from "@/shared/errors";
+import { errorMessage } from "@/shared";
 import { brokerStorage, type SpaceRecords } from "@/spaces";
 import { listParticipants, registerShareStorage } from "@/storage";
 import type { Space } from "@/sync/space";
@@ -14,8 +14,8 @@ import type { Space } from "@/sync/space";
 const RESEND_MS = 60 * 60_000;
 
 /**
- * Keeps the broker signing with this device's current S3 credentials, so rotated keys
- * reach participants. Sent only once the share compared fine: dead credentials never overwrite good ones.
+ * Keeps the broker signing with the current S3 credentials so rotated keys reach participants; sent only once
+ * the share compared fine, so dead credentials never overwrite good ones.
  */
 export function createShareRegistration(host: {
 	settings: ObsyncSettings;

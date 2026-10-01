@@ -1,15 +1,13 @@
 /**
- * Which files are live: a session exists while its file is open in a view that
- * edits it live on this device, and every such leaf is bound to it once the
- * room answered. A moved room hands its leaves to its successor; a renamed
- * file takes its room along. Closed files are the cold layer's business.
+ * A session exists while its file is open in a view that edits it live; every such leaf is bound once the
+ * room answered. A moved room hands its leaves to its successor, a renamed file takes its room along.
  */
 
 import type { WorkspaceLeaf } from "obsidian";
 import type { BoundEditor } from "@/live/model";
 import { closedBefore, type LiveSession } from "@/live/session";
 import type { Rotation } from "@/live/session/session-deps";
-import { reportWarning } from "@/shared/diagnostics";
+import { reportWarning } from "@/shared";
 import { EDITORS, type OpenNote, openNotes } from "./editors";
 import { JoinPatience, type Waiting, waitingSince } from "./patience";
 import { moveRoom } from "./rename";
@@ -32,7 +30,6 @@ const LOADING_RETRY_MS = 500;
 const UNFOLLOWED = new Set<ColdCause>(["empty", "diverged"]);
 
 export interface LiveSessionsDeps extends RoomDeps {
-	/** Whether others' text is tinted by author. */
 	authorsShown(): boolean;
 }
 
@@ -44,7 +41,6 @@ interface Binding {
 	editor: BoundEditor;
 }
 
-/** The space each open note goes live in, by path. */
 type ShownSpaces = Map<string, LiveSpace>;
 
 export class LiveSessions {
@@ -142,7 +138,6 @@ export class LiveSessions {
 		return this.rooms.get(path)?.space.id ?? null;
 	}
 
-	/** Tints or clears every bound editor, as `authorsShown` now says. */
 	repaintAuthors(): void {
 		const shown = this.deps.authorsShown();
 		for (const { person, editor } of this.bound.values()) {
@@ -150,7 +145,6 @@ export class LiveSessions {
 		}
 	}
 
-	/** Rebuilds an open note's room as its next generation, which everyone then follows. */
 	async rotate(path: string): Promise<Rotation> {
 		const session = this.roomOf(path);
 		const room = this.rooms.get(path);

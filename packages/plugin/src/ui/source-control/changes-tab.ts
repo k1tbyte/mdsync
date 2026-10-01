@@ -12,18 +12,13 @@ import { foldMoves, rowFromChange, rowFromConflict } from "./row-formatter";
 import { fillStatusLine, formatActionCount, hasSyncError } from "./status-line";
 import { ESection, type FileRow } from "./types";
 
-/**
- * The Changes pane: toolbar, filter and the three change sections. Owns its own
- * selection and layout so the view above it only has to pick a tab.
- */
+/** Toolbar, filter and the three change sections; owns selection and layout so the view above only picks a tab. */
 export class ChangesTab {
 	private layout: "tree" | "flat";
 	private filter = "";
 	/**
-	 * What the pane was last built from. A compare returns a fresh result even
-	 * when nothing moved, so identity alone would rebuild on every refresh;
-	 * the fields the rows are drawn from are walked instead, which describing
-	 * them as one string cost 5.3 ms and 2.5 MB per broadcast at 20k.
+	 * What the pane was last built from. A compare returns a fresh result even when nothing moved, so the row fields
+	 * are walked instead of compared by identity or described as a string (5.3 ms and 2.5 MB per broadcast at 20k).
 	 */
 	private lastDiff: DiffResult | null = null;
 	private lastError: string | null = null;
@@ -74,7 +69,6 @@ export class ChangesTab {
 		for (const section of this.sections) section.destroyList();
 	}
 
-	/** Forces a full rebuild on the next render. */
 	invalidate(): void {
 		this.built = false;
 	}
@@ -177,10 +171,7 @@ export class ChangesTab {
 		return rows.filter((row) => row.path.toLowerCase().includes(needle));
 	}
 
-	/**
-	 * Narrows the lists without touching selection: a path filtered out of view
-	 * stays selected, so a filter can never silently shrink what an action does.
-	 */
+	/** Narrows the lists without touching selection, so a filter never silently shrinks what an action does. */
 	private renderFilter(parent: HTMLElement): void {
 		const input = parent.createEl("input", {
 			type: "search",
@@ -218,7 +209,6 @@ export class ChangesTab {
 		}
 	}
 
-	/** Re-renders only the parts that track sync progress. */
 	private refreshStatus(snapshot: SyncStatusSnapshot): void {
 		if (this.statusLineEl) {
 			this.statusLineEl.empty();

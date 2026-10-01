@@ -29,8 +29,8 @@ function vault(files: Record<string, string>): InMemoryAdapter {
 }
 
 /**
- * Stands in for Obsidian's metadata cache: it sees non-hidden paths only, which
- * is exactly the coverage gap the scanner has to cover with the adapter.
+ * Stands in for Obsidian's metadata cache, which sees non-hidden paths only: the gap the scanner covers
+ * with the adapter.
  */
 async function indexOf(
 	adapter: InMemoryAdapter,
@@ -155,9 +155,7 @@ describe("scanVault with a vault index", () => {
 		for (let i = 0; i < 40; i++) files[`notes/file-${i}.md`] = `body ${i}`;
 		const adapter = vault(files);
 		const data = adapter.asDataAdapter();
-		// Answering out of order is what a real adapter does; the scan result is
-		// compared against the last one written to disk, and an order that moves
-		// rewrites megabytes for bytes that did not change.
+		// A real adapter answers out of order, and a moved order rewrites megabytes of unchanged state.
 		const jittered = Object.create(data) as DataAdapter;
 		jittered.stat = async (path: string) => {
 			await new Promise((resolve) => setTimeout(resolve, path.length % 3));
@@ -312,9 +310,8 @@ describe("scanVault with a vault index", () => {
 			{},
 		);
 
-		// Disk moved on; the index still reports the pre-write size and mtime, so
-		// the hash cache hits and nothing is read. The stale hash is the price of
-		// spending no IPC on unchanged files.
+		// The index still reports the pre-write size and mtime, so the hash cache hits and nothing is read:
+		// the price of no IPC on unchanged files.
 		adapter.putText("a.md", "one changed");
 		const counting = countingAdapter(adapter);
 		const stale = await scanVault(

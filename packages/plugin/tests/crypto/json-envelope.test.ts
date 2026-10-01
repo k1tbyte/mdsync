@@ -82,10 +82,8 @@ describe("encrypted JSON envelope", () => {
 	});
 
 	it("refuses a blob relabelled as compressed", async () => {
-		// The version byte rides outside the ciphertext. Sealed as plain, this
-		// payload would inflate perfectly well once relabelled, so only binding
-		// the version to the tag stops an attacker with write access pointing a
-		// stored file at the inflater to expand in memory.
+		// The version byte rides outside the ciphertext; only binding it to the tag stops a relabelled
+		// plain payload from being inflated in memory.
 		const json = new TextEncoder().encode(JSON.stringify(manifestLike(400)));
 		const gzipped = new Uint8Array(
 			await new Response(

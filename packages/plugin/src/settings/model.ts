@@ -8,6 +8,7 @@ import {
 } from "@/constants";
 import { isSpaceRecord, type SpaceRecord } from "@/spaces/record";
 import {
+	CONCURRENCY_FIELD,
 	defaultS3Config,
 	EStorageBackend,
 	getDescriptor,
@@ -16,7 +17,6 @@ import {
 	type S3StorageConfig,
 	type StorageAdapterConfig,
 } from "@/storage";
-import { CONCURRENCY_FIELD } from "@/storage/field-spec";
 
 const DEFAULT_MAX_FILE_BYTES = 100 * 1024 * 1024;
 
@@ -41,7 +41,6 @@ export const DEFAULT_SETTINGS_SYNC: SettingsSyncCategories = {
 };
 
 export interface ObsyncSettings {
-	/** Per-backend saved configs. */
 	storageConfigs: Record<string, StorageAdapterConfig>;
 	activeStorageKind: EStorageBackend;
 	settingsSync: SettingsSyncCategories;

@@ -3,19 +3,18 @@ import { Platform } from "obsidian";
 import { DEFAULT_CONCURRENCY } from "@/constants";
 import { sha256Hex } from "@/crypto";
 import { sceneOfBytes } from "@/drawing";
-import { hasDotSegment, stripTrailingSlash } from "@/shared/path";
-import { sortedByPath } from "@/shared/records";
+import { hasDotSegment, sortedByPath, stripTrailingSlash } from "@/shared";
 import type {
 	HashCacheEntry,
 	LocalSnapshot,
 	ManifestEntry,
 	SkippedFile,
 } from "@/sync/types";
-import { runWithConcurrency } from "@/utils/concurrency";
 import {
 	createLargeFileGate,
 	LARGE_FILE_BYTES,
-} from "@/utils/file-concurrency";
+	runWithConcurrency,
+} from "@/utils";
 import type { VaultIndex } from "./file-index";
 import type { ScopePolicy } from "./scope";
 
@@ -27,18 +26,11 @@ export interface ScannerOptions {
 	maxFileBytes: number;
 	onProgress?: (scanned: number) => void;
 	concurrency?: number;
-	/**
-	 * Obsidian's in-memory file index. Without it the whole vault is walked and
-	 * stat-ed through the adapter, which is correct but costs one IPC round trip
-	 * per file on every scan.
-	 */
+	/** Obsidian's in-memory file index; without it every scan stats each file through the adapter. */
 	index?: VaultIndex;
 	/**
-	 * Paths the caller already believes exist - the sync baseline. Obsidian's
-	 * index can lag reality (its watcher misses a bulk copy from outside the
-	 * app), and a baseline path absent from the index reads as a local deletion
-	 * that a push would carry out on the remote. Each one is confirmed against
-	 * the disk before the scan is allowed to call it gone.
+	 * Sync baseline paths. The index can lag disk, so each is confirmed on disk before it reads as a local
+	 * deletion.
 	 */
 	expected?: Readonly<Record<string, unknown>>;
 	/** With `index`, the disk is listed too: the watcher misses a bulk copy from outside the app. */
@@ -99,9 +91,8 @@ export async function scanVault(
 		// Unreadable files (locked, deleted mid-scan) must not fail the entire scan.
 		try {
 			let { size, mtime } = candidate;
-			// The index's stat settles a hash-cache hit on its own. Anything that
-			// has to read the file takes the authoritative stat first, so a cache
-			// entry that lagged the last write cannot decide what gets hashed.
+			// A file that must be read takes the authoritative stat first, so a lagging cache entry cannot
+			// decide what gets hashed.
 			if (
 				size === undefined ||
 				mtime === undefined ||
@@ -109,10 +100,7 @@ export async function scanVault(
 			) {
 				const stat = await adapter.stat(path);
 				if (stat?.type !== "file") {
-					// Unreadable is not absent. Without the walk there is no
-					// unreadable-directory entry to shield these, so a file the index
-					// knows about but the adapter will not stat has to be reported as
-					// skipped, or the diff publishes it as a deletion.
+					// Unreadable is not absent: report it skipped, or the diff publishes a deletion.
 					if (indexed) {
 						skipped.push({ path, reason: "unreadable" });
 					}
@@ -137,8 +125,7 @@ export async function scanVault(
 				size >= LARGE_FILE_BYTES ? gate : undefined,
 			);
 			files[path] = entry;
-			// The cache entry already holds these three fields; re-boxing them
-			// grows the old generation by one object per file for nothing.
+			// Reuse the cache entry; re-boxing grows the old generation by one object per file.
 			updatedCache[path] = hit
 				? cached
 				: { mtime, size, hash: entry.hash, scene: entry.scene };
@@ -210,8 +197,7 @@ async function buildEntry(
 	size: number,
 	mtime: number,
 	kind: ManifestEntry["kind"],
-	/** A hit the caller settled; re-testing it here can disagree, because a
-	 * future mtime turns racy as the clock catches up. */
+	/** A hit the caller settled; re-testing can disagree once a future mtime turns racy. */
 	hit: HashCacheEntry | undefined,
 	/** Present for large files, to keep several of them out of memory at once. */
 	gate?: <T>(run: () => Promise<T>) => Promise<T>,
@@ -234,7 +220,10 @@ function isCacheHit(
 	return cached.mtime === mtime && cached.size === size && !isRacy(mtime);
 }
 
-/** Recent writes may change within the same mtime tick and are untrusted. Future mtimes are clock artefacts, not racy writes. */
+/**
+ * Recent writes may change within the same mtime tick and are untrusted. Future mtimes are clock artefacts,
+ * not racy writes.
+ */
 function isRacy(mtime: number): boolean {
 	const age = Date.now() - mtime;
 	return age >= 0 && age < RACY_INDEX_WINDOW_MS;
@@ -263,11 +252,7 @@ async function collectFromWalk(
 	};
 }
 
-/**
- * Enumerates the vault from the index and the config directory from the
- * adapter, because hidden folders are invisible to the index and `settingsSync`
- * lives in one.
- */
+/** Hidden folders (the config directory) are invisible to the index, so they come from the adapter. */
 async function collectFromIndex(
 	adapter: DataAdapter,
 	scope: ScopePolicy,
@@ -301,8 +286,7 @@ async function collectFromIndex(
 	const emptyCandidates: string[] = [];
 	for (const folder of folders) {
 		if (isConfigPath(folder.path)) continue;
-		// The outermost pruned folder is the one the walk would have named; the
-		// walk never reached anything below it.
+		// The walk would only have named the outermost pruned folder.
 		if (hasPrunedAncestor(folder.path, pruned)) continue;
 		if (pruned.has(folder.path)) {
 			if (scope.isIgnoredByPattern(folder.path)) ignored.push(folder.path);
@@ -323,9 +307,7 @@ async function collectFromIndex(
 		}
 	}
 
-	// Candidates with no stat: the worker takes the authoritative one and drops
-	// the path only once the adapter agrees it is gone. In a settled vault this
-	// list is empty, so the guard costs nothing until the index is behind.
+	// No stat: the worker takes the authoritative one and drops the path only once the adapter agrees it is gone.
 	const unstated = new Set<string>();
 	for (const path of Object.keys(expected ?? {})) {
 		if (seen.has(path) || isConfigPath(path)) continue;

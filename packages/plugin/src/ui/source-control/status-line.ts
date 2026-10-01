@@ -1,6 +1,6 @@
 import { setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
-import { formatRelativeTime } from "@/shared/format";
+import { formatRelativeTime } from "@/shared";
 import type { SyncStatusSnapshot } from "@/sync/controller";
 import { skippedText } from "@/ui/common";
 import { askSpaceGone } from "@/ui/shares/space-gone";

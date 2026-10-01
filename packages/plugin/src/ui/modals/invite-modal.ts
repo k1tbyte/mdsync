@@ -1,7 +1,5 @@
 import { type App, type ButtonComponent, Modal, Setting } from "obsidian";
-
-import { errorMessage } from "@/shared/errors";
-import { folderName } from "@/shared/path";
+import { errorMessage, folderName } from "@/shared";
 import type { Invite } from "@/spaces";
 import { alertLine, onEnter, serial } from "@/ui/common";
 

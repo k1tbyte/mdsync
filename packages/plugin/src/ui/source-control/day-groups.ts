@@ -1,4 +1,4 @@
-import { formatDayLabel } from "@/shared/format";
+import { formatDayLabel } from "@/shared";
 
 export interface DayGroup<T> {
 	label: string;

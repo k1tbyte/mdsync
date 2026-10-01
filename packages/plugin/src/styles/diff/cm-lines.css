@@ -1,4 +1,3 @@
-/* Change lines inside the CodeMirror panes. */
 .cm-line.obsync-merge-line,
 .cm-line.obsync-diff-line {
 	background-color: rgba(var(--obsync-tone), 0.14);

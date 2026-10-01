@@ -1,6 +1,6 @@
 import * as Y from "yjs";
 import type { LiveKind, LiveModel } from "@/live/model";
-import { toLf } from "@/utils/eol";
+import { toLf } from "@/utils";
 import { mergeThreeWay } from "./merge";
 import { patchYText } from "./patch";
 import { BODY, rebuild } from "./rebuild";

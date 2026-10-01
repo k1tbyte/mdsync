@@ -1,8 +1,6 @@
 /**
- * Live editing between two real Obsidians: one relay, one in-memory WebDAV
- * storage for the shared key, one note typed into from both sides, a relay
- * restart in the middle of the typing, a rebuild of the note's room, a write
- * under the open note from outside Obsidian, and a rename of the open note.
+ * Live editing between two real Obsidians: typing from both sides across a relay restart, a room rebuild,
+ * an outside write and a rename.
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -146,7 +144,10 @@ async function scenario(
 	await renameLive(laptop, desktop);
 }
 
-/** The phone toolbar (`editor.undo()`) and the Edit menu (`beforeinput`) take back this device's typing, never what came after it from another. */
+/**
+ * The phone toolbar (`editor.undo()`) and the Edit menu (`beforeinput`) take back this device's typing,
+ * never what came after it from another.
+ */
 async function undoesOwnTypingOnly(
 	laptop: Obsidian,
 	desktop: Obsidian,

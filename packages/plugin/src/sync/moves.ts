@@ -19,9 +19,8 @@ interface Candidate {
 }
 
 /**
- * A path gone on one side and one new there holding its content are a move.
- * Only pairs it can tell apart are; the rest stay a deletion and an addition.
- * The other side's edit of the old path follows the file, so it is no conflict.
+ * A path gone on one side and a new one there holding its content is a move, if the pair is unambiguous. The
+ * other side's edit of the old path follows the file, so it is no conflict.
  */
 export function pairMoves(
 	result: Unpaired,

@@ -2,7 +2,7 @@ import { Modal, Setting } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
 import { isRelayConfigured } from "@/settings/model";
-import { errorMessage } from "@/shared/errors";
+import { errorMessage } from "@/shared";
 import type { PauseKind } from "@/spaces";
 import type { SpaceRecord } from "@/spaces/record";
 import {

@@ -6,8 +6,8 @@ import { confirmAdoptNewVault, notifyError, notifyInfo } from "@/ui";
 const VAULT_MISMATCH_ERROR = "Remote vault id does not match local";
 
 /**
- * Offers to adopt the remote vault when its id stopped matching ours, which
- * normally means another device reset the remote storage.
+ * Offers to adopt the remote vault when its id stopped matching ours, usually because another device reset
+ * the storage.
  */
 export function registerVaultAdoptionPrompt(
 	plugin: Plugin,

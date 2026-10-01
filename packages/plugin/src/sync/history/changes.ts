@@ -1,4 +1,4 @@
-import { entryAt } from "@/shared/records";
+import { entryAt } from "@/shared";
 import type { Manifest, ManifestEntry } from "@/sync/types";
 
 import type { SnapshotChanges, SnapshotEntry } from "./types";
@@ -12,10 +12,7 @@ function sameEntry(a: ManifestEntry, b: ManifestEntry): boolean {
 	);
 }
 
-/**
- * Difference from parent to next. Every differing field counts, not just the
- * hash, so replaying the record backwards reproduces the parent exactly.
- */
+/** Every differing field counts, not just the hash, so replaying backwards reproduces the parent exactly. */
 export function diffManifests(
 	parent: Manifest | null,
 	next: Manifest,
@@ -75,9 +72,8 @@ export function collectChangeHashes(
 }
 
 /**
- * How far the newest-first chain stays contiguous. History is best-effort, so a
- * dropped update leaves a parent/child mismatch; walking past it would attribute
- * one snapshot's changes to another.
+ * History is best-effort: a dropped update leaves a parent/child mismatch, and walking past it would
+ * attribute one snapshot's changes to another.
  */
 export function contiguousLength(snapshots: readonly SnapshotEntry[]): number {
 	let length = 0;

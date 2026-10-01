@@ -3,7 +3,7 @@ const JOIN_PATIENCE_MS = 15_000;
 
 export type Waiting = "joining" | "unanswered";
 
-/** How a room asked for its state at `subscribedAt` waits: silent past the time it takes to answer, it is "unanswered". */
+/** "unanswered" once a room asked at `subscribedAt` has been silent past the time it takes to answer. */
 export function waitingSince(subscribedAt: number): Waiting {
 	return Date.now() - subscribedAt < JOIN_PATIENCE_MS
 		? "joining"

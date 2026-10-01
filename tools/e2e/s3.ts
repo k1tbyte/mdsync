@@ -1,7 +1,6 @@
 /**
- * An in-memory, path-style S3 with just what the plugin's adapter speaks:
- * object GET/HEAD/PUT/DELETE, conditional reads and writes, ListObjectsV2.
- * Signatures are accepted as is; only a revoked access key is refused.
+ * An in-memory path-style S3 with what the plugin's adapter speaks; signatures are accepted as is, only a
+ * revoked access key is refused.
  */
 
 import { createHash } from "node:crypto";

@@ -135,7 +135,6 @@ describe("DiffOperations.restoreVersion uses selected hash", () => {
 	});
 
 	it("restores using the historyHash which is the selected version", async () => {
-		// Mock confirmRestore to auto-confirm
 		const restoreMod = await import("@/ui/source-control/restore-modal");
 		const spy = vi.spyOn(restoreMod, "confirmRestore").mockResolvedValue(true);
 

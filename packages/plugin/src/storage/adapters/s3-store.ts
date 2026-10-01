@@ -6,7 +6,7 @@ import {
 	type StorageAdapter,
 	StorageRequestError,
 } from "@/storage/types";
-import { toArrayBuffer } from "@/utils/bytes";
+import { toArrayBuffer } from "@/utils";
 
 import type { S3RequestInput, S3Signer } from "./s3-signer";
 import { parseErrorCode, parseListObjects } from "./s3-xml";
@@ -25,7 +25,6 @@ const HTTP_NOT_FOUND = 404;
 const HTTP_NOT_MODIFIED = 304;
 const HTTP_PRECONDITION_FAILED = 412;
 const HTTP_CONFLICT = 409;
-/** Stored with every object, as the SDK adapter did. */
 const OBJECT_CACHE_CONTROL = "no-cache, no-store, must-revalidate";
 
 /** Where S3 requests go: straight to the bucket, or through the relay's share broker. */
@@ -38,7 +37,6 @@ export interface S3Transport {
 	relative(listed: string): string;
 }
 
-/** The S3 object protocol: absence, revalidation, conditional writes, paged listings. */
 export function createS3Store(transport: S3Transport): StorageAdapter {
 	const send = createSender(transport.sign);
 
@@ -49,17 +47,16 @@ export function createS3Store(transport: S3Transport): StorageAdapter {
 		const res = await send({
 			method: "GET",
 			key: transport.key(key),
-			// The manifest moves under us, and a revalidated read is what the
-			// stale-read reconciliation in sync/manifest.ts assumes.
+			// The manifest moves under us, and a revalidated read is what the stale-read reconciliation in
+			// sync/manifest.ts assumes.
 			headers: {
 				"Cache-Control": "no-cache",
 				...(etag ? { "If-None-Match": etag } : {}),
 			},
 		});
 		if (res.status === HTTP_NOT_MODIFIED) {
-			// Only ever an answer about the validator we sent. Unsolicited it
-			// describes nothing, and the caller of a plain read would take it for
-			// an object that is not there.
+			// Only ever an answer about the validator we sent: unsolicited it describes nothing, and a
+			// plain read's caller would take it for an absent object.
 			if (!etag) {
 				throw new Error(
 					`S3 answered 304 to an unconditional read of "${key}".`,
@@ -92,14 +89,12 @@ export function createS3Store(transport: S3Transport): StorageAdapter {
 			const page = parseListObjects(res.text);
 			for (const object of page.objects) {
 				const relative = transport.relative(object.key);
-				// A folder marker under the prefix relativises to "", which is not
-				// an object any caller can ask for.
+				// A folder marker under the prefix relativises to "", which no caller can ask for.
 				if (relative) objects.push({ ...object, key: relative });
 			}
 			token = page.nextToken;
-			// A backend that hands back a token it already gave would keep the
-			// listing going forever. Stopping would answer with a partial list,
-			// which is what decides whether an object gets deleted.
+			// A repeated token would loop forever, and stopping would return a partial list, which decides
+			// whether an object gets deleted.
 			if (token && seenTokens.has(token)) {
 				throw new Error(
 					`S3 repeated a continuation token while listing "${keyPrefix}", so the object list cannot be completed.`,
@@ -157,8 +152,7 @@ export function createS3Store(transport: S3Transport): StorageAdapter {
 		},
 		async delete(key) {
 			const res = await send({ method: "DELETE", key: transport.key(key) });
-			// S3 answers 204 for a key that was never there; a backend that
-			// answers 404 means the same thing.
+			// S3 answers 204 for a key that was never there; a backend answering 404 means the same.
 			if (isAbsent(res)) return;
 			assertOk(res, "delete", key);
 		},
@@ -173,9 +167,8 @@ type S3Response = Awaited<ReturnType<typeof requestUrl>>;
 type Send = (input: S3RequestInput, body?: Uint8Array) => Promise<S3Response>;
 
 /**
- * Signs and sends under the shared timeout and retry policy. Signing happens
- * inside the retry, not once around it: a signature carries the minute it was
- * made and a request replayed after a backoff would be refused for skew.
+ * Signs and sends under the shared timeout and retry policy. Signing happens inside the retry: a signature
+ * carries the minute it was made, and a request replayed after a backoff would be refused for skew.
  */
 function createSender(sign: S3Signer): Send {
 	return async (input, body) => {
@@ -268,15 +261,9 @@ function sendPut(
 }
 
 /**
- * A 404 usually means the object is not there. NoSuchBucket is also a 404, but
- * it means the configuration is wrong, not that the vault is empty - reporting
- * it as absence would re-upload everything into nowhere, and an empty manifest
- * read as the remote head would republish over the real one.
- *
- * A body that is not an S3 error document is something between the plugin and
- * the bucket answering: a proxy or a captive portal, not the bucket saying the
- * object is gone. Some backends omit the body on an object 404, so a silent
- * 404 remains ambiguous.
+ * A 404 is absence, except NoSuchBucket (wrong configuration: absence would re-upload everything and
+ * republish an empty manifest over the real head) or a body that is no S3 error document (a proxy or
+ * captive portal). Some backends omit the body on an object 404, so a silent 404 stays ambiguous.
  */
 function isAbsent(res: S3Response): boolean {
 	if (res.status !== HTTP_NOT_FOUND) return false;

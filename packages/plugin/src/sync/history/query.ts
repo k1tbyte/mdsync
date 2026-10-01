@@ -1,5 +1,5 @@
 import type { EncryptionKey } from "@/crypto";
-import { entryAt } from "@/shared/records";
+import { entryAt } from "@/shared";
 import type { ObjectStorage } from "@/storage/types";
 import { loadRemoteBytes } from "@/sync/content";
 import { fetchRemoteManifest } from "@/sync/manifest";
@@ -29,11 +29,7 @@ export interface DeletedFilesQuery {
 	root: string;
 }
 
-/**
- * Distinct-version timeline for one path, from a single log read plus HEAD.
- * Only the entries for `path` are carried back through the chain, so the cost
- * is proportional to the number of snapshots, not to vault size.
- */
+/** Distinct-version timeline for one path from one log read plus HEAD; cost scales with snapshots, not vault size. */
 export async function getFileHistory(
 	query: FileHistoryQuery,
 ): Promise<FileVersion[]> {
@@ -52,10 +48,7 @@ export async function getFileHistory(
 	return orderByChain(versions, log);
 }
 
-/**
- * Position in the log, never `createdAt`: timestamps come from whichever device
- * pushed, so a clock skew could order a snapshot before its own parent.
- */
+/** Position in the log, never `createdAt`: device clock skew could order a snapshot before its parent. */
 function logPositions(log: HistoryLog): Map<string, number> {
 	return new Map(log.snapshots.map((entry, index) => [entry.id, index]));
 }
@@ -70,9 +63,8 @@ function orderByChain(versions: FileVersion[], log: HistoryLog): FileVersion[] {
 }
 
 /**
- * The contiguous run of snapshots starting at HEAD. History is best-effort, so
- * the log can lag HEAD or carry a gap; either way we walk only what is provably
- * consecutive and let pinned snapshots cover the rest.
+ * The contiguous run from HEAD. History is best-effort (the log can lag or have gaps), so only provably
+ * consecutive snapshots are walked; pins cover the rest.
  */
 function walkableChain(log: HistoryLog, head: Manifest): SnapshotEntry[] {
 	if (log.snapshots[0]?.id !== head.snapshotId) return [];
@@ -150,9 +142,8 @@ function toVersion(meta: SnapshotEntry, entry: ManifestEntry): FileVersion {
 }
 
 /**
- * Files that are gone from HEAD but still restorable. Walks the chain newest
- * first so a path deleted, recreated and deleted again reports its latest death,
- * then folds in pinned snapshots - after eviction they are the only way back.
+ * Files gone from HEAD but restorable. Newest first, so a path deleted, recreated and deleted again reports
+ * its latest death; pins are folded in after.
  */
 export async function listDeletedFiles(
 	query: DeletedFilesQuery,
@@ -212,9 +203,8 @@ function collectDeletions(
 }
 
 /**
- * Folds every pinned manifest in: it adds files no change record explains, and
- * clears the eviction countdown on files it holds, which nothing can evict.
- * Costs one read per pin, so a vault with no pins pays nothing.
+ * Folds pinned manifests in: adds files no change record explains and clears the eviction countdown on files
+ * they hold.
  */
 async function applyPins(
 	storage: ObjectStorage,
@@ -256,11 +246,7 @@ async function applyPins(
 	}
 }
 
-/**
- * The vault's push timeline. Everything comes from the one log object already
- * needed for HEAD, so the file lists cost no extra reads - they are the change
- * records themselves.
- */
+/** The vault's push timeline; file lists are the change records from the log already read for HEAD. */
 export async function listSnapshots(
 	query: DeletedFilesQuery,
 ): Promise<SnapshotListResult> {

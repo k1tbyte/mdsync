@@ -5,10 +5,8 @@ type DiagnosticsSink = (message: string, details?: readonly string[]) => void;
 let sink: DiagnosticsSink | null = null;
 
 /**
- * Connects the sink that puts these warnings in front of the user. The engine,
- * the garbage collector and the history log run far from any service and
- * used to warn to the console only - which is exactly where the diagnostics tab
- * tells people not to look.
+ * Connects the sink that surfaces these warnings to the user; the engine, GC and history log run far from any
+ * service.
  */
 export function setDiagnosticsSink(next: DiagnosticsSink | null): void {
 	sink = next;

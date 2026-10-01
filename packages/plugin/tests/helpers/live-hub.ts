@@ -12,8 +12,8 @@ import { memorySql } from "obsync-relay/tests/helpers/memory-sql";
 import type { SpaceFrame, SpaceHub, SpaceListener } from "@/hub/connection";
 
 /**
- * The relay's own hub logic over a real SQLite store, in-process. Frames cross
- * the "wire" on a later macrotask, as over a socket, unless a test holds them.
+ * The relay's own hub logic over a real SQLite store, in-process; frames cross the "wire" on a later
+ * macrotask unless a test holds them.
  */
 export class LiveHub {
 	readonly peers = new Set<HubPeer>();
@@ -74,8 +74,7 @@ export class LiveHub {
 	}
 }
 
-/** One device's socket, reconnectable, with switches that make it half-open. */
-/** One device's socket carrying one space, at slot 0. */
+/** One device's socket carrying one space at slot 0, reconnectable, with switches that make it half-open. */
 export class TestConnection implements SpaceHub {
 	private readonly listeners = new Set<SpaceListener>();
 	private peer: HubPeer | null = null;
@@ -134,7 +133,10 @@ export class TestConnection implements SpaceHub {
 		this.drop();
 	}
 
-	/** Dies silently: the hub keeps the socket until the returned call ends it, as the relay does past its silence window. */
+	/**
+	 * Dies silently: the hub keeps the socket until the returned call ends it, as the relay does past its
+	 * silence window.
+	 */
 	strand(): () => void {
 		const peer = this.peer;
 		this.drop();

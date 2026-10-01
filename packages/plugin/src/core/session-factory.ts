@@ -7,10 +7,10 @@ import {
 	isStorageConfigured,
 	type ObsyncSettings,
 } from "@/settings/model";
-import { reportWarning } from "@/shared/diagnostics";
+import { reportWarning } from "@/shared";
 import type { SpaceRecords } from "@/spaces";
+import { pauseOf } from "@/spaces";
 import { shareKey, shareStorage } from "@/spaces/access";
-import { pauseOf } from "@/spaces/partition";
 import { shareIdentity } from "@/spaces/record";
 import { createStorageAdapter, type StorageAdapter } from "@/storage";
 import { clearRemoteTextCache } from "@/sync/content";
@@ -109,10 +109,8 @@ type AdapterCache = (
 ) => StorageAdapter;
 
 /**
- * Adapters memoised per space by their full config. They hold per-session
- * caches (e.g. the Google Drive folder id and name→id map); rebuilding one per
- * operation discards those and forces cold lookups on every push. Any config
- * change (creds, folder, token refresh) changes the memo and rebuilds.
+ * Adapters hold per-session caches (e.g. Drive folder ids), so they are memoised per space by full config;
+ * any config change rebuilds.
  */
 function createAdapterCache(deps: SessionFactoryDeps): AdapterCache {
 	const cached = new Map<string, { memo: string; adapter: StorageAdapter }>();
@@ -120,11 +118,9 @@ function createAdapterCache(deps: SessionFactoryDeps): AdapterCache {
 		const hit = cached.get(spaceId);
 		if (hit?.memo === memo) return hit.adapter;
 		const adapter = create(() => {
-			// The adapter mutated its own config (refreshed token): drop the
-			// memo so the next call rebuilds against the saved values.
+			// The adapter rewrote its own config (refreshed token): rebuild against the saved values.
 			cached.delete(spaceId);
-			// Cached remote text is namespaced by adapter instance, so entries
-			// keyed to the replaced one are unreachable weight.
+			// Remote text is keyed by adapter instance, so the replaced one's entries are unreachable.
 			clearRemoteTextCache();
 			deps
 				.persistSettings?.()
@@ -198,12 +194,7 @@ interface ScopeMatchers {
 	local: IgnoreMatcher;
 }
 
-/**
- * Rebuilding the ignore matchers costs a `read` of the space's ignore note, and
- * a session is opened for every operation and every editor baseline load. The
- * metadata cache carries that note's mtime and size for free, so the memo
- * (one per space root) invalidates itself without an IPC round trip of its own.
- */
+/** Memoised per space root; the metadata cache's mtime and size invalidate it without reading the ignore note. */
 function createScopeMatchers(
 	deps: SessionFactoryDeps,
 ): (root: string) => Promise<ScopeMatchers> {
@@ -214,9 +205,8 @@ function createScopeMatchers(
 	return async (root) => {
 		const file = deps.app.vault.getAbstractFileByPath(ignoreNoteOf(root));
 		const patterns = deps.settings.ignorePatterns;
-		// An absent note is never memoised. The index lags a file the user has
-		// just created, and answering from a memo built while it really was
-		// absent would sync the very files those new rules exclude.
+		// An absent note is never memoised: the index lags a just-created file, and a stale memo would sync
+		// files its rules exclude.
 		const stamp =
 			file instanceof TFile ? `${file.stat.mtime}:${file.stat.size}` : null;
 		const memo = memos.get(root);
@@ -231,11 +221,7 @@ function createScopeMatchers(
 	};
 }
 
-/**
- * Resolves the content key, transparently recovering from a passphrase that
- * was rotated on another device: forget the stale passphrase, re-prompt once,
- * and retry. A second failure aborts the session.
- */
+/** Recovers from a passphrase rotated on another device: forget it, re-prompt once, retry; a second failure aborts. */
 async function resolveKeyWithRotationRetry(
 	deps: SessionFactoryDeps,
 	storage: StorageAdapter,

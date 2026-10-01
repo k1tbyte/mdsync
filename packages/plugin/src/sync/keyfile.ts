@@ -8,10 +8,10 @@ import {
 	weakPassphrase,
 } from "@/crypto";
 import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
-import { errorMessage } from "@/shared/errors";
+import { errorMessage } from "@/shared";
 import type { ObjectStorage } from "@/storage/types";
 import { REMOTE_KEYFILE_KEY } from "@/sync/constants";
-import { base64ToBytes, bytesToBase64 } from "@/utils/base64";
+import { base64ToBytes, bytesToBase64 } from "@/utils";
 import { loadOrCreateSalt } from "./session";
 
 const KEYFILE_VERSION = 1;
@@ -24,8 +24,8 @@ const decoder = new TextDecoder();
 const INITIAL_EPOCH = 1;
 
 /**
- * Envelope keyfile stored plaintext at {@link REMOTE_KEYFILE_KEY}. `wrapped`
- * is ciphertext, so it leaks nothing without the passphrase.
+ * Stored plaintext at {@link REMOTE_KEYFILE_KEY}; `wrapped` is ciphertext, so it leaks nothing without the
+ * passphrase.
  */
 export interface Keyfile {
 	version: number;
@@ -106,10 +106,7 @@ async function createKeyfile(
 	);
 }
 
-/**
- * Resolves the content key, creating it on first use. The data key is constant;
- * only its passphrase wrapping changes on rotation.
- */
+/** Creates the key on first use. The data key is constant; rotation only changes its wrapping. */
 export async function resolveContentKey(
 	storage: ObjectStorage,
 	passphrase: string,
@@ -136,8 +133,8 @@ export async function resolveContentKey(
 		createdAt: now,
 		rotatedAt: now,
 	});
-	// A backend ignoring the condition might report success after overwriting.
-	// We read back the winner - minting a second key would orphan existing data.
+	// A backend ignoring the condition might overwrite and report success; read back the winner, as a second
+	// key would orphan data.
 	const winner = await readKeyfile(storage);
 	if (!winner) {
 		throw new Error("Keyfile vanished while it was being created.");
@@ -157,10 +154,7 @@ async function resolvedFrom(
 	return { contentKey, liveKeys, epoch };
 }
 
-/**
- * Re-wraps data key under a new passphrase without re-encrypting content.
- * Returns the new epoch.
- */
+/** Re-wraps the data key under a new passphrase without re-encrypting content. Returns the new epoch. */
 export async function rotatePassphrase(
 	storage: ObjectStorage,
 	currentPassphrase: string,

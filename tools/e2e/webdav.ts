@@ -1,6 +1,6 @@
 /**
- * An in-memory WebDAV server with just what the plugin's adapter speaks, so two
- * Obsidians can share one storage without a real server. Auth is accepted as is.
+ * An in-memory WebDAV server with what the plugin's adapter speaks, so two Obsidians share one storage;
+ * auth is accepted as is.
  */
 
 import { createHash } from "node:crypto";

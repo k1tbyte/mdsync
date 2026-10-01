@@ -1,10 +1,10 @@
 /**
- * Records travel through the vault's own storage, one object each, so two
- * devices adding spaces never race and no compare-and-set is needed.
+ * Records travel through the vault's own storage, one object each, so two devices adding spaces never race
+ * and no compare-and-set is needed.
  */
 
 import { decryptJson, type EncryptionKey, encryptJson } from "@/crypto";
-import { reportWarning } from "@/shared/diagnostics";
+import { reportWarning } from "@/shared";
 import type { ListedObject, ObjectStorage } from "@/storage/types";
 
 import {
@@ -27,8 +27,8 @@ const caches = new WeakMap<
 >();
 
 /**
- * Merges the remote records into `local` and publishes what the remote lacks.
- * `unbound`: `local` was made before this device knew this vault.
+ * Merges the remote records into `local` and publishes what the remote lacks; `unbound`: `local` was made
+ * before this device knew this vault.
  */
 export async function syncRecords(
 	storage: ObjectStorage,

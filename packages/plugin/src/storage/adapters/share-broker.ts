@@ -1,13 +1,12 @@
 /**
- * The relay's share broker. A participant never holds storage credentials:
- * each request is presigned by the broker under their share token and the
- * bytes go straight to the owner's bucket. The owner registers where the share
- * lives and issues those tokens.
+ * The relay's share broker. A participant never holds storage credentials: the broker presigns each request
+ * under their share token and bytes go straight to the owner's bucket. The owner registers where the share
+ * lives and issues the tokens.
  */
 
 import { requestUrl } from "obsidian";
 
-import { relayBase } from "@/shared/path";
+import { relayBase } from "@/shared";
 import type { S3StorageConfig } from "@/storage/config";
 import {
 	ShareRefusedError,

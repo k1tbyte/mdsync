@@ -1,9 +1,6 @@
 import type { Modal } from "obsidian";
 
-/**
- * Opens a modal that answers with a value.
- * The promise always settles so callers do not wait forever - which used to stall sync.
- */
+/** The promise always settles, so a dismissed modal never leaves its caller waiting forever. */
 export function openPromiseModal<T>(
 	create: (answer: (value: T) => void) => Modal,
 	dismissed: T,

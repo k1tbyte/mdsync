@@ -1,7 +1,4 @@
-/**
- * A scripted device on the relay hub, speaking the plugin's own codec. It
- * holds one slot per `[channel, token]` pair, in order.
- */
+/** A scripted device on the relay hub, speaking the plugin's codec; one slot per `[channel, token]` pair, in order. */
 
 import {
 	CHANNEL_DOC,

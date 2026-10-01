@@ -1,7 +1,6 @@
 /**
- * Document logs in the Durable Object's SQLite, all ciphertext: a row per delta
- * and one per document (snapshot, forwarding pointer, log name). An update
- * writes its delta only: the head is the last delta's seq.
+ * Document logs in the Durable Object's SQLite, all ciphertext: a row per delta and one per document; the
+ * head is the last delta's seq.
  */
 
 import type { DocState, DocStore, Pointer } from "./docs";

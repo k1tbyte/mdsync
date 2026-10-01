@@ -28,8 +28,7 @@ export async function freeConflictCopyPath(
 ): Promise<string> {
 	const base = conflictCopyPath(path, remoteDeviceName);
 	if (!(await adapter.exists(base))) return base;
-	// Read off the original path: `base` also carries the device name, and a
-	// dotted folder or a dotted device name must not be mistaken for an extension.
+	// From the original path: `base` carries the device name, and dots in a folder or device name are not extensions.
 	const slash = path.lastIndexOf("/");
 	const file = slash >= 0 ? path.slice(slash + 1) : path;
 	const dot = file.lastIndexOf(".");

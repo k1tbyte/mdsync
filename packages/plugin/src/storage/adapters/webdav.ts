@@ -1,7 +1,7 @@
 import { requestUrl } from "obsidian";
 
 import { DEFAULT_CONCURRENCY } from "@/constants";
-import { normalizeKeyPrefix } from "@/shared/path";
+import { normalizeKeyPrefix } from "@/shared";
 import { EStorageBackend, type WebDAVStorageConfig } from "@/storage/config";
 import {
 	CONCURRENCY_FIELD,
@@ -13,8 +13,7 @@ import type {
 	ListedObject,
 	StorageAdapter,
 } from "@/storage/types";
-import { bytesToBase64 } from "@/utils/base64";
-import { toArrayBuffer } from "@/utils/bytes";
+import { bytesToBase64, toArrayBuffer } from "@/utils";
 import {
 	assertOk,
 	dateOf,
@@ -112,10 +111,8 @@ export function createWebDAVAdapter(
 			headers: buildHeaders(etag ? { "If-None-Match": etag } : {}),
 			throw: false,
 		});
-		// A server that ignores the precondition answers 200 and the read is
-		// simply unconditional, which is what it was before. One that answers 304
-		// to a read carrying no validator describes nothing, and the caller of a
-		// plain read would take it for an object that is not there.
+		// A server ignoring the precondition answers 200: an unconditional read. A 304 to a read with no
+		// validator describes nothing, and a plain read's caller would take it for an absent object.
 		if (res.status === HTTP_NOT_MODIFIED) {
 			if (!etag) {
 				throw new Error(
@@ -151,9 +148,8 @@ export function createWebDAVAdapter(
 				headers: buildHeaders(),
 				throw: false,
 			});
-			// 405 means the collection is already there. 409 means the parent is
-			// missing, and this loop creates parents first, so accepting it would
-			// cache a directory that does not exist and fail every later PUT.
+			// 405: the collection exists. 409: a parent is missing, which this loop creates first, so
+			// accepting it would cache a nonexistent directory and fail every later PUT.
 			if (isSuccess(res.status) || res.status === HTTP_METHOD_NOT_ALLOWED) {
 				knownDirs.add(cursor);
 				continue;
@@ -166,8 +162,8 @@ export function createWebDAVAdapter(
 	}
 
 	const listObjects = async (keyPrefix: string): Promise<ListedObject[]> => {
-		// Depth 1 only reports direct children, so the walk has to recurse:
-		// objects/ sits one level below the root and would be invisible.
+		// Depth 1 reports only direct children: objects/ sits one level below the root and would be
+		// invisible without recursing.
 		const seen = new Set<string>();
 		const objects: ListedObject[] = [];
 		const queue = [keyPrefix ? ensureTrailingSlash(keyPrefix) : ""];
@@ -270,9 +266,8 @@ export function createWebDAVAdapter(
 }
 
 /**
- * `requestUrl` under the shared timeout and retry policy. Every WebDAV verb
- * used here is idempotent, so retrying a transport failure or a "try later"
- * status is safe; any other status is returned for the caller to interpret.
+ * `requestUrl` under the shared timeout and retry policy. Every WebDAV verb used here is idempotent, so
+ * retrying transport failures or "try later" statuses is safe; other statuses go to the caller.
  */
 async function davRequest(
 	params: Parameters<typeof requestUrl>[0],
@@ -289,8 +284,7 @@ async function davRequest(
 	});
 }
 
-/** Basic auth is Latin-1 by definition, so a non-ASCII password has to be
- * UTF-8 encoded before base64 or `btoa` throws. */
+/** Basic auth is Latin-1 by definition: a non-ASCII password must be UTF-8 encoded before base64 or `btoa` throws. */
 function basicCredentials(username: string, password: string): string {
 	const bytes = new TextEncoder().encode(`${username}:${password}`);
 	return bytesToBase64(bytes);
@@ -377,9 +371,8 @@ function propertyText(response: Element, name: string): string | null {
 }
 
 /**
- * Href to a key relative to the configured root. Compared as parsed URLs, not
- * as strings: `https://host:443/` and `https://host/` are the same origin, and
- * a textual prefix test drops every entry when the two spellings differ.
+ * Href to a key relative to the configured root, compared as parsed URLs: `https://host:443/` and
+ * `https://host/` are one origin, and a textual prefix test drops every entry when the spellings differ.
  */
 function relativizeHref(href: string, rootUrl: string): string | null {
 	let absolute: URL;

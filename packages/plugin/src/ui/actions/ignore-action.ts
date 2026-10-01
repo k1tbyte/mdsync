@@ -8,16 +8,12 @@ import {
 } from "@/settings/ignore-rules";
 import { isUnder, spaceOf } from "@/sync/space";
 import { notifyError, notifyInfo } from "@/ui/common";
-import { openPromiseModal } from "@/ui/modals/promise-modal";
+import { openPromiseModal } from "@/ui/modals";
 import { ignoreHome, ignoreNoteOf, isIgnoreNote } from "@/vault/ignore";
 
 const IGNORE_RULES_CHANGED = "Ignore rules changed.";
 
-/**
- * One ignore entry per menu, shared by the native file explorer and the
- * changes list: a plain path opens a level picker, an ignored one offers a
- * single stop that clears both levels.
- */
+/** One ignore entry per menu: a plain path opens a level picker, an ignored one clears both levels at once. */
 export function addIgnoreMenuItem(
 	menu: Menu,
 	plugin: PluginHost,
@@ -157,7 +153,6 @@ export async function toggleGlobalIgnore(
 	);
 }
 
-/** Removes the exact rule from both levels at once. */
 export async function stopIgnoring(
 	plugin: PluginHost,
 	path: string,
@@ -201,8 +196,8 @@ export async function stopIgnoring(
 }
 
 /**
- * The vault's rules stop at a new share's root, so what they kept out goes into
- * the share's own note, one exact rule per topmost path: none of it gets shared.
+ * The vault's rules stop at a share's root: what they kept out becomes exact rules in the share's note, so
+ * none of it is shared.
  */
 export async function carryVaultIgnores(
 	plugin: PluginHost,

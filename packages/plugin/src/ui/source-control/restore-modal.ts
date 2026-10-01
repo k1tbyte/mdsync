@@ -1,11 +1,10 @@
 import { ButtonComponent, Modal } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
-import { errorMessage } from "@/shared/errors";
-import { formatBytes } from "@/shared/format";
+import { errorMessage, formatBytes } from "@/shared";
 import type { FileDiffModel, HistoryVersionRef } from "@/sync/projection";
 import { alertLine } from "@/ui/common";
 import { renderHunkPreview } from "@/ui/diff";
-import { openPromiseModal } from "@/ui/modals/promise-modal";
+import { openPromiseModal } from "@/ui/modals";
 import { actionButton } from "./action-button";
 
 export interface RestoreConfirmOptions {
@@ -25,8 +24,8 @@ export interface BulkRestoreEntry {
 }
 
 /**
- * Shows what a restore would change before doing it. The diff loads after the
- * modal opens, so the user is never left waiting on a blank screen.
+ * Previews what a restore would change; the diff loads after the modal opens so the user never waits on a
+ * blank screen.
  */
 export function confirmRestore(
 	options: RestoreConfirmOptions,
@@ -93,10 +92,7 @@ async function loadPreview(
 	});
 }
 
-/**
- * Names every file a bulk restore would bring back. No diff preview here:
- * the trash rows offer Preview per file, and a wall of hunks is not a summary.
- */
+/** Names every file a bulk restore would bring back; no diff preview, as the trash rows offer Preview per file. */
 export function confirmBulkRestore(
 	plugin: PluginHost,
 	entries: readonly BulkRestoreEntry[],

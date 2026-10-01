@@ -15,9 +15,9 @@ const opsOf = ({ removed, added }: Group): number =>
 	(removed ? 1 : 0) + (added ? 1 : 0);
 
 /**
- * Brings a Y.Text to `target` as inserts and deletes: replacing the whole text
- * would make two devices that each rewrote it merge into interleaved nonsense.
- * Past the edit budget the differing middle becomes one replacement.
+ * Brings a Y.Text to `target` as inserts and deletes: replacing the whole text would make two devices that
+ * each rewrote it merge into interleaved nonsense. Past the edit budget the differing middle is one
+ * replacement.
  */
 export function patchYText(doc: Y.Doc, text: Y.Text, target: string): void {
 	const current = text.toString();

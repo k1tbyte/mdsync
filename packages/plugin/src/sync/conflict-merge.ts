@@ -1,7 +1,7 @@
 import type { DataAdapter } from "obsidian";
 
 import { isDrawing, mergeDrawings } from "@/drawing";
-import { withEolOf } from "@/utils/eol";
+import { withEolOf } from "@/utils";
 import {
 	loadLocalText,
 	loadRemoteText,
@@ -11,10 +11,8 @@ import { buildMergeSession, countUnresolved } from "./merge-model";
 import type { Conflict } from "./types";
 
 /**
- * Attempts clean three-way merge, returning text or null. Returns null - leaving
- * file untouched - when a side is binary, missing, has no ancestor, or has a
- * real conflict. Caller must write result.
- * Callers should gate on `isTextMergeCandidate` to avoid unnecessary downloads.
+ * Null, leaving the file untouched, when a side is binary or missing, there is no ancestor, or the conflict
+ * is real. The caller writes the result and should gate on `isTextMergeCandidate` to skip needless downloads.
  */
 export async function tryAutoMergeConflict(
 	deps: RemoteFetchOptions & { adapter: DataAdapter },

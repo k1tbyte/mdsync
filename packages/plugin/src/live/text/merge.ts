@@ -2,9 +2,8 @@ import { commonEnds } from "@/sync/hunks";
 import { sameLines, threeWayRegions, toLines } from "@/sync/merge-model";
 
 /**
- * The room's text with this device's offline changes folded in, on the regions
- * the merge editor shows. A real conflict keeps both sides, the room's first: a
- * visible duplicate beats a silent deletion.
+ * The room's text with this device's offline changes folded in, on the regions the merge editor shows. A
+ * real conflict keeps both sides, the room's first: a visible duplicate beats a silent deletion.
  */
 export function mergeThreeWay(
 	base: string,

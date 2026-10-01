@@ -1,5 +1,4 @@
-import { formatBytes, formatRelativeTime } from "@/shared/format";
-import { normalizePath } from "@/shared/path";
+import { formatBytes, formatRelativeTime, normalizePath } from "@/shared";
 import type { DeletedFile } from "@/sync/history";
 import { deviceText } from "./row-formatter";
 
@@ -57,9 +56,8 @@ export function buildTrashRows(
 }
 
 /**
- * Vault-relative target for a restore, or null when the text cannot name a file.
- * `writeBinary` creates missing folders, so only paths that escape the vault or
- * name a folder are rejected.
+ * Vault-relative restore target, or null for a path escaping the vault or naming a folder; `writeBinary`
+ * creates folders.
  */
 export function resolveRestoreTarget(input: string): string | null {
 	const normalized = normalizePath(input.trim());
@@ -77,8 +75,8 @@ export function resolveRestoreTarget(input: string): string | null {
 }
 
 /**
- * States remaining lifetime in pushes, which is what retention actually counts.
- * GC is amortised, so a record can outlive the limit and still be listed here.
+ * Remaining lifetime in pushes, which is what retention counts; amortised GC can leave a record listed past
+ * the limit.
  */
 export function retentionText(
 	rank: number | null,

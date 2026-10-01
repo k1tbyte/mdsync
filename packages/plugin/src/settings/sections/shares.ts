@@ -2,7 +2,7 @@ import { Setting } from "obsidian";
 
 import { type FieldContext, renderField } from "@/settings/fields";
 import { ownerNameOf, renameOwner } from "@/spaces";
-import { EFieldKind } from "@/storage/field-spec";
+import { EFieldKind } from "@/storage";
 import { openInvite, openShareWindow, shareSummary } from "@/ui";
 
 /** This person's open shares, each managed in its window, even on a device where the folder is gone. */

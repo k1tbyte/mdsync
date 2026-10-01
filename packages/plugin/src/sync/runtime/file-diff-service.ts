@@ -64,11 +64,7 @@ export class FileDiffService {
 		return this.pathIndex()?.status ?? EMPTY_STATUSES;
 	}
 
-	/**
-	 * One pass over the diff instead of a scan per lookup. At 20k changes the
-	 * file explorer alone asked for the status map ~40 times a refresh, and the
-	 * editor probed single paths once per open file.
-	 */
+	/** One pass instead of a scan per lookup: at 20k changes the file explorer alone asks ~40 times a refresh. */
 	private pathIndex(): PathIndex | null {
 		const diff = this.deps.getResult()?.diff;
 		if (!diff) return null;
@@ -121,9 +117,8 @@ export class FileDiffService {
 	}
 
 	/**
-	 * Loads baseline text for a path, even without current change status (for live editor diffs).
-	 * Returns null if missing from baseline or if binary. `space`: another
-	 * space's baseline, such as the vault's frozen entries under a share root.
+	 * Works without a change status (live editor diffs). Null if missing from baseline or binary. `space`:
+	 * another space's baseline, such as the vault's frozen entries under a share root.
 	 */
 	async loadBaselineForPath(
 		path: string,
@@ -188,9 +183,7 @@ function buildPathIndex(diff: DiffResult): PathIndex {
 	const change = new Map<string, FileChange>();
 	const conflict = new Map<string, Conflict>();
 	const status = new Map<string, EChangeType | "conflict">();
-	// `change` keeps the local side and `status` keeps the remote one: the two
-	// lookups disagreed before this index and both callers depend on their own
-	// answer.
+	// `change` keeps the local side and `status` the remote one; callers depend on their own answer.
 	for (const entry of diff.localChanges) {
 		if (!change.has(entry.path)) change.set(entry.path, entry);
 		status.set(entry.path, entry.type);

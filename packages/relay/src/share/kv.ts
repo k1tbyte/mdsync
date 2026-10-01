@@ -1,7 +1,6 @@
 /**
- * The broker's KV records: a token per participant, a pointer to each
- * participant's current token, and each share's registered storage. The key
- * layout stays in this file.
+ * The broker's KV records: participant tokens, each participant's current-token pointer, and share storage.
+ * The key layout stays in this file.
  */
 
 import { type HubEnv, hubStub } from "../hub/stub";
@@ -39,10 +38,8 @@ const pointerKey = (shareId: string, participantId: string) =>
 	`pt:${shareId}:${participantId}`;
 
 /**
- * Whose live token this is and for which share; null once it is revoked or
- * replaced. Current means the participant's pointer names it: two re-invites
- * at once each drop the same predecessor, and the token whose pointer lost
- * would otherwise live on where no revoke finds it.
+ * Whose live token this is, null once revoked or replaced; live means the participant's pointer names it,
+ * or re-invites race into an unrevokable token.
  */
 export async function shareGrantOf(
 	env: ShareEnv,

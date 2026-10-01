@@ -1,7 +1,6 @@
 /**
- * Security boundary: a participant names an object key, these functions decide
- * the bucket key. Every key must land under `<prefix>shares/<shareId>/`;
- * escapes are rejected rather than sanitised, so a bypass fails closed.
+ * Security boundary: a participant names an object key, these decide the bucket key; escapes are rejected,
+ * not sanitised, so a bypass fails closed.
  */
 
 import { isShareId, sharePrefix } from "@obsync/protocol";

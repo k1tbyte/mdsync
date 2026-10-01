@@ -1,7 +1,6 @@
 /**
- * One socket to a relay hub, carrying every channel this device holds there.
- * Channels are addressed by slot, their index in `channels`. Reconnects with
- * backoff; a link that stays silent past the timeout is treated as dead.
+ * One socket to a relay hub, carrying every channel this device holds there, addressed by slot (index in
+ * `channels`). Reconnects with backoff; a link silent past the timeout is treated as dead.
  */
 
 import {

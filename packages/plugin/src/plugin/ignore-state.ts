@@ -10,9 +10,8 @@ import {
 import type { PluginHost } from "./host";
 
 /**
- * Ignore state the UI reads without opening a sync session: the device-local
- * patterns from settings plus each space's own syncignore.md. All sources are
- * kept warm in memory so menus can answer synchronously.
+ * Device-local patterns plus each space's syncignore.md, kept in memory so menus answer synchronously without
+ * a sync session.
  */
 export interface IgnoreStateHandle {
 	isIgnored(path: string): boolean;

@@ -2,9 +2,10 @@ import { LINK_PARAM, openLink, sealLink } from "@/crypto/sealed-link";
 import {
 	type CompactStorageConfig,
 	compactStorageConfig,
+	EStorageBackend,
+	type StorageAdapterConfig,
 	storageDefaults,
 } from "@/storage";
-import { EStorageBackend, type StorageAdapterConfig } from "@/storage/config";
 import {
 	activeStorage,
 	DEFAULT_SETTINGS,

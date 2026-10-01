@@ -2,10 +2,7 @@ import type { SyncHunk } from "@/sync/hunks";
 import { renderCodeLine } from "./code-lines";
 import { renderCounters } from "./source-widget";
 
-/**
- * Read-only preview of one hunk (restore confirmations): tone-coded lines with
- * the numbering of the side each line belongs to.
- */
+/** Read-only hunk preview for restore confirmations; lines are numbered by the side they belong to. */
 export function renderHunkPreview(
 	parent: HTMLElement,
 	hunk: SyncHunk,

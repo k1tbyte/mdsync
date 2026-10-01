@@ -7,7 +7,7 @@ import {
 	isStorageConfigured,
 	type ObsyncSettings,
 } from "@/settings/model";
-import { reportWarning } from "@/shared/diagnostics";
+import { reportWarning } from "@/shared";
 import type { SpaceRecords } from "@/spaces";
 import { shareLiveKeys } from "@/spaces/access";
 import { type SpaceRecord, shareIdentity } from "@/spaces/record";
@@ -74,7 +74,10 @@ async function unreadableAsNone(record: SpaceRecord): Promise<LiveKeys | null> {
 	}
 }
 
-/** Never prompts. One shared unlock, and a failed one waits before retrying: each try is a storage read and a key derivation. */
+/**
+ * Never prompts. One shared unlock, and a failed one waits before retrying: each try is a storage read and a
+ * key derivation.
+ */
 function createVaultKeys(
 	host: SpaceAccessHost,
 ): () => Promise<LiveKeys | null> {

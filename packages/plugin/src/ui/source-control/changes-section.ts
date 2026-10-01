@@ -54,11 +54,7 @@ const SELECTION_ACTIONS: Record<ESection, ReadonlyArray<SelectionAction>> = {
 	],
 };
 
-/**
- * Below this a list is cheap to build whole, and building it whole keeps
- * anything that changes a row's height - an expanded conflict preview - working
- * without the list having to measure it.
- */
+/** Below this a list is built whole, so a row height change (an expanded conflict preview) needs no measuring. */
 const VIRTUAL_MIN_ROWS = 100;
 
 /** One section of the Changes pane: its header, selection, folders and list. */
@@ -177,7 +173,6 @@ export class ChangesSection {
 					).buttonEl,
 			];
 		}
-		// Nothing acts on a selection here.
 		if (this.selectionButtons.length === 0) return;
 
 		const selectionControls = bar.createDiv({
@@ -213,10 +208,7 @@ export class ChangesSection {
 		if (await run([...this.selected])) this.selected.clear();
 	}
 
-	/**
-	 * Fills the list, and can refill it in place: expanding a folder changes
-	 * which rows exist without touching anything else on the pane.
-	 */
+	/** Refills in place: expanding a folder changes which rows exist without touching the rest of the pane. */
 	private layoutList(list: HTMLElement, rows: ReadonlyArray<FileRow>): void {
 		const scroller = this.deps.scroller();
 		// Dropping the list drops its height, and the browser clamps the pane's

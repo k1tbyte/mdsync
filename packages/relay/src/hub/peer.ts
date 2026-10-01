@@ -1,7 +1,6 @@
 /**
- * A hub socket as the pure hub logic sees it. One socket carries several
- * channels; a slot is that socket's index for a channel, so one channel can sit
- * at different slots on different sockets.
+ * A hub socket as the pure hub logic sees it. A slot is the socket's index for a channel, so one channel
+ * sits at different slots on different sockets.
  */
 
 /** A channel a socket was admitted to, checked by the worker before the hub woke. */

@@ -4,11 +4,9 @@ import { sha256Hex } from "@/crypto";
 import type { S3StorageConfig } from "@/storage/config";
 
 /**
- * SigV4 request signing for S3-compatible storage, so requests can go through
- * Obsidian's `requestUrl` instead of `fetch`. The plugin runs at origin
- * `app://obsidian.md`, where `fetch` is subject to CORS: AWS S3 and most
- * compatible backends reject it until the user hand-writes a bucket CORS
- * policy. `requestUrl` is not a browser fetch and never asks.
+ * SigV4 signing for S3-compatible storage, so requests go through Obsidian's `requestUrl` instead of
+ * `fetch`: at origin `app://obsidian.md` fetch is subject to CORS, which most backends reject until the
+ * user hand-writes a bucket CORS policy.
  */
 const ALGORITHM = "AWS4-HMAC-SHA256";
 const SERVICE = "s3";
@@ -18,11 +16,9 @@ const EMPTY_PAYLOAD_SHA256 =
 	"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
 /**
- * Hashing an upload would mean a second full pass over every blob, on the same
- * thread that draws the UI. TLS already protects the body in transit, and this
- * is the option AWS documents for exactly that trade - over HTTPS only. A
- * plain-HTTP endpoint (a MinIO on the LAN) has no transport integrity to lean
- * on, so there the body is hashed after all.
+ * Hashing an upload is a second full pass over every blob on the UI thread. Over HTTPS TLS protects the
+ * body and AWS documents this option; a plain-HTTP endpoint (a LAN MinIO) has no transport integrity, so
+ * there the body is hashed.
  */
 const UNSIGNED_PAYLOAD = "UNSIGNED-PAYLOAD";
 
@@ -53,8 +49,7 @@ export type S3Signer = (input: S3RequestInput) => Promise<SignedRequest>;
 export function createS3Signer(config: S3StorageConfig): S3Signer {
 	const endpoint = resolveEndpoint(config);
 	const region = signingRegion(config);
-	// Derived signing keys are stable per (secret, day, region), and a push
-	// signs one request per object.
+	// Derived signing keys are stable per (secret, day, region); a push signs one request per object.
 	let cached: { dateStamp: string; key: CryptoKey } | null = null;
 
 	const signingKey = async (dateStamp: string): Promise<CryptoKey> => {
@@ -78,8 +73,7 @@ export function createS3Signer(config: S3StorageConfig): S3Signer {
 
 		const signed: Record<string, string> = { host: endpoint.host };
 		for (const [name, value] of Object.entries(input.headers ?? {})) {
-			// SigV4 canonicalises a header value by trimming it and collapsing
-			// every internal run of whitespace to one space.
+			// SigV4 canonicalises a header value by trimming it and collapsing internal whitespace runs to one space.
 			signed[name.toLowerCase()] = value.trim().replace(/\s+/g, " ");
 		}
 		signed["x-amz-content-sha256"] = payloadHash;
@@ -135,10 +129,9 @@ interface ResolvedEndpoint {
 }
 
 /**
- * The default region is "auto", which R2 accepts and AWS does not: with no
- * endpoint configured it would name the host `s3.auto.amazonaws.com`, which
- * resolves nowhere. Signing for us-east-1 instead fails with a 400 that names
- * the bucket's real region, an answer the user can act on.
+ * The default region "auto" is accepted by R2 but not AWS: with no endpoint it would name the host
+ * `s3.auto.amazonaws.com`, which resolves nowhere. us-east-1 instead fails with a 400 naming the bucket's
+ * real region, which the user can act on.
  */
 export function signingRegion(config: S3StorageConfig): string {
 	const region = config.region.trim();
@@ -156,8 +149,7 @@ export function endpointUrl(config: S3StorageConfig): string {
 
 function resolveEndpoint(config: S3StorageConfig): ResolvedEndpoint {
 	const url = new URL(endpointUrl(config));
-	// Only the hostname is lowercased. A bucket typed with capitals is still
-	// that bucket in a path-style URI, but DNS is case-insensitive and the
+	// Only the hostname is lowercased: a capitalised bucket is still itself in a path-style URI, but the
 	// transport sends a lowercased Host, which would not match the signature.
 	const host = config.forcePathStyle
 		? url.host
@@ -179,8 +171,8 @@ async function payloadDigest(
 }
 
 /**
- * A bucket-level call has no key: its URI is the bucket itself, and a trailing
- * slash would sign a path S3 does not resolve to it.
+ * A bucket-level call has no key: its URI is the bucket itself, and a trailing slash would sign a path S3
+ * does not resolve to it.
  */
 function objectUri(
 	config: S3StorageConfig,
