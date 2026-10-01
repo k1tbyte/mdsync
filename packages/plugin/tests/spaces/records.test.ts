@@ -3,7 +3,13 @@ import { device, joined, record } from "@tests/helpers/space-records";
 import { beforeAll, describe, expect, it } from "vitest";
 import { deriveKey, type EncryptionKey, encryptJson } from "@/crypto";
 import { mountError, spacesOf } from "@/spaces/partition";
-import { isNewer, isSpaceRecord, type SpaceRecord } from "@/spaces/record";
+import {
+	closeRecord,
+	isNewer,
+	isSpaceRecord,
+	mergeRecords,
+	type SpaceRecord,
+} from "@/spaces/record";
 import type { SpaceRecords } from "@/spaces/records";
 import { VAULT_SPACE } from "@/sync/space";
 
@@ -20,6 +26,16 @@ describe("space records", () => {
 			true,
 		);
 		expect(isNewer(record("a", "x", 1), record("a", "x", 1))).toBe(false);
+	});
+
+	it("keep a close over edits made offline before it, however many", () => {
+		const open = record("a", "x", 1);
+		const closed = closeRecord(open, "laptop");
+		let moved = open;
+		for (let i = 0; i < 50; i++)
+			moved = { ...moved, root: `y${i}`, rev: moved.rev + 1 };
+
+		expect(mergeRecords([closed], [moved])).toEqual([closed]);
 	});
 
 	it("rejects anything that is not a whole record", () => {
@@ -111,7 +127,7 @@ describe("paused shares", () => {
 		const laptop = device([record("a", "Team")]);
 		const phone = device();
 
-		await laptop.records.setPaused("a", true);
+		await laptop.records.setPause("a", "here", "laptop");
 		await laptop.records.sync(storage, key);
 		await phone.records.sync(storage, key);
 
@@ -125,13 +141,75 @@ describe("paused shares", () => {
 
 	it("resume where they left off, and a closed one is paused no more", async () => {
 		const laptop = device([record("a", "Team"), record("b", "Notes")]);
-		await laptop.records.setPaused("a", true);
-		await laptop.records.setPaused("b", true);
+		await laptop.records.setPause("a", "here", "laptop");
+		await laptop.records.setPause("b", "here", "laptop");
 
-		await laptop.records.setPaused("a", false);
+		await laptop.records.setPause("a", null, "laptop");
 		await laptop.records.close("b", "laptop");
 
 		expect(laptop.settings.pausedSpaces).toEqual([]);
+	});
+
+	it("pause on every device of the person, and resume from any of them", async () => {
+		const storage = new FakeStorage();
+		const laptop = device([record("a", "Team")]);
+		const phone = device();
+		await laptop.records.setPause("a", "everywhere", "laptop");
+		await laptop.records.sync(storage, key);
+		await phone.records.sync(storage, key);
+
+		const paused = { id: "a", root: "Team", paused: true };
+		expect(phone.records.partition()).toEqual([VAULT_SPACE, paused]);
+		expect(phone.records.pauseOf("a")).toBe("everywhere");
+
+		await phone.records.setPause("a", null, "phone");
+		await phone.records.sync(storage, key);
+		await laptop.records.sync(storage, key);
+
+		expect(laptop.records.partition()).toEqual([
+			VAULT_SPACE,
+			{ id: "a", root: "Team" },
+		]);
+		expect(laptop.records.get("a")).toMatchObject({ rev: 3, author: "phone" });
+	});
+
+	it("switch between paused here and on every device in one step", async () => {
+		const storage = new FakeStorage();
+		const laptop = device([record("a", "Team")]);
+		const phone = device();
+		await phone.records.sync(storage, key);
+		await laptop.records.setPause("a", "here", "laptop");
+
+		await laptop.records.setPause("a", "everywhere", "laptop");
+		expect(laptop.settings.pausedSpaces).toEqual([]);
+		expect(laptop.records.pauseOf("a")).toBe("everywhere");
+
+		await laptop.records.setPause("a", "here", "laptop");
+		await laptop.records.sync(storage, key);
+		await phone.records.sync(storage, key);
+		expect(laptop.records.pauseOf("a")).toBe("here");
+		expect(phone.records.pauseOf("a")).toBeNull();
+	});
+
+	it("all pause where shared folders are off, those arriving later too", async () => {
+		const storage = new FakeStorage();
+		const laptop = device([record("a", "Team")]);
+		const phone = device();
+		phone.settings.useSharedFolders = false;
+		await laptop.records.sync(storage, key);
+		await laptop.records.add(record("b", "Notes"));
+		await laptop.records.sync(storage, key);
+		await phone.records.sync(storage, key);
+
+		expect(phone.records.partition().slice(1)).toEqual([
+			{ id: "a", root: "Team", paused: true },
+			{ id: "b", root: "Notes", paused: true },
+		]);
+		expect(phone.records.pauseOf("a")).toBe("off");
+
+		phone.settings.useSharedFolders = true;
+		expect(phone.records.partition()).toHaveLength(3);
+		expect(phone.records.partition().some((space) => space.paused)).toBe(false);
 	});
 });
 
@@ -192,7 +270,7 @@ describe("records through the vault storage", () => {
 		const phone = device();
 		await laptop.records.sync(storage, key);
 		await phone.records.sync(storage, key);
-		await phone.records.setPaused("a", true);
+		await phone.records.setPause("a", "here", "phone");
 
 		await laptop.records.close("a", "laptop");
 		await laptop.records.sync(storage, key);
@@ -210,7 +288,7 @@ describe("records through the vault storage", () => {
 		await phone.records.sync(storage, key);
 		expect(phone.settings.pausedSpaces).toEqual(["a"]);
 
-		await phone.records.setPaused("a", false);
+		await phone.records.setPause("a", null, "phone");
 		await laptop.records.add(record("a", "Shared/a", 2));
 		await laptop.records.add(record("b", "Shared/b"));
 		await laptop.records.sync(storage, key);
@@ -227,7 +305,7 @@ describe("records through the vault storage", () => {
 	it("stay with the vault storage they were traded with", async () => {
 		const first = new FakeStorage("first");
 		const laptop = device([record("a", "Shared/a")]);
-		await laptop.records.setPaused("a", true);
+		await laptop.records.setPause("a", "here", "laptop");
 		await laptop.records.sync(first, key);
 
 		// Named, so this device forgets its state of it and says so.
@@ -265,12 +343,13 @@ describe("records through the vault storage", () => {
 		await laptop.records.sync(storage, key);
 		await laptop.records.close("a", "laptop");
 		await laptop.records.sync(storage, key);
+		const closedRev = laptop.records.get("a")?.rev ?? 0;
 		const guest = device([joined("a", "Mine/a", 1, "guest")]);
 
 		expect((await guest.records.sync(storage, key)).closed).toEqual([]);
 		await laptop.records.sync(storage, key);
 
-		const rejoined = joined("a", "Mine/a", 3, "guest");
+		const rejoined = joined("a", "Mine/a", closedRev + 1, "guest");
 		expect([guest.records.list(), laptop.records.list()]).toEqual([
 			[rejoined],
 			[rejoined],

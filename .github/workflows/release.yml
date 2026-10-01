@@ -23,6 +23,9 @@ jobs:
                   node-version: 24.x
                   cache: "pnpm"
 
+            - name: Check the tag matches the manifest
+              run: test "$(jq -r .version manifest.json)" = "$GITHUB_REF_NAME"
+
             - run: pnpm install --frozen-lockfile
 
             - run: pnpm --filter obsync run build

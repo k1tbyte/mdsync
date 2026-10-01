@@ -1,7 +1,8 @@
 import { FakeStorage } from "@tests/helpers/fake-storage";
 import { publishManifest } from "@tests/helpers/manifest";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { deriveKey, type EncryptionKey, encryptJson } from "@/crypto";
+import { REMOTE_HISTORY_LOG_KEY } from "@/sync/constants";
 import { diffManifests } from "@/sync/history/changes";
 import {
 	clampMaxSnapshots,
@@ -101,6 +102,74 @@ describe("file-history GC math", () => {
 });
 
 describe("collectGarbage (change log)", () => {
+	it("checks every evicted pin with bounded concurrency before deleting objects", async () => {
+		const storage = new FakeStorage();
+		const k = await key();
+		const chain = Array.from({ length: 10 }, (_, index) =>
+			manifest(`s${index}`, index === 0 ? null : `s${index - 1}`, {
+				a: `A${index}`,
+			}),
+		);
+		const head = chain[9] as Manifest;
+		const log = logOf(chain);
+		await publishManifest(storage, k, head);
+		await writeHistoryLog(storage, k, "", log);
+		const checked: string[] = [];
+		let active = 0;
+		let peak = 0;
+		vi.spyOn(storage, "exists").mockImplementation(async (path) => {
+			checked.push(path);
+			peak = Math.max(peak, ++active);
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
+			active--;
+			return path === pinKey("s0");
+		});
+		const remove = vi.spyOn(storage, "delete");
+		const result = await collectGarbage({
+			storage,
+			key: k,
+			root: "",
+			log,
+			maxSnapshots: 1,
+			headManifest: head,
+		});
+		expect(checked.sort()).toEqual(
+			chain
+				.slice(0, 9)
+				.map((entry) => pinKey(entry.snapshotId))
+				.sort(),
+		);
+		expect(peak).toBe(4);
+		expect(result.skippedObjectSweep).toBe(true);
+		expect(remove).not.toHaveBeenCalled();
+	});
+
+	it("never sweeps after a failed pin check", async () => {
+		const storage = new FakeStorage();
+		const k = await key();
+		const chain = [
+			manifest("old", null, { a: "A" }),
+			manifest("head", "old", { a: "B" }),
+		];
+		const head = chain[1] as Manifest;
+		const log = logOf(chain);
+		await publishManifest(storage, k, head);
+		await writeHistoryLog(storage, k, "", log);
+		vi.spyOn(storage, "exists").mockRejectedValue(new Error("pin unavailable"));
+		const remove = vi.spyOn(storage, "delete");
+		await expect(
+			collectGarbage({
+				storage,
+				key: k,
+				root: "",
+				log,
+				maxSnapshots: 1,
+				headManifest: head,
+			}),
+		).rejects.toThrow("pin unavailable");
+		expect(remove).not.toHaveBeenCalled();
+	});
+
 	it("sweeps only hashes unreachable from retained records and HEAD", async () => {
 		const storage = new FakeStorage();
 		const k = await key();
@@ -469,5 +538,16 @@ describe("setSnapshotPinned", () => {
 			/can no longer be rebuilt/,
 		);
 		expect(await storage.exists(pinKey("s1"))).toBe(false);
+	});
+});
+
+describe("readHistoryLog", () => {
+	it("refuses a newer client's log rather than rewrite it", async () => {
+		const storage = new FakeStorage();
+		const k = await key();
+		const newer = { version: 3, snapshots: [], changes: {} };
+		await storage.put(REMOTE_HISTORY_LOG_KEY, await encryptJson(k, newer));
+
+		await expect(readHistoryLog(storage, k, "")).rejects.toThrow(/newer/);
 	});
 });

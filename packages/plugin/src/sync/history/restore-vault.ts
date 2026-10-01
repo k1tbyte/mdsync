@@ -30,6 +30,7 @@ export interface VaultRestorePlan {
 export function planVaultRestore(
 	target: Manifest,
 	local: LocalSnapshot,
+	inScope: (path: string) => boolean = () => true,
 ): VaultRestorePlan {
 	const ignored = new Set(local.ignoredPaths);
 	const plan: VaultRestorePlan = {
@@ -39,7 +40,7 @@ export function planVaultRestore(
 		ignored: [],
 	};
 	for (const [path, entry] of Object.entries(target.files)) {
-		if (ignored.has(path)) {
+		if (ignored.has(path) || !inScope(path)) {
 			plan.ignored.push(path);
 			continue;
 		}
@@ -50,9 +51,24 @@ export function planVaultRestore(
 		}
 		plan.write.push({ path, entry });
 	}
+	const written = new Set(plan.write.map(({ path }) => path.toLowerCase()));
 	for (const path of Object.keys(local.files)) {
 		if (ignored.has(path) || entryAt(target.files, path)) continue;
+		if (written.has(path.toLowerCase())) continue;
 		plan.remove.push(path);
 	}
 	return plan;
+}
+
+/** Same files to write, with the same content, and the same files to remove. */
+export function sameRestorePlan(
+	a: VaultRestorePlan,
+	b: VaultRestorePlan,
+): boolean {
+	return planKey(a) === planKey(b);
+}
+
+function planKey(plan: VaultRestorePlan): string {
+	const writes = plan.write.map(({ path, entry }) => `${path}\0${entry.hash}`);
+	return JSON.stringify([writes.sort(), [...plan.remove].sort()]);
 }

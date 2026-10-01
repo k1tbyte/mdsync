@@ -8,6 +8,7 @@ import {
 	JSON_GZIP_MIN_BYTES,
 	KDF_ITERATIONS,
 	KDF_SALT_LABEL,
+	MIN_PASSPHRASE_LENGTH,
 } from "@/crypto/constants";
 import { deflateBytes, GZIP, inflateBytes } from "@/utils/compress";
 
@@ -16,6 +17,13 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 export type EncryptionKey = CryptoKey;
+
+/** Why a passphrase is too weak to set, or null. */
+export function weakPassphrase(passphrase: string): string | null {
+	return [...passphrase].length < MIN_PASSPHRASE_LENGTH
+		? `A passphrase needs at least ${MIN_PASSPHRASE_LENGTH} characters.`
+		: null;
+}
 
 export async function deriveKey(
 	passphrase: string,
@@ -26,7 +34,8 @@ export async function deriveKey(
 	}
 	const baseKey = await subtle.importKey(
 		"raw",
-		encoder.encode(passphrase),
+		// One passphrase typed or pasted on two systems may differ in Unicode form.
+		encoder.encode(passphrase.normalize("NFC")),
 		{ name: "PBKDF2" },
 		false,
 		["deriveKey"],

@@ -1,7 +1,9 @@
 /**
- * Per-socket ceilings no honest client reaches: documents flush every 250 ms
- * and a socket follows at most 64. A read-only grant never signals (that wakes
- * every device of the channel into a sync) and its presence is capped tighter.
+ * Per-socket ceilings. The burst takes an update and a cursor from each of the 64
+ * documents a socket may follow; sustained bulk edits can pass the rate, and the
+ * client resends an update whose echo never came. A read-only grant never
+ * signals (that wakes every device of the channel into a sync) and its presence
+ * is capped tighter.
  */
 
 import { type ClientFrame, EFrame } from "@obsync/protocol";
@@ -11,7 +13,7 @@ interface Rate {
 	burst: number;
 }
 
-const FRAMES: Rate = { perSecond: 32, burst: 128 };
+const FRAMES: Rate = { perSecond: 32, burst: 256 };
 const READ_ONLY_AWARENESS: Rate = { perSecond: 20, burst: 40 };
 /** An announcement is about 1 KB sealed, a cursor less. */
 const MAX_READ_ONLY_AWARENESS_BYTES = 4 * 1024;

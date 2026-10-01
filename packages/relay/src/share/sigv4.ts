@@ -44,7 +44,7 @@ export function createPresigner(
 	const host = target.forcePathStyle
 		? endpoint.host
 		: `${target.bucket}.${endpoint.host}`;
-	const basePath = endpoint.pathname.replace(/\/+$/, "");
+	const basePath = decodePath(endpoint.pathname.replace(/\/+$/, ""));
 	const amzDate = new Date()
 		.toISOString()
 		.replace(/[:-]/g, "")
@@ -140,4 +140,17 @@ function encodeRfc3986(value: string): string {
 
 function encodePath(path: string): string {
 	return path.split("/").map(encodeRfc3986).join("/");
+}
+
+function decodePath(path: string): string {
+	return path
+		.split("/")
+		.map((segment) => {
+			try {
+				return decodeURIComponent(segment);
+			} catch {
+				return segment;
+			}
+		})
+		.join("/");
 }

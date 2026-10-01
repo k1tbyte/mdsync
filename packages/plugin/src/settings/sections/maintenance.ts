@@ -32,7 +32,7 @@ const MAINTENANCE_ACTIONS: ReadonlyArray<MaintenanceAction> = [
 	},
 	{
 		name: "Deep-clean orphaned objects",
-		desc: "List storage and delete file contents and pins unreachable from the manifest or history.",
+		desc: "List storage and delete file contents and pins unreachable from the manifest or history. Anything written in the last day stays.",
 		buttonText: "Deep-clean",
 		warning: true,
 		run: deepCleanOrphanedObjects,

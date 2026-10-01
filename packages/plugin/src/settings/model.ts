@@ -16,6 +16,7 @@ import {
 	type S3StorageConfig,
 	type StorageAdapterConfig,
 } from "@/storage";
+import { CONCURRENCY_FIELD } from "@/storage/field-spec";
 
 const DEFAULT_MAX_FILE_BYTES = 100 * 1024 * 1024;
 
@@ -67,12 +68,16 @@ export interface ObsyncSettings {
 	showOpenNote: boolean;
 	/** This device's copy of the shared folders it syncs; see `spaces/`. */
 	spaces: SpaceRecord[];
+	/** Off: every share is paused here and kept out of sight. Never published. */
+	useSharedFolders: boolean;
 	/** Shares this device holds out of sync; never published, unlike `spaces`. */
 	pausedSpaces: string[];
 	/** Shares this person adds on other devices arrive paused here. Never published. */
 	pauseArrivingShares: boolean;
 	/** A change in a shared folder is pushed once the folder is quiet a moment, not with the vault. */
 	pushSharesRightAway: boolean;
+	/** Only added, moved and deleted files go right away; edits wait for a push. */
+	shareEditsWait: boolean;
 	/** Shares moved on another device, by id: where the folder still is here. Never published. */
 	localRoots: Record<string, string>;
 	/** The vault storage (identity) the records were traded with: another vault's never reach this one. */
@@ -113,9 +118,11 @@ export const DEFAULT_SETTINGS: ObsyncSettings = {
 	showLiveAuthors: false,
 	showOpenNote: true,
 	spaces: [],
+	useSharedFolders: true,
 	pausedSpaces: [],
 	pauseArrivingShares: false,
 	pushSharesRightAway: true,
+	shareEditsWait: true,
 	localRoots: {},
 	spacesVault: null,
 	relayUrl: "",
@@ -178,7 +185,7 @@ const RETIRED_KEYS = [
 ] as const;
 
 /** Bounds for numeric settings. Clamping here prevents invalid values from files or tokens. */
-const NUMERIC_BOUNDS = {
+export const NUMERIC_BOUNDS = {
 	maxFileBytes: { min: 1, max: 2 * 1024 * 1024 * 1024 },
 	autoSyncIntervalMinutes: {
 		min: AUTO_SYNC_MIN_MINUTES,
@@ -194,7 +201,10 @@ const NUMERIC_BOUNDS = {
 	},
 } as const satisfies Partial<Record<keyof ObsyncSettings, Bounds>>;
 
-const CONCURRENCY_BOUNDS: Bounds = { min: 1, max: 32 };
+const CONCURRENCY_BOUNDS: Bounds = {
+	min: CONCURRENCY_FIELD.min,
+	max: CONCURRENCY_FIELD.max,
+};
 
 interface Bounds {
 	min: number;
@@ -229,7 +239,7 @@ export function mergeSettings(
 	};
 	// Backfill fields added after initial save from backend defaults.
 	for (const [kind, config] of Object.entries(storageConfigs)) {
-		if (!isKnownBackend(kind)) {
+		if (!isKnownBackend(kind) || !config || typeof config !== "object") {
 			delete storageConfigs[kind];
 			continue;
 		}

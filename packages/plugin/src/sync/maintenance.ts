@@ -13,6 +13,10 @@ import {
 } from "./history";
 import { fetchRemoteManifest, objectKey } from "./manifest";
 import type { Manifest } from "./types";
+import { UPLOAD_TRUST_MS } from "./uploads";
+
+/** Past any upload a push still trusts, with room for clock skew. */
+const ORPHAN_MIN_AGE_MS = 2 * UPLOAD_TRUST_MS;
 
 export interface MaintenanceOptions {
 	concurrency?: number;
@@ -143,8 +147,8 @@ export async function deepCleanOrphans(
 	);
 
 	const [objectKeys, pinKeys] = await Promise.all([
-		storage.list(REMOTE_OBJECTS_PREFIX),
-		storage.list(REMOTE_PINS_PREFIX),
+		settledKeys(storage, REMOTE_OBJECTS_PREFIX),
+		settledKeys(storage, REMOTE_PINS_PREFIX),
 	]);
 
 	// If another device published during listing, its new objects appear as orphans. Bail.
@@ -183,6 +187,27 @@ export async function deepCleanOrphans(
 		deletedObjects: orphanObjects.length,
 		deletedPins: orphanPins.length,
 	};
+}
+
+/**
+ * Keys old enough to be no push's: another device's push uploads before it
+ * publishes, and a pin's manifest lands before its flag. Undated ones are kept.
+ */
+async function settledKeys(
+	storage: StorageAdapter,
+	prefix: string,
+): Promise<string[]> {
+	if (!storage.listDetailed) {
+		throw new Error(
+			"This storage does not report when objects were written, so a running upload cannot be told from an orphan.",
+		);
+	}
+	const settledBefore = Date.now() - ORPHAN_MIN_AGE_MS;
+	return (await storage.listDetailed(prefix))
+		.filter(
+			(object) => object.modified !== null && object.modified < settledBefore,
+		)
+		.map((object) => object.key);
 }
 
 function pinnedSignature(log: HistoryLog): string {

@@ -2,6 +2,7 @@ import type { PluginHost } from "@/plugin/host";
 import { EConflictStrategy, type SyncOperationResult } from "@/sync/controller";
 import { EDiffDirection, type FileDiffModel } from "@/sync/projection";
 import { notifyError, runWithNotice } from "@/ui/common";
+import { openConfirmModal } from "@/ui/modals";
 import { confirmRestore } from "@/ui/source-control/restore-modal";
 import { EChoiceKind, type HunkChoices } from "./choices";
 import type { HistoryChange } from "./history-state";
@@ -60,6 +61,14 @@ export class DiffOperations {
 		if (!path || !model || this.hunkOpInFlight || choices.size === 0) return;
 		// Historical change mode has no working copy to apply to.
 		if (historyChange) return;
+		const reverting = choices.count(EChoiceKind.Revert);
+		if (
+			model.direction === EDiffDirection.Local &&
+			reverting > 0 &&
+			!(await confirmHunkRevert(this.plugin, reverting))
+		) {
+			return;
+		}
 		this.hunkOpInFlight = true;
 		const applied = choices.size;
 		const expected = { left: model.leftHash, right: model.rightHash };
@@ -172,4 +181,21 @@ export class DiffOperations {
 			notifyError(failureLabel, error);
 		}
 	}
+}
+
+/** Reverted lines exist nowhere else: the remote never had them. */
+function confirmHunkRevert(
+	plugin: PluginHost,
+	count: number,
+): Promise<boolean> {
+	return openConfirmModal({
+		app: plugin.app,
+		title: `Revert ${count} change(s)?`,
+		body: [
+			"These local edits are replaced with the last synced text. This cannot be undone.",
+		],
+		confirmLabel: "Revert",
+		cancelLabel: "Keep my changes",
+		confirmClass: "mod-warning",
+	});
 }

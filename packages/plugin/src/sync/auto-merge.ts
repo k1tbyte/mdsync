@@ -34,6 +34,8 @@ export async function autoMergeOp(
 		result.diff.conflicts,
 		deps.concurrency ?? DEFAULT_CONCURRENCY,
 		async (conflict, index) => {
+			// A share moved or paused meanwhile: what is left would land at its old path.
+			if (deps.signal?.aborted) return;
 			const entry = await settleConflict(deps, result, conflict);
 			if (entry === undefined) return;
 			localEntries.set(conflict.path, entry);
@@ -41,9 +43,10 @@ export async function autoMergeOp(
 		},
 	);
 	const mergedPaths = merged.filter((path): path is string => path !== null);
+	const cancelled = deps.signal?.aborted === true;
 
 	if (mergedPaths.length === 0) {
-		return { newRemote: result.remote, touchedPaths: new Set() };
+		return { newRemote: result.remote, touchedPaths: new Set(), cancelled };
 	}
 
 	const nextHashCache = mergeWrittenIntoCache(
@@ -71,6 +74,7 @@ export async function autoMergeOp(
 	return {
 		newRemote: result.remote,
 		touchedPaths: new Set(mergedPaths),
+		cancelled,
 		// Merged text is new: localEntries ensures the snapshot does not adopt the remote hash and drop the push.
 		localEntries,
 	};
@@ -114,7 +118,7 @@ async function settleConflict(
 	if (side === "local") return result.snapshot.files[conflict.path] ?? null;
 	const remote = result.remote?.files[conflict.path];
 	if (side === "remote" && remote) {
-		return writeIncoming(deps, conflict.path, remote);
+		return (await writeIncoming(deps, conflict.path, remote)) ?? undefined;
 	}
 	// No common ancestor: nothing to merge against, and no reason to stat.
 	if (!conflict.baselineHash) return undefined;

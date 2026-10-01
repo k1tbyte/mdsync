@@ -7,6 +7,8 @@ import { mergeResults } from "./merged-result";
 export interface SpaceError {
 	root: string;
 	message: string;
+	/** It lost every file it had here: `settleGone` resolves it. */
+	gone?: true;
 }
 
 export interface SyncStatusSnapshot {
@@ -92,6 +94,8 @@ export class SyncControllerRuntimeState {
 
 	dispose(): void {
 		this.broadcaster.dispose();
+		// A push or pull left running would finish against the next instance's state.
+		this.cancel();
 		// Obsidian keeps a plugin's bundle scope alive through any closure that
 		// outlives unload, and other plugins hold detached elements of ours. What
 		// survives should be an empty controller, not 20k files worth of compare.

@@ -14,6 +14,7 @@ import {
 	type ObsyncSettings,
 } from "@/settings/model";
 import { relayBase } from "@/shared/path";
+import { pauseOf } from "@/spaces";
 import type { SpaceRecord } from "@/spaces/record";
 import { storageIdentity } from "@/storage";
 import { VAULT_SPACE } from "@/sync/space";
@@ -26,6 +27,8 @@ export interface HubRoute {
 	key: string;
 	/** Space ids in slot order; the vault, where present, is slot 0. */
 	spaces: readonly string[];
+	/** Past the hub's slots: not carried, rather than waiting forever. */
+	full: readonly string[];
 	channels(): Promise<HubChannel[]>;
 }
 
@@ -37,12 +40,13 @@ interface Slot {
 
 export function hubRoutes(settings: ObsyncSettings): HubRoute[] {
 	if (!settings.realtimeSync) return [];
-	const routes = new Map<string, Slot[]>();
+	const routes = new Map<string, { slots: Slot[]; full: string[] }>();
 	const add = (url: string, slot: Slot) => {
 		const serverUrl = relayBase(url);
-		const slots = routes.get(serverUrl) ?? [];
-		// The hub admits no more: a space past them is not carried, rather than waiting forever.
-		if (slots.length < MAX_SLOTS) routes.set(serverUrl, [...slots, slot]);
+		const route = routes.get(serverUrl) ?? { slots: [], full: [] };
+		if (route.slots.length < MAX_SLOTS) route.slots.push(slot);
+		else route.full.push(slot.space);
+		routes.set(serverUrl, route);
 	};
 	if (isRelayConfigured(settings) && isStorageConfigured(settings)) {
 		const { relayUrl, relaySecret } = settings;
@@ -69,10 +73,11 @@ export function hubRoutes(settings: ObsyncSettings): HubRoute[] {
 			channel: async () => ({ channel: shareChannel(id), token: access.token }),
 		});
 	}
-	return [...routes].map(([serverUrl, slots]) => ({
+	return [...routes].map(([serverUrl, { slots, full }]) => ({
 		serverUrl,
 		key: JSON.stringify(slots.map(({ space, key }) => [space, key])),
 		spaces: slots.map((slot) => slot.space),
+		full,
 		channels: () => Promise.all(slots.map((slot) => slot.channel())),
 	}));
 }
@@ -80,7 +85,7 @@ export function hubRoutes(settings: ObsyncSettings): HubRoute[] {
 /** A paused share is not synced here, so nothing signals it either. */
 function openRecords(settings: ObsyncSettings): SpaceRecord[] {
 	return settings.spaces.filter(
-		(record) => !record.closed && !settings.pausedSpaces.includes(record.id),
+		(record) => !record.closed && pauseOf(record, settings) === null,
 	);
 }
 

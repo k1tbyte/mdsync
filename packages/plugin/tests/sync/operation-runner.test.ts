@@ -3,7 +3,7 @@ import type { TestSession } from "@tests/helpers/session";
 import { pairedSessions, useEncryptionKey } from "@tests/helpers/session";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { ESyncLogOperation } from "@/logs/store";
-import { StorageRequestError } from "@/storage";
+import { ShareRefusedError, StorageRequestError } from "@/storage";
 import { SyncCancelledError } from "@/sync/cancel";
 import { ConcurrentPushError } from "@/sync/manifest";
 import { pushPathsOp } from "@/sync/operations/push";
@@ -295,6 +295,35 @@ describe("OperationRunner.refreshNow", () => {
 		host.openSession.mockImplementation(open ?? (async () => null));
 		await runner.runOperation(share, ESyncLogOperation.Compare, unchanged);
 		expect(runtimeState.getSnapshot().spaceErrors).toEqual([]);
+	});
+
+	it("reports a share's refused link, not any other storage refusal", async () => {
+		const [session] = pairedSessions();
+		const { runner, host } = createTestRunner(session);
+		const onShareRefused = vi.fn();
+		Object.assign(host, { onShareRefused });
+		const share = { id: "share", root: "Team" };
+		host.spaces = async () => [VAULT_SPACE, share];
+		const open = host.openSession.getMockImplementation();
+		let refusal: Error = new StorageRequestError("403", "Access denied");
+		host.openSession.mockImplementation(async (space, partition) => {
+			const deps = await open?.(space, partition);
+			if (!deps || space !== share) return deps ?? null;
+			const storage = new Proxy(deps.storage, {
+				get: (_, key) =>
+					key === "identity"
+						? () => "broker|share"
+						: () => Promise.reject(refusal),
+			});
+			return { ...deps, space: share, storage };
+		});
+
+		await runner.refreshNow();
+		expect(onShareRefused).not.toHaveBeenCalled();
+
+		refusal = new ShareRefusedError("401", "Invite no longer valid");
+		await runner.refreshNow();
+		expect(onShareRefused).toHaveBeenCalledExactlyOnceWith(share);
 	});
 
 	it("forgets a share's baseline wherever it was mounted, with no storage to open", async () => {

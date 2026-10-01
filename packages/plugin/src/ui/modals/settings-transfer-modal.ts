@@ -1,11 +1,18 @@
 import { type App, type ButtonComponent, Modal, Setting } from "obsidian";
 
 import { activeStorage, type ObsyncSettings } from "@/settings/model";
+import type { TransferSection } from "@/settings/transfer";
 import { describeStorageTarget } from "@/storage";
 import { onEnter } from "@/ui/common";
 import { openPromiseModal } from "./promise-modal";
 
 const IMPORT_CONFIRMATION_TEXT = "IMPORT";
+const SECTION_NAMES: Record<TransferSection, string> = {
+	storage: "storage",
+	scope: "what syncs, ignore patterns and the file size limit",
+	automation: "automatic sync and file history",
+	realtime: "relay and live editing",
+};
 
 class SettingsTransferImportModal extends Modal {
 	private readonly resolveValue: (value: string | null) => void;
@@ -70,18 +77,17 @@ class SettingsTransferImportModal extends Modal {
 }
 
 class SettingsTransferConfirmModal extends Modal {
-	private readonly settings: ObsyncSettings;
 	private readonly resolveValue: (confirmed: boolean) => void;
 	private settled = false;
 	private value = "";
 
 	constructor(
 		app: App,
-		settings: ObsyncSettings,
+		private readonly settings: ObsyncSettings,
+		private readonly sections: readonly TransferSection[],
 		resolveValue: (confirmed: boolean) => void,
 	) {
 		super(app);
-		this.settings = settings;
 		this.resolveValue = resolveValue;
 	}
 
@@ -89,14 +95,16 @@ class SettingsTransferConfirmModal extends Modal {
 		const { contentEl, titleEl } = this;
 		titleEl.setText("Import Obsync setup");
 		contentEl.createEl("p", {
-			text: "Imported setup updates the included storage and main sync settings on this device.",
+			text: `Replaces on this device: ${this.sections.map((section) => SECTION_NAMES[section]).join("; ")}. A setting the other device left at its default is reset to the default here.`,
 		});
 		contentEl.createEl("p", {
-			text: "Unselected sections, local-only display preferences, and passphrase cache settings stay unchanged.",
+			text: "Other sections, local-only display preferences, and passphrase cache settings stay unchanged.",
 		});
-		contentEl.createEl("p", {
-			text: describeStorageTarget(activeStorage(this.settings)),
-		});
+		if (this.sections.includes("storage")) {
+			contentEl.createEl("p", {
+				text: describeStorageTarget(activeStorage(this.settings)),
+			});
+		}
 		contentEl.createEl("p", {
 			text: `Type ${IMPORT_CONFIRMATION_TEXT} to continue.`,
 		});
@@ -157,9 +165,11 @@ export function askSettingsTransferInput(app: App): Promise<string | null> {
 export function confirmSettingsTransferImport(
 	app: App,
 	settings: ObsyncSettings,
+	sections: readonly TransferSection[],
 ): Promise<boolean> {
 	return openPromiseModal<boolean>(
-		(answer) => new SettingsTransferConfirmModal(app, settings, answer),
+		(answer) =>
+			new SettingsTransferConfirmModal(app, settings, sections, answer),
 		false,
 	);
 }

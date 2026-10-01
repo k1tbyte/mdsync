@@ -137,16 +137,47 @@ describe("batch signing", () => {
 		}
 	});
 
-	it("takes keys only with get", async () => {
+	it("takes keys only with get or put", async () => {
 		const env = await registeredEnv();
 		const token = await issue(env, "p1");
-		for (const op of ["put", "delete", "list", "head", "post", undefined]) {
+		for (const op of ["delete", "list", "head", "post", undefined]) {
 			const response = await sign(env, token, { op, keys: ["objects/a"] });
 			expect(response.status, String(op)).toBe(400);
 			expect(((await response.json()) as { error: string }).error).toBe(
 				"bad_request",
 			);
 		}
+	});
+
+	it("signs PUT batches like individual PUTs, only within the share", async () => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(new Date("2024-03-05T10:00:00Z"));
+		const env = await registeredEnv();
+		const token = await issue(env, "p1");
+		const keys = objectKeys(3);
+		const response = await sign(env, token, { op: "put", keys });
+		const body = (await response.json()) as { urls: string[]; method: string };
+		expect(body.method).toBe("PUT");
+		for (const [index, key] of keys.entries()) {
+			const single = (await (
+				await sign(env, token, { op: "put", key })
+			).json()) as { url: string };
+			expect(body.urls[index]).toBe(single.url);
+		}
+		const unsafe = await sign(env, token, {
+			op: "put",
+			keys: ["objects/a", "../secret"],
+		});
+		expect(unsafe.status).toBe(400);
+		expect(((await unsafe.json()) as { urls?: string[] }).urls).toBeUndefined();
+	});
+
+	it("refuses a read-only participant's entire PUT batch", async () => {
+		const env = await registeredEnv();
+		const token = await issue(env, "p1", EShareRole.ReadOnly);
+		const response = await sign(env, token, { op: "put", keys: objectKeys(3) });
+		expect(response.status).toBe(403);
+		expect(await response.json()).toMatchObject({ error: "read_only" });
 	});
 
 	it("lets a read-only participant batch reads", async () => {

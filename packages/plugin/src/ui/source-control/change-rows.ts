@@ -3,7 +3,7 @@ import { appendIconButton, makeActivatable, onLongPress } from "@/ui/common";
 import type { SourceControlActions } from "./actions";
 import type { ConflictPreviewManager } from "./conflict-preview-manager";
 import { renderPath, renderSize } from "./row-parts";
-import type { ESection, FileRow, VisualRow } from "./types";
+import { ESection, type FileRow, type VisualRow } from "./types";
 
 /** What a row reads from, and reports back to, the section drawing it. */
 export interface RowContext {
@@ -73,19 +73,12 @@ export function renderFileRow(
 		ctx.openFileDiff(item, row.path),
 	);
 
-	const selection = item.createEl("label", {
-		cls: "obsync-file-selection",
-	});
-	selection.addEventListener("click", (event) => event.stopPropagation());
-	const checkbox = selection.createEl("input", {
-		type: "checkbox",
-		cls: "obsync-file-checkbox",
-	});
-	checkbox.setAttr("aria-label", `Select ${row.path}`);
-	checkbox.checked = ctx.isSelected(row.path);
-	checkbox.addEventListener("change", () => {
-		ctx.setSelected(row.path, checkbox.checked);
-	});
+	// Conflicts are resolved one by one or all at once, never by selection; the gap keeps rows aligned.
+	if (ctx.section === ESection.Conflicts) {
+		item.createSpan({ cls: "obsync-file-selection" });
+	} else {
+		renderCheckbox(item, row.path, ctx);
+	}
 
 	const copy = renderPath(item, row.path, ctx.layout === "flat");
 	if (row.from !== undefined) {
@@ -151,6 +144,26 @@ function showFileMenu(event: MouseEvent, row: FileRow, ctx: RowContext): void {
 }
 
 /** Indentation the flattened tree no longer gets from nested containers. */
+function renderCheckbox(
+	item: HTMLElement,
+	path: string,
+	ctx: RowContext,
+): void {
+	const selection = item.createEl("label", {
+		cls: "obsync-file-selection",
+	});
+	selection.addEventListener("click", (event) => event.stopPropagation());
+	const checkbox = selection.createEl("input", {
+		type: "checkbox",
+		cls: "obsync-file-checkbox",
+	});
+	checkbox.setAttr("aria-label", `Select ${path}`);
+	checkbox.checked = ctx.isSelected(path);
+	checkbox.addEventListener("change", () => {
+		ctx.setSelected(path, checkbox.checked);
+	});
+}
+
 function setDepth(el: HTMLElement, depth: number): void {
 	if (depth > 0) el.style.setProperty("--obsync-depth", String(depth));
 }

@@ -8,6 +8,7 @@ import { SyncController } from "@/sync/controller";
 import { projectSession } from "@/sync/session-state";
 import { nestedRoots, type Space, VAULT_SPACE } from "@/sync/space";
 import type { LocalState, Manifest } from "@/sync/types";
+import type { VaultIndex } from "@/vault/file-index";
 import { createScopePolicy } from "@/vault/scope";
 
 let vaultKey: EncryptionKey;
@@ -46,6 +47,8 @@ function device(
 	let mounted = root;
 	let marks = flags;
 	let guest = false;
+	let index: VaultIndex | undefined;
+	const unindexed: number[] = [];
 	const controller = new SyncController({
 		spaces: async () =>
 			mounted === null
@@ -65,6 +68,7 @@ function device(
 					otherRoots: nestedRoots(partition, space),
 				}),
 				key: space === VAULT_SPACE ? vaultKey : shareKey,
+				index,
 				state: projectSession(local, storage.identity(), space.root),
 				maxFileBytes: 1_000_000,
 				concurrency: 2,
@@ -78,7 +82,12 @@ function device(
 		logInfo: vi.fn(async () => {}),
 		logWarn: vi.fn(async () => {}),
 		logError: vi.fn(async () => {}),
+		onUnindexed: (count) => unindexed.push(count),
 	});
+	/** Sessions read this index instead of walking the disk. */
+	const useIndex = (next: VaultIndex) => {
+		index = next;
+	};
 	const mount = (next: string | null) => {
 		mounted = next;
 	};
@@ -89,7 +98,16 @@ function device(
 	const beGuest = (next: boolean) => {
 		guest = next;
 	};
-	return { adapter, controller, state: () => local, mount, mark, beGuest };
+	return {
+		adapter,
+		controller,
+		state: () => local,
+		mount,
+		mark,
+		beGuest,
+		useIndex,
+		unindexed,
+	};
 }
 
 async function publishedPaths(
@@ -122,6 +140,42 @@ describe("spaces in the file sync", () => {
 		]);
 	});
 
+	it("refreshes only the signalled share and keeps other spaces' results and hashes", async () => {
+		const on = remote();
+		const laptop = device(on, "Shared/p");
+		laptop.adapter.putText("a.md", "Vault");
+		laptop.adapter.putText("Shared/p/b.md", "Share");
+		await laptop.controller.refreshAndAutoSync();
+		const phone = device(on, "Mine/q");
+		await phone.controller.refreshAndAutoSync();
+		laptop.adapter.putText("Shared/p/new.md", "New");
+		await laptop.controller.refreshAndAutoSync();
+		const vaultGet = vi.spyOn(on.vault, "get");
+		const shareGet = vi.spyOn(on.share, "get");
+		await phone.controller.refreshAndAutoPull(new Set(["share"]));
+		expect(vaultGet).not.toHaveBeenCalled();
+		expect(
+			shareGet.mock.calls.filter(([key]) => key === REMOTE_MANIFEST_KEY),
+		).toHaveLength(1);
+		expect(phone.adapter.readText("Mine/q/new.md")).toBe("New");
+		expect(Object.keys(phone.state().hashCache).sort()).toEqual([
+			"Mine/q/b.md",
+			"Mine/q/new.md",
+			"a.md",
+		]);
+		expect(phone.controller.remoteHas("a.md")).toBe(true);
+	});
+
+	it("rediscovers changed share records on a vault signal", async () => {
+		const on = remote();
+		const phone = device(on, "Mine/q");
+		phone.adapter.putText("a.md", "Vault");
+		await phone.controller.refreshAndAutoSync();
+		phone.mount(null);
+		await phone.controller.refreshAndAutoPull(new Set([VAULT_SPACE.id]));
+		expect(phone.controller.spaceFor("Mine/q/note.md")).toBe(VAULT_SPACE);
+	});
+
 	it("mounts a share under each device's own folder and syncs edits both ways", async () => {
 		const on = remote();
 		const laptop = device(on, "Shared/p");
@@ -138,6 +192,63 @@ describe("spaces in the file sync", () => {
 
 		expect(laptop.adapter.readText("Shared/p/b.md")).toBe("B from the phone");
 		expect(laptop.controller.getSnapshot().conflicts).toBe(0);
+	});
+
+	it("settles a share that lost every file here: restored, or deleted for everyone", async () => {
+		const on = remote();
+		const laptop = device(on, "Shared/p");
+		laptop.adapter.putText("Shared/p/a.md", "A");
+		laptop.adapter.putText("Shared/p/b.md", "B");
+		await laptop.controller.refreshAndAutoSync();
+		const loseAll = async (paths: string[], fresh: string) => {
+			for (const path of paths) await laptop.adapter.remove(path);
+			laptop.adapter.putText(fresh, "new");
+			await laptop.controller.refreshAndAutoSync();
+		};
+
+		await loseAll(["Shared/p/a.md", "Shared/p/b.md"], "Shared/p/new.md");
+		expect(await publishedPaths(on.share, shareKey)).toEqual(["a.md", "b.md"]);
+		expect(laptop.controller.getSnapshot().spaceErrors).toMatchObject([
+			{ root: "Shared/p", gone: true },
+		]);
+
+		const share = laptop.controller.spaceFor("Shared/p");
+		await laptop.controller.settleGone(share, "restore");
+		expect(laptop.adapter.readText("Shared/p/a.md")).toBe("A");
+		expect(laptop.adapter.readText("Shared/p/new.md")).toBe("new");
+		expect(laptop.controller.getSnapshot().spaceErrors).toEqual([]);
+
+		await laptop.controller.refreshAndAutoSync();
+		await loseAll(
+			["Shared/p/a.md", "Shared/p/b.md", "Shared/p/new.md"],
+			"Shared/p/other.md",
+		);
+		await laptop.controller.settleGone(share, "delete");
+		expect(await publishedPaths(on.share, shareKey)).toEqual(["other.md"]);
+		expect(laptop.controller.getSnapshot().spaceErrors).toEqual([]);
+	});
+
+	it("lists the disk at the first full refresh and when asked, for files the index missed", async () => {
+		const on = remote();
+		const laptop = device(on, null);
+		laptop.useIndex({
+			configDir: ".obsidian",
+			files: () => [],
+			folders: () => [],
+			rename: async () => false,
+		});
+		laptop.adapter.putText("a.md", "copied in behind Obsidian's back");
+
+		await laptop.controller.refresh();
+		expect(laptop.controller.getSnapshot().pendingLocal).toBe(1);
+		// Remembered past the walk, so later compares can push it.
+		await laptop.controller.refresh();
+		expect(laptop.controller.getSnapshot().pendingLocal).toBe(1);
+		expect((await laptop.controller.pushPaths(["a.md"])).ok).toBe(true);
+		expect(await publishedPaths(on.vault, vaultKey)).toEqual(["a.md"]);
+
+		await laptop.controller.refreshFromDisk();
+		expect(laptop.unindexed).toEqual([1, 1]);
 	});
 
 	it("pulls a new shared file on a signal while this device has unpushed edits", async () => {
@@ -212,6 +323,18 @@ describe("spaces in the file sync", () => {
 		expect(await publishedPaths(on.share, shareKey)).toEqual(["b.md"]);
 	});
 
+	it("partitions first when a share's change comes before any refresh", async () => {
+		const on = remote();
+		const laptop = device(on, "Shared/p");
+		laptop.adapter.putText("Shared/p/b.md", "B");
+
+		await laptop.controller.autoPushShares(new Set(["Shared/p/b.md"]));
+		expect([
+			await publishedPaths(on.vault, vaultKey),
+			await publishedPaths(on.share, shareKey),
+		]).toEqual([[], ["b.md"]]);
+	});
+
 	it("routes by the partition of the last refresh, not by newer records", async () => {
 		const on = remote();
 		const laptop = device(on, null);
@@ -251,6 +374,12 @@ describe("spaces in the file sync", () => {
 		expect(await reader.controller.pushPaths(["Shared/p/b.md"])).toMatchObject({
 			ok: false,
 		});
+		expect(
+			await reader.controller.pushHunks(
+				"Shared/p/b.md",
+				new Map([[0, new Set([0])]]),
+			),
+		).toMatchObject({ ok: false });
 		expect(await publishedPaths(on.share, shareKey)).toEqual(["b.md"]);
 		await reader.controller.revertPaths(["Shared/p/b.md"]);
 		await reader.controller.refresh();

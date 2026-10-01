@@ -23,9 +23,11 @@ function entriesFor(
 	storage: S3StorageConfig | null,
 	shared: SpaceRecord[] = [],
 	root = "Team",
+	useSharedFolders = true,
 ): { title: string; disabled: boolean }[] {
 	const plugin = {
 		settings: {
+			useSharedFolders,
 			activeStorageKind: EStorageBackend.S3,
 			storageConfigs: storage ? { [EStorageBackend.S3]: storage } : {},
 		},
@@ -90,5 +92,10 @@ describe("the share folder entry", () => {
 	it("is left out where sharing is refused", () => {
 		expect(entriesFor(S3, [record("a", "Team/Plans")])).toEqual([]);
 		expect(entriesFor(S3, [], "Team/.hidden")).toEqual([]);
+	});
+
+	it("is left out where shared folders are off", () => {
+		expect(entriesFor(S3, [], "Team", false)).toEqual([]);
+		expect(entriesFor(S3, [record("a", "Team")], "Team", false)).toEqual([]);
 	});
 });

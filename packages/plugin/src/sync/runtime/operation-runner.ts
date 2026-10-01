@@ -1,6 +1,6 @@
 import { ESyncLogOperation } from "@/logs/store";
 import { errorMessage } from "@/shared/errors";
-import { StorageRequestError } from "@/storage";
+import { ShareRefusedError, StorageRequestError } from "@/storage";
 import { publishedByOthers, publisher } from "@/sync/authors";
 import { advanceBaselineForPaths } from "@/sync/baseline";
 import { isCancellation } from "@/sync/cancel";
@@ -26,12 +26,13 @@ import {
 	recomputeAfterWrite,
 	sharesHold,
 } from "@/sync/session-state";
-import { type Space, VAULT_SPACE } from "@/sync/space";
-import type { SessionState } from "@/sync/types";
+import { type Space, SpaceGoneError, VAULT_SPACE } from "@/sync/space";
+import type { LocalState, SessionState } from "@/sync/types";
 import type {
 	SpaceError,
 	SyncControllerRuntimeState,
 } from "./controller-state";
+import { ScanCycle } from "./scan-cycle";
 
 /** An operation with its arguments bound, run against one space. */
 export type SpaceOperation = (
@@ -44,9 +45,14 @@ interface OperationRunnerDeps {
 	host: SyncControllerHost;
 	runtimeState: SyncControllerRuntimeState;
 	clearFileDiffs: () => void;
+	localRevision?: () => number;
 }
 
 export class OperationRunner {
+	private walkDisk = true;
+	/** What the last refresh found on disk past Obsidian's index. */
+	private unindexed: ReadonlySet<string> = new Set();
+
 	constructor(private readonly deps: OperationRunnerDeps) {}
 
 	private applyResult(
@@ -69,44 +75,78 @@ export class OperationRunner {
 		this.deps.runtimeState.setStaleReason(null);
 	}
 
-	async refresh(): Promise<void> {
-		await this.deps.runtimeState.enqueue(async () => {
-			await this.refreshNow();
-		});
-	}
-
-	async refreshNow(): Promise<void> {
+	async refreshNow(targets: ReadonlySet<string> | null = null): Promise<void> {
+		const before = this.deps.runtimeState.getSnapshot();
 		this.deps.runtimeState.clearError();
-		this.deps.runtimeState.setSpaceErrors([]);
 		this.deps.runtimeState.publishProgress("Refreshing…");
 		const epoch = this.deps.runtimeState.currentEpoch();
 		try {
-			const spaces = await this.deps.host.spaces();
+			const spaces =
+				targets === null
+					? await this.deps.host.spaces()
+					: this.deps.runtimeState.spaces();
 			if (!spaces) return;
 			this.deps.runtimeState.setSpaces(spaces);
 			const results = new Map<Space, CompareResult>();
-			const failed: SpaceError[] = [];
+			const refreshedRoots = new Set(
+				spaces
+					.filter((space) => targets === null || targets.has(space.id))
+					.map((space) => space.root),
+			);
+			const failed: SpaceError[] =
+				targets === null
+					? []
+					: before.spaceErrors.filter(
+							(error) => !refreshedRoots.has(error.root),
+						);
+			let local = this.deps.host.getState();
+			const cycle = new ScanCycle(spaces, local.hashCache);
+			const walk = targets === null && this.walkDisk;
 			for (const space of spaces) {
 				if (space.paused) continue;
+				if (targets !== null && !targets.has(space.id)) {
+					const kept = this.deps.runtimeState.resultOf(space);
+					if (kept) results.set(space, kept);
+					continue;
+				}
 				try {
-					const result = await this.refreshSpace(space);
-					if (!result) continue;
-					results.set(space, result);
+					const refreshed = await this.refreshSpace(space, local, cycle, walk);
+					if (!refreshed) continue;
+					local = refreshed.local;
+					results.set(space, refreshed.result);
 					this.deps.host.onSpaceRefreshed?.(space);
 				} catch (err) {
 					if (space.root === VAULT_SPACE.root) throw err;
-					// The share stays out, its root out of the vault too; the rest syncs on.
 					const message = await this.logFailure(
 						ESyncLogOperation.Compare,
 						err,
 						`Shared folder "${space.root}": `,
 					);
-					failed.push({ root: space.root, message });
+					const gone = err instanceof SpaceGoneError;
+					failed.push({ root: space.root, message, ...(gone ? { gone } : {}) });
 				}
 			}
 			if (this.invalidatedSince(epoch)) return;
+			await this.deps.host.persistState({
+				...this.deps.host.getState(),
+				storages: local.storages,
+				hashCache: cycle.cache,
+			});
+			if (this.invalidatedSince(epoch)) return;
 			this.deps.runtimeState.setResults(results);
 			this.deps.runtimeState.setSpaceErrors(failed);
+			this.unindexed = new Set(
+				[...results.values()].flatMap(
+					({ snapshot }) => snapshot.unindexed ?? [],
+				),
+			);
+			// Cleared only here: an invalidated walk is owed to the next refresh.
+			if (walk) {
+				this.walkDisk = false;
+				if (this.unindexed.size > 0) {
+					this.deps.host.onUnindexed?.(this.unindexed.size);
+				}
+			}
 			this.settled();
 		} catch (err) {
 			await this.reportError(ESyncLogOperation.Compare, err);
@@ -115,18 +155,31 @@ export class OperationRunner {
 		}
 	}
 
-	private async refreshSpace(space: Space): Promise<CompareResult | null> {
+	private async refreshSpace(
+		space: Space,
+		local: LocalState,
+		cycle: ScanCycle,
+		walk: boolean,
+	): Promise<{ result: CompareResult; local: LocalState } | null> {
 		const session = await this.openSession(space);
 		if (!session) return null;
 		const depsWithProgress: EngineDependencies = {
 			...session,
+			index: cycle.indexFor(space, session.index),
+			state: { ...session.state, hashCache: cycle.hashesFor(space) },
+			walkDisk: walk,
 			onScanProgress: (scanned) => {
 				this.deps.runtimeState.publishProgressSoon(
 					`Scanning… ${scanned} files`,
 				);
 			},
 		};
-		const result = await compare(depsWithProgress);
+		const result = await compare(depsWithProgress).catch((err: unknown) => {
+			if (err instanceof ShareRefusedError)
+				this.deps.host.onShareRefused?.(space);
+			if (err instanceof SpaceGoneError) this.deps.host.onSpaceGone?.(space);
+			throw err;
+		});
 		const identity = session.storage.identity();
 		const reconciled = result.remote
 			? reconcileBaselineResetGenerations(
@@ -149,14 +202,14 @@ export class OperationRunner {
 					)
 				: baseline;
 
+		cycle.update(space, result.updatedCache);
 		const nextSessionState: SessionState = {
 			...session.state,
 			// Both sides reached same content; adopt baseline to prevent phantom conflicts.
 			baseline: advanced,
 			vaultId: session.state.vaultId ?? result.remote?.vaultId ?? null,
-			hashCache: result.updatedCache,
+			hashCache: cycle.cache,
 		};
-		const local = this.deps.host.getState();
 		const shareBases =
 			result.remote && space.id === VAULT_SPACE.id
 				? heldShareBases(
@@ -167,16 +220,16 @@ export class OperationRunner {
 						sharesHold(local, this.deps.runtimeState.spaces()),
 					)
 				: undefined;
-		await this.deps.host.persistState(
-			mergeSessionIntoLocal(
+		return {
+			result,
+			local: mergeSessionIntoLocal(
 				local,
 				nextSessionState,
 				identity,
 				space,
 				shareBases,
 			),
-		);
-		return result;
+		};
 	}
 
 	/**
@@ -184,6 +237,11 @@ export class OperationRunner {
 	 * would read the new, empty folder as deleted. `deleteRemote` empties a
 	 * closed share's storage too.
 	 */
+	/** The next full refresh lists the disk too; the first one after launch does. */
+	walkDiskNext(): void {
+		this.walkDisk = true;
+	}
+
 	forget(space: Space, { deleteRemote = false } = {}): Promise<void> {
 		return this.deps.runtimeState.enqueue(async () => {
 			const { host } = this.deps;
@@ -230,120 +288,148 @@ export class OperationRunner {
 		/** Only for operations that read `deps.signal`; see `sync/cancel.ts`. */
 		cancellable = false,
 	): Promise<SyncOperationResult> {
-		return this.deps.runtimeState.enqueue(async () => {
-			this.deps.runtimeState.clearError();
-			// Routed when it was asked for: a refresh since may have moved or closed its space.
-			const mounted = this.deps.runtimeState
-				.spaces()
-				.some(({ id, root }) => id === space.id && root === space.root);
-			if (!mounted) {
-				return {
-					ok: false,
-					error: "Shared folders changed meanwhile. Try again.",
-				};
-			}
-			const epoch = this.deps.runtimeState.currentEpoch();
-			let scope: { signal: AbortSignal; end: () => void } | null = null;
-			try {
-				let session = await this.openSession(space);
-				if (!session) return { ok: false };
-				// Scope and remote resets may have changed since the user opened the diff.
-				const result = await compare(session);
-				if (result.remote) {
-					const baseline = reconcileBaselineResetGenerations(
-						session.state.baseline,
-						result.remote,
-						session.scope,
-					);
-					if (baseline !== session.state.baseline) {
-						session = { ...session, state: { ...session.state, baseline } };
-						await this.buildContext(session).persistState(session.state);
-					}
-				}
-				this.applyResult(space, result, epoch);
-				if (cancellable) scope = this.deps.runtimeState.beginCancellable();
-				const ctx = this.buildContext(session);
-				const outcome = await fn(
-					scope ? { ...session, signal: scope.signal } : session,
-					result,
-					ctx,
-				);
-				const freshState = projectSession(
-					this.deps.host.getState(),
-					session.storage.identity(),
-					space.root,
-				);
-				const recomputed = recomputeAfterWrite(
-					result,
-					freshState,
-					outcome,
+		return this.deps.runtimeState.enqueue(() =>
+			this.runOperationNow(space, operation, fn, cancellable),
+		);
+	}
+
+	async runOperationNow(
+		space: Space,
+		operation: ESyncLogOperation,
+		fn: SpaceOperation,
+		cancellable = false,
+		comparison?: { result: CompareResult; epoch: number; revision?: number },
+	): Promise<SyncOperationResult> {
+		this.deps.runtimeState.clearError();
+		// Routed when it was asked for: a refresh since may have moved or closed its space.
+		const mounted = this.deps.runtimeState
+			.spaces()
+			.some(({ id, root }) => id === space.id && root === space.root);
+		if (!mounted) {
+			return {
+				ok: false,
+				error: "Shared folders changed meanwhile. Try again.",
+			};
+		}
+		const epoch = this.deps.runtimeState.currentEpoch();
+		let scope: { signal: AbortSignal; end: () => void } | null = null;
+		try {
+			let session = await this.openSession(space);
+			if (!session) return { ok: false };
+			if (comparison && this.invalidatedSince(comparison.epoch))
+				return { ok: false };
+			const current =
+				comparison && comparison.revision === this.deps.localRevision?.();
+			const configDir = session.scope.configDir;
+			// Hidden configuration writes do not emit vault file events.
+			const indexedOnly =
+				configDir === undefined || !session.scope.canDescend(configDir);
+			const result =
+				current && indexedOnly
+					? { ...comparison.result, updatedCache: session.state.hashCache }
+					: await compare(
+							session,
+							current ? comparison.result.remote : undefined,
+						);
+			if (this.invalidatedSince(epoch)) return { ok: false };
+			if (result.remote) {
+				const baseline = reconcileBaselineResetGenerations(
+					session.state.baseline,
+					result.remote,
 					session.scope,
 				);
-				this.applyResult(space, recomputed, epoch);
-				// A first sync brings everything: none of it is news.
-				if (operation === ESyncLogOperation.Pull && session.state.baseline) {
-					const theirs = publishedByOthers(
-						outcome.newRemote,
-						outcome.touchedPaths,
-						publisher(session.state, session.author).key,
-					);
-					if (theirs.length > 0) this.deps.host.onTheirsPulled?.(space, theirs);
+				if (baseline !== session.state.baseline) {
+					session = { ...session, state: { ...session.state, baseline } };
+					await this.buildContext(session).persistState(session.state);
 				}
-				if (outcome.cancelled) {
-					this.deps.runtimeState.setStaleReason(
-						outcome.touchedPaths.size === 0
-							? "Stopped before anything changed."
-							: `Stopped after ${outcome.touchedPaths.size} file(s). Compare again to see where things stand.`,
-					);
-					return { ok: false };
-				}
-				// Only a published manifest is news for the others.
-				if (
-					operation === ESyncLogOperation.Push &&
-					outcome.newRemote !== result.remote
-				) {
-					this.deps.host.onPushComplete?.(space);
-				}
-				return { ok: true };
-			} catch (err) {
-				if (isCancellation(err)) {
-					// Not a failure: nothing was published, and saying so beats a red error.
-					this.deps.runtimeState.setError(null);
-					this.deps.runtimeState.setStaleReason(
-						"Stopped before publishing. Nothing on the remote changed.",
-					);
-					await this.deps.host.logWarn(operation, "Cancelled by the user.");
-					return { ok: false };
-				}
-				if (err instanceof ConcurrentPushError) {
-					this.deps.runtimeState.setError(null);
-					this.deps.runtimeState.setStaleReason(
-						"Remote changed concurrently — re-comparing…",
-					);
-					this.deps.runtimeState.clearResult();
-					this.deps.clearFileDiffs();
-					this.deps.runtimeState.broadcast();
-					await this.refreshNow();
-					await this.deps.host.logWarn(operation, err.message);
-					return { ok: false, error: err.message };
-				}
-				const message = await this.reportError(operation, err);
-				return { ok: false, error: message };
-			} finally {
-				scope?.end();
-				// Broadcast, not just set: a queued operation keeps pendingOps above
-				// zero, so nothing else would repaint away a stale "Cancelling…".
-				this.deps.runtimeState.publishProgress(null);
 			}
-		});
+			this.applyResult(space, result, epoch);
+			if (cancellable) scope = this.deps.runtimeState.beginCancellable();
+			const ctx = this.buildContext(session);
+			const outcome = await fn(
+				scope ? { ...session, signal: scope.signal } : session,
+				result,
+				ctx,
+			);
+			const freshState = projectSession(
+				this.deps.host.getState(),
+				session.storage.identity(),
+				space.root,
+			);
+			const recomputed = recomputeAfterWrite(
+				result,
+				freshState,
+				outcome,
+				session.scope,
+			);
+			this.applyResult(space, recomputed, epoch);
+			// A first sync brings everything: none of it is news.
+			if (operation === ESyncLogOperation.Pull && session.state.baseline) {
+				const theirs = publishedByOthers(
+					outcome.newRemote,
+					outcome.touchedPaths,
+					publisher(session.state, session.author).key,
+				);
+				if (theirs.length > 0) this.deps.host.onTheirsPulled?.(space, theirs);
+			}
+			if (outcome.cancelled) {
+				this.deps.runtimeState.setStaleReason(
+					outcome.touchedPaths.size === 0
+						? "Stopped before anything changed."
+						: `Stopped after ${outcome.touchedPaths.size} file(s). Compare again to see where things stand.`,
+				);
+				return { ok: false };
+			}
+			// Only a published manifest is news for the others.
+			if (
+				operation === ESyncLogOperation.Push &&
+				outcome.newRemote !== result.remote
+			) {
+				this.deps.host.onPushComplete?.(space);
+			}
+			return { ok: true };
+		} catch (err) {
+			if (isCancellation(err)) {
+				// Not a failure: nothing was published, and saying so beats a red error.
+				this.deps.runtimeState.setError(null);
+				this.deps.runtimeState.setStaleReason(
+					"Stopped before publishing. Nothing on the remote changed.",
+				);
+				await this.deps.host.logWarn(operation, "Cancelled by the user.");
+				return { ok: false };
+			}
+			if (err instanceof ConcurrentPushError) {
+				this.deps.runtimeState.setError(null);
+				this.deps.runtimeState.setStaleReason(
+					"Remote changed concurrently — re-comparing…",
+				);
+				this.deps.runtimeState.clearResult();
+				this.deps.clearFileDiffs();
+				this.deps.runtimeState.broadcast();
+				await this.refreshNow();
+				await this.deps.host.logWarn(operation, err.message);
+				return { ok: false, error: err.message };
+			}
+			const message = await this.reportError(operation, err);
+			return { ok: false, error: message };
+		} finally {
+			scope?.end();
+			// Broadcast, not just set: a queued operation keeps pendingOps above
+			// zero, so nothing else would repaint away a stale "Cancelling…".
+			this.deps.runtimeState.publishProgress(null);
+		}
 	}
 
 	/** Every session, reads too: a paused share asks its storage nothing. */
-	openSession(space: Space): Promise<EngineDependencies | null> {
+	async openSession(space: Space): Promise<EngineDependencies | null> {
 		if (space.paused) {
 			throw new Error(`"${space.root}" is paused on this device.`);
 		}
-		return this.deps.host.openSession(space, this.deps.runtimeState.spaces());
+		const session = await this.deps.host.openSession(
+			space,
+			this.deps.runtimeState.spaces(),
+		);
+		return session && { ...session, unindexed: this.unindexed };
 	}
 
 	private async reportError(

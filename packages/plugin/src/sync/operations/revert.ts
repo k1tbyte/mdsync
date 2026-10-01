@@ -6,7 +6,7 @@ import { writeRemoteEntry } from "@/sync/content";
 import { withMoves } from "@/sync/moves";
 import { EChangeType, type ManifestEntry } from "@/sync/types";
 import { runWithConcurrency } from "@/utils/concurrency";
-import { deletePath } from "@/vault/io";
+import { trashPath } from "@/vault/io";
 import type { Operation } from "./types";
 
 export const revertPathsOp: Operation<ReadonlyArray<string>> = async (
@@ -34,7 +34,7 @@ export const revertPathsOp: Operation<ReadonlyArray<string>> = async (
 			const baselineEntry = deps.state.baseline?.files[path];
 			if (!change && !baselineEntry) return;
 			if (change?.type === EChangeType.LocalAdd || !baselineEntry) {
-				await deletePath(deps.adapter, path);
+				await trashPath(deps.adapter, path);
 				localEntries.set(path, null);
 				return;
 			}

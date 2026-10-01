@@ -1,4 +1,4 @@
-import { OWNER } from "@obsync/protocol";
+import { isShareId, OWNER } from "@obsync/protocol";
 
 /**
  * Where a share's objects live: its owner's S3 location when it was created.
@@ -18,6 +18,8 @@ export type ShareAccess =
 	| {
 			kind: "owner";
 			location: ShareLocation;
+			/** How participants see the owner; empty shows "Owner". */
+			name?: string;
 			/** Where the last invite went: participants' tokens live on that relay. */
 			relayUrl?: string;
 	  }
@@ -48,6 +50,8 @@ export interface SpaceRecord {
 	access: ShareAccess;
 	/** Stopped or left: a tombstone, since records are never deleted. The folder returns to the vault. */
 	closed?: true;
+	/** Paused on every device of the person; one device alone is `pausedSpaces`. */
+	paused?: true;
 }
 
 /** Last writer wins, deterministically on every device. */
@@ -55,9 +59,12 @@ export function isNewer(a: SpaceRecord, b: SpaceRecord): boolean {
 	return a.rev !== b.rev ? a.rev > b.rev : a.author > b.author;
 }
 
-/** The next revision, closed; every device of the person unmounts it. */
+/** Outranks every edit made offline before the close; a join built on it still outranks it. */
+const CLOSE_REV_STEP = 1_000_000;
+
+/** A revision past any edit it did not see, closed; every device of the person unmounts it. */
 export function closeRecord(record: SpaceRecord, author: string): SpaceRecord {
-	return { ...record, rev: record.rev + 1, author, closed: true };
+	return { ...record, rev: record.rev + CLOSE_REV_STEP, author, closed: true };
 }
 
 /** How a share names its owner, and a participant invited without a name. */
@@ -72,7 +79,7 @@ export function shareIdentity(record: SpaceRecord): {
 	const { access } = record;
 	return access.kind === "participant"
 		? { person: access.participantId, name: access.personName || UNNAMED }
-		: { person: OWNER, name: OWNER_NAME };
+		: { person: OWNER, name: access.name || OWNER_NAME };
 }
 
 /** Every id once, at its newest revision, sorted by id. */
@@ -92,13 +99,15 @@ export function isSpaceRecord(value: unknown): value is SpaceRecord {
 	const record = value as Record<string, unknown>;
 	return (
 		typeof record.id === "string" &&
+		isShareId(record.id) &&
 		typeof record.name === "string" &&
 		typeof record.root === "string" &&
 		typeof record.author === "string" &&
 		typeof record.key === "string" &&
 		Number.isSafeInteger(record.rev) &&
 		isAccess(record.access) &&
-		(record.closed === undefined || record.closed === true)
+		(record.closed === undefined || record.closed === true) &&
+		(record.paused === undefined || record.paused === true)
 	);
 }
 
@@ -108,7 +117,8 @@ function isAccess(value: unknown): value is ShareAccess {
 	if (access.kind === "owner") {
 		return (
 			isLocation(access.location) &&
-			(access.relayUrl === undefined || typeof access.relayUrl === "string")
+			(access.relayUrl === undefined || typeof access.relayUrl === "string") &&
+			(access.name === undefined || typeof access.name === "string")
 		);
 	}
 	return (

@@ -6,6 +6,8 @@ export interface Announcement {
 	/** Groups and colours: the person in a share, the device in the vault. */
 	key: string;
 	name: string;
+	/** This device's own name in a share, whose key is the person; null in the vault, whose key is the device. */
+	device: string | null;
 	/** The open file inside the space root; null while it is elsewhere. */
 	note: string | null;
 	idle: boolean;
@@ -38,11 +40,12 @@ export async function openAnnouncement(
 		return null;
 	}
 	if (!value || typeof value !== "object") return null;
-	const { key, name, note, idle } = value as Record<string, unknown>;
+	const { key, name, device, note, idle } = value as Record<string, unknown>;
 	if (typeof key !== "string" || typeof name !== "string") return null;
 	const announcement = {
 		key: clamp(key),
 		name: clamp(name),
+		device: (typeof device === "string" && clamp(device)) || null,
 		note: isNote(note) ? note : null,
 		idle: idle === true,
 	};

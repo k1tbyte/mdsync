@@ -11,6 +11,8 @@ import {
 
 interface MaintenanceServiceDeps {
 	openSession: () => Promise<EngineDependencies | null>;
+	/** Between operations: a push of this device uploads blobs its manifest does not name yet. */
+	enqueue: <T>(task: () => Promise<T>) => Promise<T>;
 	logInfo: (
 		operation: ESyncLogOperation,
 		message: string,
@@ -38,18 +40,20 @@ export class MaintenanceService {
 		return result;
 	}
 
-	async deepCleanRemote(): Promise<CleanResult | null> {
-		const session = await this.deps.openSession();
-		if (!session) return null;
-		const result = await deepCleanOrphans(
-			session.storage,
-			session.key,
-			session.space.root,
-		);
-		await this.deps.logInfo(
-			ESyncLogOperation.Reset,
-			`Deep-clean ${cleanSummary(result)}`,
-		);
-		return result;
+	deepCleanRemote(): Promise<CleanResult | null> {
+		return this.deps.enqueue(async () => {
+			const session = await this.deps.openSession();
+			if (!session) return null;
+			const result = await deepCleanOrphans(
+				session.storage,
+				session.key,
+				session.space.root,
+			);
+			await this.deps.logInfo(
+				ESyncLogOperation.Reset,
+				`Deep-clean ${cleanSummary(result)}`,
+			);
+			return result;
+		});
 	}
 }

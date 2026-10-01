@@ -47,4 +47,5 @@ export const TEXT: LiveKind<TextModel> = {
 		scratch.destroy();
 		return update;
 	},
+	holds: (agreed, disk) => toLf(disk) === agreed,
 };

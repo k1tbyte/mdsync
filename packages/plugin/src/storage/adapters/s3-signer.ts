@@ -165,7 +165,7 @@ function resolveEndpoint(config: S3StorageConfig): ResolvedEndpoint {
 	return {
 		protocol: url.protocol,
 		host: host.toLowerCase(),
-		basePath: url.pathname.replace(/\/+$/, ""),
+		basePath: decodePath(url.pathname.replace(/\/+$/, "")),
 	};
 }
 
@@ -235,4 +235,17 @@ function encodeRfc3986(value: string): string {
 /** Percent-encodes each path segment, leaving the separators intact. */
 function encodePath(path: string): string {
 	return path.split("/").map(encodeRfc3986).join("/");
+}
+
+function decodePath(path: string): string {
+	return path
+		.split("/")
+		.map((segment) => {
+			try {
+				return decodeURIComponent(segment);
+			} catch {
+				return segment;
+			}
+		})
+		.join("/");
 }

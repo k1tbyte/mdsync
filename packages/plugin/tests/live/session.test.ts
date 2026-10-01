@@ -17,6 +17,7 @@ import {
 	waitUntil,
 } from "@tests/helpers/live-session";
 import { describe, expect, it, vi } from "vitest";
+import { deriveLiveKeys } from "@/crypto/live-keys";
 import { docIdFor } from "@/live/doc-id";
 import { closedBefore } from "@/live/session/closing";
 import { LiveSession } from "@/live/session/session";
@@ -214,6 +215,35 @@ describe("live session", () => {
 		live.sessions.push(opened.session);
 
 		await waitUntil(() => expect(opened.refused).toBe(ERefusal.TooManyDocs));
+	});
+
+	it("goes cold on a room it cannot open, and leaves the note as it is", async () => {
+		await synced("hello world");
+		const stranger = await deriveLiveKeys(
+			crypto.getRandomValues(new Uint8Array(32)),
+		);
+		const connection = live.hub.connection();
+		connection.connect();
+		let refused: unknown = null;
+		const session = new LiveSession(live.docId, 0, {
+			kind: TEXT,
+			keys: stranger,
+			hub: connection,
+			author: OWNER,
+			successor: () => docIdFor(stranger, "note.md", 1),
+			readDisk: async () => "hello world",
+			readBase: async () => "hello world",
+			onAgreed: () => {},
+			onMoved: () => {},
+			onRefused: (reason) => {
+				refused = reason;
+			},
+		});
+		live.sessions.push(session);
+
+		await waitUntil(() => expect(refused).toBe("unreadable"));
+		expect(session.model.text.toString()).toBe("");
+		expect(session.joined).toBe(false);
 	});
 
 	it("agrees on a text once the room holds all of it", async () => {

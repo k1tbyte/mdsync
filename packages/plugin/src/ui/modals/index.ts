@@ -1,4 +1,8 @@
-export { type ConfirmModalOptions, openConfirmModal } from "./confirm-modal";
+export {
+	type ConfirmModalOptions,
+	openChoiceModal,
+	openConfirmModal,
+} from "./confirm-modal";
 export { AcceptInviteModal } from "./invite-modal";
 export { askNewPassphrase, askPassphrase } from "./passphrase-modal";
 export { openPromiseModal } from "./promise-modal";

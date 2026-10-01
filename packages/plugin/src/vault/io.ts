@@ -64,6 +64,33 @@ export async function deletePath(
 	}
 }
 
+/** A deletion the user asked for, of work maybe only here: to the system trash, else the vault's `.trash`. */
+export async function trashPath(
+	adapter: DataAdapter,
+	path: string,
+): Promise<void> {
+	try {
+		if (!(await adapter.trashSystem(path))) await adapter.trashLocal(path);
+	} catch (err) {
+		if (await adapter.exists(path)) throw err;
+	}
+}
+
+/** Whether the file is still as `seen` (absent when undefined): a write would lose a later edit. */
+export async function unchangedSince(
+	adapter: DataAdapter,
+	path: string,
+	seen: { size: number; mtime: number } | undefined,
+): Promise<boolean> {
+	const stat = await adapter.stat(path).catch(() => null);
+	if (!seen) return stat === null;
+	return (
+		stat?.type === "file" &&
+		stat.size === seen.size &&
+		stat.mtime === seen.mtime
+	);
+}
+
 /** True when the folder was missing and had to be created. */
 export async function ensureDir(
 	adapter: DataAdapter,

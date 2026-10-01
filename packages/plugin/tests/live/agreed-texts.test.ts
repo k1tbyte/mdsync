@@ -39,6 +39,48 @@ describe("agreed texts", () => {
 		await agreed.flush();
 	});
 
+	it("keeps a base off disk until the note's file holds it", async () => {
+		const adapter = new InMemoryAdapter();
+		const agreed = store(adapter);
+		let saved = false;
+
+		agreed.put("doc", { text: "typed", gen: 0, seq: 2 }, async () => saved);
+		await agreed.flush();
+		expect(await store(adapter).get("doc")).toBeNull();
+		expect(await agreed.get("doc")).toEqual({ text: "typed", gen: 0, seq: 2 });
+		expect(await agreed.base("doc")).toBeNull();
+
+		saved = true;
+		expect(await agreed.base("doc")).toBe("typed");
+		await agreed.flush();
+		expect(await store(adapter).get("doc")).toEqual({
+			text: "typed",
+			gen: 0,
+			seq: 2,
+		});
+	});
+
+	it("stops asking about a file that never holds its base", async () => {
+		const agreed = store(new InMemoryAdapter());
+		const onDisk = vi.fn(async () => false);
+
+		agreed.put("doc", { text: "typed", gen: 0, seq: 2 }, onDisk);
+		for (let i = 0; i < 6; i++) await agreed.flush();
+
+		expect(onDisk).toHaveBeenCalledTimes(5);
+	});
+
+	it("arms no timer once disposed", async () => {
+		vi.useFakeTimers();
+		const agreed = store(new InMemoryAdapter());
+		agreed.put("doc", { text: "typed", gen: 0, seq: 2 }, async () => false);
+
+		await agreed.dispose();
+
+		expect(vi.getTimerCount()).toBe(0);
+		vi.useRealTimers();
+	});
+
 	it("treats a torn file as no base at all", async () => {
 		const adapter = new InMemoryAdapter();
 		adapter.putText(`${DIR}/doc.json`, '{"text": "cut');

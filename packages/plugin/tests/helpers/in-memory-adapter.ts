@@ -185,6 +185,25 @@ export class InMemoryAdapter {
 		return Promise.resolve();
 	}
 
+	/** No system trash, like a phone. */
+	trashSystem(): Promise<boolean> {
+		return Promise.resolve(false);
+	}
+
+	trashLocal(path: string): Promise<void> {
+		const n = norm(path);
+		const entry = this.files.get(n);
+		if (!entry)
+			return Promise.reject(new Error(`ENOENT: no such file: ${path}`));
+		this.files.delete(n);
+		this.writeFile(
+			`.trash/${n.slice(n.lastIndexOf("/") + 1)}`,
+			entry.data,
+			entry.mtime,
+		);
+		return Promise.resolve();
+	}
+
 	rename(oldPath: string, newPath: string): Promise<void> {
 		const from = norm(oldPath);
 		const to = norm(newPath);

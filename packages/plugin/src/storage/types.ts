@@ -14,10 +14,17 @@ export class StorageRequestError extends Error {
 	}
 }
 
-/** An object as a listing reports it. A null `etag` means the backend offered no validator. */
+/** The share broker refused this person's link: revoked, or too new for the relay to know yet. */
+export class ShareRefusedError extends StorageRequestError {
+	override name = "ShareRefusedError";
+}
+
+/** An object as a listing reports it. Null means the backend did not say. */
 export interface ListedObject {
 	key: string;
 	etag: string | null;
+	/** Last write, epoch ms. */
+	modified: number | null;
 }
 
 export interface ObjectStorage {
@@ -43,17 +50,19 @@ export interface ObjectStorage {
 	/** List all object keys matching the prefix. Returned keys are guaranteed to start with the prefix. */
 	list(prefix: string): Promise<string[]>;
 	/**
-	 * {@link list} with each object's validator, from the same request. A
-	 * validator that is unchanged means the bytes are. Optional: a backend that
-	 * lists no validators leaves it out and callers read every object.
+	 * {@link list} with each object's validator and last write, from the same
+	 * request. A validator that is unchanged means the bytes are. Optional: a
+	 * backend without it leaves it out and callers read every object.
 	 */
-	listWithEtags?(prefix: string): Promise<ListedObject[]>;
+	listDetailed?(prefix: string): Promise<ListedObject[]>;
 	/**
 	 * A hint that these objects are about to be read, in this order, so a backend
 	 * that signs each request may sign them in batches. Never needed for
 	 * correctness; replaces an earlier hint.
 	 */
 	prepareReads?(keys: string[]): void;
+	/** Lazy write-signing hint; never needed for correctness. */
+	prepareWrites?(keys: string[]): void;
 }
 
 export interface StorageAdapter extends ObjectStorage {

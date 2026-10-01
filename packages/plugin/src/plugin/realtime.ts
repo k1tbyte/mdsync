@@ -4,12 +4,14 @@ import { HubConnection } from "@/hub";
 import type { LiveSessions } from "@/live";
 import { People, watchHere } from "@/presence";
 import type { LiveNotes } from "@/sync/live-notes";
-import type { Space } from "@/sync/space";
+import { type Space, VAULT_SPACE } from "@/sync/space";
 
 import { createLive, type LiveHost } from "./live";
 import { createSpaceAccess } from "./space-access";
 
 const REALTIME_SYNC_DEBOUNCE_MS = 2_000;
+/** How long an unload waits for the rooms' last edits before closing the sockets. */
+const ROOMS_CLOSE_MS = 2_000;
 
 export interface Realtime {
 	readonly hub: HubConnection;
@@ -39,16 +41,23 @@ export function createRealtime(host: LiveHost): Realtime {
 		(now) => people.setHere(now),
 		() => settings().showOpenNote,
 	);
-	// resetTimer is off: a steady stream of signals must still let a pull through.
+	const pendingSpaces = new Set<string>();
+	// A steady stream of signals must still let a pull through.
 	const pull = debounce(
 		() => {
-			void controller.refreshAndAutoPull();
+			const targets = new Set(pendingSpaces);
+			pendingSpaces.clear();
+			void controller.refreshAndAutoPull(targets);
 		},
 		REALTIME_SYNC_DEBOUNCE_MS,
 		false,
 	);
 	// Kept across the vault socket's drops: the signal may have come on a share's.
-	hub.listen({ onSignal: pull });
+	const queuePull = (space = VAULT_SPACE.id): void => {
+		pendingSpaces.add(space);
+		pull();
+	};
+	const unlisten = hub.listen({ onSignal: queuePull, onRevoked: queuePull });
 	const live = createLive(host, hub, access, (space, person) =>
 		people.nameOf(space, person),
 	);
@@ -67,9 +76,14 @@ export function createRealtime(host: LiveHost): Realtime {
 		dispose() {
 			here.stop();
 			people.dispose();
-			live.dispose();
+			unlisten();
 			pull.cancel();
-			hub.dispose();
+			// Closed first, the socket would drop the rooms' last edits and their Unsub.
+			const closed = live.dispose();
+			const late = new Promise((resolve) =>
+				window.setTimeout(resolve, ROOMS_CLOSE_MS),
+			);
+			void Promise.race([closed, late]).then(() => hub.dispose());
 		},
 	};
 }

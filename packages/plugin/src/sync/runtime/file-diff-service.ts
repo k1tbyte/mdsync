@@ -78,9 +78,12 @@ export class FileDiffService {
 		return paths;
 	}
 
-	async getConflictThreeWay(
-		path: string,
-	): Promise<{ base: string; local: string; remote: string } | null> {
+	async getConflictThreeWay(path: string): Promise<{
+		base: string;
+		local: string;
+		remote: string;
+		expected: { localHash: string; remoteHash: string };
+	} | null> {
 		const result = this.deps.getResult();
 		if (!result) return null;
 		const conflict = this.pathIndex()?.conflict.get(path);
@@ -102,7 +105,15 @@ export class FileDiffService {
 			loadRemoteText(fetch, conflict.remoteHash),
 		]);
 		if (base === null || local === null || remote === null) return null;
-		return { base, local, remote };
+		return {
+			base,
+			local,
+			remote,
+			expected: {
+				localHash: conflict.localHash,
+				remoteHash: conflict.remoteHash,
+			},
+		};
 	}
 
 	async getFileDiff(path: string): Promise<FileDiffModel | null> {

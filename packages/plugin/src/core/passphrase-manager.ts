@@ -27,10 +27,21 @@ interface CachedKey {
 	epoch: number;
 }
 
+interface Resolving {
+	signature: string;
+	passphrase: string;
+	key: Promise<EncryptionKey>;
+}
+
 export class PassphraseManager {
 	private passphrase: string | null = null;
+	/** Typed, not yet known to open the keyfile: cached on disk only once it does. */
+	private unverified = false;
 	private cachedKey: CachedKey | null = null;
 	private pendingPrompt: Promise<boolean> | null = null;
+	private pendingReplace = false;
+	/** One derivation for every caller: each is a PBKDF2 run, and on a first sync a keyfile. */
+	private resolving: Resolving | null = null;
 
 	constructor(
 		private readonly ask: () => Promise<string | null>,
@@ -49,6 +60,7 @@ export class PassphraseManager {
 
 	async forget(): Promise<void> {
 		this.passphrase = null;
+		this.unverified = false;
 		this.cachedKey = null;
 		try {
 			await clearCachedPassphrase(this.adapter, this.configDir);
@@ -75,12 +87,17 @@ export class PassphraseManager {
 		// A forced prompt is a recovery path (the stored passphrase no longer
 		// opens the vault); joining an in-flight one would answer it with the
 		// very passphrase that failed.
-		if (this.pendingPrompt && !replace) return this.pendingPrompt;
-		if (this.pendingPrompt) await this.pendingPrompt.catch(() => undefined);
-		this.pendingPrompt = this.runPrompt(replace).finally(() => {
-			this.pendingPrompt = null;
+		while (this.pendingPrompt) {
+			// A forced one already asks past the passphrase that failed.
+			if (!replace || this.pendingReplace) return this.pendingPrompt;
+			await this.pendingPrompt.catch(() => undefined);
+		}
+		const prompt = this.runPrompt(replace).finally(() => {
+			if (this.pendingPrompt === prompt) this.pendingPrompt = null;
 		});
-		return this.pendingPrompt;
+		this.pendingPrompt = prompt;
+		this.pendingReplace = replace;
+		return prompt;
 	}
 
 	private async runPrompt(replace: boolean): Promise<boolean> {
@@ -88,8 +105,8 @@ export class PassphraseManager {
 		const value = await this.ask();
 		if (!value) return false;
 		this.passphrase = value;
+		this.unverified = true;
 		this.cachedKey = null;
-		await this.persistIfEnabled();
 		return true;
 	}
 
@@ -109,16 +126,17 @@ export class PassphraseManager {
 		return epoch;
 	}
 
-	/** Adopts a new passphrase after a successful remote rotation. */
+	/** Adopts a passphrase known to open the vault: a rotation's, or one that opened a transfer. */
 	async replacePassphrase(value: string): Promise<void> {
 		this.passphrase = value;
+		this.unverified = false;
 		this.cachedKey = null;
 		await this.persistIfEnabled();
 	}
 
 	async persistIfEnabled(): Promise<void> {
 		if (!this.settings.cachePassphrase) return;
-		if (!this.passphrase) return;
+		if (!this.passphrase || this.unverified) return;
 		try {
 			await saveCachedPassphrase(
 				this.adapter,
@@ -131,16 +149,43 @@ export class PassphraseManager {
 		}
 	}
 
-	async resolveKey(storage: ObjectStorage): Promise<EncryptionKey> {
-		if (!this.passphrase) throw new Error("Passphrase is not set");
+	resolveKey(storage: ObjectStorage): Promise<EncryptionKey> {
+		const { passphrase } = this;
+		if (!passphrase) return Promise.reject(new Error("Passphrase is not set"));
 		const signature = this.bindingSignature();
-		if (this.cachedKey && this.cachedKey.signature === signature)
-			return this.cachedKey.key;
+		if (this.cachedKey?.signature === signature) {
+			return Promise.resolve(this.cachedKey.key);
+		}
+		const same = this.resolving;
+		if (same?.signature === signature && same.passphrase === passphrase) {
+			return same.key;
+		}
+		const key = this.derive(storage, passphrase, signature);
+		const resolving = { signature, passphrase, key };
+		this.resolving = resolving;
+		const done = () => {
+			if (this.resolving === resolving) this.resolving = null;
+		};
+		key.then(done, done);
+		return key;
+	}
+
+	private async derive(
+		storage: ObjectStorage,
+		passphrase: string,
+		signature: string,
+	): Promise<EncryptionKey> {
 		const { contentKey, liveKeys, epoch } = await resolveContentKey(
 			storage,
-			this.passphrase,
+			passphrase,
 		);
+		// Forgotten or replaced meanwhile: the old key must not come back.
+		if (this.passphrase !== passphrase) return contentKey;
 		this.cachedKey = { key: contentKey, liveKeys, signature, epoch };
+		if (this.unverified) {
+			this.unverified = false;
+			await this.persistIfEnabled();
+		}
 		return contentKey;
 	}
 

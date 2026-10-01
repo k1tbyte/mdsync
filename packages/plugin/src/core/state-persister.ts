@@ -18,6 +18,8 @@ export class StatePersister {
 	/** Serialises every write: a debounced flush and a direct persist otherwise
 	 * interleave and the older state can land last. */
 	private writes: Promise<void> = Promise.resolve();
+	/** Unloaded: an operation still running must not write over the next instance's state. */
+	private disposed = false;
 
 	constructor(
 		private readonly adapter: DataAdapter,
@@ -46,6 +48,7 @@ export class StatePersister {
 	}
 
 	async persist(state: LocalState): Promise<void> {
+		if (this.disposed) return;
 		const prev = this.current;
 		this.current = state;
 		if (canDebounce(prev, state)) {
@@ -112,6 +115,7 @@ export class StatePersister {
 	 * here would surface long after the plugin is gone.
 	 */
 	dispose(): void {
+		this.disposed = true;
 		const pending = this.takePending();
 		if (pending) {
 			this.write(pending).catch(() => undefined);

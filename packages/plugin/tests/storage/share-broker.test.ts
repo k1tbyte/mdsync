@@ -4,6 +4,7 @@ import {
 	listParticipants,
 	revokeParticipant,
 } from "@/storage/adapters/share-broker";
+import { ShareRefusedError } from "@/storage/types";
 
 interface Recorded {
 	url: string;
@@ -103,8 +104,8 @@ describe("storage through the share broker", () => {
 			},
 		];
 
-		expect(await broker().listWithEtags?.("objects/")).toEqual([
-			{ key: "objects/a", etag: '"e1"' },
+		expect(await broker().listDetailed?.("objects/")).toEqual([
+			{ key: "objects/a", etag: '"e1"', modified: null },
 		]);
 	});
 
@@ -129,9 +130,12 @@ describe("storage through the share broker", () => {
 	it("takes a refused token as final, not as a network hiccup", async () => {
 		replies = [{ status: 401, text: '{"error":"unauthorized"}' }];
 
-		await expect(broker().get("k")).rejects.toMatchObject({
+		const refused = broker().get("k");
+
+		await expect(refused).rejects.toMatchObject({
 			userMessage: "This shared folder's invite is no longer valid.",
 		});
+		await expect(refused).rejects.toBeInstanceOf(ShareRefusedError);
 		expect(requests).toHaveLength(1);
 	});
 
@@ -180,6 +184,49 @@ function serveSigns(
 		return signed(objectUrl(String(key)));
 	};
 }
+
+describe("writes hinted ahead through the share broker", () => {
+	it("signs 64 PUTs with two batches and does not reuse GET URLs", async () => {
+		serveSigns();
+		const keys = keysOf(64);
+		const storage = broker();
+		storage.prepareReads?.(keys);
+		storage.prepareWrites?.(keys);
+		expect(requests).toHaveLength(0);
+		await Promise.all(keys.map((key) => storage.put(key, new Uint8Array([1]))));
+		expect(signPosts()).toEqual([
+			{ op: "put", keys: keys.slice(0, 32) },
+			{ op: "put", keys: keys.slice(32) },
+		]);
+		expect(requests.filter((request) => request.method === "PUT")).toHaveLength(
+			64,
+		);
+		await storage.get(keys[0] as string);
+		expect(signPosts().at(-1)).toEqual({ op: "get", keys: keys.slice(0, 32) });
+	});
+
+	it("falls back to individual PUT signing when the relay refuses a batch", async () => {
+		serveSigns(() => ({ status: 400, text: '{"error":"bad_request"}' }));
+		const storage = broker();
+		const keys = keysOf(2);
+		storage.prepareWrites?.(keys);
+		await Promise.all(keys.map((key) => storage.put(key, new Uint8Array([1]))));
+		expect(signPosts()).toEqual([
+			{ op: "put", keys },
+			{ op: "put", key: keys[0] },
+			{ op: "put", key: keys[1] },
+		]);
+	});
+
+	it("preserves conditional-write headers on a batched PUT", async () => {
+		serveSigns();
+		const storage = broker();
+		storage.prepareWrites?.(["k"]);
+		await storage.putIfAbsent("k", new Uint8Array([1]));
+		expect(signPosts()).toEqual([{ op: "put", keys: ["k"] }]);
+		expect(requests[1]?.headers["If-None-Match"]).toBe("*");
+	});
+});
 
 describe("reads hinted ahead through the share broker", () => {
 	it("asks the broker for nothing when the hint is given", () => {
@@ -355,6 +402,18 @@ describe("the owner's view of a share's participants", () => {
 			headers: { "X-Obsync-Admin": "secret" },
 			body: undefined,
 		});
+	});
+
+	it("takes a refused admin secret as a settings problem, not a revoked link", async () => {
+		replies = [{ status: 401, text: '{"error":"unauthorized"}' }];
+
+		const refused = revokeParticipant(admin, "s1", "p1");
+
+		await expect(refused).rejects.toMatchObject({
+			userMessage:
+				"The relay did not accept its secret. Check the relay settings.",
+		});
+		await expect(refused).rejects.not.toBeInstanceOf(ShareRefusedError);
 	});
 
 	it("revokes one of them", async () => {

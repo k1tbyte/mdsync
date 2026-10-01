@@ -1,21 +1,17 @@
 import { SIGN_BATCH_MAX } from "@obsync/protocol";
 
 /** The relay signs for 120 s; a URL older than this is not worth the risk. */
-const READ_URL_TTL_MS = 60_000;
+const SIGNED_URL_TTL_MS = 60_000;
 
-interface ReadUrl {
+interface SignedUrl {
 	url: string;
 	at: number;
 }
 
-/**
- * Read URLs signed a batch at a time for objects a pull said it will read.
- * Batches are made when a key is first asked for, so a long pull never holds
- * URLs that expire before it gets to them.
- */
-export class ShareReadUrls {
+/** Lazy batches keep URLs from expiring before a long transfer uses them. */
+export class ShareSignedUrls {
 	private pending = new Set<string>();
-	private prepared = new Map<string, Promise<ReadUrl | null>>();
+	private prepared = new Map<string, Promise<SignedUrl | null>>();
 	private failed = false;
 
 	constructor(
@@ -34,7 +30,9 @@ export class ShareReadUrls {
 		const entry = this.prepared.get(key);
 		this.prepared.delete(key);
 		const ready = await entry;
-		return ready && Date.now() - ready.at < READ_URL_TTL_MS ? ready.url : null;
+		return ready && Date.now() - ready.at < SIGNED_URL_TTL_MS
+			? ready.url
+			: null;
 	}
 
 	private fill(key: string): void {

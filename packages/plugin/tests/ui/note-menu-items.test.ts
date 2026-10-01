@@ -124,30 +124,18 @@ describe("note header menu", () => {
 describe("a person in the note menu", () => {
 	const view = (patch: Partial<PersonView>): PersonView => ({
 		idle: false,
-		hasCursor: false,
-		cursorsShown: true,
 		following: false,
 		...patch,
 	});
 
-	it("offers to follow whoever has a cursor, and marks them away", () => {
-		expect(personState(view({ hasCursor: true }))).toBe("follow cursor");
-		expect(personState(view({ hasCursor: true, idle: true }))).toBe(
-			"follow cursor (away)",
-		);
+	it("offers to follow anyone in the note, and marks them away", () => {
+		expect(personState(view({}))).toBe("follow");
+		expect(personState(view({ idle: true }))).toBe("follow (away)");
 	});
 
 	it("says following while following, even when they went away", () => {
 		expect(personState(view({ following: true, idle: true }))).toBe(
 			"following",
-		);
-	});
-
-	it("tells away, no cursor and a view without cursors apart", () => {
-		expect(personState(view({ idle: true }))).toBe("away");
-		expect(personState(view({}))).toBe("no cursor here");
-		expect(personState(view({ cursorsShown: false }))).toBe(
-			"no cursor in this view",
 		);
 	});
 });

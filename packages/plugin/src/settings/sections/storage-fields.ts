@@ -1,7 +1,7 @@
 import { Setting } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
-import { DEFAULT_GDRIVE_AUTH_SERVER, getDescriptor } from "@/storage";
+import { getDescriptor, googleLoginUrl } from "@/storage";
 import {
 	EStorageBackend,
 	type GoogleDriveStorageConfig,
@@ -59,13 +59,16 @@ function renderStorageField(
 		setting.addText((t) => {
 			t.inputEl.type = "number";
 			t.inputEl.min = String(numberField.min);
+			t.inputEl.max = String(numberField.max);
 			const raw = storage[numberField.key];
 			const value = typeof raw === "number" ? raw : numberField.fallback;
 			t.setValue(String(value)).onChange((v) => {
 				const parsed = Number.parseInt(v, 10);
-				const next = Number.isFinite(parsed)
-					? Math.max(numberField.min, parsed)
-					: numberField.fallback;
+				if (!Number.isFinite(parsed)) return;
+				const next = Math.min(
+					numberField.max,
+					Math.max(numberField.min, parsed),
+				);
 				updateStorage(plugin, kind, { [numberField.key]: next });
 			});
 		});
@@ -96,7 +99,7 @@ function renderGoogleDriveAuth(
 		.setName("Google account")
 		.setDesc(
 			isAuth
-				? "Authenticated. Tokens are securely stored."
+				? "Authenticated. Tokens are stored on this device."
 				: "Not authenticated. Click to authorize.",
 		)
 		.addButton((b) =>
@@ -104,8 +107,7 @@ function renderGoogleDriveAuth(
 				.setButtonText(isAuth ? "Re-authenticate" : "Log in")
 				.setCta()
 				.onClick(() => {
-					const url = config.authServerUrl || DEFAULT_GDRIVE_AUTH_SERVER;
-					window.open(`${url}/auth`);
+					window.open(googleLoginUrl(config));
 				}),
 		);
 }

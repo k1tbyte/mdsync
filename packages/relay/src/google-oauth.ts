@@ -15,6 +15,7 @@ const STATE_COOKIE = "obsync_oauth_state";
 const STATE_TTL_MS = 10 * 60 * 1000;
 /** Longer than any Google refresh token. */
 const REFRESH_TOKEN_MAX = 2048;
+const NONCE = /^[0-9a-f]{32}$/;
 
 const CORS_JSON_HEADERS = {
 	"Content-Type": "application/json",
@@ -39,6 +40,7 @@ export async function handleTokenRefresh(
 	if (request.method !== "POST") {
 		return jsonResponse({ error: "method_not_allowed" }, 405);
 	}
+	if (!isConfigured(env)) return jsonResponse({ error: "not_configured" }, 503);
 	const refreshToken = await readRefreshToken(request);
 	if (!refreshToken || refreshToken.length > REFRESH_TOKEN_MAX) {
 		return jsonResponse({ error: "invalid_refresh_token" }, 400);
@@ -64,17 +66,31 @@ export async function handleAuthCallback(
 	env: GoogleOAuthEnv,
 	request: Request,
 ): Promise<Response> {
+	if (!isConfigured(env)) {
+		return new Response("Google Drive is not set up on this relay.", {
+			status: 503,
+		});
+	}
 	const error = url.searchParams.get("error");
 	if (error) {
-		return Response.redirect(
-			`${CALLBACK_PROTOCOL}?error=${encodeURIComponent(error)}`,
-		);
+		const callback = new URL(CALLBACK_PROTOCOL);
+		callback.searchParams.set("error", error);
+		const nonce = await verifyState(env, url.searchParams.get("state"));
+		if (nonce) callback.searchParams.set("nonce", nonce);
+		return Response.redirect(callback.toString());
 	}
 
 	const redirectUri = `${url.origin}/auth`;
 	const code = url.searchParams.get("code");
 	if (!code) {
-		const state = await issueState(env);
+		// The plugin's one-time nonce comes back with the tokens: a link nobody started is refused there.
+		const nonce = url.searchParams.get("nonce") ?? "";
+		if (!NONCE.test(nonce)) {
+			return new Response("Start the sign-in from Obsync's settings.", {
+				status: 400,
+			});
+		}
+		const state = await issueState(env, nonce);
 		// The state also goes into a cookie: a signature proves we minted it,
 		// but returning from the same browser proves it is not CSRF.
 		return new Response(null, {
@@ -89,10 +105,8 @@ export async function handleAuthCallback(
 	// Without this check, /auth?code=... would let an attacker sync the
 	// victim's vault into the attacker's Drive.
 	const state = url.searchParams.get("state");
-	if (
-		!(await verifyState(env, state)) ||
-		!(await matchesCookie(request, state as string))
-	) {
+	const nonce = await verifyState(env, state);
+	if (!nonce || !(await matchesCookie(request, state as string))) {
 		return new Response("This sign-in link is invalid or expired.", {
 			status: 400,
 			headers: { "Set-Cookie": CLEARED_STATE_COOKIE },
@@ -113,10 +127,14 @@ export async function handleAuthCallback(
 	return new Response(null, {
 		status: 302,
 		headers: {
-			Location: callbackUrl(token),
+			Location: callbackUrl(token, nonce),
 			"Set-Cookie": CLEARED_STATE_COOKIE,
 		},
 	});
+}
+
+function isConfigured(env: GoogleOAuthEnv): boolean {
+	return Boolean(env.GDRIVE_CLIENT_ID && env.GDRIVE_CLIENT_SECRET);
 }
 
 function stateCookie(state: string): string {
@@ -141,22 +159,26 @@ async function matchesCookie(
 	return false;
 }
 
-/** A timestamp plus an HMAC under the worker's secret: proves this worker issued it. */
-async function issueState(env: GoogleOAuthEnv): Promise<string> {
-	const issued = String(Date.now());
-	return `${issued}.${await signState(env, issued)}`;
+/** A timestamp and the plugin's nonce plus an HMAC under the worker's secret: proves this worker issued it. */
+async function issueState(env: GoogleOAuthEnv, nonce: string): Promise<string> {
+	const signed = `${Date.now()}.${nonce}`;
+	return `${signed}.${await signState(env, signed)}`;
 }
 
+/** The nonce of a state this worker issued and that has not expired, else null. */
 async function verifyState(
 	env: GoogleOAuthEnv,
 	state: string | null,
-): Promise<boolean> {
-	if (!state) return false;
-	const [issued, signature] = state.split(".");
-	if (!issued || !signature) return false;
+): Promise<string | null> {
+	const [issued, nonce, signature] = state?.split(".") ?? [];
+	if (!issued || !nonce || !signature) return null;
 	const age = Date.now() - Number(issued);
-	if (!Number.isFinite(age) || age < 0 || age > STATE_TTL_MS) return false;
-	return secretsEqual(await signState(env, issued), signature);
+	if (!Number.isFinite(age) || age < 0 || age > STATE_TTL_MS) return null;
+	const valid = await secretsEqual(
+		await signState(env, `${issued}.${nonce}`),
+		signature,
+	);
+	return valid ? nonce : null;
 }
 
 async function signState(env: GoogleOAuthEnv, issued: string): Promise<string> {
@@ -189,8 +211,9 @@ function consentUrl(
 	return consent.toString();
 }
 
-function callbackUrl(token: GoogleTokenResponse): string {
+function callbackUrl(token: GoogleTokenResponse, nonce: string): string {
 	const callback = new URL(CALLBACK_PROTOCOL);
+	callback.searchParams.set("nonce", nonce);
 	if (token.access_token) {
 		callback.searchParams.set("access_token", token.access_token);
 	}
@@ -207,15 +230,21 @@ async function exchange(
 	env: GoogleOAuthEnv,
 	params: Record<string, string>,
 ): Promise<GoogleTokenResponse | null> {
-	const response = await fetch(TOKEN_ENDPOINT, {
-		method: "POST",
-		headers: { "Content-Type": "application/x-www-form-urlencoded" },
-		body: new URLSearchParams({
-			client_id: env.GDRIVE_CLIENT_ID,
-			client_secret: env.GDRIVE_CLIENT_SECRET,
-			...params,
-		}),
-	});
+	let response: Response;
+	try {
+		response = await fetch(TOKEN_ENDPOINT, {
+			method: "POST",
+			headers: { "Content-Type": "application/x-www-form-urlencoded" },
+			body: new URLSearchParams({
+				client_id: env.GDRIVE_CLIENT_ID,
+				client_secret: env.GDRIVE_CLIENT_SECRET,
+				...params,
+			}),
+		});
+	} catch {
+		console.error("google token exchange could not reach google");
+		return null;
+	}
 	// A 5xx from Google is HTML; parsing as JSON would throw before reporting failure.
 	if (!response.ok) {
 		console.error("google token exchange failed", response.status);

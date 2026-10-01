@@ -1,4 +1,4 @@
-import { EFrame, type Refusal } from "@obsync/protocol";
+import { EFrame } from "@obsync/protocol";
 import {
 	FLUSHED_MS,
 	sleep,
@@ -18,7 +18,7 @@ import type { SpaceFrame } from "@/hub/connection";
 import { docIdFor } from "@/live/doc-id";
 import { FollowerSession } from "@/live/session/follower-session";
 import { FOLLOWS, RoomAwareness } from "@/live/session/room-awareness";
-import type { Unfollowed } from "@/live/session/session-deps";
+import type { Refused, Unfollowed } from "@/live/session/session-deps";
 import { TEXT, type TextModel } from "@/live/text/model";
 
 const live = useLiveRoom();
@@ -28,7 +28,7 @@ interface Reader {
 	session: FollowerSession<TextModel>;
 	sent: () => SpaceFrame["type"][];
 	cold: Unfollowed | null;
-	refused: Refusal | null;
+	refused: Refused | null;
 }
 
 /** A read-only person's device; `known` are the versions the space already has. */

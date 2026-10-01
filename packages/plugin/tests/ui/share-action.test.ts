@@ -56,6 +56,7 @@ function host(relay: boolean) {
 		},
 		spaces: {
 			partition: () => [],
+			list: () => [],
 			add: async (record: SpaceRecord) => void added.push(record),
 		},
 		ignoreState: { refresh: async () => {} },

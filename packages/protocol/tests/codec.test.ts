@@ -19,7 +19,7 @@ const at = { slot: 3, doc: "doc-id" };
 const CLIENT_FRAMES: ClientFrame[] = [
 	{ ...at, type: EFrame.Sub, since: 42 },
 	{ ...at, type: EFrame.Unsub },
-	{ ...at, type: EFrame.Update, payload: bytes(1, 2, 3) },
+	{ ...at, type: EFrame.Update, n: 0xfffffffe, payload: bytes(1, 2, 3) },
 	{ ...at, type: EFrame.Awareness, payload: bytes(9) },
 	{ ...at, type: EFrame.Snapshot, upto: 7, payload: bytes(4, 5) },
 	{
@@ -38,7 +38,7 @@ const CLIENT_FRAMES: ClientFrame[] = [
 		note: bytes(6, 6),
 		payload: Uint8Array.of(4, 2),
 	},
-	{ ...at, type: EFrame.Seed, payload: Uint8Array.of(4, 2) },
+	{ ...at, type: EFrame.Seed, n: 0, payload: Uint8Array.of(4, 2) },
 	{ slot: 0, doc: CHANNEL_DOC, type: EFrame.Signal },
 ];
 
@@ -53,7 +53,7 @@ const SERVER_FRAMES: ServerFrame[] = [
 	},
 	{ ...at, type: EFrame.State, head: 0, snapshot: null, deltas: [], log: "" },
 	{ ...at, type: EFrame.Fanout, seq: 6, from: 0xdeadbeef, payload: bytes(8) },
-	{ ...at, type: EFrame.Echo, seq: 6 },
+	{ ...at, type: EFrame.Echo, seq: 6, n: 9 },
 	{ ...at, type: EFrame.Peer, from: 1, payload: bytes(7, 7) },
 	{ ...at, type: EFrame.Join, from: 1, who: "participant-1", name: "Alex" },
 	{ ...at, type: EFrame.Here, from: 2, who: "owner", name: "" },

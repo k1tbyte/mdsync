@@ -63,6 +63,12 @@ describe("baseline utilities", () => {
 			]);
 		});
 
+		it("drops a folder the baseline knew about and another device deleted", () => {
+			expect(mergeFolderArrays(["kept"], ["gone", "kept"], ["gone"])).toEqual([
+				"kept",
+			]);
+		});
+
 		it("keeps a folder another device added but this one never pulled", () => {
 			expect(
 				mergeFolderArrays(["theirs", "kept"], ["kept"], ["kept"]).sort(),

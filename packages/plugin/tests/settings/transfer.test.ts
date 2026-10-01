@@ -5,6 +5,7 @@ import {
 	createSettingsTransferPackage,
 	createSettingsTransferUrl,
 	ESettingsTransferStorageMode,
+	importedSections,
 	mergeTransferredSettings,
 	readSettingsTransfer,
 	type SettingsTransferExportOptions,
@@ -131,6 +132,20 @@ describe("settings transfer", () => {
 		expect(imported.realtimeSync).toBe(true);
 		expect(imported.relayUrl).toBe("https://relay.example.com");
 		expect(imported.relaySecret).toBe("relay-secret");
+		expect(importedSections(imported)).toEqual(["realtime"]);
+	});
+
+	it("names every section an import replaces, even one left at its defaults", async () => {
+		const url = await createSettingsTransferUrl(buildSettings({}), PASSPHRASE, {
+			storageMode: ESettingsTransferStorageMode.Active,
+			includeSyncScope: true,
+			includeAutomation: true,
+			includeRealtime: false,
+		});
+
+		expect(
+			importedSections(await readSettingsTransfer(url, PASSPHRASE)),
+		).toEqual(["storage", "scope", "automation"]);
 	});
 
 	it("round-trips every transferable field when each differs from defaults", async () => {
@@ -307,6 +322,23 @@ describe("settings transfer", () => {
 		const v4Token = "obsidian://obsync?d=4.p.AAAA.BBBB";
 		await expect(readSettingsTransfer(v4Token, PASSPHRASE)).rejects.toThrow(
 			/Unsupported Obsync link/,
+		);
+	});
+
+	it("rejects a storage slot holding another backend's config", async () => {
+		const token = await sealLink(
+			new TextEncoder().encode(
+				JSON.stringify({
+					s: {
+						a: EStorageBackend.S3,
+						c: { [EStorageBackend.S3]: { kind: EStorageBackend.WebDAV } },
+					},
+				}),
+			),
+			PASSPHRASE,
+		);
+		await expect(readSettingsTransfer(token, PASSPHRASE)).rejects.toThrow(
+			/Invalid Obsync settings transfer payload/,
 		);
 	});
 

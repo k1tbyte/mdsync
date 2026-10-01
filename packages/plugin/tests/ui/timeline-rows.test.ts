@@ -392,7 +392,7 @@ describe("describeRestorePlan", () => {
 				unchanged: 5,
 			}),
 		);
-		expect(lines[0]).toBe("2 files will be deleted.");
+		expect(lines[0]).toBe("2 files will be moved to the trash.");
 		expect(lines[1]).toBe("1 file will be written or restored.");
 		expect(lines[2]).toBe("5 files already up to date.");
 	});

@@ -215,13 +215,18 @@ export function leaveDocs(
 	}
 }
 
-/** The echo is the sender's ack; resending unacked updates is safe in Yjs. */
+/** The echo is the sender's ack, by its own counter: a frame dropped past the rate leaves a gap it can see. */
 function logged(
 	{ peers, peer, grant }: FrameContext,
-	{ slot, doc, payload }: { slot: number; doc: string; payload: Uint8Array },
+	{
+		slot,
+		doc,
+		n,
+		payload,
+	}: { slot: number; doc: string; n: number; payload: Uint8Array },
 	seq: number,
 ): void {
-	send(peer, slot, doc, { type: EFrame.Echo, seq });
+	send(peer, slot, doc, { type: EFrame.Echo, seq, n });
 	const fanout = { type: EFrame.Fanout, seq, from: peer.tag, payload } as const;
 	toFollowers(peers, grant.channel, doc, fanout, peer.tag);
 }

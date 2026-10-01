@@ -177,6 +177,7 @@ describe("a move whose note a room has not settled", () => {
 			absorb: async () => "cold",
 			wrote: async () => undefined,
 			holds: () => false,
+			kept: () => undefined,
 		};
 
 		const result = await a.compare();

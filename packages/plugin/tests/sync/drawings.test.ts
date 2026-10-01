@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import { readDrawing } from "@/drawing";
 import { autoMergeOp } from "@/sync/auto-merge";
+import { textToBytes } from "@/sync/content";
+import { pushSingleFile } from "@/sync/engine";
 import { pushPathsOp } from "@/sync/operations/push";
+import { batchKeepLocalOp } from "@/sync/operations/resolve";
 
 useEncryptionKey();
 
@@ -55,5 +58,32 @@ describe("drawings in the file sync", () => {
 				({ id, version }) => `${id}@${version}`,
 			),
 		).toEqual(["r@2", "s@2"]);
+	});
+
+	it("publishes the scene with a kept local side and a single-file push", async () => {
+		const [a, b] = pairedSessions();
+		a.adapter.putText("d.md", drawing({ r: 1 }));
+		await pushPathsOp(a.deps(), await a.compare(), ["d.md"], a.context());
+		b.adapter.putText("d.md", drawing({ r: 1 }));
+		await b.adoptRemote();
+		b.adapter.putText("d.md", drawing({ r: 2 }));
+		await pushPathsOp(b.deps(), await b.compare(), ["d.md"], b.context());
+		a.adapter.putText("d.md", drawing({ r: 3 }));
+
+		const kept = await batchKeepLocalOp(
+			a.deps(),
+			await a.compare(),
+			new Set(["d.md"]),
+			a.context(),
+		);
+		const pushed = await pushSingleFile(
+			b.deps(),
+			await b.compare(),
+			"d.md",
+			textToBytes(drawing({ r: 4 })),
+		);
+
+		expect(kept.newRemote?.files["d.md"]?.scene).toBeDefined();
+		expect(pushed.files["d.md"]?.scene).toBeDefined();
 	});
 });

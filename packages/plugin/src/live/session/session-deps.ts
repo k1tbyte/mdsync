@@ -14,6 +14,8 @@ export type Rotation = "moved" | "refused" | "busy";
 /** Why a reader's note stays cold: nobody edits it live yet, or this copy and the room differ. */
 export type Unfollowed = "empty" | "diverged";
 
+export type Refused = Refusal | "unreadable";
+
 /** A read-only person's side of a room they follow and never write. */
 export interface Follower {
 	/** The disk is a version the space already has: the agreed text or the cold baseline. */
@@ -39,8 +41,8 @@ export interface LiveSessionDeps<M extends LiveModel> {
 	onAgreed(agreed: string, seq: number): void;
 	/** The room was rebuilt elsewhere and now points at its successor. */
 	onMoved(): void;
-	/** The hub cannot carry this document: it goes cold. */
-	onRefused(reason: Refusal): void;
+	/** The hub cannot carry this document, or this device cannot read it: it goes cold. */
+	onRefused(reason: Refused): void;
 	/** Set for a read-only person: see `FollowerSession`. */
 	follower?: Follower;
 	/** The name the relay vouches for a person present in the space. */

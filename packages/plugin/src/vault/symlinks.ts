@@ -8,6 +8,7 @@ export interface SymlinkDetector {
 	isLink(path: string): boolean;
 	/** Returns the linked path itself, or its linked ancestor. */
 	findLink(path: string): string | null;
+	invalidate(path: string): void;
 }
 
 /** Names of the links directly inside one absolute folder, or null when it cannot be listed. */
@@ -28,6 +29,7 @@ interface NodeFs {
 const NEVER: SymlinkDetector = {
 	isLink: () => false,
 	findLink: () => null,
+	invalidate: () => {},
 };
 
 /** @param root Vault-relative folder detector paths are relative to, for sub-tree sessions. */
@@ -103,6 +105,20 @@ export function symlinkDetector(
 			return findLink(path) !== null;
 		},
 		findLink,
+		invalidate(path) {
+			const changed = fold(path);
+			const parent = changed.slice(0, Math.max(0, changed.lastIndexOf("/")));
+			for (const dir of cache.keys()) {
+				const folded = fold(dir);
+				if (
+					folded === parent ||
+					folded === changed ||
+					folded.startsWith(`${changed}/`)
+				) {
+					cache.delete(dir);
+				}
+			}
+		},
 	};
 }
 

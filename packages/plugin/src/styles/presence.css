@@ -20,6 +20,8 @@
 	font-size: calc(var(--obsync-avatar) * 0.55);
 	font-weight: var(--font-semibold);
 	line-height: 1;
+	/* Centres the capital itself, not its line box with room for descenders. */
+	text-box: trim-both cap alphabetic;
 }
 
 /* Overlap with a gap ring in the background colour, as faces do in a stack. */
@@ -43,6 +45,28 @@
 .obsync-note-presence,
 .obsync-live-status {
 	display: inline-flex;
+	gap: var(--size-4-2);
+	align-items: center;
+}
+
+/* Its own button, not `clickable-icon`: themes size those to one icon. */
+.obsync-note-presence {
+	padding: var(--size-2-2) var(--size-2-3);
+	border-radius: var(--clickable-icon-radius);
+	color: var(--icon-color);
+	cursor: var(--cursor);
+}
+
+.obsync-note-presence:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.obsync-note-presence:focus-visible {
+	box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+.obsync-follow-nudge {
+	display: flex;
 	gap: var(--size-4-2);
 	align-items: center;
 }

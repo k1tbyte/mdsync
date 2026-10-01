@@ -2,8 +2,14 @@ import { Menu } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
 import { EConflictStrategy } from "@/sync/controller";
+import { EChangeType } from "@/sync/types";
 import { addIgnoreMenuItem } from "@/ui/actions/ignore-action";
-import { openInEditor, revealInFileExplorer, runWithNotice } from "@/ui/common";
+import {
+	attempt,
+	openInEditor,
+	revealInFileExplorer,
+	runWithNotice,
+} from "@/ui/common";
 import { isIgnoreNote } from "@/vault/ignore";
 import {
 	confirmAdoptNewVault,
@@ -41,7 +47,7 @@ export class SourceControlActions {
 			item
 				.setTitle("Open diff")
 				.setIcon("git-compare")
-				.onClick(() => void this.openDiff(path)),
+				.onClick(() => attempt(this.openDiff(path), "Could not open the diff")),
 		);
 		menu.addItem((item) =>
 			item
@@ -180,7 +186,13 @@ export class SourceControlActions {
 	async revertPaths(paths: string[]): Promise<boolean> {
 		if (paths.length === 0) return false;
 		// Revert overwrites unsaved local work, so it asks first.
-		if (!(await confirmRevert(this.plugin.app, paths))) return false;
+		const asked = new Set(paths);
+		const added = (
+			this.plugin.controller.getSnapshot().result?.diff.localChanges ?? []
+		).filter(
+			({ path, type }) => type === EChangeType.LocalAdd && asked.has(path),
+		).length;
+		if (!(await confirmRevert(this.plugin.app, paths, added))) return false;
 		return runWithNotice(
 			() => this.plugin.controller.revertPaths(paths),
 			`Reverted ${paths.length} file(s).`,

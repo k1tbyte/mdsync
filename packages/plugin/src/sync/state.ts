@@ -1,6 +1,7 @@
 import type { DataAdapter } from "obsidian";
 import { PLUGIN_ID } from "@/constants";
 import { randomId } from "@/crypto";
+import { reportWarning } from "@/shared/diagnostics";
 import { writeAtomic } from "@/vault/atomic-write";
 import { ensureParent } from "@/vault/io";
 import { defaultDeviceName } from "./device";
@@ -20,15 +21,32 @@ export async function loadState(
 ): Promise<{ state: LocalState; stored: string | null }> {
 	const path = stateFilePath(configDir);
 	const candidates = [path, `${path}.new`, `${path}.bak`];
+	let unreadable: string | null = null;
 	for (const candidate of candidates) {
 		if (!(await adapter.exists(candidate))) continue;
+		let raw: string | null = null;
 		try {
-			const raw = await adapter.read(candidate);
+			raw = await adapter.read(candidate);
 			const state = normalizeState(JSON.parse(raw) as Partial<LocalState>);
 			return { state, stored: candidate === path ? raw : null };
-		} catch {}
+		} catch {
+			unreadable ??= raw;
+		}
 	}
+	if (unreadable !== null) await keepUnreadable(adapter, path, unreadable);
 	return { state: createEmptyState(), stored: null };
+}
+
+/** The fresh state about to be written would replace it: every baseline is compared again from scratch. */
+async function keepUnreadable(
+	adapter: DataAdapter,
+	path: string,
+	raw: string,
+): Promise<void> {
+	reportWarning(
+		`Sync state was unreadable and starts fresh; kept as ${path}.unreadable.`,
+	);
+	await adapter.write(`${path}.unreadable`, raw).catch(() => undefined);
 }
 
 /**

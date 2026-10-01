@@ -1,4 +1,5 @@
 import type { EngineDependencies } from "./engine";
+import { hunkBaseline } from "./operations/text-loaders";
 import {
 	buildConflictDiff,
 	buildLocalChangeDiff,
@@ -50,7 +51,7 @@ export class DiffCache {
 			adapter: input.deps.adapter,
 			storage: input.deps.storage,
 			key: input.deps.key,
-			baseline: input.deps.state.baseline,
+			baseline: hunkBaseline(input.deps, input.remote),
 			remote: input.remote,
 		};
 		const model = await buildModel(projection, input.status, forceText);

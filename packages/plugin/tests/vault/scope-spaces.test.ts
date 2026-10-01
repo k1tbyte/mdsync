@@ -30,8 +30,8 @@ describe("scope partition: vault excludes share roots", () => {
 		expect(scope.owns("shared/photos")).toBe(false);
 	});
 
-	it("includesInDiff also rejects share root paths", () => {
-		expect(scope.includesInDiff("shared/photos/pic.png")).toBe(false);
+	it("includes also rejects share root paths", () => {
+		expect(scope.includes("shared/photos/pic.png")).toBe(false);
 	});
 
 	it("owns returns true for vault files and false for share files", () => {

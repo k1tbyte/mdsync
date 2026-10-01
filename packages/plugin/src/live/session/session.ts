@@ -1,14 +1,13 @@
 /**
  * One live document: a Y.Doc kept in step with its room on the hub. Everything
- * runs through one queue, because sealing is asynchronous and the hub's echo
- * acks updates in the order they were sent.
+ * runs through one queue, because sealing is asynchronous and updates must
+ * leave in the order of the counters their echoes name.
  */
 
 import {
 	EFrame,
 	ERefusal,
 	MAX_FRAME_BYTES,
-	type Refusal,
 	type ServerFrame,
 } from "@obsync/protocol";
 import * as Y from "yjs";
@@ -17,18 +16,20 @@ import type { SpaceFrame, SpaceListener } from "@/hub";
 import { attribute } from "@/live/authors";
 import type { LiveModel } from "@/live/model";
 import { reportWarning } from "@/shared/diagnostics";
+import { runWithConcurrency } from "@/utils/concurrency";
 import { closingUntil } from "./closing";
 import { Outbox } from "./outbox";
 import { RoomAwareness } from "./room-awareness";
 import { RoomLog, type StateFrame } from "./room-log";
 import { RoomRotation } from "./rotation";
-import type { LiveSessionDeps, Rotation } from "./session-deps";
+import type { LiveSessionDeps, Refused, Rotation } from "./session-deps";
 
 /** A payload past this cannot fit a frame with its header: the hub would drop it. */
 const MAX_PAYLOAD_BYTES = MAX_FRAME_BYTES - 1024;
 const NO_NOTE = new Uint8Array();
 /** Marks what came off the wire, so it is never sent back. */
 const REMOTE = Symbol("remote");
+const DECRYPT_CONCURRENCY = 4;
 
 export type Unaddressed<F = SpaceFrame> = F extends SpaceFrame
 	? Omit<F, "doc">
@@ -79,6 +80,8 @@ export class LiveSession<M extends LiveModel = LiveModel>
 			enqueue: (step) => this.enqueue(step),
 			ship: (update) => this.sendUpdate(update),
 			settle: () => this.settle(),
+			// Disposed, no echo comes: the rest sent on close must not go out again and again.
+			online: () => this.online && !this.disposed,
 		});
 		this.presence = new RoomAwareness(this.doc, {
 			keys: deps.keys,
@@ -234,7 +237,7 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		if (epoch !== this.epoch) return;
 		this.seed = seed;
 		this.reconciledFrom = disk;
-		this.send({ type: EFrame.Seed, payload });
+		this.send({ type: EFrame.Seed, n: 0, payload });
 	}
 
 	/**
@@ -276,9 +279,9 @@ export class LiveSession<M extends LiveModel = LiveModel>
 			case EFrame.State:
 				return this.onState(frame, epoch);
 			case EFrame.Fanout:
-				return this.onFanout(frame.seq, frame.payload);
+				return this.onFanout(frame.seq, frame.payload, epoch);
 			case EFrame.Echo:
-				return this.onEcho(frame.seq);
+				return this.onEcho(frame.seq, frame.n);
 			case EFrame.Peer:
 				return this.presence.receive(frame.payload, frame.from);
 			case EFrame.Join:
@@ -299,11 +302,34 @@ export class LiveSession<M extends LiveModel = LiveModel>
 
 	private async onState(frame: StateFrame, epoch: number): Promise<void> {
 		if (this.log.lost(frame)) return this.moveOn(frame, epoch);
-		if (frame.snapshot) await this.apply(frame.snapshot);
-		for (const delta of frame.deltas) await this.apply(delta);
+		const payloads = [frame.snapshot, ...frame.deltas].filter(
+			(payload): payload is Uint8Array => payload !== null,
+		);
+		const updates: (Uint8Array | null)[] = new Array(payloads.length).fill(
+			null,
+		);
+		await runWithConcurrency(
+			payloads,
+			DECRYPT_CONCURRENCY,
+			async (payload, index) => {
+				updates[index] = await unseal(this.deps.keys, payload, this.sealedFor);
+			},
+		);
+		if (epoch !== this.epoch || this.disposed) return;
+		if (updates.some((update) => update === null)) return this.unreadable();
+		try {
+			this.doc.transact(() => {
+				for (const update of updates) {
+					if (update) Y.applyUpdate(this.doc, update, REMOTE);
+				}
+			}, REMOTE);
+		} catch {
+			return this.unreadable();
+		}
 		this.log.reached(frame);
 
 		if (!this.hasJoined && !(await this.join(frame.head, epoch))) return;
+		if (epoch !== this.epoch || this.disposed) return;
 		// On a socket already online a State only answers a refused rotation: nothing to resend.
 		if (this.online) this.rotation.end("refused");
 		else if (epoch === this.epoch) await this.goOnline();
@@ -337,19 +363,26 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		await this.presence.announce();
 	}
 
-	private async onFanout(seq: number, payload: Uint8Array): Promise<void> {
+	private async onFanout(
+		seq: number,
+		payload: Uint8Array,
+		epoch: number,
+	): Promise<void> {
 		// A pending seed is answered by its echo or by the whole room, so these add nothing;
 		// a lost log's are another history.
 		if (!this.hasJoined || this.log.leaving) return;
+		const applied = await this.apply(payload, epoch);
+		if (epoch !== this.epoch || this.disposed) return;
+		if (!applied) return this.unreadable();
 		this.log.seq = seq;
-		await this.apply(payload);
 		await this.settle();
 	}
 
-	private async onEcho(seq: number): Promise<void> {
+	private async onEcho(seq: number, n: number): Promise<void> {
 		this.log.seq = seq;
 		if (this.hasJoined) {
-			this.outbox.ack();
+			const dropped = this.outbox.ack(n);
+			if (dropped) await this.sendUpdate(dropped);
 		} else if (this.seed) {
 			Y.applyUpdate(this.doc, this.seed, REMOTE);
 			this.seed = null;
@@ -363,13 +396,18 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	private async settle(): Promise<void> {
 		if (!this.settled) return;
 		this.deps.onAgreed(this.model.agreed(), this.log.seq);
-		if (!this.log.compactionDue || !this.presence.leads()) return;
+		// Offline, the snapshot would be lost until 200 more deltas came.
+		if (!this.online || !this.log.compactionDue || !this.presence.leads()) {
+			return;
+		}
 		const upto = this.log.compactedNow();
 		const payload = await seal(
 			this.deps.keys,
 			Y.encodeStateAsUpdate(this.doc),
 			this.sealedFor,
 		);
+		// Past a frame the log just stays: refused, the whole room would go cold.
+		if (payload.length > MAX_PAYLOAD_BYTES) return;
 		if (this.online) {
 			this.send({ type: EFrame.Snapshot, upto, payload });
 		}
@@ -381,22 +419,32 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		this.deps.onMoved();
 	}
 
-	private onRefused(reason: Refusal): void {
+	private unreadable(): void {
+		this.onRefused("unreadable");
+	}
+
+	private onRefused(reason: Refused): void {
 		this.online = false;
 		this.rotation.end("refused");
 		this.deps.onRefused(reason);
 	}
 
-	private async apply(payload: Uint8Array): Promise<void> {
+	private async apply(payload: Uint8Array, epoch: number): Promise<boolean> {
 		const update = await unseal(this.deps.keys, payload, this.sealedFor);
-		if (update) Y.applyUpdate(this.doc, update, REMOTE);
+		if (!update || epoch !== this.epoch || this.disposed) return false;
+		try {
+			Y.applyUpdate(this.doc, update, REMOTE);
+			return true;
+		} catch {
+			return false;
+		}
 	}
 
 	/** Unacked before sealing: an edit is always pending or unacked until its echo. */
 	private async sendUpdate(update: Uint8Array): Promise<void> {
-		this.outbox.addUnacked(update);
+		const n = this.outbox.addUnacked(update);
 		const payload = await seal(this.deps.keys, update, this.sealedFor);
-		if (this.online) this.send({ type: EFrame.Update, payload });
+		if (this.online) this.send({ type: EFrame.Update, n, payload });
 	}
 
 	private enqueue(step: () => unknown): void {

@@ -110,18 +110,55 @@ describe("scope: canDescend agrees with includes", () => {
 	});
 });
 
-describe("scope: separate shared and local ignore rules", () => {
-	it("hides a shared-ignored path from sync but not from the diff", async () => {
-		const scope = policy({}, { sharedIgnore: createIgnoreMatcher("drafts/") });
-		expect(scope.includes("drafts/a.md")).toBe(false);
-		// Another device may still hold it, so the diff has to keep seeing it.
-		expect(scope.includesInDiff("drafts/a.md")).toBe(true);
+describe("scope: re-included directories", () => {
+	it.each([
+		[["/*", "!/Notes/"], "Notes"],
+		[["*", "!*/", "!*.md"], "Notes"],
+		[["build/*", "!build/keep/"], "build/keep"],
+	])("walks into a directory a negation lets back in (%j)", (rules, dir) => {
+		const scope = policy(
+			{},
+			{ localIgnore: createIgnoreMatcher(rules.join("\n")) },
+		);
+		expect(scope.includes(`${dir}/a.md`)).toBe(true);
+		expect(scope.canDescend(dir)).toBe(true);
 	});
 
-	it("hides a locally ignored path from the diff as well", async () => {
-		const scope = policy({}, { localIgnore: createIgnoreMatcher("private/") });
+	it("still prunes a directory an ignore rule names", () => {
+		const scope = policy(
+			{},
+			{ sharedIgnore: createIgnoreMatcher("drafts/\nold") },
+		);
+		expect(scope.canDescend("drafts")).toBe(false);
+		expect(scope.canDescend("old")).toBe(false);
+		expect(scope.canDescend("notes")).toBe(true);
+	});
+
+	it("scans the files of a re-included directory", async () => {
+		const adapter = new InMemoryAdapter();
+		adapter.putText("Notes/a.md", "kept");
+		adapter.putText("other.md", "hidden");
+		const { snapshot } = await scanVault(
+			adapter.asDataAdapter(),
+			policy({}, { localIgnore: createIgnoreMatcher("/*\n!/Notes/") }),
+			{ maxFileBytes: 1000, concurrency: 2 },
+			{},
+		);
+		expect(Object.keys(snapshot.files)).toEqual(["Notes/a.md"]);
+	});
+});
+
+describe("scope: separate shared and local ignore rules", () => {
+	it("hides a shared or locally ignored path", async () => {
+		const scope = policy(
+			{},
+			{
+				sharedIgnore: createIgnoreMatcher("drafts/"),
+				localIgnore: createIgnoreMatcher("private/"),
+			},
+		);
+		expect(scope.includes("drafts/a.md")).toBe(false);
 		expect(scope.includes("private/a.md")).toBe(false);
-		expect(scope.includesInDiff("private/a.md")).toBe(false);
 	});
 
 	it("reports pattern-ignored paths but not structurally excluded ones", async () => {

@@ -17,6 +17,7 @@ import { bytesToBase64 } from "@/utils/base64";
 import { toArrayBuffer } from "@/utils/bytes";
 import {
 	assertOk,
+	dateOf,
 	headerValue,
 	isRetryableStatus,
 	STORAGE_TIMEOUT_MS,
@@ -26,7 +27,7 @@ import {
 } from "./util";
 
 const PROPFIND_BODY =
-	'<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getetag/></d:prop></d:propfind>';
+	'<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getetag/><d:getlastmodified/></d:prop></d:propfind>';
 const HTTP_OK_MIN = 200;
 const HTTP_OK_MAX = 299;
 const HTTP_NOT_FOUND = 404;
@@ -245,7 +246,7 @@ export function createWebDAVAdapter(
 		async list(keyPrefix) {
 			return (await listObjects(keyPrefix)).map((object) => object.key);
 		},
-		listWithEtags: listObjects,
+		listDetailed: listObjects,
 	};
 
 	async function sendPut(
@@ -329,8 +330,12 @@ function parsePropfindResponse(
 ): PropfindListing {
 	const parser = new DOMParser();
 	const doc = parser.parseFromString(xmlText, "application/xml");
+	if (doc.getElementsByTagName("parsererror").length > 0) {
+		throw new Error("WebDAV sent a listing that could not be read");
+	}
 	const responses = doc.getElementsByTagNameNS("DAV:", "response");
 	const listing: PropfindListing = { files: [], collections: [] };
+	let inside = 0;
 	for (let i = 0; i < responses.length; i++) {
 		const node = responses.item(i);
 		if (!node) continue;
@@ -340,6 +345,7 @@ function parsePropfindResponse(
 		if (!href) continue;
 		const relative = relativizeHref(href, rootUrl);
 		if (relative === null) continue;
+		inside++;
 		const resourceType = node
 			.getElementsByTagNameNS("DAV:", "resourcetype")
 			.item(0);
@@ -352,8 +358,12 @@ function parsePropfindResponse(
 			listing.files.push({
 				key: relative,
 				etag: propertyText(node, "getetag"),
+				modified: dateOf(propertyText(node, "getlastmodified")),
 			});
 		}
+	}
+	if (responses.length > 0 && inside === 0) {
+		throw new Error("WebDAV listed paths outside the configured folder");
 	}
 	return listing;
 }
@@ -381,12 +391,15 @@ function relativizeHref(href: string, rootUrl: string): string | null {
 		return null;
 	}
 	if (absolute.origin !== root.origin) return null;
-	if (!absolute.pathname.startsWith(root.pathname)) return null;
-	const relative = absolute.pathname.slice(root.pathname.length);
+	const rootPath = decodeLoosely(root.pathname);
+	const path = decodeLoosely(absolute.pathname);
+	return path.startsWith(rootPath) ? path.slice(rootPath.length) : null;
+}
+
+function decodeLoosely(path: string): string {
 	try {
-		return decodeURIComponent(relative);
+		return decodeURIComponent(path);
 	} catch {
-		// A server that emits a stray "%" would otherwise kill the whole listing.
-		return relative;
+		return path;
 	}
 }

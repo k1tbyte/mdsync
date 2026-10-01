@@ -55,6 +55,9 @@ function descendants(node: Node, local: string): Node[] {
 function wrap(node: Node) {
 	return {
 		textContent: textOf(node),
+		getElementsByTagName(local: string) {
+			return { length: descendants(node, local).length };
+		},
 		getElementsByTagNameNS(_ns: string, local: string) {
 			const found = descendants(node, local).map(wrap);
 			return { length: found.length, item: (index: number) => found[index] };

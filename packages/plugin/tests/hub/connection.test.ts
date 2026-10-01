@@ -2,6 +2,7 @@ import {
 	deriveChannelGrant,
 	EFrame,
 	grantExpiry,
+	MAX_SLOTS,
 	type ServerFrame,
 	shareChannel,
 } from "@obsync/protocol";
@@ -127,6 +128,16 @@ describe("hubRoutes", () => {
 		]);
 	});
 
+	it("names the shares past a relay's slots instead of carrying them", () => {
+		const shares = Array.from({ length: MAX_SLOTS + 1 }, (_, i) =>
+			owned(`s${i}`),
+		);
+		const [home] = hubRoutes(settingsWith(shares));
+
+		expect(home?.spaces).toHaveLength(MAX_SLOTS);
+		expect(home?.full).toEqual([`s${MAX_SLOTS - 1}`, `s${MAX_SLOTS}`]);
+	});
+
 	it("keeps joined shares without a relay of this device's own, and nothing with realtime off", () => {
 		const settings = settingsWith([owned("mine"), joined("theirs", OTHER)]);
 
@@ -144,8 +155,18 @@ describe("hubRoutes", () => {
 				closed,
 				owned("resting"),
 				joined("away", OTHER),
+				{ ...owned("everywhere"), paused: true },
 			]),
 			pausedSpaces: ["resting", "away"],
+		});
+
+		expect(routes.map((route) => route.spaces)).toEqual([["vault"]]);
+	});
+
+	it("carries only the vault where shared folders are off", () => {
+		const routes = hubRoutes({
+			...settingsWith([owned("mine"), joined("theirs", OTHER)]),
+			useSharedFolders: false,
 		});
 
 		expect(routes.map((route) => route.spaces)).toEqual([["vault"]]);
@@ -239,7 +260,11 @@ describe("HubConnection", () => {
 
 		expect(vault.mock.calls).toEqual([[peer(0)]]);
 		expect(theirs.mock.calls).toEqual([[peer(0)]]);
-		expect(onSignal).toHaveBeenCalledOnce();
+		expect(onSignal.mock.calls).toEqual([["mine"]]);
+		home?.options.onFrame({ type: EFrame.Signal, slot: 0, doc: "", from: 7 });
+		other?.options.onFrame({ type: EFrame.Signal, slot: 0, doc: "", from: 7 });
+		home?.options.onFrame({ type: EFrame.Signal, slot: 99, doc: "", from: 7 });
+		expect(onSignal.mock.calls).toEqual([["mine"], ["vault"], ["theirs"]]);
 	});
 
 	it("sends a space's frames on its socket at its slot", () => {
@@ -268,6 +293,8 @@ describe("HubConnection", () => {
 				onConnectionChange: (connected) => changes.push([id, connected]),
 			});
 		}
+		const onRevoked = vi.fn();
+		hub.listen({ onRevoked });
 		hub.restart();
 		const [home] = links;
 
@@ -281,13 +308,18 @@ describe("HubConnection", () => {
 
 		home?.options.onFrame({ type: EFrame.Revoked, slot: 1, doc: "" });
 		expect(changes.at(-1)).toEqual(["mine", false]);
+		expect(onRevoked).toHaveBeenCalledOnce();
 		expect(hub.space("mine").isConnected()).toBe(false);
 		expect(hub.isConnected()).toBe(true);
 	});
 
 	it("tells why a space has no live channel, or how its socket stands", () => {
 		settings = {
-			...settingsWith([owned("mine"), joined("theirs", OTHER)]),
+			...settingsWith([
+				owned("mine"),
+				joined("theirs", OTHER),
+				owned("resting"),
+			]),
 			pausedSpaces: ["resting"],
 		};
 		const hub = connection();
@@ -308,7 +340,66 @@ describe("HubConnection", () => {
 		expect(hub.statusOf("mine")).toBe("unauthorized");
 		expect(hub.statusOf("vault")).toBe("connected");
 
+		// The vault has no record: shares off here leave its relay alone.
+		settings = { ...settings, useSharedFolders: false };
+		expect(hub.statusOf("theirs")).toBe("paused");
+		expect(hub.statusOf("vault")).toBe("connected");
+
 		settings = { ...settings, realtimeSync: false };
 		expect(hub.statusOf("vault")).toBe("off");
+	});
+
+	it("says a share past the relay's slots is full, not unconfigured", () => {
+		settings = settingsWith(
+			Array.from({ length: MAX_SLOTS }, (_, i) => owned(`s${i}`)),
+		);
+		const hub = connection();
+		hub.restart();
+		expect(hub.statusOf(`s${MAX_SLOTS - 2}`)).toBe("connecting");
+		expect(hub.statusOf(`s${MAX_SLOTS - 1}`)).toBe("full");
+
+		// Past the slots nothing reconnects, yet the status follows.
+		settings = { ...settings, spaces: [...settings.spaces, owned("late")] };
+		hub.restartIfChanged();
+		expect(links).toHaveLength(1);
+		expect(hub.statusOf("late")).toBe("full");
+	});
+
+	it("asks again for a slot the relay refused while its socket stays up, a few times", () => {
+		vi.useFakeTimers();
+		settings = settingsWith([owned("mine")]);
+		const hub = connection();
+		hub.restart();
+		const revoke = () =>
+			links.at(-1)?.options.onFrame({ type: EFrame.Revoked, slot: 1, doc: "" });
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			revoke();
+			vi.advanceTimersByTime(200_000);
+			expect(links).toHaveLength(2 + attempt);
+		}
+		revoke();
+		vi.advanceTimersByTime(400_000);
+
+		expect(links).toHaveLength(4);
+		vi.useRealTimers();
+	});
+
+	it("starts counting afresh once the space is heard from", () => {
+		vi.useFakeTimers();
+		settings = settingsWith([owned("mine")]);
+		const hub = connection();
+		hub.restart();
+		const last = () => links.at(-1)?.options;
+
+		for (let cycle = 0; cycle < 4; cycle++) {
+			last()?.onFrame({ type: EFrame.Revoked, slot: 1, doc: "" });
+			vi.advanceTimersByTime(200_000);
+			last()?.onFrame({ type: EFrame.Leave, slot: 1, doc: "", from: 2 });
+		}
+
+		expect(links).toHaveLength(5);
+		vi.useRealTimers();
+		hub.dispose();
 	});
 });

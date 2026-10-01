@@ -1,4 +1,4 @@
-import type { Plugin } from "obsidian";
+import type { Plugin, TAbstractFile } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import type { SyncController } from "@/sync/controller";
 import {
@@ -51,12 +51,6 @@ export function registerFileExplorerIndicators(
 		});
 	};
 
-	const resetLinks = (): void => {
-		if (disposed) return;
-		links.reset();
-		schedule(true);
-	};
-
 	const observeExplorer = (): void => {
 		if (disposed) return;
 		const container = readFileExplorerContainer(plugin.app.workspace);
@@ -93,9 +87,15 @@ export function registerFileExplorerIndicators(
 	for (const type of ["click", "keydown"] as const) {
 		plugin.registerDomEvent(document, type, onBadge, { capture: true });
 	}
-	plugin.registerEvent(plugin.app.vault.on("create", resetLinks));
-	plugin.registerEvent(plugin.app.vault.on("delete", resetLinks));
-	plugin.registerEvent(plugin.app.vault.on("rename", resetLinks));
+	const invalidateLinks = (file: TAbstractFile, oldPath?: string): void => {
+		if (disposed) return;
+		links.invalidate(file.path);
+		if (oldPath !== undefined) links.invalidate(oldPath);
+		schedule(true);
+	};
+	plugin.registerEvent(plugin.app.vault.on("create", invalidateLinks));
+	plugin.registerEvent(plugin.app.vault.on("delete", invalidateLinks));
+	plugin.registerEvent(plugin.app.vault.on("rename", invalidateLinks));
 
 	plugin.registerEvent(
 		plugin.app.workspace.on("layout-change", () => {
@@ -112,7 +112,7 @@ export function registerFileExplorerIndicators(
 		refresh(showIndicators) {
 			indicators = showIndicators;
 			observeExplorer();
-			resetLinks();
+			schedule(true);
 		},
 	};
 }

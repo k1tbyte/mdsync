@@ -83,7 +83,12 @@ export type ClientFrame = Address &
 	(
 		| { type: typeof EFrame.Sub; since: number }
 		| { type: typeof EFrame.Unsub }
-		| { type: typeof EFrame.Update; payload: Uint8Array }
+		| {
+				type: typeof EFrame.Update;
+				/** Counts this document's updates from the sender, so its Echo names the one it answers. */
+				n: number;
+				payload: Uint8Array;
+		  }
 		| { type: typeof EFrame.Awareness; payload: Uint8Array }
 		| { type: typeof EFrame.Snapshot; upto: number; payload: Uint8Array }
 		/**
@@ -100,7 +105,7 @@ export type ClientFrame = Address &
 		  }
 		| { type: typeof EFrame.Signal }
 		/** An Update the hub takes only into a document with no log. */
-		| { type: typeof EFrame.Seed; payload: Uint8Array }
+		| { type: typeof EFrame.Seed; n: number; payload: Uint8Array }
 	);
 
 export type ServerFrame = Address &
@@ -119,7 +124,12 @@ export type ServerFrame = Address &
 				from: number;
 				payload: Uint8Array;
 		  }
-		| { type: typeof EFrame.Echo; seq: number }
+		| {
+				type: typeof EFrame.Echo;
+				seq: number;
+				/** The `n` of the Update or Seed this answers. */
+				n: number;
+		  }
 		| { type: typeof EFrame.Peer; from: number; payload: Uint8Array }
 		| ({ type: typeof EFrame.Join } & Vouched)
 		| ({ type: typeof EFrame.Here } & Vouched)

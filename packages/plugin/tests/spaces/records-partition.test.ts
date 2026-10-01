@@ -47,8 +47,13 @@ describe("the memoized partition", () => {
 		const laptop = device([record("a", "A")]);
 		const steps = [
 			() => laptop.records.add(record("b", "B")),
-			() => laptop.records.setPaused("b", true),
-			() => laptop.records.setPaused("b", false),
+			() => laptop.records.setPause("b", "here", "laptop"),
+			() => laptop.records.setPause("b", null, "laptop"),
+			() => laptop.records.setPause("b", "everywhere", "laptop"),
+			() => laptop.records.setPause("b", null, "laptop"),
+			async () => {
+				laptop.settings.useSharedFolders = false;
+			},
 			() => laptop.records.moveRoot("b", "Moved", "laptop"),
 			() => laptop.records.settle("b"),
 			() => laptop.records.close("a", "laptop"),
@@ -106,7 +111,7 @@ describe("the memoized partition", () => {
 		expect(phone.records.partition()).toHaveLength(1);
 
 		await laptop.records.add(record("b", "B"));
-		await laptop.records.setPaused("b", true);
+		await laptop.records.setPause("b", "here", "laptop");
 		laptop.records.partition();
 		await laptop.records.sync(new FakeStorage("second"), key);
 		expectFresh(laptop);

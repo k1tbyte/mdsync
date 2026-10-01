@@ -17,34 +17,27 @@ import type { LocalSnapshot, Manifest } from "./types";
 // A per-path baseline can share a snapshot id with HEAD without holding all its files.
 const validators = new WeakMap<
 	ObjectStorage,
-	{ etag: string; manifest: Manifest; key: EncryptionKey }
+	{ etag: string; manifest: Manifest; key: EncryptionKey; root: string }
 >();
 const publishedHeads = new WeakMap<
 	ObjectStorage,
 	{ manifest: Manifest; key: EncryptionKey }
 >();
 
-// `known` permits revalidation; only the complete cached response can answer a 304.
 export async function fetchRemoteManifest(
 	storage: ObjectStorage,
 	key: EncryptionKey,
 	root: string,
-	known?: Manifest | null,
 ): Promise<Manifest | null> {
 	const cached = validators.get(storage);
-	const validator = cached?.key === key ? cached : undefined;
-	// Conditional only when a "not modified" can actually be answered. Asking
-	// otherwise buys a round trip that has to be followed by the real read.
-	const revalidate =
-		validator !== undefined &&
-		known != null &&
-		known.snapshotId === validator.manifest.snapshotId;
-	const read = await readManifest(storage, revalidate ? validator.etag : null);
+	const validator =
+		cached?.key === key && cached.root === root ? cached : undefined;
+	const read = await readManifest(storage, validator?.etag ?? null);
 	if (read.status === "unchanged") {
 		// Only ever an answer about the validator we sent. A backend that says it
 		// to an unconditional read is describing nothing we hold, and reading that
 		// as an empty remote would look like a vault that has never been pushed.
-		if (!revalidate || !known) {
+		if (!validator) {
 			throw new Error(
 				"Storage answered 'not modified' to a read that carried no validator.",
 			);
@@ -68,6 +61,7 @@ export async function fetchRemoteManifest(
 			etag: read.etag,
 			manifest,
 			key,
+			root,
 		});
 	} else {
 		validators.delete(storage);
@@ -143,7 +137,7 @@ export async function publishManifestWithGuard(
 	// has to slip through.
 	const blob = await encryptJson(key, manifestToSpace(manifest, root));
 	// Stale-read reconciliation prevents a lagging backend from appearing as a competing writer.
-	const fetched = await fetchRemoteManifest(storage, key, root, baseline);
+	const fetched = await fetchRemoteManifest(storage, key, root);
 	const precheck = reconcileRemoteAgainstBaseline(
 		fetched,
 		baseline,

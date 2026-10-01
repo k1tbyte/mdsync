@@ -21,6 +21,7 @@ export interface LiveHost extends SpaceAccessHost {
 	app: App;
 	/** Its partition is the spaces as the records have them now, ahead of the next refresh. */
 	spaces: Pick<SpaceRecords, "get" | "partition">;
+	onDeletedElsewhere(path: string): void;
 }
 
 /** Live editing wired to the workspace: which notes are open decides which rooms are joined. */
@@ -32,7 +33,7 @@ export function createLive(
 ): {
 	sessions: LiveSessions;
 	notes(space: Space): LiveNotes;
-	dispose(): void;
+	dispose(): Promise<void>;
 } {
 	const { vault } = host.app;
 	const agreed = new AgreedTexts(vault.adapter, vault.configDir);
@@ -59,11 +60,12 @@ export function createLive(
 				agreed,
 				space: space.id,
 				live: () => liveSpace(space),
+				kept: (path) => host.onDeletedElsewhere(path),
 			}),
 		dispose() {
 			stopWatching();
 			stopFlushing();
-			sessions.dispose();
+			return sessions.dispose();
 		},
 	};
 }
@@ -122,9 +124,9 @@ function createLiveSpaces(
 		if (!host.settings().liveEditing || space.paused) return null;
 		const at = await access(space);
 		if (!at) return null;
-		const { keys, person, key, name } = at;
+		const { keys, person, key, name, device } = at;
 		// Coloured by key, so a cursor matches the tint of that person's text.
-		const user = { key, name, color: personColor(key) };
+		const user = { key, name, color: personColor(key), device };
 		const { id, root, readOnly } = space;
 		return { id, root, keys, person, user, ...(readOnly ? { readOnly } : {}) };
 	};

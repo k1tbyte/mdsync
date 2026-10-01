@@ -11,6 +11,8 @@ const DEVICES = 3;
 const ROUNDS = 6;
 const ACTIONS_PER_ROUND = 10;
 const SEEDS = 3;
+/** Convergence, not speed, is under test: a loaded full run takes seconds longer. */
+const CONVERGE_MS = 20_000;
 
 interface Device {
 	connection: TestConnection;
@@ -106,7 +108,7 @@ describe("live rooms under chaos", () => {
 					expect(rest.every((text) => text === first)).toBe(true);
 					expect(devices.every(({ session }) => session.settled)).toBe(true);
 				},
-				{ timeout: 5000 },
+				{ timeout: CONVERGE_MS },
 			);
 			const final = textOf(devices[0] as Device);
 			for (const token of typed) {

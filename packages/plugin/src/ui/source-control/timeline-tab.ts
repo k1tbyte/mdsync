@@ -12,6 +12,7 @@ import {
 import type { HistoryDiffTarget } from "@/ui/source-control-view";
 import { groupByDay } from "./day-groups";
 import { STATUS_CLASSES, STATUS_LETTERS } from "./row-formatter";
+import { RowPager } from "./row-pager";
 import { renderPath, renderSize } from "./row-parts";
 import { TimelineActions } from "./timeline-actions";
 import {
@@ -28,6 +29,7 @@ export class TimelineTab {
 	private generation = 0;
 	private openGeneration = 0;
 	private readonly expanded = new Set<string>();
+	private readonly pages = new Map<string, RowPager>();
 	private selected: string | null = null;
 	private opening: string | null = null;
 	private list: HTMLElement | null = null;
@@ -162,6 +164,8 @@ export class TimelineTab {
 				const ids = new Set(result.snapshots.map((row) => row.id));
 				for (const id of this.expanded)
 					if (!ids.has(id)) this.expanded.delete(id);
+				for (const id of this.pages.keys())
+					if (!ids.has(id)) this.pages.delete(id);
 			})
 			.catch((error: unknown) => {
 				if (generation === this.generation) this.error = errorMessage(error);
@@ -230,7 +234,13 @@ export class TimelineTab {
 			});
 			return;
 		}
-		for (const file of row.files) this.renderFile(list, row, file);
+		let pager = this.pages.get(row.snapshotId);
+		if (!pager) {
+			pager = new RowPager();
+			this.pages.set(row.snapshotId, pager);
+		}
+		for (const file of pager.slice(row.files)) this.renderFile(list, row, file);
+		pager.render(list, row.files.length, this.onRerender);
 	}
 
 	private renderFile(

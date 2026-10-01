@@ -19,6 +19,7 @@ import {
 	listSnapshots as querySnapshots,
 	resolveSnapshotManifest,
 	type SnapshotListResult,
+	sameRestorePlan,
 	setSnapshotPinned as storeSetSnapshotPinned,
 	type VaultRestorePlan,
 } from "@/sync/history";
@@ -35,7 +36,8 @@ import {
 } from "@/sync/projection";
 import type { LocalSnapshot, Manifest } from "@/sync/types";
 import { runWithConcurrency } from "@/utils/concurrency";
-import { deletePath, writeBinary } from "@/vault/io";
+import { withEolOf } from "@/utils/eol";
+import { trashPath, writeBinary } from "@/vault/io";
 import { scanVault } from "@/vault/scanner";
 
 const NO_SESSION = "Storage session unavailable";
@@ -73,7 +75,7 @@ export class HistoryService {
 		});
 		return {
 			...deleted,
-			files: deleted.files.filter(({ path }) => session.scope.owns(path)),
+			files: deleted.files.filter(({ path }) => session.scope.includes(path)),
 		};
 	}
 
@@ -90,23 +92,25 @@ export class HistoryService {
 	/** What a restore would change, computed against a fresh scan of the vault. */
 	async previewVaultRestore(snapshotId: string): Promise<VaultRestorePlan> {
 		const session = await this.requireSession();
-		return planVaultRestore(
+		return this.planRestore(
+			session,
 			await this.requireSnapshot(session, snapshotId),
-			await scanLocal(session),
 		);
 	}
 
 	/**
-	 * Makes the vault match a past snapshot. Local only - the remote is untouched
-	 * until the user pushes, so the whole thing stays reviewable and revertable.
+	 * Makes the vault match a past snapshot, local only; removed files go to the trash.
+	 * Applies nothing and returns the fresh plan when the vault moved since `confirmed`.
 	 */
-	async restoreVault(snapshotId: string): Promise<VaultRestorePlan> {
+	async restoreVault(
+		snapshotId: string,
+		confirmed: VaultRestorePlan,
+	): Promise<{ plan: VaultRestorePlan; applied: boolean }> {
 		return this.deps.enqueue(async () => {
 			const session = await this.requireSession();
 			const target = await this.requireSnapshot(session, snapshotId);
-			// Re-planned here, not taken from the preview: the vault may have moved
-			// while the user was reading the confirmation.
-			const plan = planVaultRestore(target, await scanLocal(session));
+			const plan = await this.planRestore(session, target);
+			if (!sameRestorePlan(plan, confirmed)) return { plan, applied: false };
 			await runWithConcurrency(
 				plan.write,
 				session.concurrency ?? DEFAULT_CONCURRENCY,
@@ -118,12 +122,21 @@ export class HistoryService {
 				plan.remove,
 				session.concurrency ?? DEFAULT_CONCURRENCY,
 				async (path) => {
-					await deletePath(session.adapter, path);
+					await trashPath(session.adapter, path);
 				},
 			);
 			await this.deps.refresh();
-			return plan;
+			return { plan, applied: true };
 		});
+	}
+
+	private async planRestore(
+		session: EngineDependencies,
+		target: Manifest,
+	): Promise<VaultRestorePlan> {
+		return planVaultRestore(target, await scanLocal(session), (path) =>
+			session.scope.includes(path),
+		);
 	}
 
 	private async requireSnapshot(
@@ -144,20 +157,23 @@ export class HistoryService {
 		return { ...target, files: ownedFiles(target.files, session.scope) };
 	}
 
-	async setSnapshotPinned(
+	/** Queued: it rewrites the history log a push or GC of this device also rewrites. */
+	setSnapshotPinned(
 		snapshotId: string,
 		pinned: boolean,
 		label?: string,
 	): Promise<void> {
-		const session = await this.requireSession();
-		await storeSetSnapshotPinned(
-			session.storage,
-			session.key,
-			session.space.root,
-			snapshotId,
-			pinned,
-			label,
-		);
+		return this.deps.enqueue(async () => {
+			const session = await this.requireSession();
+			await storeSetSnapshotPinned(
+				session.storage,
+				session.key,
+				session.space.root,
+				snapshotId,
+				pinned,
+				label,
+			);
+		});
 	}
 
 	async getHistoryDiff(
@@ -215,10 +231,9 @@ export class HistoryService {
 			const { hunks } = computeHunks(versionText, currentText);
 			// `applyHunks` takes the right side for selected segments, so keeping the
 			// version's side for one segment means selecting all the others.
-			const merged = applyHunks(
-				versionText,
-				hunks,
-				complementSelection(hunks, selected),
+			const merged = withEolOf(
+				currentText,
+				applyHunks(versionText, hunks, complementSelection(hunks, selected)),
 			);
 			await writeBinary(session.adapter, path, textToBytes(merged));
 			await this.deps.refresh();

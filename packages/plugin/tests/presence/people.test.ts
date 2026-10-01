@@ -44,7 +44,13 @@ describe("people", () => {
 
 		await vi.waitFor(() =>
 			expect(friend.people.inNote("Shared/Team/a.md")).toEqual([
-				{ key: "owner", name: "Owner", note: "Shared/Team/a.md", idle: false },
+				{
+					key: "owner",
+					name: "Owner",
+					devices: ["d1"],
+					note: "Shared/Team/a.md",
+					idle: false,
+				},
 			]),
 		);
 		expect(friend.people.online(SHARE_ID)).toHaveLength(1);
@@ -87,6 +93,8 @@ describe("people", () => {
 		expect(alex.people.online(SHARE_ID)).toMatchObject([
 			{ key: "owner", name: "Owner" },
 		]);
+		// The relay vouches only the owner's key: their announcement names them.
+		expect(alex.people.nameOf(SHARE_ID, OWNER)).toBe("Owner");
 	});
 
 	it("leave a person's own devices out of a share, not out of the vault", async () => {
@@ -113,6 +121,36 @@ describe("people", () => {
 		expect(phone.people.online(SHARE_ID)).toEqual([]);
 	});
 
+	it("name each device of one person in a share under their one entry", async () => {
+		const { relay, accessFor } = await setup();
+		const laptop = relay.add(
+			spacesWith("Team"),
+			accessFor("Laptop", "owner", "Owner"),
+		);
+		const phone = relay.add(
+			spacesWith("Team"),
+			accessFor("Phone", "owner", "Owner"),
+		);
+		const friend = relay.add(
+			spacesWith("Shared/Team"),
+			accessFor("d9", "p1", "Alex"),
+		);
+		for (const each of [laptop, phone, friend]) relay.join(each);
+
+		laptop.people.setHere({ path: "Team/a.md", idle: false });
+		phone.people.setHere({ path: "Team/a.md", idle: true });
+
+		await vi.waitFor(() =>
+			expect(friend.people.inNote("Shared/Team/a.md")).toEqual([
+				expect.objectContaining({ key: "owner", devices: ["Laptop", "Phone"] }),
+			]),
+		);
+		expect(friend.people.online(SHARE_ID)[0]?.devices).toEqual([
+			"Laptop",
+			"Phone",
+		]);
+	});
+
 	it("flag someone they cannot read, until that device leaves", async () => {
 		const { relay, accessFor } = await setup();
 		const strangerKeys = await keys();
@@ -124,6 +162,7 @@ describe("people", () => {
 			keys: strangerKeys,
 			key: "d2",
 			name: "d2",
+			device: null,
 		}));
 		const seen: boolean[] = [];
 		laptop.people.subscribe(() =>
@@ -287,12 +326,14 @@ describe("presence announcements", () => {
 				await sealAnnouncement(sealed, {
 					key: "p1",
 					name,
+					device: null,
 					note: note as string,
 					idle: false,
 				}),
 			);
 
 		expect((await open("a/b.md"))?.note).toBe("a/b.md");
+		expect((await open("a/b.md"))?.device).toBeNull();
 		expect((await open("../x.md"))?.note).toBeNull();
 		expect((await open("/etc/x"))?.note).toBeNull();
 		expect((await open("a.md", "x".repeat(200)))?.name).toHaveLength(64);

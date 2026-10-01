@@ -6,18 +6,21 @@ import type { Space } from "@/sync/space";
 export const ALEX: Person = {
 	key: "p1",
 	name: "Alex",
+	devices: [],
 	note: "Team/docs/a.md",
 	idle: false,
 };
 export const SAM: Person = {
 	key: "p2",
 	name: "Sam",
+	devices: [],
 	note: "Team/b.md",
 	idle: true,
 };
 export const LAPTOP: Person = {
 	key: "d1",
 	name: "Laptop",
+	devices: [],
 	note: "notes/x.md",
 	idle: false,
 };

@@ -1,3 +1,9 @@
+const SHARE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+export function isShareId(shareId: string): boolean {
+	return SHARE_ID_PATTERN.test(shareId);
+}
+
 /** The hub channel of a share: owner's devices and participants meet in it. */
 export function shareChannel(shareId: string): string {
 	return `obsync-share-${shareId}`;

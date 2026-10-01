@@ -11,6 +11,7 @@ const awareness = (size = 1): ClientFrame => ({
 });
 const update: ClientFrame = {
 	type: EFrame.Update,
+	n: 1,
 	slot: 0,
 	doc: "d",
 	payload: Uint8Array.of(1),
@@ -34,11 +35,11 @@ describe("frame limits", () => {
 	it("refills the frame ceiling over time, per socket", () => {
 		const limits = new FrameLimits();
 
-		expect(passed(limits, 1, 0, 200, update)).toBe(128);
+		expect(passed(limits, 1, 0, 300, update)).toBe(256);
 		expect(passed(limits, 2, 0, 1, update)).toBe(1);
-		expect(passed(limits, 1, 1_000, 200, update)).toBe(32);
+		expect(passed(limits, 1, 1_000, 300, update)).toBe(32);
 		limits.forget(1);
-		expect(passed(limits, 1, 1_000, 200, update)).toBe(128);
+		expect(passed(limits, 1, 1_000, 300, update)).toBe(256);
 	});
 
 	it("keeps a read-only grant's awareness under its own ceiling, whatever else it sends", () => {

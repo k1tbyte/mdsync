@@ -10,6 +10,7 @@ import {
 	textToBytes,
 } from "@/sync/content";
 import type { CompareResult, EngineDependencies } from "@/sync/engine";
+import type { Manifest } from "@/sync/types";
 
 const NOT_TEXT = "Hunk-level actions are only supported for text files";
 
@@ -45,7 +46,7 @@ export async function loadHunkSides(
 	path: string,
 	pair: EHunkPair,
 ): Promise<HunkSides> {
-	if (!deps.scope.includesInDiff(path))
+	if (!deps.scope.includes(path))
 		throw new Error("File is outside this device's sync scope.");
 	if (pair === EHunkPair.Local) {
 		return {
@@ -81,20 +82,23 @@ export async function assertSidesUnchanged(
 	);
 }
 
+/** The baseline a hunk's left side comes from; the diff view must read the same one. */
+export function hunkBaseline(
+	deps: EngineDependencies,
+	remote: Manifest | null,
+): Manifest | null {
+	return remote
+		? reconcileBaselineResetGenerations(deps.state.baseline, remote, deps.scope)
+		: deps.state.baseline;
+}
+
 /** Baseline text, or "" when the path is not in the baseline yet. */
 async function baselineSide(
 	deps: EngineDependencies,
 	result: CompareResult,
 	path: string,
 ): Promise<string> {
-	const baseline = result.remote
-		? reconcileBaselineResetGenerations(
-				deps.state.baseline,
-				result.remote,
-				deps.scope,
-			)
-		: deps.state.baseline;
-	const entry = baseline?.files[path];
+	const entry = hunkBaseline(deps, result.remote)?.files[path];
 	if (!entry) return "";
 	return decodeRemote(deps, path, entry.hash, entry.size);
 }

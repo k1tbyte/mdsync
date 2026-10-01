@@ -15,6 +15,7 @@ describe("comparing decorations", () => {
 		change: "obsync-changed-added",
 		linkRoot: "Team/link",
 		ignored: true,
+		skipped: "Not synced",
 		unseen: { count: 1, file: "Team/a.md" },
 		share: SHARE,
 		people: [ALEX],
@@ -23,6 +24,7 @@ describe("comparing decorations", () => {
 		["a changed status", { ...full, change: "obsync-changed-deleted" }],
 		["another link", { ...full, linkRoot: "Team/other" }],
 		["a lost ignore mark", { ...full, ignored: undefined }],
+		["another skip reason", { ...full, skipped: "Not synced either" }],
 		["another unseen count", { ...full, unseen: { count: 2 } }],
 		["an unseen folder", { ...full, unseen: { count: 1 } }],
 		[

@@ -7,6 +7,11 @@ export {
 	invitePassword,
 	readInvite,
 } from "./invite";
-export { brokerStorage, createShare } from "./owner";
-export { mountError, spacesOf } from "./partition";
+export {
+	brokerStorage,
+	createShare,
+	ownerNameOf,
+	renameOwner,
+} from "./owner";
+export { mountError, type PauseKind, pauseOf, spacesOf } from "./partition";
 export { type PendingMove, SpaceRecords } from "./records";

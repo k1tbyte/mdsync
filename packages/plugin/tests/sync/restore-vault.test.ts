@@ -106,4 +106,23 @@ describe("planVaultRestore", () => {
 			ignored: [],
 		});
 	});
+
+	it("leaves out of scope what the snapshot holds, and reports it", () => {
+		const plan = planVaultRestore(
+			target({ "notes/a.md": entry("A2"), ".obsidian/app.json": entry("J1") }),
+			local({ "notes/a.md": entry("A1") }),
+			(path) => !path.startsWith(".obsidian/"),
+		);
+		expect(plan.write.map((w) => w.path)).toEqual(["notes/a.md"]);
+		expect(plan.ignored).toEqual([".obsidian/app.json"]);
+	});
+
+	it("does not remove a file that differs from a written one only in case", () => {
+		const plan = planVaultRestore(
+			target({ "notes/a.md": entry("A1") }),
+			local({ "Notes/A.md": entry("A1"), "other.md": entry("O1") }),
+		);
+		expect(plan.write.map((w) => w.path)).toEqual(["notes/a.md"]);
+		expect(plan.remove).toEqual(["other.md"]);
+	});
 });

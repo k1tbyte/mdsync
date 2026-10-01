@@ -132,6 +132,33 @@ describe("S3 adapter over requestUrl", () => {
 		expect(requests[0]?.headers["If-None-Match"]).toBe("*");
 	});
 
+	it("retries a conditional write another one was racing, and reports who won", async () => {
+		vi.useFakeTimers({ toFake: ["setTimeout"] });
+		try {
+			const adapter = createS3Adapter(config());
+			replies = [{ status: 409 }, { status: 412 }];
+
+			const pending = adapter.putIfAbsent("k", new Uint8Array([7]));
+			await until(() => requests.length === 1);
+			await vi.advanceTimersByTimeAsync(600);
+			await until(() => requests.length === 2);
+
+			expect(await pending).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not retry a plain write's 409", async () => {
+		const adapter = createS3Adapter(config());
+		replies = [{ status: 409 }];
+
+		await expect(adapter.put("k", new Uint8Array([7]))).rejects.toThrow(
+			/HTTP 409/,
+		);
+		expect(requests).toHaveLength(1);
+	});
+
 	it("does not hash an upload it is about to send", async () => {
 		const adapter = createS3Adapter(config());
 		replies = [{ status: 200 }];
@@ -212,10 +239,10 @@ describe("S3 adapter over requestUrl", () => {
 			},
 		];
 
-		expect(await adapter.listWithEtags?.("spaces/")).toEqual([
-			{ key: "spaces/a.json.enc", etag: '"e1"' },
-			{ key: "spaces/b.json.enc", etag: null },
-			{ key: "spaces/c.json.enc", etag: '"e3"' },
+		expect(await adapter.listDetailed?.("spaces/")).toEqual([
+			{ key: "spaces/a.json.enc", etag: '"e1"', modified: null },
+			{ key: "spaces/b.json.enc", etag: null, modified: null },
+			{ key: "spaces/c.json.enc", etag: '"e3"', modified: null },
 		]);
 		expect(requests[1]?.url).toContain("continuation-token=T");
 	});
@@ -227,9 +254,7 @@ describe("S3 adapter over requestUrl", () => {
 			{ status: 200, text: listing(["spaces/b"], "SAME") },
 		];
 
-		await expect(adapter.listWithEtags?.("spaces/")).rejects.toThrow(
-			/repeated/,
-		);
+		await expect(adapter.listDetailed?.("spaces/")).rejects.toThrow(/repeated/);
 	});
 
 	it("signs each attempt afresh so a retry is not refused for skew", async () => {

@@ -1,5 +1,7 @@
 import { DEFAULT_CONCURRENCY } from "@/constants";
+import { sceneOfBytes } from "@/drawing";
 import { ESyncLogOperation } from "@/logs/store";
+import { entryAt } from "@/shared/records";
 import {
 	advanceBaselineForPaths,
 	buildSessionState,
@@ -10,18 +12,20 @@ import { LOG_PATH_LIMIT } from "@/sync/constants";
 import {
 	loadLocalBytes,
 	loadRemoteBytes,
+	textToBytes,
 	withLocalMtime,
 	writeRemoteEntry,
 } from "@/sync/content";
 import {
 	type CompareResult,
 	type EngineDependencies,
+	knownRemoteHashes,
 	publishFileMap,
 	storeObject,
 } from "@/sync/engine";
 import type { ManifestEntry } from "@/sync/types";
 import { runWithConcurrency } from "@/utils/concurrency";
-import { deletePath, writeBinary } from "@/vault/io";
+import { trashPath, unchangedSince, writeBinary } from "@/vault/io";
 import type { Operation, OperationContext, OperationOutcome } from "./types";
 
 export const batchAcceptRemoteOp: Operation<ReadonlySet<string>> = async (
@@ -32,16 +36,26 @@ export const batchAcceptRemoteOp: Operation<ReadonlySet<string>> = async (
 ): Promise<OperationOutcome> => {
 	const remote = result.remote;
 	if (!remote) throw new Error("Cannot resolve: remote manifest is missing");
+	const unchanged = new Set<string>();
+	for (const path of paths) {
+		const scanned = entryAt(result.snapshot.files, path);
+		if (await unchangedSince(deps.adapter, path, scanned)) unchanged.add(path);
+	}
+	if (unchanged.size === 0) {
+		throw new Error(
+			"These files changed since the compare, so accepting the remote version would overwrite that change. Review them again.",
+		);
+	}
 	const { conflictPaths, localEntries } = await resolveEach(
 		deps,
 		result,
-		paths,
+		unchanged,
 		ctx,
 		async (path) => {
 			const remoteEntry = remote.files[path];
 			if (remoteEntry) return writeRemoteEntry(deps, path, remoteEntry);
 			// Edit vs delete, accepting remote: the remote side is the deletion.
-			await deletePath(deps.adapter, path);
+			await trashPath(deps.adapter, path);
 			return null;
 		},
 	);
@@ -79,6 +93,7 @@ export const batchKeepLocalOp: Operation<ReadonlySet<string>> = async (
 	ctx,
 ): Promise<OperationOutcome> => {
 	const files = { ...(result.remote?.files ?? {}) };
+	const known = knownRemoteHashes(result);
 	const { conflictPaths, localEntries } = await resolveEach(
 		deps,
 		result,
@@ -93,9 +108,10 @@ export const batchKeepLocalOp: Operation<ReadonlySet<string>> = async (
 				return null;
 			}
 			const entry = await withLocalMtime(deps.adapter, path, {
-				hash: await storeObject(deps, bytes),
+				hash: await storeObject(deps, known, bytes),
 				size: bytes.length,
 				kind: deps.scope.classify(path),
+				scene: await sceneOfBytes(path, bytes),
 			});
 			files[path] = entry;
 			return entry;
@@ -143,6 +159,11 @@ export const keepBothConflictOp: Operation<string> = async (
 ): Promise<OperationOutcome> => {
 	const conflict = result.diff.conflicts.find((c) => c.path === path);
 	if (!conflict) throw new Error(`No conflict on "${path}"`);
+	if (conflict.remoteHash === "") {
+		throw new Error(
+			`"${path}" was deleted remotely: there is no version to keep beside it.`,
+		);
+	}
 	const bytes = await loadRemoteBytes(
 		{ storage: deps.storage, key: deps.key },
 		conflict.remoteHash,
@@ -165,6 +186,31 @@ export const keepBothConflictOp: Operation<string> = async (
 	return batchKeepLocalOp(deps, result, new Set([path]), ctx);
 };
 
+export interface MergedSaveArgs {
+	path: string;
+	content: string;
+	expected: { localHash: string; remoteHash: string };
+}
+
+export const saveMergedOp: Operation<MergedSaveArgs> = async (
+	deps,
+	result,
+	{ path, content, expected },
+	ctx,
+) => {
+	const conflict = result.diff.conflicts.find((c) => c.path === path);
+	if (
+		conflict?.localHash !== expected.localHash ||
+		conflict.remoteHash !== expected.remoteHash
+	) {
+		throw new Error(
+			"This file changed since the merge was opened, so saving it would overwrite that change. Reopen the merge.",
+		);
+	}
+	await writeBinary(deps.adapter, path, textToBytes(content));
+	return batchKeepLocalOp(deps, result, new Set([path]), ctx);
+};
+
 /** Runs `resolve` on each selected conflict; it returns what it left on disk. */
 async function resolveEach(
 	deps: EngineDependencies,
@@ -178,7 +224,7 @@ async function resolveEach(
 }> {
 	const conflictPaths = result.diff.conflicts
 		.map((c) => c.path)
-		.filter((p) => paths.has(p) && deps.scope.includesInDiff(p));
+		.filter((p) => paths.has(p) && deps.scope.includes(p));
 	if (conflictPaths.length === 0) {
 		throw new Error("No matching conflicts to resolve");
 	}

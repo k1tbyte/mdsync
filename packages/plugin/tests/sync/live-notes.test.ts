@@ -56,6 +56,12 @@ class FakeLive implements LiveNotes {
 	holds(path: string): boolean {
 		return this.rooms.has(path);
 	}
+
+	readonly keptPaths: string[] = [];
+
+	kept(path: string): void {
+		this.keptPaths.push(path);
+	}
 }
 
 async function push(
@@ -141,6 +147,21 @@ describe("an incoming version of a live note", () => {
 		expect(after.diff.localChanges.map((c) => c.path)).toEqual([NOTE]);
 	});
 
+	it("waits when the incoming version cannot be read as text, rather than taking it as deleted", async () => {
+		const [a, b] = await shared("one\n");
+		b.adapter.putText(NOTE, "one\u0000two\n");
+		await push(b);
+		const live = new FakeLive();
+		live.rooms.set(NOTE, "d");
+		const result = await a.compare();
+
+		await pullPathsOp({ ...a.deps(), live }, result, [NOTE], a.context());
+
+		const after = await a.compare();
+		expect(after.diff.remoteChanges.map((c) => c.path)).toEqual([NOTE]);
+		expect(live.keptPaths).toEqual([]);
+	});
+
 	it("is not merged again when the open room is where it came from", async () => {
 		const [a, b] = await shared("one\n");
 		await markedPush(b, "one\ntwo\n", snap(2));
@@ -162,7 +183,7 @@ describe("an incoming version of a live note", () => {
 		expect((await a.compare()).diff.conflicts).toEqual([]);
 	});
 
-	it("keeps an open note another device deleted", async () => {
+	it("keeps an open note another device deleted, and says so", async () => {
 		const [a, b] = await shared("one\n");
 		await b.adapter.remove(NOTE);
 		await push(b);
@@ -177,6 +198,7 @@ describe("an incoming version of a live note", () => {
 		expect(after.diff.localChanges.map((c) => [c.path, c.type])).toEqual([
 			[NOTE, "local-add"],
 		]);
+		expect(live.keptPaths).toEqual([NOTE]);
 	});
 
 	it("records a room snapshot written to a closed note as its merge base", async () => {

@@ -102,14 +102,14 @@ async function documents(url: string): Promise<string> {
 	await phone.next(EFrame.State);
 	await laptop.next(EFrame.Join);
 
-	doc(laptop, { type: EFrame.Seed, payload: Uint8Array.of(1) });
+	doc(laptop, { type: EFrame.Seed, n: 0, payload: Uint8Array.of(1) });
 	check("seed acked with its seq", (await laptop.next(EFrame.Echo)).seq, 1);
 	check(
 		"seed reaches the follower",
 		[...(await phone.next(EFrame.Fanout)).payload],
 		[1],
 	);
-	doc(phone, { type: EFrame.Seed, payload: Uint8Array.of(3) });
+	doc(phone, { type: EFrame.Seed, n: 0, payload: Uint8Array.of(3) });
 	const room = await phone.next(EFrame.State);
 	check(
 		"late seed answered with the room",
@@ -117,8 +117,8 @@ async function documents(url: string): Promise<string> {
 		[1, [[1]]],
 	);
 	check("the log is named", /^[0-9a-f]{16}$/.test(room.log), true);
-	doc(laptop, { type: EFrame.Update, payload: Uint8Array.of(2) });
-	await laptop.next(EFrame.Echo);
+	doc(laptop, { type: EFrame.Update, n: 5, payload: Uint8Array.of(2) });
+	check("update echo names its counter", (await laptop.next(EFrame.Echo)).n, 5);
 	doc(laptop, { type: EFrame.Snapshot, upto: 1, payload: Uint8Array.of(11) });
 
 	doc(phone, { type: EFrame.Awareness, payload: Uint8Array.of(9) });
@@ -150,6 +150,7 @@ async function endShare(url: string): Promise<[string, string]> {
 		type: EFrame.Seed,
 		slot: 0,
 		doc: DOC,
+		n: 0,
 		payload: Uint8Array.of(7),
 	});
 	await owner.next(EFrame.Echo);

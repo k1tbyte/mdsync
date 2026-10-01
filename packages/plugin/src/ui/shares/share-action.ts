@@ -5,7 +5,7 @@ import {
 	type RelayConfig,
 } from "@/settings/model";
 import { relayBase } from "@/shared/path";
-import { createShare, mountError } from "@/spaces";
+import { createShare, mountError, ownerNameOf } from "@/spaces";
 import type { SpaceRecord } from "@/spaces/record";
 import {
 	type BrokerAdmin,
@@ -49,7 +49,12 @@ export async function shareFolder(
 	}
 	if (!(await carryVaultIgnores(plugin, root))) return null;
 	const device = plugin.controller.currentDevice().id;
-	const record = createShare(root, device, storage);
+	const record = createShare(
+		root,
+		device,
+		storage,
+		ownerNameOf(plugin.spaces.list()),
+	);
 	await plugin.spaces.add(record);
 	await plugin.ignoreState.refresh();
 	notifyInfo(`"${root}" is now a shared folder.`);
@@ -112,17 +117,26 @@ export async function closeShare(
 			notifyError("The owner's relay did not hear you leave", err),
 		);
 	}
-	await plugin.spaces.close(record.id, plugin.controller.currentDevice().id);
+	await closeHere(plugin, record, owner);
 	notifyInfo(`"${record.root}" is no longer shared.`);
+	return true;
+}
+
+/** Tombstones the record; `deleteRemote` empties the owner's copy too. */
+export async function closeHere(
+	plugin: PluginHost,
+	record: SpaceRecord,
+	deleteRemote: boolean,
+): Promise<void> {
+	await plugin.spaces.close(record.id, plugin.controller.currentDevice().id);
 	// Out of the partition first, so a queued operation is refused rather than push objects back.
 	// Its state goes too, or opening it elsewhere would read this baseline.
 	await plugin.controller.refresh();
 	await plugin.controller
-		.forgetSpace({ id: record.id, root: record.root }, { deleteRemote: owner })
+		.forgetSpace({ id: record.id, root: record.root }, { deleteRemote })
 		.catch((err) =>
 			notifyError("The shared folder's copy stayed in your storage", err),
 		);
-	return true;
 }
 
 /** False when the owner backed out. */

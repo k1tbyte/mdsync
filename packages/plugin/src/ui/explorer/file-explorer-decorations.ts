@@ -2,7 +2,12 @@ import { setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import type { SyncController } from "@/sync/controller";
 import type { EChangeType } from "@/sync/types";
-import { type ChangeAction, changeActionOf } from "@/ui/common";
+import {
+	type ChangeAction,
+	changeActionOf,
+	skippedFiles,
+	skippedText,
+} from "@/ui/common";
 import { renderPresenceMarks } from "./file-explorer-badges";
 import type { PresenceMarks } from "./file-explorer-marks";
 
@@ -16,6 +21,8 @@ export interface BaseMarks {
 	change?: ChangeIndicatorClass;
 	linkRoot?: string;
 	ignored?: boolean;
+	/** Why the last compare left it out. */
+	skipped?: string;
 }
 
 export type PathDecoration = BaseMarks & PresenceMarks;
@@ -53,6 +60,10 @@ export function computeBase(
 	for (const path of plugin.ignoreState.ignoredPaths()) {
 		patchDecoration(out, path, { ignored: true });
 	}
+	for (const file of skippedFiles(controller)) {
+		const skipped = skippedText(file, plugin.settings.maxFileBytes);
+		patchDecoration(out, file.path, { skipped });
+	}
 	return out;
 }
 
@@ -72,6 +83,7 @@ export function sameDecoration(
 		(left.change === right.change &&
 			left.linkRoot === right.linkRoot &&
 			left.ignored === right.ignored &&
+			left.skipped === right.skipped &&
 			sameFlat(left.unseen, right.unseen) &&
 			sameFlat(left.share, right.share) &&
 			sameList(left.people, right.people))
@@ -85,7 +97,9 @@ export function renderDecoration(
 ): void {
 	if (decoration.change) target.addClass(decoration.change);
 	if (decoration.ignored) target.addClass("obsync-explorer-ignored");
+	if (decoration.skipped) target.addClass("obsync-explorer-skipped");
 	if (
+		decoration.skipped ||
 		decoration.linkRoot ||
 		decoration.people?.length ||
 		decoration.share ||
@@ -93,6 +107,7 @@ export function renderDecoration(
 	) {
 		target.addClass("obsync-has-path-badge");
 	}
+	if (decoration.skipped) renderSkipBadge(target, decoration.skipped);
 	if (decoration.linkRoot) renderLinkBadge(target, decoration.linkRoot);
 	renderPresenceMarks(target, decoration, plugin);
 }
@@ -100,6 +115,7 @@ export function renderDecoration(
 export function clearDecoration(target: HTMLElement): void {
 	for (const cls of CHANGE_CLASSES) target.removeClass(cls);
 	target.removeClass("obsync-explorer-ignored");
+	target.removeClass("obsync-explorer-skipped");
 	target.removeClass("obsync-has-path-badge");
 	for (const badge of target.querySelectorAll(".obsync-path-badge")) {
 		badge.remove();
@@ -128,9 +144,20 @@ function sameFlat(left?: object, right?: object): boolean {
 	const entries = Object.entries(left);
 	return (
 		entries.length === Object.keys(right).length &&
-		entries.every(
-			([key, value]) => (right as Record<string, unknown>)[key] === value,
+		entries.every(([key, value]) =>
+			sameValue(value, (right as Record<string, unknown>)[key]),
 		)
+	);
+}
+
+/** A person's `devices` is built anew with every presence change. */
+function sameValue(left: unknown, right: unknown): boolean {
+	if (left === right) return true;
+	return (
+		Array.isArray(left) &&
+		Array.isArray(right) &&
+		left.length === right.length &&
+		left.every((item, index) => item === right[index])
 	);
 }
 
@@ -142,6 +169,14 @@ function sameList(
 		left.length === right.length &&
 		left.every((item, index) => sameFlat(item, right[index]))
 	);
+}
+
+function renderSkipBadge(target: HTMLElement, reason: string): void {
+	const badge = target.createSpan({
+		cls: "obsync-path-badge obsync-skip-badge",
+		attr: { role: "img", "aria-label": reason },
+	});
+	setIcon(badge, "cloud-off");
 }
 
 function renderLinkBadge(target: HTMLElement, linkRoot: string): void {

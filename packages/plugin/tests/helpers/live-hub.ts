@@ -1,4 +1,9 @@
-import { type ClientFrame, decodeServer, encodeClient } from "@obsync/protocol";
+import {
+	type ClientFrame,
+	decodeServer,
+	EFrame,
+	encodeClient,
+} from "@obsync/protocol";
 import { HubCore } from "obsync-relay/src/hub/core";
 import type { DocSub, HubPeer } from "obsync-relay/src/hub/peer";
 import { SqlDocStore } from "obsync-relay/src/hub/store";
@@ -78,6 +83,7 @@ export class TestConnection implements SpaceHub {
 	private socket = 0;
 	private deaf = false;
 	private mute = false;
+	private updatesToDrop = 0;
 
 	constructor(
 		private readonly hub: LiveHub,
@@ -99,6 +105,10 @@ export class TestConnection implements SpaceHub {
 	}
 
 	send(frame: SpaceFrame): void {
+		if (frame.type === EFrame.Update && this.updatesToDrop > 0) {
+			this.updatesToDrop--;
+			return;
+		}
 		if (this.peer && !this.mute) {
 			this.hub.handle(this.peer, { ...frame, slot: 0 } as ClientFrame);
 		}
@@ -134,6 +144,11 @@ export class TestConnection implements SpaceHub {
 	/** Until the next socket, what the hub sends never arrives. */
 	dropIncoming(): void {
 		this.deaf = true;
+	}
+
+	/** The next `count` updates vanish unanswered, as past the hub's rate. */
+	dropUpdates(count: number): void {
+		this.updatesToDrop = count;
 	}
 
 	/** Until the next socket, what this device sends never arrives. */

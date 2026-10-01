@@ -236,3 +236,70 @@ describe("cancelling a pull", () => {
 		expect(result.baseline.folders).toContain("empty-folder");
 	});
 });
+
+describe("a pull racing the disk during a download", () => {
+	useEncryptionKey();
+
+	/** Runs `meanwhile` once, while the first object's download is in flight. */
+	function duringDownload(session: TestSession, meanwhile: () => void): void {
+		const get = session.storage.get.bind(session.storage);
+		let done = false;
+		session.storage.get = async (key) => {
+			const blob = await get(key);
+			if (!done && key.startsWith(REMOTE_OBJECTS_PREFIX)) {
+				done = true;
+				meanwhile();
+			}
+			return blob;
+		};
+	}
+
+	async function pushAll(session: TestSession): Promise<void> {
+		const result = await compare(session.deps());
+		const baseline = await pushPaths(
+			session.deps(),
+			result,
+			result.diff.localChanges.map((change) => change.path),
+		);
+		session.state = { ...session.state, baseline };
+	}
+
+	it("keeps an edit made while the file downloaded", async () => {
+		const source = new TestSession("device-a");
+		source.adapter.putText("a.md", "first");
+		await pushAll(source);
+		const target = new TestSession("device-b", source.storage);
+		const first = await pullPaths(target.deps(), await compare(target.deps()), [
+			"a.md",
+		]);
+		target.state = { ...target.state, baseline: first.baseline };
+		source.adapter.putText("a.md", "REMOTE-UPDATED");
+		await pushAll(source);
+
+		const before = await compare(target.deps());
+		duringDownload(target, () => target.adapter.putText("a.md", "LOCAL-EDIT"));
+		const result = await pullPaths(target.deps(), before, ["a.md"]);
+
+		expect(target.text("a.md")).toBe("LOCAL-EDIT");
+		expect(result.written.has("a.md")).toBe(false);
+	});
+
+	it("writes nothing it was downloading when cancelled", async () => {
+		const source = new TestSession("device-a");
+		source.adapter.putText("Team/sub/other.md", "REMOTE");
+		await pushAll(source);
+		const target = new TestSession("device-b", source.storage);
+		const before = await compare(target.deps());
+
+		const aborter = new AbortController();
+		duringDownload(target, () => aborter.abort());
+		const result = await pullPaths(
+			{ ...target.deps(), signal: aborter.signal },
+			before,
+			["Team/sub/other.md"],
+		);
+
+		expect(result.written.size).toBe(0);
+		expect(target.adapter.hasFile("Team/sub/other.md")).toBe(false);
+	});
+});

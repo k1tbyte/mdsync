@@ -70,6 +70,8 @@ export class ChangesSection {
 	private rowCount = 0;
 	private countsEl: HTMLElement | null = null;
 	private selectionButtons: HTMLButtonElement[] = [];
+	/** Act on the whole section: only a running operation holds them back. */
+	private batchButtons: HTMLButtonElement[] = [];
 	private list: VirtualListHandle | null = null;
 
 	constructor(
@@ -103,6 +105,7 @@ export class ChangesSection {
 		for (const button of this.selectionButtons) {
 			button.disabled = busy || selected === 0;
 		}
+		for (const button of this.batchButtons) button.disabled = busy;
 	}
 
 	render(
@@ -112,6 +115,7 @@ export class ChangesSection {
 	): void {
 		this.countsEl = null;
 		this.selectionButtons = [];
+		this.batchButtons = [];
 		this.rowCount = rows.length;
 		if (rows.length === 0) return;
 
@@ -159,17 +163,22 @@ export class ChangesSection {
 		);
 
 		if (this.id === ESection.Conflicts) {
-			actionButton(bar, "warning")
-				.setButtonText("Keep all local")
-				.setDisabled(busy)
-				.onClick(() => void actions.batchResolve(EConflictStrategy.KeepLocal));
-			actionButton(bar, "warning")
-				.setButtonText("Accept all remote")
-				.setDisabled(busy)
-				.onClick(
-					() => void actions.batchResolve(EConflictStrategy.AcceptRemote),
-				);
+			this.batchButtons = [
+				actionButton(bar, "warning")
+					.setButtonText("Keep all local")
+					.setDisabled(busy)
+					.onClick(() => void actions.batchResolve(EConflictStrategy.KeepLocal))
+					.buttonEl,
+				actionButton(bar, "warning")
+					.setButtonText("Accept all remote")
+					.setDisabled(busy)
+					.onClick(
+						() => void actions.batchResolve(EConflictStrategy.AcceptRemote),
+					).buttonEl,
+			];
 		}
+		// Nothing acts on a selection here.
+		if (this.selectionButtons.length === 0) return;
 
 		const selectionControls = bar.createDiv({
 			cls: "obsync-selection-controls",

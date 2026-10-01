@@ -23,7 +23,7 @@ import {
 } from "@/storage";
 import { scopedPaths } from "@/ui/actions/push-action";
 import { notifyInfo, runWithNotice } from "@/ui/common";
-import { AcceptInviteModal } from "@/ui/modals";
+import { AcceptInviteModal, openConfirmModal } from "@/ui/modals";
 import { relayAdmin } from "./share-action";
 
 export interface CreatedInvite {
@@ -32,7 +32,9 @@ export interface CreatedInvite {
 }
 
 /** Opens an `obsidian://obsync-share` link, or asks for one when `link` is empty. */
-export function openInvite(plugin: PluginHost, link = ""): void {
+export async function openInvite(plugin: PluginHost, link = ""): Promise<void> {
+	if (!plugin.settings.useSharedFolders && !(await turnOnShares(plugin)))
+		return;
 	new AcceptInviteModal(
 		plugin.app,
 		link,
@@ -44,6 +46,23 @@ export function openInvite(plugin: PluginHost, link = ""): void {
 		(invite, root) =>
 			mountShare(plugin, invite, stripTrailingSlash(normalizePath(root))),
 	).open();
+}
+
+async function turnOnShares(plugin: PluginHost): Promise<boolean> {
+	const confirmed = await openConfirmModal({
+		app: plugin.app,
+		title: "Shared folders are off on this device",
+		body: [
+			"Turn them on to accept this invite. The shared folders you have sync here again, except those you paused.",
+		],
+		confirmLabel: "Turn on",
+		confirmClass: "mod-cta",
+	});
+	if (!confirmed) return false;
+	plugin.settings.useSharedFolders = true;
+	await plugin.saveSettings();
+	void plugin.controller.refresh();
+	return true;
 }
 
 /** Registered again on every invite, so the relay signs with current credentials. */

@@ -13,6 +13,7 @@ import { parseErrorCode, parseListObjects } from "./s3-xml";
 import {
 	assertOk,
 	headerValue,
+	isRetryableError,
 	isRetryableStatus,
 	STORAGE_TIMEOUT_MS,
 	StorageHttpError,
@@ -23,6 +24,7 @@ import {
 const HTTP_NOT_FOUND = 404;
 const HTTP_NOT_MODIFIED = 304;
 const HTTP_PRECONDITION_FAILED = 412;
+const HTTP_CONFLICT = 409;
 /** Stored with every object, as the SDK adapter did. */
 const OBJECT_CACHE_CONTROL = "no-cache, no-store, must-revalidate";
 
@@ -88,11 +90,11 @@ export function createS3Store(transport: S3Transport): StorageAdapter {
 			const res = await send({ method: "GET", key: "", query });
 			assertOk(res, "list", keyPrefix);
 			const page = parseListObjects(res.text);
-			for (const { key, etag } of page.objects) {
-				const relative = transport.relative(key);
+			for (const object of page.objects) {
+				const relative = transport.relative(object.key);
 				// A folder marker under the prefix relativises to "", which is not
 				// an object any caller can ask for.
-				if (relative) objects.push({ key: relative, etag });
+				if (relative) objects.push({ ...object, key: relative });
 			}
 			token = page.nextToken;
 			// A backend that hands back a token it already gave would keep the
@@ -163,7 +165,7 @@ export function createS3Store(transport: S3Transport): StorageAdapter {
 		async list(keyPrefix) {
 			return (await listObjects(keyPrefix)).map((object) => object.key);
 		},
-		listWithEtags: listObjects,
+		listDetailed: listObjects,
 	};
 }
 
@@ -178,30 +180,44 @@ type Send = (input: S3RequestInput, body?: Uint8Array) => Promise<S3Response>;
 function createSender(sign: S3Signer): Send {
 	return async (input, body) => {
 		try {
-			return await withRetry(async () => {
-				const signed = await sign({ ...input, body });
-				const res = await withTimeout(
-					requestUrl({
-						url: signed.url,
-						method: input.method,
-						headers: signed.headers,
-						...(body ? { body: toArrayBuffer(body) } : {}),
-						throw: false,
-					}),
-					STORAGE_TIMEOUT_MS,
-				);
-				if (isRetryableStatus(res.status)) {
-					throw new StorageHttpError(
-						res.status,
-						`S3 request failed (HTTP ${res.status})`,
+			return await withRetry(
+				async () => {
+					const signed = await sign({ ...input, body });
+					const res = await withTimeout(
+						requestUrl({
+							url: signed.url,
+							method: input.method,
+							headers: signed.headers,
+							...(body ? { body: toArrayBuffer(body) } : {}),
+							throw: false,
+						}),
+						STORAGE_TIMEOUT_MS,
 					);
-				}
-				return res;
-			});
+					if (isRetryableStatus(res.status) || isRacing(input, res.status)) {
+						throw new StorageHttpError(
+							res.status,
+							`S3 request failed (HTTP ${res.status})`,
+						);
+					}
+					return res;
+				},
+				(err) => isRetryableError(err) || isRacingError(input, err),
+			);
 		} catch (error) {
 			throw contextualRequestError(error, input);
 		}
 	};
+}
+
+/** 409 on a conditional write: another one is in flight, and a retry sees who won. */
+function isRacing(input: S3RequestInput, status: number): boolean {
+	return (
+		status === HTTP_CONFLICT && input.headers?.["If-None-Match"] !== undefined
+	);
+}
+
+function isRacingError(input: S3RequestInput, err: unknown): boolean {
+	return err instanceof StorageHttpError && isRacing(input, err.status);
 }
 
 function contextualRequestError(

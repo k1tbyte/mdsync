@@ -69,6 +69,7 @@ function tree() {
 	const statuses = new Map();
 	const controller = {
 		fileDiffs: { getChangedPathStatuses: () => statuses },
+		getSnapshot: () => ({ result: null }),
 		subscribe: () => () => {},
 	} as unknown as SyncController;
 	const handle = registerFileExplorerIndicators(plugin, controller);

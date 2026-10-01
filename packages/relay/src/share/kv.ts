@@ -102,16 +102,24 @@ export async function saveToken(
 }
 
 export async function listParticipants(env: ShareEnv, shareId: string) {
-	return Promise.all(
+	const listed = await Promise.all(
 		(await participantIds(env, shareId)).map(async (participantId) => {
 			const token = await env.SHARE_TOKENS.get(
 				pointerKey(shareId, participantId),
 			);
 			// The pointer names it, so it is current: no second pointer read.
 			const record = token ? await tokenRecord(env, token) : null;
-			return { participantId, label: record?.label ?? "", role: record?.role };
+			return (
+				record && {
+					participantId,
+					label: record.label ?? "",
+					role: record.role,
+				}
+			);
 		}),
 	);
+	// KV's list lags a revoke by up to a minute; the pointer read does not.
+	return listed.filter((each) => each !== null);
 }
 
 /** A participant leaving revokes the token they hold, never one issued after it. */

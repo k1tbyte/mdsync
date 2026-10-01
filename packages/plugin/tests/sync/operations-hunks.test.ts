@@ -4,6 +4,8 @@ import {
 	useEncryptionKey,
 } from "@tests/helpers/session";
 import { describe, expect, it } from "vitest";
+import { sha256Hex } from "@/crypto";
+import { textToBytes } from "@/sync/content";
 import { computeHunks, type HunkSelection } from "@/sync/hunks";
 import { EHunkPair, loadHunkSides } from "@/sync/operations";
 import { localHunksOp, pullHunksOp } from "@/sync/operations/hunks";
@@ -466,5 +468,63 @@ describe("hunk operations and empty folders", () => {
 		);
 
 		expect(b.state.baseline?.folders ?? []).toEqual([]);
+	});
+
+	describe("files with CRLF endings", () => {
+		const crlf = (text: string) => text.replace(/\n/g, "\r\n");
+
+		it("keeps them when one local hunk is reverted", async () => {
+			const session = new TestSession();
+			await sync(session, "note.md", crlf(BASE_TEXT));
+			session.adapter.putText("note.md", crlf(TWO_EDITS));
+			const result = await session.compare();
+
+			await localHunksOp(
+				session.deps(),
+				result,
+				{ path: "note.md", push: pick(), revert: pick(0) },
+				session.context(),
+			);
+
+			expect(session.text("note.md")).toBe(
+				crlf(BASE_TEXT.replace("kappa", "KAPPA")),
+			);
+		});
+
+		it("publishes them when one local hunk is pushed", async () => {
+			const session = new TestSession();
+			await sync(session, "note.md", crlf(BASE_TEXT));
+			session.adapter.putText("note.md", crlf(TWO_EDITS));
+			const result = await session.compare();
+
+			const outcome = await localHunksOp(
+				session.deps(),
+				result,
+				{ path: "note.md", push: pick(0), revert: pick() },
+				session.context(),
+			);
+
+			expect(outcome.newRemote?.files["note.md"]?.hash).toBe(
+				await sha256Hex(textToBytes(crlf(BASE_TEXT.replace("alpha", "ALPHA")))),
+			);
+		});
+
+		it("keeps them when one remote hunk is pulled", async () => {
+			const [a, b] = pairedSessions();
+			await sync(a, "note.md", crlf(BASE_TEXT));
+			b.adapter.putText("note.md", crlf(BASE_TEXT));
+			await b.adoptRemote();
+			await sync(a, "note.md", crlf(`${BASE_TEXT}lambda\n`));
+
+			const result = await b.compare();
+			await pullHunksOp(
+				b.deps(),
+				result,
+				{ path: "note.md", selected: pick(0) },
+				b.context(),
+			);
+
+			expect(b.text("note.md")).toBe(crlf(`${BASE_TEXT}lambda\n`));
+		});
 	});
 });

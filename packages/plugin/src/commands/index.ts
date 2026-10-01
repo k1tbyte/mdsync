@@ -2,6 +2,7 @@ import { MarkdownView, type Plugin } from "obsidian";
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
 import { spaceOf } from "@/sync/space";
+import type { DiffResult } from "@/sync/types";
 import {
 	canRebuild,
 	deepCleanOrphanedObjects,
@@ -53,7 +54,7 @@ export function registerCommands(
 	plugin.addCommand({
 		id: "refresh",
 		name: "Refresh sync status",
-		callback: () => void plugin.controller.refresh(),
+		callback: () => void plugin.controller.refreshFromDisk(),
 	});
 
 	plugin.addCommand({
@@ -146,7 +147,7 @@ export function registerCommands(
 		name: "Manage sharing",
 		checkCallback: (checking) => {
 			const path = plugin.app.workspace.getActiveFile()?.path;
-			if (path === undefined) return false;
+			if (path === undefined || !plugin.settings.useSharedFolders) return false;
 			const space = spaceOf(plugin.spaces.partition(), path);
 			const record = plugin.spaces.shareOf(space);
 			if (!record) return false;
@@ -158,7 +159,7 @@ export function registerCommands(
 	plugin.addCommand({
 		id: "accept-shared-folder-invite",
 		name: "Accept shared folder invite",
-		callback: () => openInvite(plugin),
+		callback: () => void openInvite(plugin),
 	});
 
 	plugin.addCommand({
@@ -191,11 +192,14 @@ async function runPushAll(plugin: Plugin & PluginHost): Promise<void> {
 		// Always re-compare first: acting on a stale diff can push a file another
 		// device has since changed, and can miss conflicts entirely.
 		await plugin.controller.refresh();
-		const snapshot = plugin.controller.getSnapshot();
-		if (snapshot.error) throw new Error(snapshot.error);
-		const diff = snapshot.result?.diff;
-		if (await announceConflicts(plugin, diff?.conflicts.length ?? 0)) return;
-		const paths = diff?.localChanges.map((c) => c.path) ?? [];
+		const diff = comparedDiff(plugin);
+		if (!diff || (await announceConflicts(plugin, diff.conflicts.length))) {
+			return;
+		}
+		// A read-only share's changes cannot go out; they must not hold back the rest.
+		const paths = diff.localChanges
+			.map((c) => c.path)
+			.filter((path) => !plugin.controller.spaceFor(path).readOnly);
 		if (paths.length === 0) {
 			notifyInfo("Nothing to push.");
 			return;
@@ -213,11 +217,11 @@ async function runPushAll(plugin: Plugin & PluginHost): Promise<void> {
 async function runPullAll(plugin: Plugin & PluginHost): Promise<void> {
 	try {
 		await plugin.controller.refresh();
-		const snapshot = plugin.controller.getSnapshot();
-		if (snapshot.error) throw new Error(snapshot.error);
-		const diff = snapshot.result?.diff;
-		if (await announceConflicts(plugin, diff?.conflicts.length ?? 0)) return;
-		const paths = diff?.remoteChanges.map((c) => c.path) ?? [];
+		const diff = comparedDiff(plugin);
+		if (!diff || (await announceConflicts(plugin, diff.conflicts.length))) {
+			return;
+		}
+		const paths = diff.remoteChanges.map((c) => c.path);
 		if (paths.length === 0) {
 			notifyInfo("Nothing to pull.");
 			return;
@@ -230,6 +234,14 @@ async function runPullAll(plugin: Plugin & PluginHost): Promise<void> {
 	} catch (err) {
 		notifyError("Pull all failed", err);
 	}
+}
+
+/** The fresh compare's diff; null, said so, when the compare did not finish. */
+function comparedDiff(plugin: PluginHost): DiffResult | null {
+	const { error, result } = plugin.controller.getSnapshot();
+	if (error) throw new Error(error);
+	if (!result) notifyInfo("The compare did not finish. Try again.");
+	return result?.diff ?? null;
 }
 
 /** Push and pull must never choose a side silently; conflicts go to the user. */

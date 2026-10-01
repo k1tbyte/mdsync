@@ -8,6 +8,8 @@ export interface LiveUser {
 	key: string;
 	name: string;
 	color: string;
+	/** Beside the name on its cursor: one person's devices share a key and colour. */
+	device: string | null;
 }
 
 /** Where a note goes live: the vault or a share, with that space's keys and the person typing in it. */
@@ -38,6 +40,7 @@ export function sameSpace(a: LiveSpace, b: LiveSpace): boolean {
 		a.keys === b.keys &&
 		a.person === b.person &&
 		a.user.name === b.user.name &&
+		a.user.device === b.user.device &&
 		a.readOnly === b.readOnly
 	);
 }

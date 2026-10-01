@@ -15,7 +15,7 @@ describe("storage error semantics", () => {
 			expect(isRetryableStatus(status)).toBe(true);
 		}
 		// A 404 is an answer, and a 403 will not improve with patience.
-		for (const status of [200, 204, 400, 401, 403, 404, 412]) {
+		for (const status of [200, 204, 400, 401, 403, 404, 412, 501, 505, 507]) {
 			expect(isRetryableStatus(status)).toBe(false);
 		}
 	});

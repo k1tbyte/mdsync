@@ -25,10 +25,16 @@ export function renderInviteForm(
 			create?.setDisabled(false);
 		}
 	});
+	new Setting(parent).setName("Read-only").addToggle((toggle) =>
+		toggle.onChange((value) => {
+			readOnly = value;
+		}),
+	);
 	new Setting(parent)
+		.setClass("obsync-invite-name")
 		.setName("Name")
 		.setDesc(
-			"Who the invite is for. Inviting the same name again replaces their link: the earlier one stops working, even for someone who already joined.",
+			"Who the invite is for. Inviting the same name again replaces their link: the earlier one stops working, even for someone who already joined. The relay receives your storage credentials to sign this folder's requests.",
 		)
 		.addText((text) => {
 			text.inputEl.setAttr("aria-label", "Name");
@@ -36,19 +42,12 @@ export function renderInviteForm(
 				person = value.trim();
 			});
 			onEnter(text.inputEl, submit);
+		})
+		.addButton((button) => {
+			create = button.setButtonText("Create invite").setCta().onClick(submit);
 		});
-	new Setting(parent).setName("Read-only").addToggle((toggle) =>
-		toggle.onChange((value) => {
-			readOnly = value;
-		}),
-	);
 	const status = alertLine(parent);
-	const footer = new Setting(parent);
-	footer.settingEl.addClass("obsync-button-row");
 	const created = parent.createDiv();
-	footer.addButton((button) => {
-		create = button.setButtonText("Create invite").setCta().onClick(submit);
-	});
 }
 
 function showInvite(el: HTMLElement, invite: CreatedInvite): void {

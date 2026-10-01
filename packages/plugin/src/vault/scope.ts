@@ -49,7 +49,6 @@ const DEVICE_LOCAL_PLUGIN_IDS: ReadonlyArray<string> = [
 export interface ScopePolicy {
 	readonly configDir?: string;
 	includes(path: string): boolean;
-	includesInDiff(path: string): boolean;
 	canDescend(dir: string): boolean;
 	/** The path lies in this space's part of the vault, included or not. */
 	owns(path: string): boolean;
@@ -106,19 +105,13 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 
 	return {
 		configDir,
+		// Anything else stays frozen: an ignore rule or another space never reads as a deletion.
 		includes(rawPath) {
 			const path = normalizePath(rawPath);
 			if (!owns(path) || !isPathAllowed(path)) return false;
 			if (isIgnoreFile(path)) return true;
 			if (isSharedIgnored(path) || isLocalIgnored(path)) return false;
 			return true;
-		},
-		includesInDiff(rawPath) {
-			const path = normalizePath(rawPath);
-			// Another space's paths stay frozen here, like a local ignore.
-			if (!owns(path) || !isPathAllowed(path)) return false;
-			if (isIgnoreFile(path)) return true;
-			return !isLocalIgnored(path);
 		},
 		canDescend(rawDir) {
 			const dir = normalizePath(rawDir);
@@ -131,8 +124,8 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 			if (symlinks?.isLink(dir)) return false;
 			if (dirPath.startsWith(ownPluginPrefix)) return false;
 			if (
-				isIgnoredDir(sharedIgnoreMatcher, dir, dirPath) ||
-				isIgnoredDir(localIgnoreMatcher, dir, dirPath)
+				isIgnoredDir(sharedIgnoreMatcher, dirPath) ||
+				isIgnoredDir(localIgnoreMatcher, dirPath)
 			) {
 				return false;
 			}
@@ -263,9 +256,8 @@ function stripConfigPrefix(path: string, configPrefix: string): string {
 
 function isIgnoredDir(
 	matcher: IgnoreMatcher | undefined,
-	dir: string,
 	dirPath: string,
 ): boolean {
 	if (!matcher) return false;
-	return matcher.ignores(dir) || matcher.ignores(dirPath);
+	return matcher.ignores(dirPath);
 }

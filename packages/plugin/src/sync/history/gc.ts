@@ -13,7 +13,7 @@ import { pinKey, readPinManifest, updateHistoryLog } from "./store";
 import type { HistoryLog, SnapshotEntry } from "./types";
 
 /** Deletes are network round trips; a serial sweep of thousands of them crawls. */
-const GC_DELETE_CONCURRENCY = 4;
+const GC_CONCURRENCY = 4;
 
 /** GC fires only when retained snapshots exceed max by this fraction... */
 const FILE_HISTORY_GC_EXCESS_RATIO = 0.3;
@@ -146,7 +146,7 @@ export async function collectGarbage(input: GcInput): Promise<GcResult> {
 	let deletedObjects = 0;
 	if (!skippedObjectSweep) {
 		const orphans = [...evictedHashes].filter((hash) => !liveHashes.has(hash));
-		await runWithConcurrency(orphans, GC_DELETE_CONCURRENCY, async (hash) => {
+		await runWithConcurrency(orphans, GC_CONCURRENCY, async (hash) => {
 			await safeDelete(storage, objectKey(hash));
 			deletedObjects++;
 		});
@@ -177,9 +177,9 @@ async function pinnedAmong(
 		log.snapshots.filter((entry) => entry.pinned).map((entry) => entry.id),
 	);
 	const found = new Set<string>();
-	for (const id of ids) {
+	await runWithConcurrency([...ids], GC_CONCURRENCY, async (id) => {
 		if (flagged.has(id) || (await storage.exists(pinKey(id)))) found.add(id);
-	}
+	});
 	return found;
 }
 

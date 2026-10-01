@@ -1,11 +1,12 @@
-import { ERefusal, type Refusal } from "@obsync/protocol";
+import { ERefusal } from "@obsync/protocol";
 import type { App, TFile } from "obsidian";
 
 import type { HubConnection } from "@/hub";
 import type { AgreedTexts } from "@/live/cold/agreed-texts";
 import { closedBefore } from "@/live/session";
-import type { Unfollowed } from "@/live/session/session-deps";
+import type { Refused, Unfollowed } from "@/live/session/session-deps";
 import { reportWarning } from "@/shared/diagnostics";
+import { withDevices } from "@/shared/format";
 import { toLf } from "@/utils/eol";
 import { type LiveEditor, type LiveRoom, readOpen } from "./editors";
 import { type MoveNote, movedWith } from "./rename";
@@ -17,12 +18,14 @@ export type ColdCause =
 	| "too-large"
 	| "too-many"
 	| "read-only"
+	| "unreadable"
 	| Unfollowed;
 
-const REFUSED: Record<Refusal, ColdCause> = {
+const REFUSED: Record<Refused, ColdCause> = {
 	[ERefusal.TooLarge]: "too-large",
 	[ERefusal.TooManyDocs]: "too-many",
 	[ERefusal.ReadOnly]: "read-only",
+	unreadable: "unreadable",
 };
 
 export interface Room extends LiveRoom {
@@ -102,10 +105,13 @@ export class RoomOpener {
 			successor: () => docIdIn(space, lineage, generation + 1),
 			readDisk: () => readOpen(this.deps.app, path, editor),
 			readBase: async () =>
-				(fresh ? null : (await agreed.get(note))?.text) ??
+				(fresh ? null : await agreed.base(note)) ??
 				(await baseText(path)) ??
 				"",
-			onAgreed: (text, seq) => agreed.put(note, { text, gen: generation, seq }),
+			onAgreed: (text, seq) =>
+				agreed.put(note, { text, gen: generation, seq }, () =>
+					this.saved(file, editor, text),
+				),
 			onMoved: () => this.hooks.refresh(),
 			onRefused: (reason) => this.hooks.leave(path, REFUSED[reason]),
 			nameOf: (person) => this.deps.nameOf(space.id, person),
@@ -116,7 +122,12 @@ export class RoomOpener {
 					}
 				: undefined,
 		});
-		opened.session.awareness.setLocalStateField("user", space.user);
+		const { key, name, color, device } = space.user;
+		opened.session.awareness.setLocalStateField("user", {
+			key,
+			color,
+			name: withDevices(name, device ? [device] : []),
+		});
 		void opened.session.ready.then(() => this.hooks.refresh());
 		return { ...opened, space, editor, file, lineage, renamingTo: null };
 	}
@@ -169,11 +180,24 @@ export class RoomOpener {
 	): Promise<void> {
 		const { agreed, baseText } = this.deps;
 		const base =
-			(await agreed.get(await docIdIn(space, lineage, 0)))?.text ??
+			(await agreed.base(await docIdIn(space, lineage, 0))) ??
 			(await baseText(lineage));
 		if (base === null) return;
 		const note = await docIdIn(space, moved.path, 0);
 		agreed.put(note, { text: base, gen: moved.generation, seq: 0 });
+	}
+
+	/** Whether the file holds `agreed` yet: the view saves it a moment later. */
+	private async saved(
+		file: TFile,
+		editor: LiveEditor,
+		agreed: string,
+	): Promise<boolean> {
+		try {
+			return editor.holds(agreed, await this.deps.app.vault.cachedRead(file));
+		} catch {
+			return false;
+		}
 	}
 
 	/** A version the space already has, which a reader's view may show the room over. */

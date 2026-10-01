@@ -2,9 +2,14 @@ import { type RequestUrlParam, requestUrl } from "obsidian";
 import type { GoogleDriveStorageConfig } from "@/storage/config";
 import type { ListedObject, StorageAdapter } from "@/storage/types";
 import { toArrayBuffer } from "@/utils/bytes";
-import { computeExpiresAt, googleDriveIdentity } from "./google-drive-auth";
+import {
+	computeExpiresAt,
+	googleAuthUrl,
+	googleDriveIdentity,
+} from "./google-drive-auth";
 import {
 	assertOk,
+	dateOf,
 	isRetryableStatus,
 	STORAGE_TIMEOUT_MS,
 	StorageHttpError,
@@ -19,10 +24,16 @@ const MULTIPART_MAX_BYTES = 5 * 1024 * 1024;
 const RESUMABLE_CHUNK_BYTES = 8 * 1024 * 1024;
 const DRIVE_PAGE_SIZE = "1000";
 const TOKEN_REFRESH_MARGIN_MS = 60_000;
+const PREPARE_READS_MIN = 256;
 const NOT_FOUND = 404;
 
 interface GoogleDriveListResponse {
-	files?: { id?: string; name?: string; md5Checksum?: string }[];
+	files?: {
+		id?: string;
+		name?: string;
+		md5Checksum?: string;
+		modifiedTime?: string;
+	}[];
 	nextPageToken?: string;
 }
 
@@ -48,10 +59,15 @@ export function createGoogleDriveAdapter(
 	// keep reporting a file another device uploaded during this session as
 	// missing, and the pull would fail on a "missing object".
 	const fileIdCache = new Map<string, string>();
+	let readHint: {
+		keys: Set<string>;
+		prefix: string;
+		ready?: Promise<void>;
+	} | null = null;
 
 	const refreshAccessToken = async (): Promise<void> => {
 		const res = await driveRequest({
-			url: `${config.authServerUrl}/refresh`,
+			url: googleAuthUrl(config, "/refresh"),
 			method: "POST",
 			contentType: "application/json",
 			body: JSON.stringify({ refresh_token: config.refreshToken }),
@@ -192,15 +208,16 @@ export function createGoogleDriveAdapter(
 
 	const listObjects = async (
 		prefix: string,
-		withEtags: boolean,
+		detailed: boolean,
 	): Promise<ListedObject[]> => {
 		const objects: ListedObject[] = [];
 		let pageToken: string | undefined;
 		const folderId = await getFolderId();
 
-		// Drive queries cannot express "starts with", so the folder is listed
-		// whole and filtered here.
-		const q = `'${escapeDriveQueryValue(folderId)}' in parents and trashed = false`;
+		const parentQuery = `'${escapeDriveQueryValue(folderId)}' in parents and trashed = false`;
+		const q = prefix
+			? `${parentQuery} and name contains '${escapeDriveQueryValue(prefix)}'`
+			: parentQuery;
 
 		do {
 			const url = new URL(DRIVE_API);
@@ -208,7 +225,7 @@ export function createGoogleDriveAdapter(
 			url.searchParams.set("pageSize", DRIVE_PAGE_SIZE);
 			url.searchParams.set(
 				"fields",
-				`nextPageToken, files(id,name${withEtags ? ",md5Checksum" : ""})`,
+				`nextPageToken, files(id,name${detailed ? ",md5Checksum,modifiedTime" : ""})`,
 			);
 			if (pageToken) url.searchParams.set("pageToken", pageToken);
 
@@ -224,7 +241,11 @@ export function createGoogleDriveAdapter(
 				// Prime the id cache so later exists()/put() avoid a lookup.
 				if (f.id) fileIdCache.set(f.name, f.id);
 				if (f.name.startsWith(prefix)) {
-					objects.push({ key: f.name, etag: f.md5Checksum ?? null });
+					objects.push({
+						key: f.name,
+						etag: f.md5Checksum ?? null,
+						modified: dateOf(f.modifiedTime),
+					});
 				}
 			}
 			pageToken = data.nextPageToken;
@@ -240,7 +261,28 @@ export function createGoogleDriveAdapter(
 			return (await findFileId(key)) !== null;
 		},
 
+		prepareReads(keys) {
+			const missing = keys.filter((key) => !fileIdCache.has(key));
+			const first = missing[0];
+			const prefix = first?.slice(0, first.lastIndexOf("/") + 1) ?? "";
+			readHint =
+				missing.length >= PREPARE_READS_MIN &&
+				prefix !== "" &&
+				missing.every((key) => key.startsWith(prefix))
+					? { keys: new Set(missing), prefix }
+					: null;
+		},
+
 		async get(key: string): Promise<Uint8Array | null> {
+			if (readHint?.keys.has(key) && !fileIdCache.has(key)) {
+				const hint = readHint;
+				hint.ready ??= listObjects(hint.prefix, false).then(
+					() => undefined,
+					() => undefined,
+				);
+				await hint.ready;
+				if (readHint === hint) readHint = null;
+			}
 			const id = await findFileId(key);
 			if (!id) return null;
 			const res = await authorized({
@@ -281,7 +323,7 @@ export function createGoogleDriveAdapter(
 		async list(prefix: string): Promise<string[]> {
 			return (await listObjects(prefix, false)).map((object) => object.key);
 		},
-		listWithEtags: (prefix: string) => listObjects(prefix, true),
+		listDetailed: (prefix: string) => listObjects(prefix, true),
 	};
 }
 

@@ -30,7 +30,11 @@ import {
 	TYPING_SETTLE_MS,
 } from "./fields";
 import { renderLogsView } from "./logs-view";
-import type { ObsyncSettings, SettingsSyncCategories } from "./model";
+import {
+	NUMERIC_BOUNDS,
+	type ObsyncSettings,
+	type SettingsSyncCategories,
+} from "./model";
 import {
 	renderAutomationSection,
 	renderBackendSection,
@@ -130,7 +134,11 @@ const EXCLUSION_FIELDS: ReadonlyArray<SettingsField> = [
 		name: "Max file size (MB)",
 		desc: "Files larger than this are skipped.",
 		get: (s) => String(Math.round(s.maxFileBytes / BYTES_PER_MB)),
-		parse: (raw) => Math.max(MIN_MAX_FILE_MB, Number.parseInt(raw, 10) || 0),
+		parse: (raw) =>
+			Math.min(
+				NUMERIC_BOUNDS.maxFileBytes.max / BYTES_PER_MB,
+				Math.max(MIN_MAX_FILE_MB, Number.parseInt(raw, 10)),
+			),
 		set: (mb) => ({ maxFileBytes: mb * BYTES_PER_MB }),
 		refreshScope: true,
 	},
@@ -191,6 +199,7 @@ export class ObsyncSettingTab extends PluginSettingTab {
 
 	hide(): void {
 		this.unsubscribeSections();
+		this.activeTab = ESettingsViewTab.Connection;
 	}
 
 	display(): void {
@@ -448,6 +457,14 @@ export class ObsyncSettingTab extends PluginSettingTab {
 	}
 
 	private async handleOpenSharedIgnore(): Promise<void> {
+		try {
+			await this.openSharedIgnore();
+		} catch (err) {
+			reportError(err);
+		}
+	}
+
+	private async openSharedIgnore(): Promise<void> {
 		const existing = this.app.vault.getAbstractFileByPath(IGNORE_FILE_NAME);
 		if (existing instanceof TFile) {
 			await openInEditor(this.app, IGNORE_FILE_NAME);

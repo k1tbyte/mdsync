@@ -1,12 +1,10 @@
 import { ESyncLogOperation } from "@/logs/store";
 import type { SettingsSyncCategories } from "@/settings/model";
-import { writeBinary } from "@/vault/io";
 import { authorOf, type LastEdit } from "./authors";
-import { autoMergeOp } from "./auto-merge";
 import { selectAutoPushPaths } from "./auto-push";
-import { clearRemoteTextCache, textToBytes } from "./content";
+import { clearRemoteTextCache } from "./content";
 import { defaultDeviceName } from "./device";
-import type { CompareResult, EngineDependencies } from "./engine";
+import type { EngineDependencies } from "./engine";
 import type { HunkSelection } from "./hunks";
 import {
 	batchAcceptRemoteOp,
@@ -15,6 +13,7 @@ import {
 	keepBothConflictOp,
 	type LocalHunksArgs,
 	localHunksOp,
+	type MergedSaveArgs,
 	type Operation,
 	pullHunksOp,
 	pullPathsOp,
@@ -23,8 +22,10 @@ import {
 	runAdoptNewVaultFlow,
 	runResetRemoteStorageFlow,
 	type SyncOperationResult,
+	saveMergedOp,
 } from "./operations";
 import { runCategoryResetFlow } from "./operations/config-reset";
+import { runRefreshCycle } from "./runtime/auto-cycle";
 import {
 	SyncControllerRuntimeState,
 	type SyncStatusListener,
@@ -37,6 +38,7 @@ import {
 	OperationRunner,
 	type SpaceOperation,
 } from "./runtime/operation-runner";
+import { RefreshQueue } from "./runtime/refresh-queue";
 import { pathsBySpace, type Space, spaceOf, VAULT_SPACE } from "./space";
 import type { LocalState } from "./types";
 
@@ -66,6 +68,12 @@ export interface SyncControllerHost {
 	onTheirsPulled?(space: Space, paths: readonly string[]): void;
 	/** The space compared fine in a refresh: its storage answers this device. */
 	onSpaceRefreshed?(space: Space): void;
+	/** The broker refused the share's link: revoked, or too new for its KV yet. */
+	onShareRefused?(space: Space): void;
+	/** The share lost every file it had here; see `settleGone`. */
+	onSpaceGone?(space: Space): void;
+	/** A disk walk found files Obsidian's index lacks: synced, shown after a restart. */
+	onUnindexed?(count: number): void;
 	logInfo(
 		operation: ESyncLogOperation,
 		message: string,
@@ -84,6 +92,10 @@ export interface SyncControllerHost {
 }
 
 export type { SyncOperationResult, SyncStatusListener, SyncStatusSnapshot };
+
+/** Its owner's relay would refuse the write; Revert drops the change. */
+const READ_ONLY_PUSH =
+	"Files in a read-only shared folder cannot be pushed. Revert them to drop the changes.";
 
 const CONFLICT_STRATEGY_OPS: Record<
 	EConflictStrategy,
@@ -104,6 +116,8 @@ export class SyncController {
 	private readonly runtimeState: SyncControllerRuntimeState;
 	readonly fileDiffs: FileDiffService;
 	private readonly operations: OperationRunner;
+	private readonly refreshes: RefreshQueue;
+	private localRevision = 0;
 	readonly history: HistoryService;
 	readonly maintenance: MaintenanceService;
 
@@ -121,7 +135,18 @@ export class SyncController {
 			host: this.host,
 			runtimeState: this.runtimeState,
 			clearFileDiffs: () => this.fileDiffs.clear(),
+			localRevision: () => this.localRevision,
 		});
+		this.refreshes = new RefreshQueue(
+			(run) => this.runtimeState.enqueue(run),
+			(request) =>
+				runRefreshCycle(
+					this.runtimeState,
+					this.operations,
+					request,
+					this.localRevision,
+				),
+		);
 		this.history = new HistoryService({
 			openSession: (path) =>
 				open(path === undefined ? VAULT_SPACE : this.spaceFor(path)),
@@ -130,6 +155,7 @@ export class SyncController {
 		});
 		this.maintenance = new MaintenanceService({
 			openSession: () => open(VAULT_SPACE),
+			enqueue: (task) => this.runtimeState.enqueue(task),
 			logInfo: (operation, message, details) =>
 				this.host.logInfo(operation, message, details),
 		});
@@ -172,8 +198,18 @@ export class SyncController {
 		clearRemoteTextCache();
 	}
 
-	async refresh(): Promise<void> {
-		await this.operations.refresh();
+	refresh(): Promise<void> {
+		return this.refreshes.request();
+	}
+
+	/** The person's Refresh: the disk is listed too, for files Obsidian's index missed. */
+	refreshFromDisk(): Promise<void> {
+		this.operations.walkDiskNext();
+		return this.refresh();
+	}
+
+	noteLocalChange(): void {
+		this.localRevision++;
 	}
 
 	/** Before a share mounts into an empty folder, or once it closes; see `OperationRunner.forget`. */
@@ -190,44 +226,25 @@ export class SyncController {
 	}
 
 	/** A relay signal's pull; local changes elsewhere do not hold it back, a path changed on both sides is a conflict. */
-	refreshAndAutoPull(): Promise<void> {
-		return this.refreshAndAutoSync(false);
+	refreshAndAutoPull(spaces?: ReadonlySet<string>): Promise<void> {
+		return this.refreshes.request(spaces, true);
 	}
 
-	async refreshAndAutoSync(push = true): Promise<void> {
-		const afterMerge = await this.refreshAndAutoMerge();
-		if (!afterMerge || afterMerge.diff.conflicts.length > 0) return;
-		if (afterMerge.diff.remoteChanges.length > 0) {
-			await this.pullPaths(afterMerge.diff.remoteChanges.map((c) => c.path));
-		}
-		const snapshot = this.runtimeState.getSnapshot();
-		if (snapshot.error || snapshot.staleReason) return;
-		if (!push) return;
-		await this.autoPushFromSnapshot();
+	refreshAndAutoSync(push = true): Promise<void> {
+		return this.refreshes.request(undefined, true, push);
 	}
 
-	async refreshAndAutoPush(): Promise<void> {
-		await this.refresh();
-		await this.autoPushFromSnapshot();
+	refreshAndAutoPush(only?: ReadonlySet<string>): Promise<void> {
+		return this.refreshes.request(undefined, false, true, only);
 	}
 
-	/**
-	 * Pushes pending local changes from the current snapshot. Conflicts and
-	 * files with incoming remote changes are left for the user to settle.
-	 */
-	async autoPushFromSnapshot(only?: ReadonlySet<string>): Promise<void> {
-		if (this.runtimeState.getSnapshot().error) return;
-		const result = this.runtimeState.getResult();
-		if (!result) return;
-		const paths = selectAutoPushPaths(result.diff, only).filter(
-			(path) => !this.spaceFor(path).readOnly,
-		);
-		if (paths.length === 0) return;
-		await this.pushPaths(paths);
-	}
-
-	/** Each share of `paths` compared and pushed alone, as `autoPushFromSnapshot` would; the vault is left out. */
+	/** Compares and pushes only the shares containing these paths. */
 	async autoPushShares(paths: ReadonlySet<string>): Promise<void> {
+		// Routed by the records: a partition behind them, as before the first refresh, catches up first.
+		const routed = pathsBySpace(this.runtimeState.spaces(), paths).keys();
+		if ([...routed].some(({ id }) => id === VAULT_SPACE.id)) {
+			await this.refresh();
+		}
 		for (const [space, group] of pathsBySpace(
 			this.runtimeState.spaces(),
 			paths,
@@ -256,26 +273,6 @@ export class SyncController {
 		return spaceOf(this.runtimeState.spaces(), path);
 	}
 
-	private async autoMerge(): Promise<void> {
-		for (const space of this.runtimeState.spaces()) {
-			const conflicts = this.runtimeState.resultOf(space)?.diff.conflicts;
-			if ((conflicts?.length ?? 0) === 0) continue;
-			await this.operations.runOperation(
-				space,
-				ESyncLogOperation.Pull,
-				autoMergeOp,
-			);
-		}
-	}
-
-	private async refreshAndAutoMerge(): Promise<CompareResult | null> {
-		await this.refresh();
-		const result = this.runtimeState.getResult();
-		if (!result) return null;
-		if (result.diff.conflicts.length > 0) await this.autoMerge();
-		return this.runtimeState.getResult();
-	}
-
 	async resetRemoteStorage(): Promise<boolean> {
 		return this.operations.runFlow(ESyncLogOperation.Reset, (deps, ctx) =>
 			runResetRemoteStorageFlow(deps, ctx),
@@ -296,6 +293,11 @@ export class SyncController {
 		);
 	}
 
+	/** Runs between operations: none still running persists over what `task` writes. */
+	between<T>(task: () => Promise<T>): Promise<T> {
+		return this.runtimeState.enqueue(task);
+	}
+
 	/** Stops the running operation between files; see `sync/cancel.ts`. */
 	cancel(): void {
 		this.runtimeState.cancel();
@@ -304,11 +306,7 @@ export class SyncController {
 	/** Refused whole when any path is in a read-only share: its owner's relay would refuse it, Revert drops it. */
 	async pushPaths(paths: ReadonlyArray<string>): Promise<SyncOperationResult> {
 		if (paths.some((path) => this.spaceFor(path).readOnly)) {
-			return {
-				ok: false,
-				error:
-					"Files in a read-only shared folder cannot be pushed. Revert them to drop the changes.",
-			};
+			return { ok: false, error: READ_ONLY_PUSH };
 		}
 		return this.perSpace(
 			ESyncLogOperation.Push,
@@ -330,6 +328,9 @@ export class SyncController {
 	/** Pushes and reverts segments of one local-change diff in a single operation. */
 	async applyLocalHunks(args: LocalHunksArgs): Promise<SyncOperationResult> {
 		if (args.push.size === 0 && args.revert.size === 0) return { ok: false };
+		if (args.push.size > 0 && this.spaceFor(args.path).readOnly) {
+			return { ok: false, error: READ_ONLY_PUSH };
+		}
 		return this.operations.runOperation(
 			this.spaceFor(args.path),
 			args.push.size > 0 ? ESyncLogOperation.Push : ESyncLogOperation.Compare,
@@ -406,15 +407,44 @@ export class SyncController {
 	async resolveConflictMerged(
 		path: string,
 		content: string,
+		expected: MergedSaveArgs["expected"],
 	): Promise<SyncOperationResult> {
 		return this.operations.runOperation(
 			this.spaceFor(path),
 			ESyncLogOperation.Push,
-			async (deps, res, ctx) => {
-				await writeBinary(deps.adapter, path, textToBytes(content));
-				return batchKeepLocalOp(deps, res, new Set([path]), ctx);
-			},
+			(deps, res, ctx) =>
+				saveMergedOp(deps, res, { path, content, expected }, ctx),
 		);
+	}
+
+	/** A share that lost every file here: they come back from it, or their loss reaches everyone. */
+	async settleGone(
+		space: Space,
+		choice: "restore" | "delete",
+	): Promise<SyncOperationResult> {
+		if (choice === "restore") {
+			// Mounted afresh, nothing reads as deleted: the share's files pull back in.
+			await this.operations.forget(space);
+			await this.refreshAndAutoPull(new Set([space.id]));
+			const { error, spaceErrors } = this.getSnapshot();
+			const failed =
+				error ?? spaceErrors.find(({ root }) => root === space.root)?.message;
+			return failed ? { ok: false, error: failed } : { ok: true };
+		}
+		const outcome = await this.operations.runOperation(
+			{ ...space, goneAccepted: true },
+			ESyncLogOperation.Push,
+			(deps, result, ctx) =>
+				pushPathsOp(
+					deps,
+					result,
+					result.diff.localChanges.map(({ path }) => path),
+					ctx,
+				),
+			true,
+		);
+		await this.refresh();
+		return outcome;
 	}
 
 	/** One operation per space the paths fall in; stops at the first that fails. */

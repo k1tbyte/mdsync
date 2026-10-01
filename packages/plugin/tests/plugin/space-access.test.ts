@@ -105,3 +105,15 @@ describe("vault key unlock", () => {
 		expect(resolveKey).toHaveBeenCalledOnce();
 	});
 });
+
+describe("share keys", () => {
+	it("keeps a share whose key cannot be read cold, without throwing", async () => {
+		const shareAccess = createSpaceAccess({
+			controller: { currentDevice: () => ({ id: "d1", name: "laptop" }) },
+			settings,
+			spaces: { get: () => ({ id: "s1", key: "not base64!" }) },
+		} as unknown as Parameters<typeof createSpaceAccess>[0]);
+
+		expect(await shareAccess({ id: "s1", root: "Team" })).toBeNull();
+	});
+});

@@ -7,8 +7,10 @@ import {
 	isStorageConfigured,
 	type ObsyncSettings,
 } from "@/settings/model";
+import { reportWarning } from "@/shared/diagnostics";
 import type { SpaceRecords } from "@/spaces";
 import { shareKey, shareStorage } from "@/spaces/access";
+import { pauseOf } from "@/spaces/partition";
 import { shareIdentity } from "@/spaces/record";
 import { createStorageAdapter, type StorageAdapter } from "@/storage";
 import { clearRemoteTextCache } from "@/sync/content";
@@ -124,7 +126,9 @@ function createAdapterCache(deps: SessionFactoryDeps): AdapterCache {
 			// Cached remote text is namespaced by adapter instance, so entries
 			// keyed to the replaced one are unreachable weight.
 			clearRemoteTextCache();
-			void deps.persistSettings?.();
+			deps
+				.persistSettings?.()
+				.catch((err) => reportWarning("Could not save the settings.", err));
 		});
 		cached.set(spaceId, { memo, adapter });
 		return adapter;
@@ -170,6 +174,10 @@ async function openShare(
 	getStorage: AdapterCache,
 ): Promise<OpenedStorage> {
 	const record = deps.spaces.get(space.id);
+	// Paused since the partition was taken: an operation queued before must not reach its storage.
+	if (record && pauseOf(record, deps.settings) !== null) {
+		throw new Error(`"${space.root}" is paused on this device.`);
+	}
 	const storage =
 		record && shareStorage(record, activeStorage(deps.settings), space.root);
 	// Thrown, not notified: the refresh shows it by the folder and goes on.

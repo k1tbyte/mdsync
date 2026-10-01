@@ -24,7 +24,8 @@ const SHARE_TOOLTIPS: Record<ShareKind, string> = {
 };
 const SHARE_ROOT_ATTR = "data-share-root";
 const SHARE_BADGE = ".obsync-share-badge";
-const TAP_BADGES = ".obsync-people-badge, .obsync-unseen-dot";
+const TAP_BADGES =
+	".obsync-people-badge, .obsync-unseen-dot, .obsync-skip-badge";
 const TIP_MS = 4000;
 
 /** Read here, not while computing marks: a pass runs on every sync event. */
@@ -100,7 +101,10 @@ function renderShareBadge(target: HTMLElement, share: ShareMark): void {
 			"aria-label": lines.join("\n"),
 		},
 	});
-	setIcon(badge.createSpan(), SHARE_ICONS[share.kind]);
+	setIcon(
+		badge.createSpan({ cls: "obsync-share-icon" }),
+		SHARE_ICONS[share.kind],
+	);
 	if (share.here > 0) {
 		badge.addClass("has-people");
 		badge.createSpan({ cls: "obsync-share-count", text: String(share.here) });

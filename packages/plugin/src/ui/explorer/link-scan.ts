@@ -48,6 +48,23 @@ export class LinkScan {
 		this.found = NO_LINKS;
 	}
 
+	invalidate(path: string): void {
+		this.stop();
+		this.again = false;
+		this.detector.invalidate(path);
+		for (const checked of this.checked) {
+			if (checked === path || checked.startsWith(`${path}/`))
+				this.checked.delete(checked);
+		}
+		this.publish(
+			new Map(
+				[...this.found].filter(
+					([found]) => found !== path && !found.startsWith(`${path}/`),
+				),
+			),
+		);
+	}
+
 	stop(): void {
 		this.generation++;
 		if (this.frame !== null) window.cancelAnimationFrame(this.frame);
@@ -87,12 +104,12 @@ export class LinkScan {
 				this.checked.add(path);
 				if (this.detector.findLink(path) === path) found.set(path, path);
 			}
+			this.publish(new Map(found));
 			if (index < pending.length) {
 				this.frame = window.requestAnimationFrame(batch);
 				return;
 			}
 			this.frame = null;
-			this.publish(found);
 			if (this.again) {
 				this.again = false;
 				this.scan();

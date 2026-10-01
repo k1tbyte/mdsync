@@ -7,7 +7,7 @@
 
 import type { WorkspaceLeaf } from "obsidian";
 import type { BoundEditor } from "@/live/model";
-import type { LiveSession } from "@/live/session";
+import { closedBefore, type LiveSession } from "@/live/session";
 import type { Rotation } from "@/live/session/session-deps";
 import { reportWarning } from "@/shared/diagnostics";
 import { EDITORS, type OpenNote, openNotes } from "./editors";
@@ -80,16 +80,15 @@ export class LiveSessions {
 			return;
 		}
 		this.running = true;
-		try {
-			do {
-				this.again = false;
+		do {
+			this.again = false;
+			try {
 				await this.run();
-			} while (this.again && !this.disposed);
-		} catch (err) {
-			reportWarning("Live editing could not follow the open notes.", err);
-		} finally {
-			this.running = false;
-		}
+			} catch (err) {
+				reportWarning("Live editing could not follow the open notes.", err);
+			}
+		} while (this.again && !this.disposed);
+		this.running = false;
 		this.notify();
 		this.armPatience();
 	}
@@ -100,17 +99,22 @@ export class LiveSessions {
 		return () => this.listeners.delete(listener);
 	}
 
-	dispose(): void {
+	/** Resolves once every room sent its last edits and left. */
+	dispose(): Promise<void> {
 		this.disposed = true;
 		if (this.retry !== null) window.clearTimeout(this.retry);
 		this.patience.stop();
 		this.listeners.clear();
 		for (const { editor } of this.bound.values()) editor.detach();
 		this.bound.clear();
-		for (const { session } of this.rooms.values()) session.dispose();
+		const closing = [...this.rooms.values()].map(({ session }) => {
+			session.dispose();
+			return closedBefore(session.docId);
+		});
 		this.rooms.clear();
 		this.cold.clear();
-		void this.deps.agreed.flush();
+		void this.deps.agreed.dispose();
+		return Promise.all(closing).then(() => undefined);
 	}
 
 	/** The note's room once an editor is bound to it; null while closed, joining or moving. */

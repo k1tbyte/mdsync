@@ -34,6 +34,7 @@ function setup(people: Person[] = [ALEX], unseen: string[] = []) {
 	]);
 	const controller = {
 		fileDiffs: { getChangedPathStatuses: () => statuses },
+		getSnapshot: () => ({ result: null }),
 	} as unknown as SyncController;
 
 	const folded = new Set<string>();

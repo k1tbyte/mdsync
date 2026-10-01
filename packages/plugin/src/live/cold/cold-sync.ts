@@ -29,6 +29,7 @@ export interface LiveColdSyncDeps {
 	space: string;
 	/** Its keys and root; null while it cannot go live. */
 	live(): Promise<LiveSpace | null>;
+	kept(path: string): void;
 }
 
 export class LiveColdSync implements LiveNotes {
@@ -96,6 +97,10 @@ export class LiveColdSync implements LiveNotes {
 		return (
 			this.elsewhere(path) || rooms.roomOf(path) !== null || rooms.joining(path)
 		);
+	}
+
+	kept(path: string): void {
+		this.deps.kept(path);
 	}
 
 	/** The note's first docId, which names it across rotations. */

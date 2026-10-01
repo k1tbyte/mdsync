@@ -1,5 +1,6 @@
 import type { PluginHost } from "@/plugin/host";
 import type { SyncController } from "@/sync/controller";
+import { skippedFiles } from "@/ui/common";
 import type { FileExplorerRows } from "./file-explorer-api";
 import {
 	type AppliedDecoration,
@@ -76,6 +77,7 @@ export class RowDecorator {
 	): ReadonlyMap<string, BaseMarks> {
 		const inputs = [
 			this.controller.fileDiffs.getChangedPathStatuses(),
+			skippedFiles(this.controller),
 			directLinks,
 			this.plugin.spaces.partition(),
 			this.ignoreVersion,

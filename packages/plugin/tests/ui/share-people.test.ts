@@ -14,6 +14,7 @@ const person = (
 ): Person => ({
 	key,
 	name,
+	devices: [],
 	note: null,
 	idle: false,
 	...rest,

@@ -7,6 +7,7 @@
 import { type ClientFrame, EFrame, type ServerFrame } from "@obsync/protocol";
 
 import type { ObsyncSettings } from "@/settings/model";
+import { pauseOf } from "@/spaces";
 import { VAULT_SPACE } from "@/sync/space";
 
 import { type HubRoute, hubRoutes } from "./channels";
@@ -16,7 +17,9 @@ import { type RelayStatus, relayStatus } from "./status";
 /** The relay's own state and the cold-sync ping; frames go to `SpaceListener`s. */
 export interface HubListener {
 	/** Another device pushed into any space this device holds. */
-	onSignal?(): void;
+	onSignal?(spaceId: string): void;
+	/** The relay cut a space's grant: revoked, or a token too new for it yet. */
+	onRevoked?(): void;
 	/** The vault's socket; also reported on every restart, so listeners drop state tied to the old link. */
 	onConnectionChange?(connected: boolean): void;
 }
@@ -46,6 +49,9 @@ export interface HubConnectionOptions {
 	deviceId(): string;
 }
 
+const REVOKED_RETRY_MS = 15_000;
+const REVOKED_RETRIES = 3;
+
 interface OpenLink {
 	route: HubRoute;
 	link: HubLink;
@@ -58,6 +64,8 @@ export class HubConnection {
 	private disposed = false;
 	private readonly listeners = new Set<HubListener>();
 	private readonly spaceListeners = new Map<SpaceListener, string>();
+	private readonly revokedRetries = new Map<string, number>();
+	private readonly retryTimers = new Set<number>();
 
 	constructor(private readonly options: HubConnectionOptions) {}
 
@@ -68,13 +76,17 @@ export class HubConnection {
 
 	/** The one answer to what the relay is doing for a space; every status display reads it. */
 	statusOf(spaceId: string): RelayStatus {
-		const { realtimeSync, pausedSpaces } = this.options.settings();
+		const settings = this.options.settings();
+		const record = settings.spaces.find(({ id }) => id === spaceId);
 		const at = this.slotOf(spaceId);
 		return relayStatus({
-			realtime: realtimeSync,
-			paused: pausedSpaces.includes(spaceId),
+			realtime: settings.realtimeSync,
+			paused: record !== undefined && pauseOf(record, settings) !== null,
 			link: at?.open.link.state ?? null,
 			revoked: at?.open.revoked.has(at.slot) ?? false,
+			full: [...this.links.values()].some(({ route }) =>
+				route.full.includes(spaceId),
+			),
 		});
 	}
 
@@ -104,10 +116,12 @@ export class HubConnection {
 
 	/** Called after every settings save; unchanged sockets are left alone. */
 	restartIfChanged(): void {
+		this.revokedRetries.clear();
 		this.update(() => false);
 	}
 
 	restart(): void {
+		this.revokedRetries.clear();
 		this.update(() => true);
 	}
 
@@ -119,6 +133,8 @@ export class HubConnection {
 
 	dispose(): void {
 		this.disposed = true;
+		for (const timer of this.retryTimers) window.clearTimeout(timer);
+		this.retryTimers.clear();
 		for (const { link } of this.links.values()) link.dispose();
 		this.links.clear();
 		this.listeners.clear();
@@ -134,7 +150,10 @@ export class HubConnection {
 			]),
 		);
 		for (const [url, open] of this.links) {
-			if (!force(url) && routes.get(url)?.key === open.route.key) {
+			const route = routes.get(url);
+			if (!force(url) && route?.key === open.route.key) {
+				// The key leaves out the spaces past the slots: they may have changed.
+				open.route = route;
 				routes.delete(url);
 				continue;
 			}
@@ -162,19 +181,35 @@ export class HubConnection {
 	}
 
 	private onFrame(open: OpenLink, frame: ServerFrame): void {
-		if (frame.type === EFrame.Signal) {
-			for (const listener of this.listeners) listener.onSignal?.();
-			return;
-		}
 		const space = open.route.spaces[frame.slot];
 		if (space === undefined) return;
-		if (frame.type === EFrame.Revoked) {
-			open.revoked.add(frame.slot);
-			this.tell(space, (listener) => listener.onConnectionChange?.(false));
-			if (space === VAULT_SPACE.id) this.tellVault(false);
+		if (frame.type === EFrame.Signal) {
+			if (open.revoked.has(frame.slot)) return;
+			for (const listener of this.listeners) listener.onSignal?.(space);
 			return;
 		}
+		if (frame.type === EFrame.Revoked) {
+			open.revoked.add(frame.slot);
+			for (const listener of this.listeners) listener.onRevoked?.();
+			this.tell(space, (listener) => listener.onConnectionChange?.(false));
+			if (space === VAULT_SPACE.id) this.tellVault(false);
+			this.retryRevoked(space);
+			return;
+		}
+		this.revokedRetries.delete(space);
 		this.tell(space, (listener) => listener.onFrame?.(frame));
+	}
+
+	private retryRevoked(space: string): void {
+		const attempts = this.revokedRetries.get(space) ?? 0;
+		if (attempts >= REVOKED_RETRIES) return;
+		this.revokedRetries.set(space, attempts + 1);
+		const delay = REVOKED_RETRY_MS * 2 ** attempts * (0.5 + Math.random());
+		const timer = window.setTimeout(() => {
+			this.retryTimers.delete(timer);
+			if (this.statusOf(space) === "unauthorized") this.reconnect(space);
+		}, delay);
+		this.retryTimers.add(timer);
 	}
 
 	/** Every space of the socket hears it, the vault's listeners too when it leads. */

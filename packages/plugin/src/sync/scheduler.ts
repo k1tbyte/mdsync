@@ -2,7 +2,7 @@ import type { Plugin, TAbstractFile } from "obsidian";
 
 import { canSync, type ObsyncSettings } from "@/settings/model";
 import type { SyncController } from "./controller";
-import { VAULT_SPACE } from "./space";
+import { type Space, spaceOf, VAULT_SPACE } from "./space";
 
 const AUTO_PULL_STARTUP_DELAY_MS = 3_000;
 
@@ -25,6 +25,8 @@ const SCHEDULER_BACKOFF_MAX_MS = 60 * 60_000;
 
 export interface SchedulerHost extends Plugin {
 	settings: ObsyncSettings;
+	/** The records' partition: known from launch, before any refresh partitions. */
+	spaces: { partition(): readonly Space[] };
 }
 
 export function registerScheduler(
@@ -109,9 +111,12 @@ export function registerScheduler(
 		}, SCHEDULER_HEARTBEAT_MS),
 	);
 
+	// Offline or backing off, a push would only fail and log again: its paths wait.
+	const held = (): boolean => !navigator.onLine || Date.now() < backoffUntil;
 	const queueVaultPush = quietQueue(
 		host,
 		() => host.settings.autoPushSettleSeconds * 1000,
+		held,
 		(paths) => void runQueuedPush(host, controller, paths),
 	);
 	// One per share: typing in one must not hold back another's push.
@@ -122,6 +127,7 @@ export function registerScheduler(
 			queue = quietQueue(
 				host,
 				() => SHARE_PUSH_QUIET_MS,
+				held,
 				(paths) => {
 					if (host.settings.pushSharesRightAway && canSync(host.settings)) {
 						void controller.autoPushShares(paths);
@@ -132,18 +138,28 @@ export function registerScheduler(
 		}
 		queue(path);
 	};
-	const onVaultEvent = (file: TAbstractFile, oldPath?: string): void => {
-		for (const path of oldPath ? [file.path, oldPath] : [file.path]) {
-			const { id } = controller.spaceFor(path);
-			const shared = id !== VAULT_SPACE.id;
-			if (shared && host.settings.pushSharesRightAway) queueSharePush(id, path);
-			else if (host.settings.autoPushAfterChange) queueVaultPush(path);
-		}
-	};
-	host.registerEvent(host.app.vault.on("modify", onVaultEvent));
-	host.registerEvent(host.app.vault.on("create", onVaultEvent));
-	host.registerEvent(host.app.vault.on("delete", onVaultEvent));
-	host.registerEvent(host.app.vault.on("rename", onVaultEvent));
+	const onVaultEvent =
+		(edit: boolean) =>
+		(file: TAbstractFile, oldPath?: string): void => {
+			controller.noteLocalChange();
+			for (const path of oldPath ? [file.path, oldPath] : [file.path]) {
+				const { id, paused, readOnly } = spaceOf(host.spaces.partition(), path);
+				// Nothing there pushes: queued, it would only refresh.
+				if (paused || readOnly) continue;
+				const rightAway =
+					id !== VAULT_SPACE.id && host.settings.pushSharesRightAway;
+				// A waiting edit keeps its gutter marks until someone pushes it.
+				if (rightAway && !(edit && host.settings.shareEditsWait)) {
+					queueSharePush(id, path);
+				} else if (!rightAway && host.settings.autoPushAfterChange) {
+					queueVaultPush(path);
+				}
+			}
+		};
+	host.registerEvent(host.app.vault.on("modify", onVaultEvent(true)));
+	host.registerEvent(host.app.vault.on("create", onVaultEvent(false)));
+	host.registerEvent(host.app.vault.on("delete", onVaultEvent(false)));
+	host.registerEvent(host.app.vault.on("rename", onVaultEvent(false)));
 }
 
 /**
@@ -176,10 +192,11 @@ function scheduleFirstRun(host: SchedulerHost, run: () => void): void {
 	host.registerEvent(host.app.metadataCache.on("resolved", fire));
 }
 
-/** Paths gathered until `quietMs()` pass without a new one, then handed to `run` together. */
+/** Paths gathered until `quietMs()` pass without a new one, then handed to `run` together; kept while `held()`. */
 function quietQueue(
 	host: SchedulerHost,
 	quietMs: () => number,
+	held: () => boolean,
 	run: (paths: Set<string>) => void,
 ): (path: string) => void {
 	const pending = new Set<string>();
@@ -187,16 +204,24 @@ function quietQueue(
 	host.register(() => {
 		if (timer !== null) window.clearTimeout(timer);
 	});
+	const fire = (): void => {
+		timer = null;
+		if (held()) {
+			arm();
+			return;
+		}
+		const paths = new Set(pending);
+		pending.clear();
+		run(paths);
+	};
+	// Read per arm so a changed quiet period applies to the queue in flight.
+	const arm = (): void => {
+		timer = window.setTimeout(fire, quietMs());
+	};
 	return (path) => {
 		pending.add(path);
 		if (timer !== null) window.clearTimeout(timer);
-		// Read per event so a changed quiet period applies to the queue in flight.
-		timer = window.setTimeout(() => {
-			timer = null;
-			const paths = new Set(pending);
-			pending.clear();
-			run(paths);
-		}, quietMs());
+		arm();
 	};
 }
 
@@ -211,8 +236,7 @@ async function runQueuedPush(
 ): Promise<void> {
 	if (!canSync(host.settings)) return;
 	if (!host.settings.autoPushAfterChange) return;
-	await controller.refresh();
-	await controller.autoPushFromSnapshot(
+	await controller.refreshAndAutoPush(
 		host.settings.autoPushChangedFilesOnly ? trackedPaths : undefined,
 	);
 }

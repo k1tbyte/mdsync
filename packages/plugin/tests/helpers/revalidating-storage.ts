@@ -32,10 +32,10 @@ export class RevalidatingStorage extends FakeStorage {
 		return Promise.resolve({ status: "found", body, etag: current });
 	}
 
-	async listWithEtags(prefix: string): Promise<ListedObject[]> {
-		return (await this.list(prefix)).map((key) => ({
-			key,
-			etag: this.etags.get(key) ?? null,
+	override async listDetailed(prefix: string): Promise<ListedObject[]> {
+		return (await super.listDetailed(prefix)).map((object) => ({
+			...object,
+			etag: this.etags.get(object.key) ?? null,
 		}));
 	}
 }

@@ -30,10 +30,23 @@ describe("shareSummary", () => {
 
 	it("names read-only and paused", async () => {
 		const { records } = device([joined(true)]);
-		await records.setPaused("b", true);
+		await records.setPause("b", "here", "laptop");
 
 		expect(shareSummary(records, joined(true))).toBe(
 			'Shared with you, read-only, in "Friends", paused on this device.',
+		);
+	});
+
+	it("names a pause on all their devices, and shared folders off here", async () => {
+		const { records, settings } = device([record("a", "Team")]);
+		await records.setPause("a", "everywhere", "laptop");
+		expect(shareSummary(records, record("a", "Team"))).toBe(
+			'Yours, in "Team", paused on all your devices.',
+		);
+
+		settings.useSharedFolders = false;
+		expect(shareSummary(records, record("a", "Team"))).toBe(
+			'Yours, in "Team", shared folders are off on this device.',
 		);
 	});
 

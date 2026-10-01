@@ -17,6 +17,11 @@ export function formatSizeDelta(delta: number): string | null {
 	return `${delta > 0 ? "+" : "−"}${formatBytes(Math.abs(delta))}`;
 }
 
+/** "Alex · Laptop, Phone": a person in a share runs several devices under one key. */
+export function withDevices(name: string, devices: readonly string[]): string {
+	return devices.length > 0 ? `${name} · ${devices.join(", ")}` : name;
+}
+
 export function formatTimestamp(ms: number): string {
 	return new Date(ms).toLocaleString();
 }

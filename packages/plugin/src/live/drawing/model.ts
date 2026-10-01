@@ -69,7 +69,29 @@ export class DrawingModel implements LiveModel {
 export const DRAWING: LiveKind<DrawingModel> = {
 	model: (doc) => new DrawingModel(doc),
 	seed: (disk) => withElements(elementsIn(disk) ?? []),
+	holds(agreed, disk) {
+		const room = stampsOf(elementsIn(agreed));
+		const file = stampsOf(elementsIn(disk));
+		return (
+			room !== null &&
+			file !== null &&
+			room.size === file.size &&
+			[...room].every(([id, stamp]) => file.get(id) === stamp)
+		);
+	},
 };
+
+/** Deleted ones aside: a saved file may drop them. */
+function stampsOf(elements: SceneElement[] | null): Map<string, string> | null {
+	if (!elements) return null;
+	const live = elements.filter(({ isDeleted }) => !isDeleted);
+	return new Map(
+		live.map(({ id, version, versionNonce }) => [
+			id,
+			`${version}:${versionNonce}`,
+		]),
+	);
+}
 
 /** A drawing file, a scene, or the stamps a room agreed on; null when none. */
 export function elementsIn(text: string): SceneElement[] | null {

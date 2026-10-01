@@ -1,5 +1,5 @@
 import { type Plugin, TFolder, type Vault } from "obsidian";
-
+import { reportWarning } from "@/shared/diagnostics";
 import {
 	mountError,
 	type PendingMove,
@@ -53,7 +53,9 @@ export function registerShareRenames(plugin: Plugin & PluginHost): void {
 	plugin.registerEvent(
 		plugin.app.vault.on("rename", (file, oldPath) => {
 			if (file instanceof TFolder) {
-				void onFolderRenamed(plugin, file, oldPath, movingBack);
+				onFolderRenamed(plugin, file, oldPath, movingBack).catch((err) =>
+					reportWarning("A shared folder could not be moved.", err),
+				);
 			}
 		}),
 	);

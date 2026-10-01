@@ -9,7 +9,11 @@ import { requestUrl } from "obsidian";
 
 import { relayBase } from "@/shared/path";
 import type { S3StorageConfig } from "@/storage/config";
-import { type StorageAdapter, StorageRequestError } from "@/storage/types";
+import {
+	ShareRefusedError,
+	type StorageAdapter,
+	StorageRequestError,
+} from "@/storage/types";
 
 import {
 	endpointUrl,
@@ -18,7 +22,7 @@ import {
 	signingRegion,
 } from "./s3-signer";
 import { createS3Store } from "./s3-store";
-import { ShareReadUrls } from "./share-read-urls";
+import { ShareSignedUrls } from "./share-signed-urls";
 import { StorageHttpError } from "./util";
 
 export interface BrokerAccess {
@@ -57,7 +61,8 @@ export function createBrokerAdapter(
 ): StorageAdapter {
 	// Listings come back as full bucket keys under this.
 	let base = "";
-	const reads = new ShareReadUrls((keys) => signReads(access, keys));
+	const reads = new ShareSignedUrls((keys) => signBatch(access, "get", keys));
+	const writes = new ShareSignedUrls((keys) => signBatch(access, "put", keys));
 	const store = createS3Store({
 		// The share's objects, not the route: a new relay keeps the sync state.
 		identity: `broker|${shareId}`,
@@ -65,8 +70,12 @@ export function createBrokerAdapter(
 		relative: (listed) =>
 			listed.startsWith(base) ? listed.slice(base.length) : listed,
 		sign: async (input) => {
-			if (input.method === "GET" && input.key !== "") {
-				const url = await reads.take(input.key);
+			const urls = input.method === "PUT" ? writes : reads;
+			if (
+				(input.method === "GET" || input.method === "PUT") &&
+				input.key !== ""
+			) {
+				const url = await urls.take(input.key);
 				if (url) return { url, headers: input.headers ?? {} };
 			}
 			const signed = await callBroker(
@@ -83,7 +92,11 @@ export function createBrokerAdapter(
 			return { url: String(signed.url), headers: input.headers ?? {} };
 		},
 	});
-	return { ...store, prepareReads: (keys) => reads.expect(keys) };
+	return {
+		...store,
+		prepareReads: (keys) => reads.expect(keys),
+		prepareWrites: (keys) => writes.expect(keys),
+	};
 }
 
 /** Where the broker signs for this share, with this device's credentials. */
@@ -206,8 +219,9 @@ function bearer(access: BrokerAccess): Record<string, string> {
 	return { Authorization: `Bearer ${access.token}` };
 }
 
-async function signReads(
+async function signBatch(
 	access: BrokerAccess,
+	op: "get" | "put",
 	keys: string[],
 ): Promise<string[]> {
 	const { urls } = await callBroker(
@@ -216,7 +230,7 @@ async function signReads(
 		{
 			method: "POST",
 			headers: bearer(access),
-			body: { op: "get", keys },
+			body: { op, keys },
 		},
 		PARTICIPANT_REFUSALS,
 	);
@@ -225,7 +239,9 @@ async function signReads(
 		urls.length !== keys.length ||
 		!urls.every((url) => typeof url === "string")
 	) {
-		throw new Error("Share broker answered a read batch that does not fit it");
+		throw new Error(
+			"Share broker answered a signing batch that does not fit it",
+		);
 	}
 	return urls;
 }
@@ -265,6 +281,9 @@ async function callBroker(
 	const code = errorCode(res.text);
 	const refusal = code ? refusals[code] : undefined;
 	const message = `Share broker ${path} answered HTTP ${res.status}${code ? ` (${code})` : ""}`;
+	if (refusal && code === "unauthorized" && refusals === PARTICIPANT_REFUSALS) {
+		throw new ShareRefusedError(message, refusal);
+	}
 	if (refusal) throw new StorageRequestError(message, refusal);
 	throw new StorageHttpError(res.status, message);
 }

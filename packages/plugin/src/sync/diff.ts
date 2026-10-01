@@ -125,7 +125,7 @@ function classify(
 }
 
 /** Empty entry means vault root: nothing is known. */
-function isUnderUnreadableDir(
+export function isUnderUnreadableDir(
 	path: string,
 	dirs: ReadonlyArray<string>,
 ): boolean {

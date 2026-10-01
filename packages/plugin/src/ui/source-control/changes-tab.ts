@@ -189,7 +189,7 @@ export class ChangesTab {
 		input.placeholder = "Filter by path…";
 		input.value = this.filter;
 		input.setAttr("aria-label", "Filter changed files by path");
-		input.addEventListener("input", () => {
+		const apply = (): void => {
 			this.filter = input.value;
 			const caret = input.selectionStart ?? input.value.length;
 			this.invalidate();
@@ -201,7 +201,12 @@ export class ChangesTab {
 			if (!next) return;
 			next.focus();
 			next.setSelectionRange(caret, caret);
+		};
+		input.addEventListener("input", (event) => {
+			// Replaced mid-composition, the input would drop what the IME holds.
+			if (!(event as InputEvent).isComposing) apply();
 		});
+		input.addEventListener("compositionend", apply);
 	}
 
 	private setBulkButtonState(snapshot: SyncStatusSnapshot): void {
@@ -239,7 +244,7 @@ export class ChangesTab {
 		refresh.setAttr("aria-label", "Refresh changes");
 		refresh.addEventListener(
 			"click",
-			() => void this.plugin.controller.refresh(),
+			() => void this.plugin.controller.refreshFromDisk(),
 		);
 		refresh.disabled = snapshot.busy;
 		this.refreshButtonEl = refresh;

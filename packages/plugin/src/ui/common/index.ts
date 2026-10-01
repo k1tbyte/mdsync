@@ -8,7 +8,13 @@ export { appendIconButton, appendLabeledButton } from "./icon-button";
 export { lastEditLabel } from "./last-edit";
 export { onLongPress } from "./long-press";
 export { infoTitle, personTitle, showMenuAt } from "./menu";
-export { notifyError, notifyInfo, reportError, runWithNotice } from "./notices";
+export {
+	attempt,
+	notifyError,
+	notifyInfo,
+	reportError,
+	runWithNotice,
+} from "./notices";
 export { openInEditor, revealInFileExplorer } from "./obsidian-helpers";
 export { openNote } from "./open-note";
 export { redrawOnPhoneChange } from "./phone-change";
@@ -21,3 +27,4 @@ export {
 	UNREADABLE_TEXT,
 } from "./relay";
 export { serial } from "./serial";
+export { skippedFiles, skippedText } from "./skipped";

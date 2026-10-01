@@ -1,170 +1,148 @@
-import type { Editor, MarkdownView, WorkspaceLeaf } from "obsidian";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MarkdownView, type WorkspaceLeaf } from "obsidian";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LiveSession } from "@/live/session/session";
-import { type WatchedCursor, watchCursor } from "@/live/text/cursors";
 import type { PluginHost } from "@/plugin/host";
-import { CursorFollow, followCursor } from "@/ui/live/header/cursor-follow";
+import { CursorFollow } from "@/ui/live/header/cursor-follow";
+import { showFollowNudge } from "@/ui/live/header/follow-nudge";
+import { trackCursor } from "@/ui/live/header/follow-scroll";
 
-vi.mock("@/live/text/cursors", () => ({ watchCursor: vi.fn() }));
+vi.mock("@/ui/live/header/follow-scroll", () => ({ trackCursor: vi.fn() }));
+vi.mock("@/ui/live/header/follow-nudge", () => ({ showFollowNudge: vi.fn() }));
 
-const ROOM = {};
+const ALEX = { key: "alex", name: "Alex" };
 
 function setup() {
-	const editor = {
-		offsetToPos: (offset: number) => ({ line: 0, ch: offset }),
-		scrollIntoView: vi.fn(),
-	};
-	const input = new EventTarget();
-	let changed = () => {};
-	const person = { at: 5 as number | null, present: true, shown: true };
-	const unwatch = vi.fn(() => {
-		changed = () => {};
+	const view = Object.assign(Object.create(MarkdownView.prototype) as object, {
+		file: { path: "a.md" } as { path: string } | null,
+		contentEl: new EventTarget(),
 	});
-	const cursor: WatchedCursor = {
-		at: () => person.at,
-		present: () => person.present,
-		watch(listener) {
-			changed = listener;
-			return unwatch;
+	const leaf = {
+		view,
+		openFile: vi.fn(async (file: { path: string }) => {
+			view.file = file;
+		}),
+	};
+	const listeners = new Set<() => void>();
+	const subscribe = (listener: () => void) => {
+		listeners.add(listener);
+		return () => listeners.delete(listener);
+	};
+	const where = { note: "a.md" as string | null, online: true };
+	const rooms = new Map([
+		["a.md", { id: "room-a" }],
+		["b.md", { id: "room-b" }],
+	]);
+	const plugin = {
+		app: {
+			workspace: { on: vi.fn(), offref: vi.fn(), setActiveLeaf: vi.fn() },
+			vault: {
+				getFileByPath: (path: string) => (rooms.has(path) ? { path } : null),
+			},
 		},
-	};
-	const follows = new CursorFollow();
-	follows.start({
-		room: ROOM,
-		key: "alex",
-		editor: editor as unknown as Editor,
-		input: input as HTMLElement,
-		cursor,
-		shown: () => person.shown,
-	});
-	const scrolledTo = () =>
-		editor.scrollIntoView.mock.calls.map(([range]) => range.from.ch);
+		realtime: {
+			people: {
+				subscribe,
+				online: () =>
+					where.online ? [{ ...ALEX, note: where.note, idle: false }] : [],
+			},
+			live: { subscribe, roomOf: (path: string) => rooms.get(path) ?? null },
+		},
+	} as unknown as PluginHost;
+	const follows = new CursorFollow(plugin);
+	const asLeaf = leaf as unknown as WorkspaceLeaf;
+	follows.start(asLeaf, "team", ALEX);
 	return {
-		editor: editor as unknown as Editor,
-		input,
-		person,
-		unwatch,
+		view,
+		leaf,
 		follows,
-		scrolledTo,
-		/** Their cursor may have moved; the follow answers on the next frame. */
-		move: () => {
-			changed();
-			vi.runOnlyPendingTimers();
+		where,
+		following: () => follows.of(asLeaf),
+		/** Presence or a room changed; resolves once a note it opened is shown. */
+		changed: async () => {
+			for (const listener of [...listeners]) listener();
+			await new Promise((resolve) => setTimeout(resolve, 0));
 		},
-		changed: () => changed(),
 	};
 }
 
-describe("following a cursor", () => {
-	beforeEach(() => vi.useFakeTimers());
-	afterEach(() => vi.useRealTimers());
+describe("following a person", () => {
+	const stopTracking = vi.fn();
 
-	it("scrolls once a frame, never inside the change event", () => {
-		const { person, changed, scrolledTo } = setup();
-
-		person.at = 40;
-		changed();
-		changed();
-		expect(scrolledTo()).toEqual([5]);
-		vi.runOnlyPendingTimers();
-		expect(scrolledTo()).toEqual([5, 40]);
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.mocked(trackCursor).mockReturnValue(stopTracking);
 	});
 
-	it("keeps it in view as it moves, and waits while it is gone", () => {
-		const { person, move, scrolledTo, follows, editor } = setup();
+	it("follows their cursor in the note it starts in", () => {
+		const { view, following } = setup();
 
-		person.at = 40;
-		move();
-		move();
-		person.at = null;
-		move();
-		person.at = 60;
-		move();
-
-		expect(scrolledTo()).toEqual([5, 40, 60]);
-		expect(follows.of(ROOM, editor)).toBe("alex");
-		expect(follows.of({}, editor)).toBeNull();
+		expect(trackCursor).toHaveBeenCalledExactlyOnceWith(
+			view,
+			{ id: "room-a" },
+			"alex",
+		);
+		expect(following()).toBe("alex");
 	});
 
-	it("ends on this device's own input", () => {
-		const { input, person, move, scrolledTo, follows, editor, unwatch } =
-			setup();
+	it("opens the note they move to in this tab, then follows their cursor there", async () => {
+		const { view, leaf, where, changed, following } = setup();
 
-		input.dispatchEvent(new Event("wheel"));
-		person.at = 40;
-		move();
+		where.note = "b.md";
+		await changed();
 
-		expect(scrolledTo()).toEqual([5]);
-		expect(unwatch).toHaveBeenCalledOnce();
-		expect(follows.of(ROOM, editor)).toBeNull();
+		expect(leaf.openFile).toHaveBeenCalledExactlyOnceWith({ path: "b.md" });
+		expect(stopTracking).toHaveBeenCalledOnce();
+		expect(trackCursor).toHaveBeenLastCalledWith(
+			view,
+			{ id: "room-b" },
+			"alex",
+		);
+		expect(following()).toBe("alex");
 	});
 
-	it("ends once the view shows another note, never scrolling it", () => {
-		const { person, move, follows, editor, unwatch, scrolledTo } = setup();
+	it("waits where it is for a note not on this device yet", async () => {
+		const { leaf, where, changed, following } = setup();
 
-		person.shown = false;
-		person.at = 40;
-		move();
+		where.note = "elsewhere.md";
+		await changed();
 
-		expect(scrolledTo()).toEqual([5]);
-		expect(unwatch).toHaveBeenCalledOnce();
-		expect(follows.of(ROOM, editor)).toBeNull();
+		expect(leaf.openFile).not.toHaveBeenCalled();
+		expect(following()).toBe("alex");
 	});
 
-	it("ends when the person leaves the room", () => {
-		const { person, move, follows, editor, unwatch } = setup();
+	it("asks on this tab's input instead of ending, once while the question shows", () => {
+		const notice = { hide: vi.fn(), messageEl: { isConnected: true } };
+		vi.mocked(showFollowNudge).mockReturnValue(notice as never);
+		const { view, following } = setup();
 
-		person.present = false;
-		move();
+		view.contentEl.dispatchEvent(new Event("keydown"));
+		view.contentEl.dispatchEvent(new Event("wheel"));
+		expect(showFollowNudge).toHaveBeenCalledOnce();
+		expect(following()).toBe("alex");
 
-		expect(unwatch).toHaveBeenCalledOnce();
-		expect(follows.of(ROOM, editor)).toBeNull();
+		const stop = vi.mocked(showFollowNudge).mock.calls[0]?.[1];
+		stop?.();
+		expect(following()).toBeNull();
+		expect(stopTracking).toHaveBeenCalledOnce();
+		expect(notice.hide).toHaveBeenCalled();
 	});
-});
 
-describe("starting to follow", () => {
-	it("scrolls to their cursor and leaves the caret where it was", () => {
-		const editor = {
-			offsetToPos: (offset: number) => ({ line: 0, ch: offset }),
-			scrollIntoView: vi.fn(),
-			setCursor: vi.fn(),
-		};
-		const contentEl = new EventTarget();
-		const file = { path: "a.md" };
-		const session = {} as LiveSession;
-		const markdown = { editor, file, contentEl } as unknown as MarkdownView;
-		const leaf = { view: markdown } as unknown as WorkspaceLeaf;
-		const setActiveLeaf = vi.fn();
-		const plugin = {
-			app: { workspace: { setActiveLeaf } },
-			realtime: { live: { roomOf: () => session } },
-		} as unknown as PluginHost;
-		vi.mocked(watchCursor).mockReturnValue({
-			at: () => 5,
-			present: () => true,
-			watch: () => () => {},
-		});
-		const follows = new CursorFollow();
+	it("ends once this tab shows another note opened by hand", async () => {
+		const { view, changed, following } = setup();
 
-		followCursor({
-			plugin,
-			leaf,
-			markdown,
-			session,
-			key: "alex",
-			offset: 5,
-			follows,
-		});
+		view.file = { path: "mine.md" };
+		await changed();
 
-		expect(setActiveLeaf).toHaveBeenCalledWith(leaf, { focus: true });
-		expect(editor.scrollIntoView).toHaveBeenCalled();
-		expect(editor.setCursor).not.toHaveBeenCalled();
-		expect(follows.of(session, editor as unknown as Editor)).toBe("alex");
+		expect(following()).toBeNull();
+		expect(stopTracking).toHaveBeenCalledOnce();
+	});
 
-		contentEl.dispatchEvent(new Event("keydown"));
+	it("ends when they leave", async () => {
+		const { where, changed, following } = setup();
 
-		expect(follows.of(session, editor as unknown as Editor)).toBeNull();
-		expect(editor.setCursor).not.toHaveBeenCalled();
+		where.online = false;
+		await changed();
+
+		expect(following()).toBeNull();
 	});
 });

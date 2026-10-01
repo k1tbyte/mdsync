@@ -131,7 +131,7 @@ async function signObject(request: Request, env: ShareEnv): Promise<Response> {
 		if (op === "list")
 			return await presignList(storage, record.shareId, fields);
 		if (fields.keys)
-			return await presignBatch(storage, record.shareId, fields.keys);
+			return await presignBatch(storage, record.shareId, op, fields.keys);
 		return await presignObject(storage, record.shareId, op, fields);
 	} catch (err) {
 		if (err instanceof InvalidShareKeyError) {
@@ -184,14 +184,16 @@ async function presignObject(
 async function presignBatch(
 	storage: ShareStorage,
 	shareId: string,
+	op: string,
 	keys: string[],
 ): Promise<Response> {
+	const method = op === "put" ? "PUT" : "GET";
 	const objectKeys = keys.map((key) =>
 		shareObjectKey(storage.prefix, shareId, key),
 	);
 	const presign = createPresigner(storage, PRESIGN_TTL_SECONDS);
-	const urls = await Promise.all(objectKeys.map((key) => presign("GET", key)));
-	return json({ urls, method: "GET" });
+	const urls = await Promise.all(objectKeys.map((key) => presign(method, key)));
+	return json({ urls, method });
 }
 
 /** Fields are participant-controlled: a number reaching assertSafeKey would throw TypeError (500 instead of 400). */
@@ -211,7 +213,8 @@ function invalidSignFields(body: JsonObject): string | null {
 function invalidBatchKeys(body: JsonObject): string | null {
 	const { keys } = body;
 	if (keys === undefined) return null;
-	if (body.op !== "get") return "keys is only valid with op get";
+	if (body.op !== "get" && body.op !== "put")
+		return "keys is only valid with op get or put";
 	if (BATCH_EXCLUDES.some((name) => body[name] !== undefined)) {
 		return `keys excludes ${BATCH_EXCLUDES.join(", ")}`;
 	}

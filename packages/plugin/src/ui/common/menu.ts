@@ -1,6 +1,8 @@
 import type { Menu } from "obsidian";
 
 import type { Person } from "@/presence";
+import { withDevices } from "@/shared/format";
+
 import { renderAvatar } from "./avatars";
 
 export function infoTitle(text: string, state?: string): DocumentFragment {
@@ -13,7 +15,7 @@ export function infoTitle(text: string, state?: string): DocumentFragment {
 export function personTitle(person: Person, state: string): DocumentFragment {
 	const title = createFragment();
 	renderAvatar(title, person);
-	title.createSpan({ text: person.name });
+	title.createSpan({ text: withDevices(person.name, person.devices) });
 	title.createSpan({ cls: "obsync-person-state", text: state });
 	return title;
 }

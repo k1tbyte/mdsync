@@ -1,12 +1,14 @@
 # Obsync
 
-Obsync is a plugin for my personal Obsidian vault developed to manually sync an encrypted storage repository with an S3-compatible bucket. It compares local files with an encrypted remote manifest, then lets you push local changes, pull remote changes, and resolve conflicts from a source-control style view.
+Obsync syncs an Obsidian vault over storage you configure (S3-compatible, WebDAV or Google Drive), encrypted with a key derived from your passphrase. It compares local files with an encrypted remote manifest, then lets you push local changes, pull remote changes, and resolve conflicts from a source-control style view. With the optional relay it also pushes changes to your other devices at once, shares folders with other people, and edits shared notes live.
 
 ## Features
 
-- Manual compare, push, and pull commands.
+- Manual compare, push, and pull commands, plus optional autosync and push-after-changes.
 - Source control view with local changes, remote changes, conflicts, per-file diff, and hunk actions for text files.
-- S3-compatible storage with encrypted manifests and encrypted file blobs.
+- S3-compatible, WebDAV and Google Drive storage with encrypted manifests and encrypted file blobs.
+- File history, a deleted-files list and whole-vault restore.
+- Shared folders and live editing through the relay (owning a share needs S3-compatible storage).
 - Optional sync of selected Obsidian configuration categories.
 - Shared `syncignore.md` rules plus device-local ignore patterns and symlink skipping.
 - Encrypted setup transfer by Obsidian URL, copyable link, or QR code.
@@ -20,6 +22,9 @@ Obsync writes only inside the configured bucket and prefix:
 <prefix>/manifest.json.enc
 <prefix>/history.json.enc
 <prefix>/salt.bin
+<prefix>/keys.json
+<prefix>/spaces/<id>.json.enc
+<prefix>/shares/<id>/...
 <prefix>/objects/<sha256>.enc
 <prefix>/pins/<snapshotId>.json.enc
 ```
@@ -55,10 +60,12 @@ else. Deletions age out with their snapshot, so pin a snapshot to keep one for g
 2. Enable the plugin in Obsidian.
 3. Open **Settings → Obsync**.
 4. Enter the S3 endpoint, region, bucket, optional prefix, and credentials.
-5. Run **Obsync: Compare with remote** and enter a passphrase when prompted.
+5. Run **Obsync: Compare with remote** and enter a passphrase when prompted (at least 12 characters).
 6. Use **Push all local changes** for the first upload, or pull from an existing remote manifest.
 
 Use a separate bucket prefix per vault. Reusing a prefix for another vault is rejected after the remote vault id is established.
+
+Set up the first device alone, until its first sync finishes. That sync creates the vault's key; on a server that ignores conditional writes (Google Drive, some WebDAV and S3-compatible servers), two devices starting at the same moment can each create one, and files one of them encrypts become unreadable to the other.
 
 ## Ignore patterns
 
@@ -67,9 +74,7 @@ Obsync uses two ignore sources, both with gitignore-style syntax:
 - `syncignore.md` in the vault root is the shared repository-level ignore list. A shared folder has its own in its root, with paths relative to it, shared by everyone in it; the vault's rules stop at that root, so sharing a folder copies what they kept out of it into its note.
 - The **Patterns** setting under Device-local exclusions is applied only on the current device.
 
-Shared ignore rules are synced like a normal note. If a shared rule starts matching a file that was already tracked, the file is shown as a deletion and is removed from remote on the next explicit push. Other devices then delete their local copy on pull.
-
-Device-local ignore rules are non-destructive. They stop this device from sending or receiving matching files, but they do not delete existing remote data.
+Shared ignore rules are synced like a normal note. Both kinds are non-destructive: a matching file stops being sent or received, but nothing is deleted, neither the remote copy nor the copies on other devices. To remove a file everywhere, delete it before ignoring it.
 
 Examples:
 
@@ -91,26 +96,36 @@ Changing `syncignore.md` or the ignore settings marks the current compare result
 - **Obsync: Pull all remote changes** - pull all remote changes after compare preflight.
 - **Obsync: Open source control** - open the sync panel.
 - **Obsync: Refresh sync status** - run compare only.
-- **Obsync: Reset remote storage** - delete the remote Obsync manifest and file objects for the configured bucket prefix, then compare local files as new additions.
+- **Obsync: Reset remote storage** - delete the remote Obsync manifest, file objects, version history and pins for the configured bucket prefix, then compare local files as new additions.
 - **Obsync: Open diff for active file** - open the diff for the active file when it has changes.
 - **Obsync: Forget cached passphrase** - clear the locally cached passphrase.
+- **Obsync: Show file history** - list the open file's past versions.
+- **Obsync: Restore deleted files** - list files history still holds and put them back.
+- **Obsync: Verify remote integrity** - check that every object the remote manifest names exists.
+- **Obsync: Deep-clean orphaned objects** - delete remote objects nothing references.
+- **Obsync: Manage sharing** - open the sharing window of the open file's shared folder.
+- **Obsync: Accept shared folder invite** - paste an invite link to mount a shared folder.
+- **Obsync: Rebuild live note** - move the open live note's room to a fresh generation.
+- **Obsync: Toggle authors in live notes** - tint text by who typed it.
+- **Obsync: Show relay status** - the relay state of every space and who is in shared notes.
+- **Obsync: Show live menu of this note** - the menu of the open note's live header.
 
 ## Remote reset
 
-Use **Obsync: Reset remote storage** or **Settings → Obsync → Reset remote** only when you want to rebuild the remote sync state from this vault. The reset flow requires typing `RESET` before it runs. It deletes `manifest.json.enc`, everything under `objects/`, the change log `history.json.enc`, every pinned snapshot under `pins/`, and anything left under the abandoned `snapshots/` prefix for the configured bucket prefix. It keeps `salt.bin` and `keys.json`, so the same passphrase-derived key remains valid.
+Use **Obsync: Reset remote storage** or **Settings → Obsync → Reset remote** only when you want to rebuild the remote sync state from this vault. The reset flow requires typing `RESET` before it runs. It deletes `manifest.json.enc`, everything under `objects/`, the change log `history.json.enc` and every pinned snapshot under `pins/`. It keeps `salt.bin` and `keys.json`, so the same passphrase-derived key remains valid.
 
 After reset, local vault files are preserved, the local baseline is cleared, and the next source control view shows local files as additions ready to push.
 
 ## Running the relay
 
-The relay is `packages/relay`, one Cloudflare Worker deployed to your own account — the credentials it holds are yours, and no one else's traffic passes through it. One deployment serves every optional role: realtime sync signals and the Google Drive token exchange.
+The relay is `packages/relay`, one Cloudflare Worker deployed to your own account — the credentials it holds are yours, and no one else's traffic passes through it. One deployment serves every optional role: realtime sync signals and live editing, the share broker that presigns requests for people you invite, and the Google Drive token exchange.
 
 1. Fork this repository. In **Settings → Obsync → Connection → Relay server**, select **Generate** to create a relay secret; it is copied to the clipboard.
 2. Add repository secrets under **Settings → Secrets and variables → Actions**: `CLOUDFLARE_API_TOKEN` (Cloudflare's *Edit Cloudflare Workers* template is enough), `CLOUDFLARE_ACCOUNT_ID` and `RELAY_SECRET`. `GDRIVE_CLIENT_ID` and `GDRIVE_CLIENT_SECRET` are only needed for your own Google Drive token exchange.
 3. Run the **Deploy Relay** workflow. The first run creates the KV namespace and the Durable Object; the run summary shows the worker URL.
 4. Paste that URL into **Relay server URL** and select **Test**.
 
-The relay is one hibernating SQLite-backed Durable Object per room, which stays inside the Workers free tier. If it is offline, devices fall back to periodic sync — nothing stops, since your own device holds the real credentials.
+The relay is one hibernating SQLite-backed Durable Object (the hub) per deployment, which stays inside the Workers free tier. If it is offline, devices fall back to periodic sync — nothing stops, since your own device holds the real credentials.
 
 ## Device transfer
 
@@ -121,32 +136,34 @@ The transfer link is encrypted with a key derived from the current Obsync passph
 ## Development
 
 ```bash
-npm install
-npm run dev
-npm run build
-npm run lint
+pnpm install
+pnpm dev
+pnpm build
+pnpm lint
+pnpm typecheck
+pnpm test
 ```
 
-Source code lives in `src/`. The bundled release artifact is `main.js` at the plugin root.
+The plugin's source lives in `packages/plugin/src`, the relay's in `packages/relay/src`. The bundled release artifact is `packages/plugin/main.js`.
 
 ## Release checklist
 
 1. Update `manifest.json` `minAppVersion` if the release needs a newer Obsidian API.
-2. Run `npm version patch`, `npm version minor`, or `npm version major`.
+2. Run `npm version patch`, `npm version minor`, or `npm version major` (the `version` script updates `manifest.json` and `versions.json`).
 3. Confirm `package.json`, `manifest.json`, and `versions.json` contain the new version.
-4. Run `npm run build`.
+4. Run `pnpm build`.
 5. Create a GitHub release whose tag exactly matches `manifest.json` `version` without a leading `v`.
 6. Attach `manifest.json`, `main.js`, and `styles.css` as individual release assets.
 
 ## Privacy and security
 
-Obsync has no telemetry. Sync logs are local to the current device and are excluded from sync. Vault files and filenames are sent only to the S3-compatible storage that you configure. Plugin settings are transferred between devices only when you explicitly export an encrypted setup link or QR code.
+Obsync has no telemetry. Sync logs are local to the current device and are excluded from sync. Vault files and filenames are sent only to the storage backend that you configure. Plugin settings are transferred between devices only when you explicitly export an encrypted setup link or QR code.
 
 ### What each optional service can see
 
 Obsync works with nothing but your storage bucket. The optional services below are the only other places anything goes, and all of them are the same self-hosted Cloudflare Worker (`packages/relay`).
 
-**The relay** (optional, for instant propagation) never sees vault content, filenames or keys. It does see, for each room it carries: the room id, which is derived from the storage identity (`s3|<bucket>/<prefix>`); a device id per connection; and the timing of every sync and of switching notes. Who is in which note travels sealed under the space's key, so names and paths stay hidden from it.
+**The relay** (optional, for instant propagation, shared folders and live editing) never sees vault file content, filenames or keys: live note edits and who is in which note travel sealed under the space's key. It does see, for each channel it carries: a hash of the storage identity; a device id per connection; and the timing of every sync and of switching notes. If you invite people to a shared folder, its broker also keeps your S3 access key and secret in its KV so it can presign requests for them, and the names you invited people by, which it shows to the others in that folder.
 
 ### Google Drive and the default auth server
 

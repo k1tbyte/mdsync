@@ -143,6 +143,7 @@ describe("live session rotation", () => {
 			if (frame.type === EFrame.Rotate) {
 				raw.send({
 					type: EFrame.Update,
+					n: 1,
 					doc: live.docId,
 					payload,
 				});

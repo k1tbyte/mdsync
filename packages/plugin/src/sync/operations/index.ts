@@ -6,6 +6,8 @@ export {
 	batchAcceptRemoteOp,
 	batchKeepLocalOp,
 	keepBothConflictOp,
+	type MergedSaveArgs,
+	saveMergedOp,
 } from "./resolve";
 export { revertPathsOp } from "./revert";
 export {

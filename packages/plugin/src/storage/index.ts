@@ -1,6 +1,7 @@
 export {
 	DEFAULT_GDRIVE_AUTH_SERVER,
 	defaultGoogleDriveConfig,
+	googleLoginUrl,
 } from "./adapters/google-drive-auth";
 export { defaultS3Config } from "./adapters/s3";
 export {
@@ -46,4 +47,4 @@ export type {
 	StorageAdapter,
 	StorageAuthOutcome,
 } from "./types";
-export { StorageRequestError } from "./types";
+export { ShareRefusedError, StorageRequestError } from "./types";

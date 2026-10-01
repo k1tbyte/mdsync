@@ -5,6 +5,8 @@ import {
 	handleTokenRefresh,
 } from "../src/google-oauth";
 
+const NONCE = "0123456789abcdef0123456789abcdef";
+
 const env: GoogleOAuthEnv = {
 	GDRIVE_CLIENT_ID: "client-id",
 	GDRIVE_CLIENT_SECRET: "client-secret",
@@ -30,7 +32,7 @@ function callback(query: string, cookie?: string): Promise<Response> {
 }
 
 async function mintState(): Promise<{ state: string; cookie: string }> {
-	const response = await callback("");
+	const response = await callback(`?nonce=${NONCE}`);
 	const consent = new URL(response.headers.get("Location") ?? "");
 	const state = consent.searchParams.get("state");
 	const setCookie = response.headers.get("Set-Cookie") ?? "";
@@ -40,7 +42,7 @@ async function mintState(): Promise<{ state: string; cookie: string }> {
 
 describe("consent redirect", () => {
 	it("sends the user to Google with a state and an offline scope", async () => {
-		const response = await callback("");
+		const response = await callback(`?nonce=${NONCE}`);
 		const consent = new URL(response.headers.get("Location") ?? "");
 
 		expect(consent.origin).toBe("https://accounts.google.com");
@@ -49,15 +51,30 @@ describe("consent redirect", () => {
 			"https://auth.example.com/auth",
 		);
 		expect(consent.searchParams.get("access_type")).toBe("offline");
-		expect(consent.searchParams.get("state")).toMatch(/^\d+\.[0-9a-f]{64}$/);
+		expect(consent.searchParams.get("state")).toMatch(
+			new RegExp(`^\\d+\\.${NONCE}\\.[0-9a-f]{64}$`),
+		);
 		// Signature proves worker minted it; cookie ties it to one browser.
 		expect(response.headers.get("Set-Cookie")).toContain("obsync_oauth_state=");
 		expect(response.headers.get("Set-Cookie")).toContain("HttpOnly");
 	});
 
-	it("passes a denied consent back to the plugin", async () => {
-		const response = await callback("?error=access_denied");
-		expect(response.headers.get("Location")).toBe(
+	it("refuses to start a sign-in the plugin gave no nonce for", async () => {
+		for (const query of ["", "?nonce=short", `?nonce=${NONCE.toUpperCase()}`]) {
+			expect((await callback(query)).status).toBe(400);
+		}
+	});
+
+	it("passes a denied consent back to the plugin, with the nonce of its own state", async () => {
+		const { state } = await mintState();
+
+		const denied = await callback(`?error=access_denied&state=${state}`);
+		const forged = await callback("?error=access_denied");
+
+		expect(denied.headers.get("Location")).toBe(
+			`obsidian://obsync-auth?error=access_denied&nonce=${NONCE}`,
+		);
+		expect(forged.headers.get("Location")).toBe(
 			"obsidian://obsync-auth?error=access_denied",
 		);
 	});
@@ -76,7 +93,7 @@ describe("state verification", () => {
 	});
 
 	it("refuses a state this worker did not sign", async () => {
-		const forged = `${Date.now()}.${"0".repeat(64)}`;
+		const forged = `${Date.now()}.${NONCE}.${"0".repeat(64)}`;
 		const response = await callback(`?code=abc&state=${forged}`);
 		expect(response.status).toBe(400);
 	});
@@ -117,8 +134,8 @@ describe("state verification", () => {
 
 	it("refuses a state older than its lifetime", async () => {
 		const { state } = await mintState();
-		const [issued, signature] = state.split(".");
-		const old = `${Number(issued) - 11 * 60 * 1000}.${signature}`;
+		const [issued, nonce, signature] = state.split(".");
+		const old = `${Number(issued) - 11 * 60 * 1000}.${nonce}.${signature}`;
 		const response = await callback(
 			`?code=abc&state=${old}`,
 			`obsync_oauth_state=${old}`,
@@ -145,6 +162,7 @@ describe("state verification", () => {
 		const redirect = new URL(response.headers.get("Location") ?? "");
 
 		expect(redirect.protocol).toBe("obsidian:");
+		expect(redirect.searchParams.get("nonce")).toBe(NONCE);
 		expect(redirect.searchParams.get("access_token")).toBe("at");
 		expect(redirect.searchParams.get("refresh_token")).toBe("rt");
 	});
@@ -231,6 +249,40 @@ describe("token refresh", () => {
 
 		const response = await handleTokenRefresh(
 			post(JSON.stringify({ refresh_token: "rt" })),
+			env,
+		);
+		expect(response.status).toBe(502);
+	});
+});
+
+describe("a relay without Google credentials", () => {
+	const unset = { GDRIVE_CLIENT_ID: "", GDRIVE_CLIENT_SECRET: "" };
+
+	it("answers the sign-in route with 503 instead of throwing", async () => {
+		const response = await handleAuthCallback(authUrl(), unset, authRequest());
+		expect(response.status).toBe(503);
+	});
+
+	it("answers a refresh with 503", async () => {
+		const response = await handleTokenRefresh(
+			new Request("https://auth.example.com/refresh", {
+				method: "POST",
+				body: JSON.stringify({ refresh_token: "r" }),
+			}),
+			unset,
+		);
+		expect(response.status).toBe(503);
+	});
+});
+
+describe("a Google outage", () => {
+	it("fails a refresh as a bad gateway instead of throwing", async () => {
+		vi.stubGlobal("fetch", () => Promise.reject(new TypeError("offline")));
+		const response = await handleTokenRefresh(
+			new Request("https://auth.example.com/refresh", {
+				method: "POST",
+				body: JSON.stringify({ refresh_token: "r" }),
+			}),
 			env,
 		);
 		expect(response.status).toBe(502);

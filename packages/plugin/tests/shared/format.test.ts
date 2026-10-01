@@ -4,7 +4,15 @@ import {
 	formatDayLabel,
 	formatSizeDelta,
 	pluralize,
+	withDevices,
 } from "@/shared/format";
+
+describe("withDevices", () => {
+	it("names a person's devices after them, and nothing when none is known", () => {
+		expect(withDevices("Kit", ["Laptop", "Phone"])).toBe("Kit · Laptop, Phone");
+		expect(withDevices("Kit", [])).toBe("Kit");
+	});
+});
 
 describe("formatBytes", () => {
 	it("keeps bytes exact below a kilobyte", () => {

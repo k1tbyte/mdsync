@@ -57,6 +57,17 @@
 	color: var(--color-cyan);
 }
 
+.nav-file-title.obsync-explorer-skipped .nav-file-title-content,
+.nav-folder-title.obsync-explorer-skipped .nav-folder-title-content {
+	color: var(--text-faint);
+	text-decoration: line-through;
+	text-decoration-color: var(--color-red);
+}
+
+.obsync-skip-badge {
+	color: var(--color-red);
+}
+
 .obsync-ignored-context {
 	color: var(--text-faint);
 }
@@ -97,8 +108,15 @@
 	gap: var(--size-2-1);
 }
 
+/* As tall as its avatar: the row centres it on whole pixels. */
 .obsync-people-badge {
 	--obsync-avatar: 16px;
+	height: auto;
+}
+
+/* Out of a line box: an inline icon sits on the text baseline, above centre. */
+.obsync-share-icon {
+	display: flex;
 }
 
 .obsync-share-badge {

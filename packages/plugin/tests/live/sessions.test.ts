@@ -21,7 +21,7 @@ vi.mock("@/live/text/binding", () => ({
 	bindEditor: vi.fn(() => ({ detach: vi.fn(), showAuthors: vi.fn() })),
 }));
 
-const USER = { key: "d1", name: "laptop", color: "red" };
+const USER = { key: "d1", name: "laptop", color: "red", device: null };
 
 function editorOf(file: TFile, mode = "source"): MarkdownView {
 	return Object.assign(Object.create(MarkdownView.prototype), {
@@ -235,6 +235,16 @@ describe("live sessions", () => {
 		await vi.waitFor(() => expect(followed()).toEqual([]));
 	});
 
+	it("has every room left once its disposal resolves, so the socket may close", async () => {
+		leaves = [{ view: editorOf(note("a.md")) }];
+		await sessions.refresh();
+		await vi.waitFor(() => expect(bindEditor).toHaveBeenCalled());
+
+		await sessions.dispose();
+
+		expect(followed()).toEqual([]);
+	});
+
 	it("leaves a note the hub cannot carry to the file sync, saying why, until it closes", async () => {
 		for (let at = 0; at < MAX_DOC_SUBS; at++) {
 			connection.send({ type: EFrame.Sub, doc: `doc-${at}`, since: 0 });
@@ -335,6 +345,7 @@ describe("live notes as the file sync sees them", () => {
 			agreed,
 			space,
 			live: async () => vault(),
+			kept: () => undefined,
 		});
 
 	function hashOf(text: string): Promise<string> {
@@ -589,6 +600,7 @@ describe("rebuilt rooms", () => {
 		raw.send({ type: EFrame.Sub, doc: third, since: 0 });
 		raw.send({
 			type: EFrame.Update,
+			n: 1,
 			doc: third,
 			payload: await seal(
 				keys as LiveKeys,

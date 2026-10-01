@@ -43,7 +43,7 @@ function update(
 	send(
 		core,
 		who,
-		frame(EFrame.Update, { payload: Uint8Array.of(byte) }, slot, doc),
+		frame(EFrame.Update, { n: byte, payload: Uint8Array.of(byte) }, slot, doc),
 	);
 }
 
@@ -124,7 +124,7 @@ describe("hub documents", () => {
 		update(core, sender, 7);
 
 		expect(sender.inbox).toEqual([
-			{ type: EFrame.Echo, slot: 0, doc: DOC, seq: 1 },
+			{ type: EFrame.Echo, slot: 0, doc: DOC, seq: 1, n: 7 },
 		]);
 		expect(follower.inbox).toEqual([
 			{
@@ -175,11 +175,11 @@ describe("hub documents", () => {
 		sub(core, second);
 		first.inbox.length = 0;
 
-		send(core, first, frame(EFrame.Seed, { payload: Uint8Array.of(1) }));
-		send(core, second, frame(EFrame.Seed, { payload: Uint8Array.of(2) }));
+		send(core, first, frame(EFrame.Seed, { n: 0, payload: Uint8Array.of(1) }));
+		send(core, second, frame(EFrame.Seed, { n: 0, payload: Uint8Array.of(2) }));
 
 		expect(first.inbox).toEqual([
-			{ type: EFrame.Echo, slot: 0, doc: DOC, seq: 1 },
+			{ type: EFrame.Echo, slot: 0, doc: DOC, seq: 1, n: 0 },
 		]);
 		expect(second.inbox).toEqual([
 			expect.objectContaining({ type: EFrame.Fanout, seq: 1 }),

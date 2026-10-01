@@ -44,6 +44,8 @@ export interface LiveEditor {
 	save(view: View): Promise<boolean>;
 	/** The file sync is about to write `path`: `view`, if it shows it, takes the write in. */
 	expectWrite(view: View, path: string): void;
+	/** Whether a file with `disk` holds what a room `agreed`. */
+	holds(agreed: string, disk: string): boolean;
 	open(
 		docId: string,
 		generation: number,
@@ -116,6 +118,7 @@ function liveEditor<V extends FileView, M extends LiveModel>(
 			const editing = spec.editing(view);
 			if (editing?.file?.path === path) spec.expectWrite?.(editing);
 		},
+		holds: (agreed, disk) => spec.kind.holds(agreed, disk),
 		open(docId, generation, deps) {
 			const { follower } = deps;
 			const session = follower
@@ -166,5 +169,7 @@ export async function readOpen(
 		if (text !== null) return text;
 	}
 	const file = vault.getFileByPath(path);
-	return file ? vault.read(file) : "";
+	// Gone mid-join: an empty text would read as everything deleted, and the join fails instead.
+	if (!file) throw new Error(`No live note at ${path}`);
+	return vault.read(file);
 }

@@ -11,6 +11,8 @@ export interface Space {
 	readOnly?: true;
 	/** Not synced on this device; its root still stays out of the vault. */
 	paused?: true;
+	/** For one operation: the person chose to publish the loss of every file it had. */
+	goneAccepted?: true;
 }
 
 export const VAULT_SPACE: Space = { id: "vault", root: "" };
@@ -66,25 +68,32 @@ export function vaultPathOf(
 	return space.root === "" ? inside : `${space.root}/${inside}`;
 }
 
-/** A share whose folder vanished on this device: syncing it would delete it for everyone. */
+/** A share whose files all vanished on this device: syncing it would delete them for everyone. */
 export class SpaceGoneError extends Error {
 	constructor(root: string) {
 		super(
-			`"${root}" is gone or empty on this device, so it is not synced here.`,
+			`"${root}" lost every file it had on this device, so it is not synced here.`,
 		);
 		this.name = "SpaceGoneError";
 	}
 }
 
-/** Throws when a share's scan found nothing its baseline still holds; the vault is left alone. */
+/** Throws when a share's scan holds none of the files its baseline does; the vault is left alone. */
 export function assertSpacePresent(
 	space: Space,
-	local: { files: Record<string, unknown> },
+	local: {
+		files: Record<string, unknown>;
+		skipped?: readonly { path: string }[];
+	},
 	baseline: { files: Record<string, unknown> } | null,
 ): void {
-	if (space.root === VAULT_SPACE.root) return;
-	if (Object.keys(local.files).length > 0) return;
-	const known = Object.keys(baseline?.files ?? {});
-	if (!known.some((path) => isUnder(path, space.root))) return;
+	if (space.root === VAULT_SPACE.root || space.goneAccepted) return;
+	const known = Object.keys(baseline?.files ?? {}).filter((path) =>
+		isUnder(path, space.root),
+	);
+	if (known.length === 0) return;
+	// A new file does not bring the folder back: the rest would still be deleted for everyone.
+	const skipped = new Set(local.skipped?.map(({ path }) => path));
+	if (known.some((path) => path in local.files || skipped.has(path))) return;
 	throw new SpaceGoneError(space.root);
 }

@@ -12,8 +12,8 @@ async function pair() {
 	let ownerName = "Owner";
 	const owner = relay.add(spacesWith("Team"), async (space) =>
 		space.id === SHARE_ID
-			? { keys: shareKeys, key: "owner", name: ownerName }
-			: { keys: vaultKeys, key: "d1", name: "d1" },
+			? { keys: shareKeys, key: "owner", name: ownerName, device: "d1" }
+			: { keys: vaultKeys, key: "d1", name: "d1", device: null },
 	);
 	const friend = relay.add(spacesWith("Team"), accessFor("d9", "p1", "Alex"));
 	relay.join(owner);

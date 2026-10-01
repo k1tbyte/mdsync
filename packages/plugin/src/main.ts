@@ -22,8 +22,10 @@ import { reportWarning } from "@/shared/diagnostics";
 import type { SpaceRecords } from "@/spaces";
 import type { SyncController } from "@/sync/controller";
 import { registerScheduler } from "@/sync/scheduler";
-import type { IndicatorHandle } from "@/ui";
-
+import { createSpaceGone, type IndicatorHandle } from "@/ui";
+import { notifyInfo } from "@/ui/common";
+import { createDeletedElsewhere } from "@/ui/live/deleted-elsewhere";
+import { createAccessEnded } from "@/ui/shares/access-ended";
 import {
 	bootstrapPluginRuntime,
 	disposePluginRuntime,
@@ -79,6 +81,8 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 	private editorSigns: SignsHandle | null = null;
 	private fileIndicators: IndicatorHandle | null = null;
 	private unloaded = false;
+	/** One settings write at a time: two in flight may land the older one last. */
+	private savingSettings: Promise<void> = Promise.resolve();
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -90,6 +94,12 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 				refreshOpenHistoryViewsAfterPush(this);
 			},
 			onSpaceRefreshed: createShareRegistration(this),
+			onShareRefused: createAccessEnded(this),
+			onSpaceGone: createSpaceGone(this),
+			onUnindexed: (count) =>
+				notifyInfo(
+					`Obsidian has not loaded ${count} files that are on disk. Obsync syncs them; restart Obsidian to see them.`,
+				),
 			onTheirsPulled: (space, paths) =>
 				markTheirs(this, this.unseen, space, paths),
 			persistSettings: () => this.saveSettings(),
@@ -114,6 +124,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 			controller: this.controller,
 			settings: () => this.settings,
 			spaces: this.spaces,
+			onDeletedElsewhere: createDeletedElsewhere(this),
 		});
 		this.device = new DeviceName(this.statePersister, () =>
 			this.realtime.hub.restart(),
@@ -173,7 +184,9 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 	}
 
 	async saveSettings(): Promise<void> {
-		await this.saveData(this.settings);
+		const save = this.savingSettings.then(() => this.saveData(this.settings));
+		this.savingSettings = save.catch(() => undefined);
+		await save;
 		// Every settings write funnels through here, and any of them can change
 		// the room or the credentials the relay client is using, or which space a
 		// note is in: a record synced, accepted, closed, paused or moved.
@@ -181,7 +194,8 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 	}
 
 	async resetLocalState(): Promise<void> {
-		await this.statePersister.reset();
+		this.controller.cancel();
+		await this.controller.between(() => this.statePersister.reset());
 		this.controller.invalidate("Local state reset.");
 	}
 

@@ -42,6 +42,10 @@ export async function readHistoryLog(
 	if (!Array.isArray(parsed.snapshots) || !isRecord(parsed.changes)) {
 		throw new Error("History log is malformed; refusing to reset it.");
 	}
+	// Rewritten as ours, a newer client's log would lose what it added.
+	if (parsed.version > HISTORY_LOG_VERSION) {
+		throw new Error("History log is from a newer Obsync; update the plugin.");
+	}
 	return historyLogToVault(parsed, root);
 }
 
@@ -83,9 +87,12 @@ export function prependSnapshot(
 	changes: SnapshotChanges,
 ): HistoryLog {
 	const deduped = log.snapshots.filter((s) => s.id !== entry.id);
+	const parentAt = deduped.findIndex((s) => s.id === entry.parentId);
+	const childAt = deduped.findIndex((s) => s.parentId === entry.id);
+	const at = parentAt >= 0 ? parentAt : childAt >= 0 ? childAt + 1 : 0;
 	return {
 		version: HISTORY_LOG_VERSION,
-		snapshots: [entry, ...deduped],
+		snapshots: [...deduped.slice(0, at), entry, ...deduped.slice(at)],
 		changes: { ...log.changes, [entry.id]: changes },
 	};
 }

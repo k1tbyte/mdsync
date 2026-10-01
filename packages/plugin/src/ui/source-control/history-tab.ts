@@ -5,6 +5,7 @@ import type { FileVersion } from "@/sync/history";
 import {
 	appendIconButton,
 	appendLabeledButton,
+	attempt,
 	makeActivatable,
 	notifyError,
 	notifyInfo,
@@ -156,10 +157,11 @@ export class HistoryTab {
 	private renderRow(body: HTMLElement, path: string, row: HistoryRow): void {
 		const card = body.createDiv({ cls: "obsync-timeline-card" });
 		const head = card.createDiv({ cls: "obsync-timeline-head" });
-		makeActivatable(
-			head,
-			`${row.title} · ${row.tooltip}`,
-			() => void this.openDiff(path, { ...row.version }),
+		makeActivatable(head, `${row.title} · ${row.tooltip}`, () =>
+			attempt(
+				this.openDiff(path, { ...row.version }),
+				"Could not open the diff",
+			),
 		);
 		const copy = head.createDiv({ cls: "obsync-timeline-copy" });
 		const title = copy.createDiv({ cls: "obsync-timeline-title" });
@@ -200,12 +202,14 @@ export class HistoryTab {
 				item
 					.setTitle("Compare with previous")
 					.setIcon("git-compare")
-					.onClick(
-						() =>
-							void this.openDiff(path, {
+					.onClick(() =>
+						attempt(
+							this.openDiff(path, {
 								...previous,
 								against: { ...row.version },
 							}),
+							"Could not open the diff",
+						),
 					),
 			);
 		}

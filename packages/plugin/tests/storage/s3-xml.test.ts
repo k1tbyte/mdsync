@@ -21,17 +21,21 @@ describe("S3 listing responses", () => {
 		expect(keysOf(xml)).toEqual(["objects/aa", "objects/bb"]);
 	});
 
-	it("reads the validator of each object, decoded, or none when it lists none", () => {
+	it("reads the validator and last write of each object, or none when it lists none", () => {
 		const xml = listing(
-			`<Contents><Key>objects/aa</Key><ETag>&quot;abc&quot;</ETag></Contents>` +
+			`<Contents><Key>objects/aa</Key><LastModified>2026-09-30T10:00:00.000Z</LastModified><ETag>&quot;abc&quot;</ETag></Contents>` +
 				`<Contents><Key>objects/bb</Key></Contents>` +
-				`<Contents><Key>objects/cc</Key><ETag> </ETag></Contents>`,
+				`<Contents><Key>objects/cc</Key><LastModified>soon</LastModified><ETag> </ETag></Contents>`,
 		);
 
 		expect(parseListObjects(xml).objects).toEqual([
-			{ key: "objects/aa", etag: '"abc"' },
-			{ key: "objects/bb", etag: null },
-			{ key: "objects/cc", etag: null },
+			{
+				key: "objects/aa",
+				etag: '"abc"',
+				modified: Date.UTC(2026, 8, 30, 10),
+			},
+			{ key: "objects/bb", etag: null, modified: null },
+			{ key: "objects/cc", etag: null, modified: null },
 		]);
 	});
 

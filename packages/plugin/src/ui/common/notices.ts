@@ -21,6 +21,10 @@ export function reportError(err: unknown): void {
 	console.error("[obsync]", err);
 }
 
+export function attempt(task: Promise<unknown>, failureLabel: string): void {
+	task.catch((err) => notifyError(failureLabel, err));
+}
+
 /** Runs an action and announces success or failure. */
 export async function runWithNotice(
 	action: () => Promise<void> | Promise<boolean | SyncOperationResult>,

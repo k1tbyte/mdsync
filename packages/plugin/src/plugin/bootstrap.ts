@@ -31,6 +31,9 @@ interface BootstrapPluginRuntimeOptions {
 	/** Also for a published space record: other devices learn of shares from the vault. */
 	onPushComplete?: (space: Space) => void;
 	onSpaceRefreshed?: (space: Space) => void;
+	onShareRefused?: (space: Space) => void;
+	onSpaceGone?: (space: Space) => void;
+	onUnindexed?: (count: number) => void;
 	onTheirsPulled?: (space: Space, paths: readonly string[]) => void;
 	persistSettings: () => Promise<void>;
 	liveNotes?: (space: Space) => LiveNotes | undefined;
@@ -108,6 +111,9 @@ export async function bootstrapPluginRuntime(
 		logError: (op, msg, details) => logs.error(op, msg, details),
 		onPushComplete: options.onPushComplete,
 		onSpaceRefreshed: options.onSpaceRefreshed,
+		onShareRefused: options.onShareRefused,
+		onSpaceGone: options.onSpaceGone,
+		onUnindexed: options.onUnindexed,
 		onTheirsPulled: options.onTheirsPulled,
 	});
 

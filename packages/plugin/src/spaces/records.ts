@@ -2,7 +2,7 @@ import type { EncryptionKey } from "@/crypto";
 import type { StorageAdapter } from "@/storage/types";
 import { isUnder, type Space, VAULT_SPACE } from "@/sync/space";
 
-import { mountError, spacesOf } from "./partition";
+import { mountError, type PauseKind, pauseOf, spacesOf } from "./partition";
 import {
 	closeRecord,
 	mergeRecords,
@@ -28,6 +28,7 @@ export interface RecordsSync {
 
 interface Derived {
 	spaces: SpaceRecord[];
+	useSharedFolders: boolean;
 	pausedSpaces: string[];
 	localRoots: Record<string, string>;
 	list: readonly SpaceRecord[];
@@ -41,6 +42,7 @@ export class SpaceRecords {
 	constructor(
 		private readonly settings: {
 			spaces: SpaceRecord[];
+			useSharedFolders: boolean;
 			pausedSpaces: string[];
 			pauseArrivingShares: boolean;
 			localRoots: Record<string, string>;
@@ -143,12 +145,25 @@ export class SpaceRecords {
 		await this.save();
 	}
 
-	/** This device only: the person's other devices keep syncing the share. */
-	async setPaused(id: string, paused: boolean): Promise<void> {
-		this.settings.pausedSpaces = paused
-			? [...this.unpaused(id), id]
-			: this.unpaused(id);
-		await this.save();
+	pauseOf(id: string): PauseKind | null {
+		const record = this.get(id);
+		return record ? pauseOf(record, this.settings) : null;
+	}
+
+	/** "here" stays on this device; "everywhere" is published like `add`, so every device of the person holds the share out. */
+	async setPause(
+		id: string,
+		pause: Exclude<PauseKind, "off"> | null,
+		author: string,
+	): Promise<void> {
+		this.settings.pausedSpaces =
+			pause === "here" ? [...this.unpaused(id), id] : this.unpaused(id);
+		const record = this.get(id);
+		const everywhere = pause === "everywhere";
+		if (!record || (record.paused ?? false) === everywhere) return this.save();
+		const { paused: _, ...rest } = record;
+		const paused = everywhere ? { paused: true as const } : {};
+		await this.add({ ...rest, ...paused, rev: record.rev + 1, author });
 	}
 
 	/**
@@ -263,10 +278,12 @@ export class SpaceRecords {
 	}
 
 	private derive(): Derived {
-		const { spaces, pausedSpaces, localRoots } = this.settings;
+		const { spaces, useSharedFolders, pausedSpaces, localRoots } =
+			this.settings;
 		const known = this.derived;
 		if (
 			known?.spaces === spaces &&
+			known.useSharedFolders === useSharedFolders &&
 			known.pausedSpaces === pausedSpaces &&
 			known.localRoots === localRoots
 		) {
@@ -278,10 +295,14 @@ export class SpaceRecords {
 		});
 		this.derived = {
 			spaces,
+			useSharedFolders,
 			pausedSpaces,
 			localRoots,
 			list,
-			partition: spacesOf(list, new Set(pausedSpaces)),
+			partition: spacesOf(
+				list,
+				(record) => pauseOf(record, this.settings) !== null,
+			),
 		};
 		return this.derived;
 	}

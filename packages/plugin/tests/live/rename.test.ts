@@ -19,7 +19,7 @@ vi.mock("@/live/text/binding", () => ({
 	bindEditor: vi.fn(() => ({ detach: vi.fn(), showAuthors: vi.fn() })),
 }));
 
-const USER = { key: "d1", name: "laptop", color: "red" };
+const USER = { key: "d1", name: "laptop", color: "red", device: null };
 const encoder = new TextEncoder();
 
 let hub: LiveHub;
@@ -126,7 +126,7 @@ async function occupy(doc: string): Promise<void> {
 	raw.connect();
 	raw.send({ type: EFrame.Sub, doc, since: 0 });
 	const payload = await seal(keys, Uint8Array.of(0, 0), `doc:${doc}`);
-	raw.send({ type: EFrame.Update, doc, payload });
+	raw.send({ type: EFrame.Update, doc, n: 1, payload });
 	raw.disconnect();
 }
 
@@ -287,6 +287,28 @@ describe("move notes", () => {
 		expect(
 			await movedAs({ path: "x.md", generation: -1 }, await idOf("x.md", -1)),
 		).toBeNull();
+	});
+});
+
+describe("a reader's rename", () => {
+	it("leaves the room at once, asking the hub nothing", async () => {
+		const sent: SpaceFrame[] = [];
+		const hub: SpaceHub = {
+			isConnected: () => true,
+			listen: () => () => {},
+			send: (frame) => sent.push(frame),
+		};
+
+		const outcome = await moveRoom(
+			{} as LiveSession,
+			{ ...vault(), readOnly: true },
+			hub,
+			"b.md",
+			() => true,
+		);
+
+		expect(outcome).toBe("refused");
+		expect(sent).toEqual([]);
 	});
 });
 

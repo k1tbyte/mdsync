@@ -24,4 +24,6 @@ export interface LiveKind<M extends LiveModel = LiveModel> {
 	model(doc: Y.Doc): M;
 	/** An empty room's first update: just the file's content. */
 	seed(disk: string): Uint8Array;
+	/** Whether a file with `disk` holds what a room `agreed`. */
+	holds(agreed: string, disk: string): boolean;
 }

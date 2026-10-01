@@ -9,7 +9,7 @@ import {
 } from "@/sync/history/changes";
 import { getFileHistory } from "@/sync/history/query";
 import { replayTo } from "@/sync/history/replay";
-import { pinKey, writeHistoryLog } from "@/sync/history/store";
+import { pinKey, prependSnapshot, writeHistoryLog } from "@/sync/history/store";
 import type { HistoryLog, SnapshotEntry } from "@/sync/history/types";
 import type { EFileKind, Manifest, ManifestEntry } from "@/sync/types";
 
@@ -368,5 +368,50 @@ describe("getFileHistory", () => {
 		});
 		expect(versions.map((v) => v.hash)).toEqual(["A2"]);
 		expect(versions[0]?.snapshotId).toBe("s2");
+	});
+});
+
+describe("prependSnapshot", () => {
+	const at = (id: string, parentId: string | null): SnapshotEntry => ({
+		id,
+		parentId,
+		createdAt: 1,
+		deviceId: "d",
+	});
+	const none = { added: {}, modified: {}, deleted: {} };
+	const idsOf = (log: HistoryLog) => log.snapshots.map((s) => s.id);
+	const logOf = (...entries: SnapshotEntry[]): HistoryLog => ({
+		version: 2,
+		snapshots: entries,
+		changes: {},
+	});
+
+	it("puts a push on top of its parent", () => {
+		const log = prependSnapshot(logOf(at("p", null)), at("x", "p"), none);
+		expect(idsOf(log)).toEqual(["x", "p"]);
+	});
+
+	it("keeps the chain when a push lands after the one that followed it", () => {
+		const log = prependSnapshot(
+			logOf(at("y", "x"), at("p", null)),
+			at("x", "p"),
+			none,
+		);
+		expect(idsOf(log)).toEqual(["y", "x", "p"]);
+		expect(contiguousLength(log.snapshots)).toBe(3);
+	});
+
+	it("goes under a push that names it as parent when its own parent is unknown", () => {
+		const log = prependSnapshot(logOf(at("y", "x")), at("x", "p"), none);
+		expect(idsOf(log)).toEqual(["y", "x"]);
+	});
+
+	it("replaces an entry it already holds instead of duplicating it", () => {
+		const log = prependSnapshot(
+			logOf(at("x", "p"), at("p", null)),
+			at("x", "p"),
+			none,
+		);
+		expect(idsOf(log)).toEqual(["x", "p"]);
 	});
 });

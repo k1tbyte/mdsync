@@ -13,10 +13,15 @@ import { type HeaderState, headerOf, showsHeader } from "./header-state";
 import { openActiveNoteMenu, openNoteMenu } from "./note-menu";
 import { LOCKED } from "./note-menu-items";
 
+/** A room answers in well under this: a note just opened keeps the last mark meanwhile, not a blink through joining. */
+const SETTLE_MS = 1_000;
+
 interface Shown {
 	el: HTMLElement;
 	/** What it shows: an unchanged header is not redrawn. */
 	key: string;
+	path: string;
+	since: number;
 }
 
 /** Returns the active note's menu opener, as a command's check callback. */
@@ -26,12 +31,14 @@ export function registerNotePresence(
 	const { workspace } = plugin.app;
 	const { people, live } = plugin.realtime;
 	const shown = new Map<WorkspaceLeaf, Shown>();
-	const follows = new CursorFollow();
+	const follows = new CursorFollow(plugin);
 	plugin.register(() => follows.stop());
 	let frame: number | null = null;
+	let settle: number | null = null;
 
 	const render = (): void => {
 		frame = null;
+		const now = Date.now();
 		const seen = new Set<WorkspaceLeaf>();
 		workspace.iterateAllLeaves((leaf) => {
 			const header = headerOf(plugin, leaf);
@@ -41,15 +48,31 @@ export function registerNotePresence(
 			);
 			if (!actions) return;
 			seen.add(leaf);
-			const { state } = header;
-			const key = JSON.stringify(state);
+			const { state, file } = header;
 			let entry = shown.get(leaf);
-			if (entry?.el.parentElement === actions && entry.key === key) return;
 			if (entry?.el.parentElement !== actions) {
 				entry?.el.remove();
-				entry = { el: createHeader(plugin, leaf, actions, follows), key };
+				const el = createHeader(plugin, leaf, actions, follows);
+				entry = { el, key: "", path: file.path, since: now };
 				shown.set(leaf, entry);
 			}
+			if (entry.path !== file.path) {
+				entry.path = file.path;
+				entry.since = now;
+				// The last note's people stay off the next one while it settles.
+				entry.key = "";
+				entry.el.empty();
+				entry.el.addClass("obsync-hidden");
+			}
+			if (isPassing(state) && now - entry.since < SETTLE_MS) {
+				settle ??= window.setTimeout(() => {
+					settle = null;
+					schedule();
+				}, SETTLE_MS);
+				return;
+			}
+			const key = JSON.stringify(state);
+			if (entry.key === key) return;
 			entry.key = key;
 			fillHeader(entry.el, state);
 		});
@@ -65,6 +88,8 @@ export function registerNotePresence(
 
 	plugin.register(people.subscribe(schedule));
 	plugin.register(live.subscribe(schedule));
+	// A compare may leave the open file out of the sync, or take it back.
+	plugin.register(plugin.controller.subscribe(schedule));
 	plugin.register(watchReadOnlyRoots(plugin, schedule));
 	plugin.registerEvent(plugin.app.vault.on("rename", schedule));
 	plugin.registerEvent(workspace.on("layout-change", schedule));
@@ -72,6 +97,7 @@ export function registerNotePresence(
 	workspace.onLayoutReady(schedule);
 	plugin.register(() => {
 		if (frame !== null) window.cancelAnimationFrame(frame);
+		if (settle !== null) window.clearTimeout(settle);
 		for (const { el } of shown.values()) el.remove();
 		shown.clear();
 	});
@@ -84,10 +110,16 @@ function createHeader(
 	actions: HTMLElement,
 	follows: CursorFollow,
 ): HTMLElement {
-	const el = actions.createSpan({ cls: "obsync-note-presence clickable-icon" });
+	// Not `clickable-icon`: themes size those to one icon, and avatars spill out.
+	const el = actions.createSpan({ cls: "obsync-note-presence obsync-hidden" });
 	actions.prepend(el);
 	makeActivatable(el, null, () => openNoteMenu(plugin, leaf, follows, el));
 	return el;
+}
+
+/** On the way to live, or not there yet: the room has not answered. */
+function isPassing({ status }: HeaderState): boolean {
+	return status?.state === "joining" || status?.state === "cold";
 }
 
 function fillHeader(el: HTMLElement, state: HeaderState): void {

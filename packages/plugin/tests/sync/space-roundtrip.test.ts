@@ -59,6 +59,28 @@ describe("space root translation at the codec boundary", () => {
 		await session.adapter.remove("Shared/p/a.md");
 
 		await expect(compare(deps())).rejects.toBeInstanceOf(SpaceGoneError);
+		// A new file in the returned folder does not lift it.
+		session.adapter.putText("Shared/p/new.md", "fresh");
+		await expect(compare(deps())).rejects.toBeInstanceOf(SpaceGoneError);
+		// Unless the person chose to publish the loss.
+		const accepted = await compare({
+			...deps(),
+			space: { id: "shared", root: "Shared/p", goneAccepted: true },
+		});
+		expect(accepted.diff.localChanges.map(({ path }) => path).sort()).toEqual([
+			"Shared/p/a.md",
+			"Shared/p/new.md",
+		]);
+		// A file left out of the sync is still there.
+		const baseline = { files: { "Shared/p/a.md": 1 } };
+		const space = { id: "shared", root: "Shared/p" };
+		expect(() =>
+			assertSpacePresent(
+				space,
+				{ files: {}, skipped: [{ path: "Shared/p/a.md" }] },
+				baseline,
+			),
+		).not.toThrow();
 		// The vault itself may still be emptied on purpose.
 		expect(() =>
 			assertSpacePresent(VAULT_SPACE, { files: {} }, { files: { a: 1 } }),

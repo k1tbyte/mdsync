@@ -32,6 +32,24 @@ async function diverged(
 }
 
 describe("autoMergeOp", () => {
+	it("writes nothing once cancelled: a moved share's old path is the vault's", async () => {
+		const localText = BASE.replace("one", "ONE");
+		const [a] = await diverged(localText, BASE.replace("six", "SIX"));
+		const result = await a.compare();
+		const aborter = new AbortController();
+		aborter.abort();
+
+		const outcome = await autoMergeOp(
+			{ ...a.deps(), signal: aborter.signal },
+			result,
+			a.context(),
+		);
+
+		expect(outcome.cancelled).toBe(true);
+		expect(outcome.touchedPaths.size).toBe(0);
+		expect(a.text("note.md")).toBe(localText);
+	});
+
 	it("merges edits that do not overlap and keeps the result pushable", async () => {
 		const [a] = await diverged(
 			BASE.replace("one", "ONE"),
@@ -90,6 +108,24 @@ describe("autoMergeOp", () => {
 		const outcome = await autoMergeOp(a.deps(), result, a.context());
 
 		expect(outcome.touchedPaths.size).toBe(0);
+	});
+
+	it("leaves a file that is not UTF-8 byte for byte", async () => {
+		const [a] = await diverged(BASE, BASE.replace("six", "SIX"));
+		const latin1 = new Uint8Array([
+			...new TextEncoder().encode("ONE caf"),
+			0xe9,
+			...new TextEncoder().encode("\ntwo\nthree\nfour\nfive\nsix\n"),
+		]);
+		await a.adapter.writeBinary("note.md", latin1.slice().buffer);
+		const result = await a.compare();
+
+		const outcome = await autoMergeOp(a.deps(), result, a.context());
+
+		expect(outcome.touchedPaths.size).toBe(0);
+		expect(new Uint8Array(await a.adapter.readBinary("note.md"))).toEqual(
+			latin1,
+		);
 	});
 
 	it("leaves an overlapping conflict for the user", async () => {

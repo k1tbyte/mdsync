@@ -46,6 +46,7 @@ const TRANSFER_FIELDS = {
 		autoPushSettleSeconds: "g",
 		autoPushChangedFilesOnly: "c",
 		pushSharesRightAway: "s",
+		shareEditsWait: "w",
 		fileHistoryEnabled: "h",
 		fileHistoryMaxSnapshots: "j",
 		historyAutoRefresh: "r",
@@ -175,6 +176,20 @@ export async function readSettingsTransfer(
 		throw new Error("Invalid Obsync settings transfer payload");
 	}
 	return expandTransferPayload(payload);
+}
+
+export type TransferSection = "storage" | "scope" | "automation" | "realtime";
+
+/** Every field of these is replaced: one the other device left at its default is reset here. */
+export function importedSections(
+	imported: ObsyncTransferSettings,
+): TransferSection[] {
+	const sections: TransferSection[] = [];
+	if (imported.storageConfigs) sections.push("storage");
+	if (imported.settingsSync) sections.push("scope");
+	if (imported.autoSyncEnabled !== undefined) sections.push("automation");
+	if (imported.relayUrl !== undefined) sections.push("realtime");
+	return sections;
 }
 
 export function mergeTransferredSettings(
@@ -312,7 +327,9 @@ function isOptionalStoragePayload(value: unknown): boolean {
 	if (!isPlainObject(payload.c)) return false;
 	// The active backend must be included in the transfer payload.
 	if (!(payload.a in payload.c)) return false;
-	return Object.values(payload.c).every(isCompactStorageConfig);
+	return Object.entries(payload.c).every(
+		([kind, config]) => isCompactStorageConfig(config) && config.kind === kind,
+	);
 }
 
 function isOptionalSectionPayload(

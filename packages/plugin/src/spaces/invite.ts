@@ -3,6 +3,8 @@
  * share, sealed under a one-time password that travels another way.
  */
 
+import { isShareId } from "@obsync/protocol";
+
 import { randomBytes } from "@/crypto";
 import { LINK_PARAM, openLink, sealLink } from "@/crypto/sealed-link";
 
@@ -108,6 +110,7 @@ function isInvite(value: unknown): value is Invite {
 		["id", "name", "key", "relayUrl", "token", "participantId"].every(
 			(field) => typeof invite[field] === "string" && invite[field] !== "",
 		) &&
+		isShareId(invite.id as string) &&
 		typeof invite.personName === "string" &&
 		typeof invite.readOnly === "boolean"
 	);

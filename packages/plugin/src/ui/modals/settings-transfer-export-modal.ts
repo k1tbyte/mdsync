@@ -234,8 +234,11 @@ class SettingsTransferExportModal extends Modal {
 		this.generating = true;
 		this.note = "Generating encrypted transfer...";
 		this.render();
+		const asked = this.options;
 		try {
-			const exportPackage = await this.createPackage(this.options);
+			const exportPackage = await this.createPackage(asked);
+			// Toggled meanwhile: the link would carry what the toggles no longer show.
+			if (this.options !== asked) return;
 			if (!exportPackage) {
 				this.exportPackage = null;
 				this.note = "Export canceled.";

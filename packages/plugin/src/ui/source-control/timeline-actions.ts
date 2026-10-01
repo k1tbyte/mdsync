@@ -90,27 +90,36 @@ export class TimelineActions {
 	private async restoreVault(row: TimelineRow): Promise<void> {
 		try {
 			const history = this.plugin.controller.history;
-			const plan = await history.previewVaultRestore(row.snapshotId);
-			if (plan.write.length === 0 && plan.remove.length === 0) {
-				notifyInfo("The vault already matches that snapshot.");
-				return;
+			let plan = await history.previewVaultRestore(row.snapshotId);
+			let moved = false;
+			for (;;) {
+				if (plan.write.length === 0 && plan.remove.length === 0) {
+					notifyInfo("The vault already matches that snapshot.");
+					return;
+				}
+				const confirmed = await openConfirmModal({
+					app: this.plugin.app,
+					title: `Restore the vault to ${row.title}?`,
+					body: [
+						...(moved
+							? ["The vault changed while you decided. Here is the new plan."]
+							: []),
+						...describeRestorePlan(plan),
+						...samplePaths(plan.remove.map((path) => `deleted: ${path}`)),
+						"This changes files on this device only. Nothing reaches the remote until you push.",
+					],
+					confirmLabel: "Restore vault",
+					confirmClass: "mod-warning",
+					cancelLabel: "Leave the vault alone",
+				});
+				if (!confirmed) return;
+				const outcome = await history.restoreVault(row.snapshotId, plan);
+				if (outcome.applied) break;
+				plan = outcome.plan;
+				moved = true;
 			}
-			const confirmed = await openConfirmModal({
-				app: this.plugin.app,
-				title: `Restore the vault to ${row.title}?`,
-				body: [
-					...describeRestorePlan(plan),
-					...samplePaths(plan.remove.map((path) => `deleted: ${path}`)),
-					"This changes files on this device only. Nothing reaches the remote until you push.",
-				],
-				confirmLabel: "Restore vault",
-				confirmClass: "mod-warning",
-				cancelLabel: "Leave the vault alone",
-			});
-			if (!confirmed) return;
-			const applied = await history.restoreVault(row.snapshotId);
 			notifyInfo(
-				`Restored ${applied.write.length} and removed ${applied.remove.length} file(s). Review and push when ready.`,
+				`Restored ${plan.write.length} and trashed ${plan.remove.length} file(s). Review and push when ready.`,
 			);
 		} catch (error) {
 			notifyError("Restore failed", error);

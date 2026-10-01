@@ -2,6 +2,8 @@ export interface Person {
 	/** The person in a share, the device in the vault. */
 	key: string;
 	name: string;
+	/** Their devices here by name, in a share; none in the vault, where each device is its own key. */
+	devices: readonly string[];
 	/** The vault path of their open file; null while it is elsewhere. */
 	note: string | null;
 	idle: boolean;
@@ -19,6 +21,7 @@ function addPerson(byKey: Map<string, Person>, person: Person): void {
 	const known = byKey.get(person.key);
 	byKey.set(person.key, {
 		...person,
+		devices: unite(known?.devices ?? [], person.devices),
 		idle: person.idle && (known?.idle ?? true),
 	});
 }
@@ -36,11 +39,23 @@ export function onePerPerson(people: readonly Person[]): Person[] {
 	const byKey = new Map<string, Person>();
 	for (const person of people) {
 		const known = byKey.get(person.key);
-		if (!known || presenceRank(person) > presenceRank(known)) {
-			byKey.set(person.key, person);
-		}
+		const best =
+			!known || presenceRank(person) > presenceRank(known) ? person : known;
+		byKey.set(person.key, {
+			...best,
+			devices: unite(known?.devices ?? [], person.devices),
+		});
 	}
 	return sortByName([...byKey.values()]);
+}
+
+function unite(
+	known: readonly string[],
+	more: readonly string[],
+): readonly string[] {
+	return more.every((device) => known.includes(device))
+		? known
+		: [...new Set([...known, ...more])].sort();
 }
 
 export function byNote(

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AUTO_PUSH_SETTLE_MAX_SECONDS } from "@/constants";
 import { DEFAULT_SETTINGS, mergeSettings } from "@/settings/model";
+import { defaultS3Config } from "@/storage";
 import { EStorageBackend, type StorageAdapterConfig } from "@/storage/config";
 
 describe("mergeSettings", () => {
@@ -107,6 +108,19 @@ describe("mergeSettings", () => {
 
 		expect(merged.storageConfigs).not.toHaveProperty("share-broker");
 		expect(merged.activeStorageKind).toBe(EStorageBackend.S3);
+	});
+
+	it("survives stored configs that are not configs", () => {
+		const merged = mergeSettings({
+			storageConfigs: {
+				constructor: {},
+				toString: {},
+				[EStorageBackend.WebDAV]: null,
+				[EStorageBackend.S3]: { ...defaultS3Config(), concurrency: 4 },
+			} as unknown as Record<string, StorageAdapterConfig>,
+		});
+
+		expect(Object.keys(merged.storageConfigs)).toEqual([EStorageBackend.S3]);
 	});
 
 	it("replaces an invalid concurrency with the backend default", () => {

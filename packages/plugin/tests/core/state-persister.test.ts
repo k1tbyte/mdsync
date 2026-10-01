@@ -99,6 +99,16 @@ describe("StatePersister.load", () => {
 		expect(adapter.writes).toBe(0);
 	});
 
+	it("keeps an unreadable state aside before starting fresh", async () => {
+		const adapter = new MemoryAdapter();
+		const path = stateFilePath(".obsidian");
+		await adapter.write(path, '{"deviceId": "torn');
+
+		await StatePersister.load(adapter as never, ".obsidian");
+
+		expect(await adapter.read(`${path}.unreadable`)).toBe('{"deviceId": "torn');
+	});
+
 	it("writes a first run's state once", async () => {
 		const adapter = new MemoryAdapter();
 
@@ -160,6 +170,23 @@ describe("StatePersister writes", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it("leaves the file to the next instance once unloaded", async () => {
+		const adapter = new MemoryAdapter();
+		const initial = createState({});
+		const persister = new StatePersister(
+			adapter as never,
+			".obsidian",
+			initial,
+		);
+		await persister.persist(initial);
+		const written = adapter.writes;
+
+		persister.dispose();
+		await persister.persist({ ...initial, deviceName: "Old" });
+
+		expect(adapter.writes).toBe(written);
 	});
 
 	it("retries the state a failed write left off disk", async () => {

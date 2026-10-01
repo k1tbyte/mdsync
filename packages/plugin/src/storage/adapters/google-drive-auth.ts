@@ -1,4 +1,7 @@
+import { toHex } from "@obsync/protocol";
 import type { ObsidianProtocolData } from "obsidian";
+import { randomBytes } from "@/crypto";
+import { relayBase } from "@/shared/path";
 import {
 	EStorageBackend,
 	type GoogleDriveStorageConfig,
@@ -14,6 +17,46 @@ import type { StorageAuthOutcome } from "@/storage/types";
 export const DEFAULT_GDRIVE_AUTH_SERVER =
 	"https://obsync-relay.kitbyte.workers.dev";
 
+export function googleAuthUrl(
+	config: Pick<GoogleDriveStorageConfig, "authServerUrl">,
+	route: "/auth" | "/refresh",
+): string {
+	return `${relayBase(config.authServerUrl || DEFAULT_GDRIVE_AUTH_SERVER)}${route}`;
+}
+
+/** Matches the relay's state lifetime. */
+const LOGIN_TTL_MS = 10 * 60 * 1000;
+
+/** The sign-in this device started; stored, since a phone may evict Obsidian while the browser is in front. */
+const PENDING_LOGIN_KEY = "obsync-google-login";
+
+interface PendingLogin {
+	nonce: string;
+	until: number;
+}
+
+export function googleLoginUrl(
+	config: Pick<GoogleDriveStorageConfig, "authServerUrl">,
+): string {
+	const pending: PendingLogin = {
+		nonce: toHex(randomBytes(16)),
+		until: Date.now() + LOGIN_TTL_MS,
+	};
+	window.localStorage.setItem(PENDING_LOGIN_KEY, JSON.stringify(pending));
+	return `${googleAuthUrl(config, "/auth")}?nonce=${pending.nonce}`;
+}
+
+/** One use: a replayed link finds nothing pending. */
+function takeLogin(nonce: string | undefined): boolean {
+	const stored = window.localStorage.getItem(PENDING_LOGIN_KEY);
+	const pending = stored ? (JSON.parse(stored) as PendingLogin) : null;
+	if (!nonce || pending?.nonce !== nonce || Date.now() > pending.until) {
+		return false;
+	}
+	window.localStorage.removeItem(PENDING_LOGIN_KEY);
+	return true;
+}
+
 export function computeExpiresAt(
 	expiresIn: string | number | undefined,
 ): number {
@@ -26,6 +69,16 @@ export async function handleGoogleDriveProtocol(
 	config: GoogleDriveStorageConfig,
 	saveCallback: () => Promise<void>,
 ): Promise<StorageAuthOutcome | false> {
+	if (!params.error && !params.access_token && !params.refresh_token) {
+		return false;
+	}
+	// Any link can open obsidian://obsync-auth; a token from one would point this vault at another Drive.
+	if (!takeLogin(params.nonce)) {
+		return {
+			ok: false,
+			message: "Ignored a Google Drive sign-in this device did not start.",
+		};
+	}
 	if (params.error) {
 		return {
 			ok: false,
@@ -36,8 +89,6 @@ export async function handleGoogleDriveProtocol(
 
 	const accessToken = params.access_token;
 	const refreshToken = params.refresh_token;
-
-	if (!accessToken && !refreshToken) return false;
 	if (!accessToken) {
 		return {
 			ok: false,
@@ -97,13 +148,6 @@ export const GOOGLE_DRIVE_FIELDS: ReadonlyArray<SettingsFieldSpec> = [
 		desc: "The name of the folder in your Google Drive root where data will be stored.",
 		kind: EFieldKind.Text,
 		placeholder: "ObsidianSync",
-	},
-	{
-		key: "clientId",
-		name: "Client ID",
-		desc: "Leave empty to use the auth server's own client, or provide your own.",
-		kind: EFieldKind.Text,
-		placeholder: "...",
 	},
 	{
 		key: "authServerUrl",

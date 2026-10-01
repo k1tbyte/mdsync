@@ -9,6 +9,8 @@ import { deepCleanOrphans, verifyRemote } from "@/sync/maintenance";
 import { objectKey } from "@/sync/manifest";
 import type { EFileKind, Manifest } from "@/sync/types";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 let key: EncryptionKey;
 beforeAll(async () => {
 	key = await deriveKey("pw", new Uint8Array(16));
@@ -61,6 +63,7 @@ describe("deepCleanOrphans", () => {
 
 		await storage.put(objectKey("ORPHAN"), new Uint8Array([9]));
 		await storage.put(`${REMOTE_OBJECTS_PREFIX}stray`, new Uint8Array([9]));
+		storage.age(DAY_MS + 1);
 
 		const res = await deepCleanOrphans(storage, key, "");
 		expect(res.deletedObjects).toBe(2);
@@ -73,6 +76,28 @@ describe("deepCleanOrphans", () => {
 		const again = await deepCleanOrphans(storage, key, "");
 		expect(again.deletedObjects).toBe(0);
 		expect(again.deletedPins).toBe(0);
+	});
+
+	it("keeps what was written in the last day: another device's push, a pin before its flag", async () => {
+		const storage = new FakeStorage();
+		const head = manifest("s1", { "a.md": "H1" });
+		await publishManifest(storage, key, head);
+		await storage.put(objectKey("H1"), new Uint8Array([1]));
+		await writeHistoryLog(storage, key, "", {
+			version: 2,
+			snapshots: [{ id: "s1", parentId: null, createdAt: 1, deviceId: "d" }],
+			changes: { s1: diffManifests(null, head) },
+		});
+		await storage.put(objectKey("OLD"), new Uint8Array([9]));
+		storage.age(DAY_MS + 1);
+		await storage.put(objectKey("UPLOADING"), new Uint8Array([9]));
+		await storage.put(`${REMOTE_PINS_PREFIX}s0.json.enc`, new Uint8Array([9]));
+
+		const res = await deepCleanOrphans(storage, key, "");
+
+		expect(res).toEqual({ deletedObjects: 1, deletedPins: 0 });
+		expect(await storage.exists(objectKey("OLD"))).toBe(false);
+		expect(await storage.exists(objectKey("UPLOADING"))).toBe(true);
 	});
 });
 

@@ -402,6 +402,43 @@ describe("scanVault with a vault index", () => {
 		expect(snapshot.skipped).toEqual([]);
 	});
 
+	it("finds files the index missed only when asked to list the disk, never a dot-path", async () => {
+		const adapter = vault({ "a.md": "one" });
+		const index = await indexOf(adapter);
+		// Copied in behind Obsidian's back: its watcher never told the index.
+		adapter.putText("bulk/b.md", "two");
+		adapter.putText("bulk/.DS_Store", "x");
+		const scan = (walk: boolean) =>
+			scanVault(
+				adapter.asDataAdapter(),
+				policy(),
+				{ ...options, index, walk },
+				{},
+			);
+
+		const indexed = (await scan(false)).snapshot;
+		expect(Object.keys(indexed.files)).toEqual(["a.md"]);
+		expect(indexed.unindexed).toBeUndefined();
+
+		const walked = (await scan(true)).snapshot;
+		expect(Object.keys(walked.files)).toEqual(["a.md", "bulk/b.md"]);
+		expect(walked.unindexed).toEqual(["bulk/b.md"]);
+	});
+
+	it("leaves a config directory without a dot to its own listing when walking", async () => {
+		const adapter = vault({ "a.md": "one", "config/app.json": "{}" });
+		const index = { ...(await indexOf(adapter)), configDir: "config" };
+		const { snapshot } = await scanVault(
+			adapter.asDataAdapter(),
+			policy({ coreSettings: true }, { configDir: "config" }),
+			{ ...options, index, walk: true },
+			{},
+		);
+
+		expect(Object.keys(snapshot.files)).toEqual(["a.md", "config/app.json"]);
+		expect(snapshot.unindexed).toBeUndefined();
+	});
+
 	it("does not resurrect a baseline path the scope no longer includes", async () => {
 		const adapter = vault({ "keep.md": "one", "drafts/old.md": "two" });
 		const index = await indexOf(adapter);

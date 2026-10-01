@@ -106,12 +106,16 @@ export interface LocalSnapshot {
 	 * string means the vault root itself could not be listed.
 	 */
 	unreadableDirs: string[];
+	/** On disk yet missing from Obsidian's index: synced, shown by Obsidian only after a restart. */
+	unindexed?: string[];
 }
 
-export interface SkippedFile {
-	path: string;
-	reason: string;
-}
+/** Left out of the sync, and why. */
+export type SkippedFile =
+	| { path: string; reason: "too-large"; size: number }
+	| { path: string; reason: "unreadable"; detail?: string }
+	/** Its name differs from `other`'s only in case. */
+	| { path: string; reason: "case-clash"; other: string };
 
 export const EChangeType = {
 	LocalAdd: "local-add",

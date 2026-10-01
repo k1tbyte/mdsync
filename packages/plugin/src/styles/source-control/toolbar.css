@@ -99,6 +99,10 @@
 	color: var(--text-normal);
 }
 
+.obsync-ignored-badge.is-cloud-off {
+	color: var(--color-red);
+}
+
 .obsync-ignored-badge svg {
 	width: 0.85rem;
 	height: 0.85rem;

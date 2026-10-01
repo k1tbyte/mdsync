@@ -4,10 +4,11 @@
  * escapes are rejected rather than sanitised, so a bypass fails closed.
  */
 
-import { sharePrefix } from "@obsync/protocol";
+import { isShareId, sharePrefix } from "@obsync/protocol";
+
+export { isShareId };
 
 const MAX_KEY_LENGTH = 1024;
-const SHARE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const ENCODED_SEPARATOR = /%2e|%2f|%5c/i;
 /** `encodeURIComponent` throws on these, which would answer 500 instead of 400. */
 const LONE_SURROGATE = /\p{Surrogate}/u;
@@ -17,10 +18,6 @@ export class InvalidShareKeyError extends Error {
 		super(message);
 		this.name = "InvalidShareKeyError";
 	}
-}
-
-export function isShareId(shareId: string): boolean {
-	return SHARE_ID_PATTERN.test(shareId);
 }
 
 /** `<prefix>shares/<shareId>/` - the only region a participant may touch. */

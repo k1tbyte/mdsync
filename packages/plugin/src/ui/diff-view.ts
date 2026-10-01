@@ -15,6 +15,7 @@ import {
 	type HistoryVersionRef,
 } from "@/sync/projection";
 import { notifyError, redrawOnPhoneChange } from "@/ui/common";
+import { openConfirmModal } from "@/ui/modals";
 import {
 	ComparePanel,
 	MergeEditorPanel,
@@ -124,6 +125,7 @@ export class DiffView extends ItemView {
 			changesDiffer(state.historyChange ?? null, this.historyChange) ||
 			(state.historyPreviewIfMissing ?? false) !== this.historyPreviewIfMissing;
 		if (changed) {
+			if (!(await this.leaveMerge())) return;
 			this.path = state.path ?? this.path;
 			this.historyHash = state.historyHash ?? null;
 			this.historyLabel = state.historyLabel ?? "Version";
@@ -223,6 +225,11 @@ export class DiffView extends ItemView {
 			this.model = model;
 
 			if (!this.model) {
+				// No compare yet (startup, a reset) is not "no differences": the next one refreshes this.
+				if (!this.plugin.controller.getSnapshot().result) {
+					this.renderMessage("Waiting for a compare…");
+					return;
+				}
 				// No differences remaining; auto-close.
 				this.leaf.detach();
 				return;
@@ -284,6 +291,7 @@ export class DiffView extends ItemView {
 				path,
 				direction: this.model?.direction ?? null,
 				isBinary: this.model?.isBinary ?? false,
+				remotePresent: this.model?.rightPresent ?? false,
 				isEditing: this.mergePanel.isEditing,
 				canGoPrevFile: this.getAdjacentPath(paths, -1) !== null,
 				canGoNextFile: this.getAdjacentPath(paths, 1) !== null,
@@ -297,10 +305,12 @@ export class DiffView extends ItemView {
 					void this.mergePanel.save(this.plugin, path, (resolved) =>
 						this.advanceAfterResolve(resolved),
 					),
-				cancelResolution: () => {
-					this.mergePanel.reset();
-					this.renderShell();
-				},
+				cancelResolution: () =>
+					void this.leaveMerge().then((leave) => {
+						if (!leave) return;
+						this.mergePanel.reset();
+						this.renderShell();
+					}),
 				restoreVersion: () => void this.operations.restoreVersion(),
 				keepLocal: () => void this.operations.keepLocal(),
 				acceptRemote: () => void this.operations.acceptRemote(),
@@ -311,7 +321,10 @@ export class DiffView extends ItemView {
 					),
 				goPrevFile: () => void this.navigateFile(-1),
 				goNextFile: () => void this.navigateFile(1),
-				goBack: () => void this.returnToSourceControl(),
+				goBack: () =>
+					void this.leaveMerge().then((leave) => {
+						if (leave) void this.returnToSourceControl();
+					}),
 			},
 		);
 	}
@@ -465,9 +478,22 @@ export class DiffView extends ItemView {
 	private async navigateFile(delta: number): Promise<void> {
 		// Re-read at click time: the list captured at render goes stale once anything syncs.
 		const target = this.getAdjacentPath(this.getOrderedPaths(), delta);
-		if (!target) return;
+		if (!target || !(await this.leaveMerge())) return;
 		this.showFile(target);
 		await this.refreshModel();
+	}
+
+	/** False when the user keeps an unsaved merge on screen. */
+	private async leaveMerge(): Promise<boolean> {
+		if (!this.mergePanel.hasEdits) return true;
+		return openConfirmModal({
+			app: this.app,
+			title: "Discard this merge?",
+			body: ["The merged result is not saved. Leaving drops your edits to it."],
+			confirmLabel: "Discard",
+			cancelLabel: "Keep merging",
+			confirmClass: "mod-warning",
+		});
 	}
 
 	private showFile(path: string): void {

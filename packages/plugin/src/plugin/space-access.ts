@@ -10,7 +10,7 @@ import {
 import { reportWarning } from "@/shared/diagnostics";
 import type { SpaceRecords } from "@/spaces";
 import { shareLiveKeys } from "@/spaces/access";
-import { shareIdentity } from "@/spaces/record";
+import { type SpaceRecord, shareIdentity } from "@/spaces/record";
 import { createStorageAdapter } from "@/storage";
 import type { SyncController } from "@/sync/controller";
 import { type Space, VAULT_SPACE } from "@/sync/space";
@@ -32,13 +32,15 @@ export interface SpaceAccess {
 	/** Groups and colours this device: its person in a share, the device itself in the vault. */
 	key: string;
 	name: string;
+	/** This device's name where its key is the person; null in the vault, where the key is the device. */
+	device: string | null;
 }
 
 /** Live editing and presence both start here; null while the relay is off or the key out of reach. */
 export function createSpaceAccess(
 	host: SpaceAccessHost,
 ): (space: Space) => Promise<SpaceAccess | null> {
-	const shareKeys = new Map<string, Promise<LiveKeys>>();
+	const shareKeys = new Map<string, Promise<LiveKeys | null>>();
 	const vaultKeys = createVaultKeys(host);
 	return async (space) => {
 		const settings = host.settings();
@@ -47,16 +49,29 @@ export function createSpaceAccess(
 			const keys = await vaultKeys();
 			// One person across the vault: each device is told apart by its own name and colour.
 			const { id, name } = host.controller.currentDevice();
-			return keys && { keys, person: OWNER, key: id, name };
+			return keys && { keys, person: OWNER, key: id, name, device: null };
 		}
 		const record = host.spaces.get(space.id);
 		if (!record || record.closed) return null;
 		const memo = `${record.id}|${record.key}`;
-		const keys = shareKeys.get(memo) ?? shareLiveKeys(record);
+		const keys = shareKeys.get(memo) ?? unreadableAsNone(record);
 		shareKeys.set(memo, keys);
+		const derived = await keys;
+		if (!derived) return null;
 		const { person, name } = shareIdentity(record);
-		return { keys: await keys, person, key: person, name };
+		const device = host.controller.currentDevice().name;
+		return { keys: derived, person, key: person, name, device };
 	};
+}
+
+/** A share whose key cannot be read stays cold alone: thrown, it would stop every other note going live. */
+async function unreadableAsNone(record: SpaceRecord): Promise<LiveKeys | null> {
+	try {
+		return await shareLiveKeys(record);
+	} catch (err) {
+		reportWarning("A shared folder's key cannot be read.", err);
+		return null;
+	}
 }
 
 /** Never prompts. One shared unlock, and a failed one waits before retrying: each try is a storage read and a key derivation. */

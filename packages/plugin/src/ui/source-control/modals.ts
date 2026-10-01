@@ -34,15 +34,21 @@ export function confirmAdoptNewVault(app: App): Promise<boolean> {
 	});
 }
 
-export function showIgnoredFiles(app: App, paths: ReadonlyArray<string>): void {
+export function showFileList(
+	app: App,
+	title: string,
+	intro: string,
+	files: ReadonlyArray<{ path: string; detail?: string }>,
+): void {
 	const modal = new Modal(app);
-	modal.titleEl.setText(`Ignored files (${paths.length})`);
-	modal.contentEl.createEl("p", {
-		text: "These files are excluded by shared syncignore.md rules or device-local ignore settings.",
-	});
+	modal.titleEl.setText(`${title} (${files.length})`);
+	modal.contentEl.createEl("p", { text: intro });
 	const list = modal.contentEl.createEl("ul", { cls: "obsync-ignored-list" });
-	for (const p of paths) {
-		list.createEl("li", { cls: "obsync-file-name", text: p });
+	for (const { path, detail } of files) {
+		const item = list.createEl("li", { cls: "obsync-file-name", text: path });
+		if (detail) {
+			item.createDiv({ cls: "setting-item-description", text: detail });
+		}
 	}
 	modal.open();
 }
@@ -51,6 +57,8 @@ export function showIgnoredFiles(app: App, paths: ReadonlyArray<string>): void {
 export function confirmRevert(
 	app: App,
 	paths: ReadonlyArray<string>,
+	/** Never synced: revert deletes them. */
+	added: number,
 ): Promise<boolean> {
 	const first = paths.slice(0, 5);
 	return openConfirmModal({
@@ -61,6 +69,11 @@ export function confirmRevert(
 				: `Revert ${paths.length} file(s)?`,
 		body: [
 			"Local changes to these files are replaced with the last synced version. This cannot be undone.",
+			...(added > 0
+				? [
+						`${added} new file(s) among them never synced and will be moved to the trash.`,
+					]
+				: []),
 			...first,
 			...(paths.length > first.length
 				? [`… and ${paths.length - first.length} more`]

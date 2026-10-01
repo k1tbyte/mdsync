@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "@/settings/model";
 import type { SyncController } from "@/sync/controller";
 import { registerScheduler, type SchedulerHost } from "@/sync/scheduler";
-import { VAULT_SPACE } from "@/sync/space";
+import { type Space, VAULT_SPACE } from "@/sync/space";
 
 const SETTLE_MS = DEFAULT_SETTINGS.autoPushSettleSeconds * 1000;
 
@@ -15,9 +15,11 @@ interface Harness {
 	sharePushes: () => ReadonlyArray<ReadonlySet<string>>;
 }
 
-const SHARES: Record<string, { id: string; root: string }> = {
+const SHARES: Record<string, Space> = {
 	Team: { id: "team", root: "Team" },
 	Other: { id: "other", root: "Other" },
+	Resting: { id: "resting", root: "Resting", paused: true },
+	Theirs: { id: "theirs", root: "Theirs", readOnly: true },
 };
 
 function harness(options: {
@@ -66,22 +68,21 @@ function harness(options: {
 				},
 			},
 		},
+		spaces: { partition: () => [VAULT_SPACE, ...Object.values(SHARES)] },
 		register: () => undefined,
 		registerInterval: () => undefined,
 		registerEvent: () => undefined,
 	} as unknown as SchedulerHost;
 	const sharePushes: ReadonlySet<string>[] = [];
 	const controller = {
-		refresh: async () => {
+		noteLocalChange: vi.fn(),
+		refreshAndAutoPush: async (paths?: ReadonlySet<string>) => {
 			refreshes++;
-		},
-		autoPushFromSnapshot: async (paths?: ReadonlySet<string>) => {
 			pushes.push(paths);
 		},
 		autoPushShares: async (paths: ReadonlySet<string>) => {
 			sharePushes.push(paths);
 		},
-		spaceFor: (path: string) => SHARES[path.split("/")[0] ?? ""] ?? VAULT_SPACE,
 		subscribe: () => () => undefined,
 	} as unknown as SyncController;
 	registerScheduler(host, controller);
@@ -107,6 +108,18 @@ describe("queued push after changes settle", () => {
 	afterEach(() => {
 		vi.useRealTimers();
 		vi.unstubAllGlobals();
+	});
+
+	it("keeps the changes while offline and pushes them once back", async () => {
+		const h = harness({ enabled: true, queuedOnly: true });
+		vi.stubGlobal("navigator", { onLine: false });
+		h.emit("modify", "a.md");
+		await vi.advanceTimersByTimeAsync(SETTLE_MS * 3);
+		expect(h.refreshes()).toBe(0);
+
+		vi.stubGlobal("navigator", { onLine: true });
+		await vi.advanceTimersByTimeAsync(SETTLE_MS);
+		expect(h.pushes()).toEqual([new Set(["a.md"])]);
 	});
 
 	it("does no work while disabled", async () => {
@@ -156,6 +169,7 @@ describe("queued push after changes settle", () => {
 
 	it("pushes a shared folder's changes on their own, two quiet seconds later", async () => {
 		const h = harness({ enabled: true, queuedOnly: true });
+		h.host.settings.shareEditsWait = false;
 		h.emit("rename", "Team/new.md", "old.md");
 		h.emit("modify", "Team/b.md");
 		await vi.advanceTimersByTimeAsync(1_999);
@@ -169,11 +183,25 @@ describe("queued push after changes settle", () => {
 		expect([...(h.pushes()[0] ?? [])]).toEqual(["old.md"]);
 	});
 
-	it("gives each shared folder its own quiet period", async () => {
+	it("leaves a shared folder's edits for a push, its added, moved and deleted files not", async () => {
 		const h = harness({ enabled: true, queuedOnly: true });
 		h.emit("modify", "Team/a.md");
+		h.emit("create", "Team/b.md");
+		h.emit("rename", "Team/c.md", "Team/old.md");
+		h.emit("delete", "Team/d.md");
+		await vi.advanceTimersByTimeAsync(SETTLE_MS);
+
+		expect(h.sharePushes().map((paths) => [...paths])).toEqual([
+			["Team/b.md", "Team/c.md", "Team/old.md", "Team/d.md"],
+		]);
+		expect(h.pushes()).toHaveLength(0);
+	});
+
+	it("gives each shared folder its own quiet period", async () => {
+		const h = harness({ enabled: true, queuedOnly: true });
+		h.emit("create", "Team/a.md");
 		await vi.advanceTimersByTimeAsync(1_500);
-		h.emit("modify", "Other/b.md");
+		h.emit("create", "Other/b.md");
 		await vi.advanceTimersByTimeAsync(500);
 		expect(h.sharePushes().map((paths) => [...paths])).toEqual([["Team/a.md"]]);
 		await vi.advanceTimersByTimeAsync(1_500);
@@ -187,6 +215,17 @@ describe("queued push after changes settle", () => {
 		await vi.advanceTimersByTimeAsync(SETTLE_MS);
 		expect(h.sharePushes()).toHaveLength(0);
 		expect([...(h.pushes()[0] ?? [])]).toEqual(["Team/b.md"]);
+	});
+
+	it("queues nothing from a paused or read-only shared folder", async () => {
+		const h = harness({ enabled: true, queuedOnly: true });
+		h.emit("create", "Resting/a.md");
+		h.emit("create", "Theirs/b.md");
+		h.host.settings.pushSharesRightAway = false;
+		h.emit("modify", "Resting/a.md");
+		await vi.advanceTimersByTimeAsync(SETTLE_MS);
+		expect(h.sharePushes()).toHaveLength(0);
+		expect(h.pushes()).toHaveLength(0);
 	});
 
 	it("drops queued work if the setting is disabled before it runs", async () => {

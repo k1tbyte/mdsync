@@ -31,6 +31,7 @@ export interface ToggleFieldSpec extends BaseFieldSpec {
 export interface NumberFieldSpec extends BaseFieldSpec {
 	kind: typeof EFieldKind.Number;
 	min: number;
+	max: number;
 	fallback: number;
 }
 
@@ -46,5 +47,6 @@ export const CONCURRENCY_FIELD: NumberFieldSpec = {
 	name: "Concurrency",
 	desc: "Parallel uploads/downloads for this backend. Higher is faster but heavier on the remote.",
 	min: 1,
+	max: 32,
 	fallback: DEFAULT_CONCURRENCY,
 };

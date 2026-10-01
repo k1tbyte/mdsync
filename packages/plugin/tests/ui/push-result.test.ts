@@ -39,7 +39,7 @@ describe("push notices", () => {
 			openDiff: async () => {},
 		});
 		const error = "Request Failed. IOException Stream closed";
-		vi.spyOn(session.storage, "exists").mockRejectedValueOnce(new Error(error));
+		vi.spyOn(session.storage, "put").mockRejectedValueOnce(new Error(error));
 
 		expect(await actions.pushPaths(["note.md"])).toBe(false);
 		expect(controller.getSnapshot()).toMatchObject({ error, pendingLocal: 1 });

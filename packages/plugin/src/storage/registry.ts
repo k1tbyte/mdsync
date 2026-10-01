@@ -90,7 +90,7 @@ export function getDescriptor<K extends EStorageBackend>(
 
 /** Stored settings can name a backend this build dropped; every lookup would throw. */
 export function isKnownBackend(kind: string): kind is EStorageBackend {
-	return kind in STORAGE_REGISTRY;
+	return Object.hasOwn(STORAGE_REGISTRY, kind);
 }
 
 /** A storage config with every field still at its adapter default dropped. */

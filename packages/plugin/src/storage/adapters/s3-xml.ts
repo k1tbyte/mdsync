@@ -1,12 +1,13 @@
 /**
  * Reads the two S3 responses that carry XML. A parser dependency would undo
  * what removing the SDK bought, and `DOMParser` does not exist in the test
- * runner; the documents are machine-generated and only four tags are read.
+ * runner; the documents are machine-generated and only a few tags are read.
  * A value can never contain a raw `<`, so a non-greedy match between a tag and
  * its close is exact for any well-formed document.
  */
 
 import type { ListedObject } from "@/storage/types";
+import { dateOf } from "./util";
 
 export interface ListPage {
 	objects: ListedObject[];
@@ -31,7 +32,11 @@ export function parseListObjects(xml: string): ListPage {
 		// A key may legitimately begin or end with a space, so it is never trimmed.
 		const key = tagValue(entry, "Key");
 		if (!key) throw new Error("S3 listing contained an object without a key.");
-		objects.push({ key, etag: tagValue(entry, "ETag")?.trim() || null });
+		objects.push({
+			key,
+			etag: tagValue(entry, "ETag")?.trim() || null,
+			modified: dateOf(tagValue(entry, "LastModified")),
+		});
 	}
 	const nextToken = tagValue(xml, "NextContinuationToken")?.trim();
 	// S3 always names the token alongside a truncated listing. A backend that

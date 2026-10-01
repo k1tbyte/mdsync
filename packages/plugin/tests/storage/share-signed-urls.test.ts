@@ -1,6 +1,6 @@
 import { SIGN_BATCH_MAX } from "@obsync/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ShareReadUrls } from "@/storage/adapters/share-read-urls";
+import { ShareSignedUrls } from "@/storage/adapters/share-signed-urls";
 
 const keysOf = (count: number) =>
 	Array.from({ length: count }, (_, index) => `objects/k${index}`);
@@ -8,7 +8,7 @@ const urlOf = (key: string) => `https://s3.example/${key}?sig`;
 
 function readUrls(sign?: (keys: string[]) => Promise<string[]>) {
 	const batches: string[][] = [];
-	const reads = new ShareReadUrls((keys) => {
+	const reads = new ShareSignedUrls((keys) => {
 		batches.push(keys);
 		return sign ? sign(keys) : Promise.resolve(keys.map(urlOf));
 	});

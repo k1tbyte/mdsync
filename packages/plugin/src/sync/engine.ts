@@ -1,20 +1,23 @@
 import type { DataAdapter } from "obsidian";
 import { DEFAULT_CONCURRENCY } from "@/constants";
 import { type EncryptionKey, encryptBytes, sha256Hex } from "@/crypto";
+import { sceneOfBytes } from "@/drawing";
 import { reportWarning } from "@/shared/diagnostics";
 import { entryAt, sortedByPath } from "@/shared/records";
 import type { StorageAdapter } from "@/storage/types";
 import { REMOTE_OBJECTS_PREFIX } from "@/sync/constants";
 import { runWithConcurrency } from "@/utils/concurrency";
+import { runWithFileConcurrency } from "@/utils/file-concurrency";
 import type { VaultIndex } from "@/vault/file-index";
-import { deletePath, readBinary } from "@/vault/io";
+import { deletePath, readBinary, unchangedSince } from "@/vault/io";
 import { scanVault } from "@/vault/scanner";
 import type { ScopePolicy } from "@/vault/scope";
 import { attribute, publisher } from "./authors";
 import { advanceBaselineForPaths, mergeFolderArrays } from "./baseline";
 import { throwIfCancelled } from "./cancel";
 import { reconcileBaselineResetGenerations } from "./config-reset";
-import { diff } from "./diff";
+import { untouchedSince } from "./content";
+import { diff, isUnderUnreadableDir } from "./diff";
 import { ownedFiles } from "./foreign";
 import { type HistoryConfig, publishManifestWithHistory } from "./history";
 import { type LiveNotes, settleLive, writeIncoming } from "./live-notes";
@@ -38,6 +41,7 @@ import {
 	type ManifestEntry,
 	type SessionState,
 } from "./types";
+import { forgetUploads, rememberUpload, uploadedHere } from "./uploads";
 
 export interface EngineDependencies {
 	space: Space;
@@ -52,6 +56,10 @@ export interface EngineDependencies {
 	concurrency?: number;
 	/** Aborts long operations between files; see `sync/cancel.ts`. */
 	signal?: AbortSignal;
+	/** The scan lists the disk too, for files Obsidian's index missed. */
+	walkDisk?: boolean;
+	/** Found by a walk: scanned until Obsidian's index has them. */
+	unindexed?: ReadonlySet<string>;
 	onScanProgress?: (scanned: number) => void;
 	history?: HistoryConfig;
 	live?: LiveNotes;
@@ -81,16 +89,13 @@ export async function compare(
 				concurrency: deps.concurrency,
 				index: deps.index,
 				expected: deps.state.baseline?.files,
+				walk: deps.walkDisk,
+				unindexed: deps.unindexed,
 			},
 			deps.state.hashCache,
 		),
 		knownRemote === undefined
-			? fetchRemoteManifest(
-					deps.storage,
-					deps.key,
-					deps.space.root,
-					deps.state.baseline,
-				)
+			? fetchRemoteManifest(deps.storage, deps.key, deps.space.root)
 			: Promise.resolve(knownRemote),
 	]);
 	assertVaultCompatibility(deps.state, fetched);
@@ -121,7 +126,7 @@ export async function compare(
 					deps.scope,
 				)
 			: null,
-		includes: (path) => deps.scope.includesInDiff(path),
+		includes: (path) => deps.scope.includes(path),
 	});
 	return { snapshot, remote, diff: result, updatedCache };
 }
@@ -136,35 +141,41 @@ export async function pushPaths(
 	const concurrency = deps.concurrency ?? DEFAULT_CONCURRENCY;
 	const pathSet = new Set(paths);
 	const localChanges = compareResult.diff.localChanges.filter(
-		(c) => pathSet.has(c.path) && deps.scope.includesInDiff(c.path),
+		(c) => pathSet.has(c.path) && deps.scope.includes(c.path),
 	);
 
 	const uploads = collectUploads(localChanges, compareResult.snapshot);
-	// Only the current remote head proves an object is stored. The baseline used
-	// to count too, but history GC deletes objects no live manifest references -
-	// trusting a stale baseline would skip the upload and publish a manifest
-	// pointing at a blob that is already gone.
+	// Only the head and this device's unpublished uploads prove a blob stays (`uploads.ts`).
 	const knownHashes = knownRemoteHashes(compareResult);
+	const resumed = new Set(
+		uploads
+			.filter(
+				(entry) =>
+					!knownHashes.has(entry.hash) &&
+					uploadedHere(deps.storage, entry.hash),
+			)
+			.map((entry) => entry.hash),
+	);
 	throwIfCancelled(deps.signal);
-	const listed = await listStoredHashes(deps.storage, uploads, knownHashes);
+	const listed = await listStoredHashes(deps.storage, resumed.size);
 	throwIfCancelled(deps.signal);
+	deps.storage.prepareWrites?.(
+		uploads
+			.filter((entry) => !knownHashes.has(entry.hash))
+			.map((entry) => objectKey(entry.hash)),
+	);
 	let done = 0;
-	await runWithConcurrency(
+	await runWithFileConcurrency(
 		uploads,
 		concurrency,
+		(entry) => entry.size,
 		async (entry) => {
 			if (!knownHashes.has(entry.hash)) {
-				// A listing that does not name the object is only ever acted on by
-				// uploading, so a stale one costs a redundant PUT and never a
-				// dangling reference. Claiming the object IS there is the answer
-				// that would skip the upload, and a push runs for minutes while
-				// another device's history GC deletes exactly these orphans - so
-				// that answer is confirmed against the object itself.
-				await uploadObject(
-					deps,
-					entry,
-					listed === null || listed.has(entry.hash),
-				);
+				// A listing claiming the blob is there is confirmed against the blob itself.
+				const probe =
+					resumed.has(entry.hash) &&
+					(listed === null || listed.has(entry.hash));
+				await uploadObject(deps, entry, probe);
 			}
 			onProgress?.(++done, uploads.length);
 		},
@@ -210,7 +221,7 @@ export async function pullPaths(
 		(c) =>
 			pathSet.has(c.path) &&
 			!moved.paths.has(c.path) &&
-			deps.scope.includesInDiff(c.path),
+			deps.scope.includes(c.path),
 	);
 
 	const downloads = changes.filter((c) => c.type !== EChangeType.RemoteDelete);
@@ -233,14 +244,25 @@ export async function pullPaths(
 		}
 		return side === "local" || side === "later";
 	};
-	await runWithConcurrency(
+	const leftAlone = async (path: string): Promise<boolean> =>
+		(await settledLive(path)) ||
+		!(await unchangedSince(
+			deps.adapter,
+			path,
+			entryAt(compareResult.snapshot.files, path),
+		));
+	await runWithFileConcurrency(
 		downloads,
 		concurrency,
+		(change) => entryAt(remote.files, change.path)?.size ?? 0,
 		async (change) => {
 			const entry = entryAt(remote.files, change.path);
 			if (!entry) throw new Error(`Missing manifest entry for ${change.path}`);
-			if (!(await settledLive(change.path))) {
-				written.set(change.path, await writeIncoming(deps, change.path, entry));
+			if (!(await leftAlone(change.path))) {
+				const seen = entryAt(compareResult.snapshot.files, change.path);
+				const ready = untouchedSince(deps, change.path, seen);
+				const local = await writeIncoming(deps, change.path, entry, ready);
+				if (local) written.set(change.path, local);
 			}
 			onProgress?.(++done, total);
 		},
@@ -251,7 +273,7 @@ export async function pullPaths(
 		deletions,
 		concurrency,
 		async (change) => {
-			if (!(await settledLive(change.path))) {
+			if (!(await leftAlone(change.path))) {
 				await deletePath(deps.adapter, change.path);
 				written.set(change.path, null);
 			}
@@ -284,14 +306,19 @@ export async function pullPaths(
 
 export async function storeObject(
 	deps: EngineDependencies,
+	known: ReadonlySet<string>,
 	bytes: Uint8Array,
 ): Promise<string> {
 	const hash = await sha256Hex(bytes);
-	const exists = await deps.storage.exists(objectKey(hash));
-	if (!exists) {
-		const blob = await encryptBytes(deps.key, bytes);
-		await deps.storage.put(objectKey(hash), blob);
+	if (known.has(hash)) return hash;
+	if (
+		uploadedHere(deps.storage, hash) &&
+		(await deps.storage.exists(objectKey(hash)))
+	) {
+		return hash;
 	}
+	await deps.storage.put(objectKey(hash), await encryptBytes(deps.key, bytes));
+	rememberUpload(deps.storage, hash);
 	return hash;
 }
 
@@ -301,15 +328,16 @@ export async function pushSingleFile(
 	path: string,
 	bytes: Uint8Array,
 ): Promise<Manifest> {
-	if (!deps.scope.includesInDiff(path))
+	if (!deps.scope.includes(path))
 		throw new Error("File is outside this device's sync scope.");
-	const hash = await storeObject(deps, bytes);
+	const hash = await storeObject(deps, knownRemoteHashes(compareResult), bytes);
 	const kind: EFileKind = deps.scope.classify(path);
 	const entry: ManifestEntry = {
 		hash,
 		size: bytes.length,
 		mtime: Date.now(),
 		kind,
+		scene: await sceneOfBytes(path, bytes),
 	};
 	const baseFiles = compareResult.remote?.files ?? {};
 	const nextFiles: Record<string, ManifestEntry> = {
@@ -343,10 +371,17 @@ export async function publishFileMap(
 			emptyFolders: mergeFolderArrays(
 				compareResult.remote?.folders,
 				compareResult.snapshot.emptyFolders,
-				deps.state.baseline?.folders?.filter((dir) =>
-					deps.scope.canDescend(dir),
+				// Unreadable is not absent: a folder in or under one the scan could not open stays.
+				deps.state.baseline?.folders?.filter(
+					(dir) =>
+						deps.scope.canDescend(dir) &&
+						!isUnderUnreadableDir(
+							`${dir}/`,
+							compareResult.snapshot.unreadableDirs,
+						),
 				),
-			),
+				// Another space's folders leave with its frozen entries.
+			).filter((dir) => deps.scope.owns(dir)),
 		},
 	);
 	manifest.authors = attributed.authors;
@@ -358,6 +393,10 @@ export async function publishFileMap(
 		compareResult.remote,
 		deps.history,
 		deps.state.baseline,
+	);
+	forgetUploads(
+		deps.storage,
+		Object.values(manifest.files).map((entry) => entry.hash),
 	);
 	return manifest;
 }
@@ -385,7 +424,7 @@ function buildPartialFileMap(input: {
 }
 
 /** Hashes the current remote head references. */
-function knownRemoteHashes(compareResult: CompareResult): Set<string> {
+export function knownRemoteHashes(compareResult: CompareResult): Set<string> {
 	const hashes = new Set<string>();
 	for (const entry of Object.values(compareResult.remote?.files ?? {})) {
 		hashes.add(entry.hash);
@@ -393,13 +432,7 @@ function knownRemoteHashes(compareResult: CompareResult): Set<string> {
 	return hashes;
 }
 
-/**
- * Above this, listing the prefix beats probing each object. A listing costs one
- * request per 1,000 stored objects and a probe costs one per object, so the
- * listing only loses on a bucket holding more than 1,000 times the batch -
- * a quarter of a million objects at this threshold. A first push of a 20k-file
- * vault is 20,000 probes, which on a phone is the whole sync.
- */
+/** Listings amortize probes when resuming a large upload batch. */
 const UPLOAD_LIST_THRESHOLD = 256;
 
 /**
@@ -409,13 +442,8 @@ const UPLOAD_LIST_THRESHOLD = 256;
  */
 async function listStoredHashes(
 	storage: EngineDependencies["storage"],
-	uploads: ReadonlyArray<{ hash: string }>,
-	known: ReadonlySet<string>,
+	probes: number,
 ): Promise<Set<string> | null> {
-	let probes = 0;
-	for (const entry of uploads) {
-		if (!known.has(entry.hash)) probes++;
-	}
 	if (probes < UPLOAD_LIST_THRESHOLD) return null;
 	try {
 		const keys = await storage.list(REMOTE_OBJECTS_PREFIX);
@@ -440,20 +468,28 @@ async function uploadObject(
 	}
 	const blob = await encryptBytes(deps.key, plaintext);
 	await deps.storage.put(objectKey(entry.hash), blob);
+	rememberUpload(deps.storage, entry.hash);
 }
 
 function collectUploads(
 	changes: ReadonlyArray<{ path: string; type: EChangeType }>,
 	snapshot: LocalSnapshot,
-): Array<{ path: string; hash: string }> {
+): Array<{ path: string; hash: string; size: number }> {
 	// One upload per hash: identical content under two paths would otherwise both
 	// miss the known-hash check and upload the same blob twice.
-	const byHash = new Map<string, { path: string; hash: string }>();
+	const byHash = new Map<
+		string,
+		{ path: string; hash: string; size: number }
+	>();
 	for (const change of changes) {
 		if (change.type === EChangeType.LocalDelete) continue;
 		const entry = entryAt(snapshot.files, change.path);
 		if (!entry || byHash.has(entry.hash)) continue;
-		byHash.set(entry.hash, { path: change.path, hash: entry.hash });
+		byHash.set(entry.hash, {
+			path: change.path,
+			hash: entry.hash,
+			size: entry.size,
+		});
 	}
 	return [...byHash.values()];
 }

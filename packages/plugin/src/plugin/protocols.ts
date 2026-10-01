@@ -20,7 +20,7 @@ export function registerProtocolHandlers(
 		void authorizeStorage(plugin, params, onStorageAuthorized);
 	});
 	plugin.registerObsidianProtocolHandler(INVITE_ACTION, (params) => {
-		openInvite(plugin, params[LINK_PARAM] ?? "");
+		void openInvite(plugin, params[LINK_PARAM] ?? "");
 	});
 }
 

@@ -6,6 +6,7 @@ import { confirmSettingsTransferImport, notifyError, notifyInfo } from "@/ui";
 import type { ObsyncSettings } from "./model";
 import {
 	createSettingsTransferPackage,
+	importedSections,
 	mergeTransferredSettings,
 	readSettingsTransfer,
 	type SettingsTransferExportOptions,
@@ -45,9 +46,10 @@ export class SettingsTransferController {
 		const confirmed = await confirmSettingsTransferImport(
 			this.deps.app,
 			merged,
+			importedSections(imported),
 		);
 		if (!confirmed) return false;
-		await this.apply(merged);
+		await this.apply(merged, passphrase);
 		return true;
 	}
 
@@ -69,11 +71,14 @@ export class SettingsTransferController {
 		return this.deps.passphrase.current();
 	}
 
-	private async apply(merged: ObsyncSettings): Promise<void> {
+	/** `passphrase` opened the token, so it is the vault's. */
+	private async apply(
+		merged: ObsyncSettings,
+		passphrase: string,
+	): Promise<void> {
 		Object.assign(this.deps.settings, merged);
-		this.deps.passphrase.invalidateKey();
 		await this.deps.saveSettings();
-		await this.deps.passphrase.persistIfEnabled();
+		await this.deps.passphrase.replacePassphrase(passphrase);
 		this.deps.onSettingsReplaced();
 	}
 }

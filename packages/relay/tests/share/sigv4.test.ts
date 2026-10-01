@@ -113,6 +113,18 @@ describe("presignS3", () => {
 		expect(url.pathname).toBe("/shares/abc/o");
 	});
 
+	it("signs an endpoint base path once, not percent-encoded twice", async () => {
+		const url = new URL(
+			await presignS3(
+				target({ endpoint: "https://gw.example.com/my base/" }),
+				"GET",
+				"shares/abc/o",
+				120,
+			),
+		);
+		expect(url.pathname).toBe("/my%20base/vault-bucket/shares/abc/o");
+	});
+
 	it("keeps an endpoint's own base path", async () => {
 		const url = new URL(
 			await presignS3(

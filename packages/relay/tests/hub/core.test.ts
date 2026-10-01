@@ -153,7 +153,13 @@ describe("hub", () => {
 		const core = hub(sender, other);
 		const payload = new Uint8Array(MAX_FRAME_BYTES);
 
-		send(core, sender, { type: EFrame.Update, slot: 0, doc: "doc", payload });
+		send(core, sender, {
+			type: EFrame.Update,
+			slot: 0,
+			doc: "doc",
+			n: 1,
+			payload,
+		});
 		send(core, sender, {
 			type: EFrame.Awareness,
 			slot: 0,
@@ -183,15 +189,23 @@ describe("hub", () => {
 		flooder.inbox = [];
 
 		vi.useFakeTimers({ toFake: ["Date"] });
-		for (let sent = 0; sent < 200; sent++) {
-			send(core, flooder, frame(EFrame.Update, { payload: Uint8Array.of(1) }));
+		for (let sent = 0; sent < 300; sent++) {
+			send(
+				core,
+				flooder,
+				frame(EFrame.Update, { n: sent, payload: Uint8Array.of(1) }),
+			);
 		}
-		send(core, other, frame(EFrame.Update, { payload: Uint8Array.of(2) }));
+		send(
+			core,
+			other,
+			frame(EFrame.Update, { n: 0, payload: Uint8Array.of(2) }),
+		);
 		vi.useRealTimers();
 
 		const echoes = (who: typeof flooder) =>
 			who.inbox.filter(({ type }) => type === EFrame.Echo).length;
-		expect(echoes(flooder)).toBe(127);
+		expect(echoes(flooder)).toBe(255);
 		expect(echoes(other)).toBe(1);
 	});
 
@@ -276,6 +290,7 @@ describe("hub", () => {
 		send(core, guest, { type: EFrame.Sub, slot: 0, doc: DOC, since: 0 });
 		send(core, owner, {
 			type: EFrame.Update,
+			n: 1,
 			slot: 1,
 			doc: DOC,
 			payload: Uint8Array.of(1),
@@ -297,6 +312,7 @@ describe("hub", () => {
 		const before = owner.inbox.length;
 		send(core, owner, {
 			type: EFrame.Update,
+			n: 1,
 			slot: 1,
 			doc: DOC,
 			payload: Uint8Array.of(2),
@@ -312,6 +328,7 @@ describe("hub", () => {
 			send(core, first, { type: EFrame.Sub, slot, doc: DOC, since: 0 });
 			send(core, first, {
 				type: EFrame.Update,
+				n: 1,
 				slot,
 				doc: DOC,
 				payload: Uint8Array.of(1),

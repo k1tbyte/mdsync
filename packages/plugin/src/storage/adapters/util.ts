@@ -40,8 +40,12 @@ export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 	});
 }
 
+/** 5xx answers patience cannot change. */
+const FINAL_5XX = new Set([501, 505, 507]);
+
 /** Retryable statuses (e.g. 429, 5xx). 4xx errors are definitive answers, not retried. */
 export function isRetryableStatus(status: number): boolean {
+	if (FINAL_5XX.has(status)) return false;
 	return status === 408 || status === 425 || status === 429 || status >= 500;
 }
 
@@ -49,7 +53,7 @@ export function isRetryableStatus(status: number): boolean {
 const NETWORK_FAILURE =
 	/network|failed to fetch|load failed|stream closed|socket hang up|ECONNRESET|ECONNREFUSED|ECONNABORTED|ETIMEDOUT|EPIPE|ENOTFOUND|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|ENETRESET|ERR_(?:NETWORK|CONNECTION|INTERNET|NAME_NOT_RESOLVED)/i;
 
-function isRetryableError(err: unknown): boolean {
+export function isRetryableError(err: unknown): boolean {
 	if (err instanceof StorageTimeoutError) return true;
 	if (err instanceof StorageHttpError) return isRetryableStatus(err.status);
 	if (!err || typeof err !== "object") return false;
@@ -103,4 +107,10 @@ export function headerValue(
 		if (key.toLowerCase() === wanted) return value;
 	}
 	return null;
+}
+
+/** A listing's date (ISO 8601 or RFC 1123) as epoch ms; null when absent or unreadable. */
+export function dateOf(text: string | null | undefined): number | null {
+	const ms = text ? Date.parse(text.trim()) : Number.NaN;
+	return Number.isNaN(ms) ? null : ms;
 }

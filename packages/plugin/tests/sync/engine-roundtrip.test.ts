@@ -80,44 +80,6 @@ describe("engine round-trip", () => {
 		expect(cmp2.diff.conflicts).toHaveLength(0);
 	});
 
-	it("treats a newly shared-ignored tracked file as a local deletion", async () => {
-		const adapter = new InMemoryAdapter();
-		const storage = new FakeStorage();
-		adapter.putText("note.md", "hello");
-		let state = freshState("A");
-
-		const initial = await compare(deps(adapter, storage, state));
-		const manifest = await pushPaths(deps(adapter, storage, state), initial, [
-			"note.md",
-		]);
-		state = advanceSessionAfterPush(state, initial, manifest);
-
-		const sharedIgnoreScope = createScopePolicy({
-			settingsSync: DEFAULT_SETTINGS_SYNC,
-			configDir: ".obsidian",
-			sharedIgnore: {
-				ignores(path) {
-					return path === "note.md";
-				},
-			},
-		});
-		const ignored = await compare({
-			...deps(adapter, storage, state),
-			scope: sharedIgnoreScope,
-		});
-
-		expect(ignored.diff.localChanges).toEqual([
-			{
-				path: "note.md",
-				type: EChangeType.LocalDelete,
-				localHash: null,
-				remoteHash: manifest.files["note.md"]?.hash ?? null,
-			},
-		]);
-		expect(ignored.diff.remoteChanges).toEqual([]);
-		expect(ignored.diff.conflicts).toEqual([]);
-	});
-
 	it("keeps a tracked file preserved remotely when only a local ignore matches it", async () => {
 		const adapter = new InMemoryAdapter();
 		const storage = new FakeStorage();
@@ -145,7 +107,7 @@ describe("engine round-trip", () => {
 		expect(ignored.remote?.files["note.md"]).toEqual(manifest.files["note.md"]);
 	});
 
-	it("removes a shared-ignored tracked file from remote on push and on other devices' pull", async () => {
+	it("freezes a tracked file a new shared rule ignores: kept on remote and on other devices", async () => {
 		const storage = new FakeStorage();
 		const adapterA = new InMemoryAdapter();
 		adapterA.putText("note.md", "shared body");
@@ -170,31 +132,28 @@ describe("engine round-trip", () => {
 			configDir: ".obsidian",
 			sharedIgnore: matchPaths("note.md"),
 		});
+		adapterA.putText("other.md", "next");
 		const compareIgnored = await compare({
 			...deps(adapterA, storage, stateA),
 			scope: sharedIgnoreScope,
 		});
+		expect(compareIgnored.diff.localChanges.map((c) => c.path)).toEqual([
+			"other.md",
+		]);
 		const manifestIgnored = await pushPaths(
 			{ ...deps(adapterA, storage, stateA), scope: sharedIgnoreScope },
 			compareIgnored,
-			["note.md"],
+			["note.md", "other.md"],
 		);
 
-		expect(manifestIgnored.files["note.md"]).toBeUndefined();
-
-		const compareDeleted = await compare(deps(adapterB, storage, stateB));
-		expect(compareDeleted.diff.remoteChanges).toEqual([
-			{
-				path: "note.md",
-				type: EChangeType.RemoteDelete,
-				localHash: manifestA.files["note.md"]?.hash ?? null,
-				remoteHash: null,
-			},
+		expect(manifestIgnored.files["note.md"]).toEqual(
+			manifestA.files["note.md"],
+		);
+		const compareB2 = await compare(deps(adapterB, storage, stateB));
+		expect(compareB2.diff.remoteChanges.map((c) => c.path)).toEqual([
+			"other.md",
 		]);
-		await pullPaths(deps(adapterB, storage, stateB), compareDeleted, [
-			"note.md",
-		]);
-		expect(adapterB.hasFile("note.md")).toBe(false);
+		expect(adapterB.readText("note.md")).toBe("shared body");
 	});
 
 	it("local edit pushes a child manifest", async () => {
@@ -280,7 +239,7 @@ describe("engine round-trip", () => {
 			log.snapshots.map((s) => s.id).sort(),
 		);
 	});
-	it("skips the existence probe for objects the remote already references", async () => {
+	it("probes no blob it has not uploaded itself", async () => {
 		const adapter = new InMemoryAdapter();
 		const storage = new FakeStorage();
 		adapter.putText("a.md", "one");
@@ -293,14 +252,11 @@ describe("engine round-trip", () => {
 			"b.md",
 		]);
 		state = advanceSessionAfterPush(state, first, manifest);
-		expect(storage.existsCalls).toBe(2);
-
-		// Re-push unchanged and new file: only new hash gets probed.
 		adapter.putText("c.md", "three");
-		storage.existsCalls = 0;
 		const second = await compare(deps(adapter, storage, state));
 		await pushPaths(deps(adapter, storage, state), second, ["c.md"]);
-		expect(storage.existsCalls).toBe(1);
+
+		expect(storage.existsCalls).toBe(0);
 	});
 
 	it("re-pushing an unchanged hash issues no probe at all", async () => {

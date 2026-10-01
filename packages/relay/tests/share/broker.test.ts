@@ -264,6 +264,30 @@ describe("token revocation", () => {
 		expect(after.status).toBe(401);
 	});
 
+	it("leaves a revoked participant out while KV's list still names them", async () => {
+		const kv = new FakeKV();
+		const env = makeEnv(kv);
+		await issue(env, "p1");
+		await issue(env, "p2");
+		const list = kv.list.bind(kv);
+		const stale = await list({ prefix: "pt:" });
+		await call(env, `/share/tokens/p1?shareId=${SHARE}`, {
+			method: "DELETE",
+			admin: true,
+		});
+		// The list KV answers lags the delete, as Cloudflare's does for a minute.
+		vi.spyOn(kv, "list").mockResolvedValue(stale);
+
+		const response = await call(env, `/share/tokens?shareId=${SHARE}`, {
+			admin: true,
+		});
+		const body = (await response.json()) as {
+			participants: { participantId: string }[];
+		};
+
+		expect(body.participants.map((p) => p.participantId)).toEqual(["p2"]);
+	});
+
 	it("closes the revoked participant's open relay sockets", async () => {
 		const env = makeEnv();
 		const token = await issue(env, "p1");

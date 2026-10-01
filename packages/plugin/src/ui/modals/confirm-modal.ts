@@ -2,38 +2,60 @@ import { type App, ButtonComponent, Modal } from "obsidian";
 
 import { openPromiseModal } from "./promise-modal";
 
+type ButtonClass = "mod-cta" | "mod-warning";
+
 export interface ConfirmModalOptions {
 	app: App;
 	title: string;
 	body: ReadonlyArray<string>;
 	confirmLabel: string;
-	confirmClass?: "mod-cta" | "mod-warning";
+	confirmClass?: ButtonClass;
 	cancelLabel?: string;
 }
 
-export function openConfirmModal(
+export interface ChoiceModalOptions<K extends string> {
+	app: App;
+	title: string;
+	body: ReadonlyArray<string>;
+	choices: ReadonlyArray<{ key: K; label: string; cls?: ButtonClass }>;
+}
+
+export async function openConfirmModal(
 	options: ConfirmModalOptions,
 ): Promise<boolean> {
-	return openPromiseModal<boolean>((answer) => {
+	const { confirmLabel, confirmClass = "mod-cta", cancelLabel } = options;
+	const answer = await openChoiceModal({
+		...options,
+		choices: [
+			{ key: "cancel", label: cancelLabel ?? "Cancel" },
+			{ key: "confirm", label: confirmLabel, cls: confirmClass },
+		],
+	});
+	return answer === "confirm";
+}
+
+/** Null when dismissed. */
+export function openChoiceModal<K extends string>(
+	options: ChoiceModalOptions<K>,
+): Promise<K | null> {
+	return openPromiseModal<K | null>((answer) => {
 		const modal = new Modal(options.app);
-		const finish = (confirmed: boolean): void => {
-			answer(confirmed);
-			modal.close();
-		};
 		modal.modalEl.addClass("obsync-confirm-modal");
 		modal.titleEl.setText(options.title);
 		for (const paragraph of options.body) {
 			modal.contentEl.createEl("p", { text: paragraph });
 		}
 		const buttons = modal.contentEl.createDiv({ cls: "obsync-modal-buttons" });
-		new ButtonComponent(buttons)
-			.setButtonText(options.cancelLabel ?? "Cancel")
-			.onClick(() => finish(false));
-		const confirm = new ButtonComponent(buttons)
-			.setButtonText(options.confirmLabel)
-			.onClick(() => finish(true));
-		if (options.confirmClass === "mod-warning") confirm.setWarning();
-		else confirm.setCta();
+		for (const { key, label, cls } of options.choices) {
+			const button = new ButtonComponent(buttons)
+				.setButtonText(label)
+				.onClick(() => {
+					answer(key);
+					modal.close();
+				});
+			if (cls === "mod-warning") button.setWarning();
+			else if (cls === "mod-cta") button.setCta();
+		}
 		return modal;
-	}, false);
+	}, null);
 }

@@ -7,6 +7,7 @@ import {
 } from "obsidian";
 import type { StatePersister } from "@/core";
 import type { PluginHost } from "@/plugin/host";
+import { reportWarning } from "@/shared/diagnostics";
 import { carryHashes } from "@/sync/session-state";
 import {
 	addIgnoreMenuItem,
@@ -131,7 +132,9 @@ export function registerStatePersistenceFlush(
 	statePersister: StatePersister,
 ): void {
 	const flush = (): void => {
-		void statePersister.flush();
+		statePersister
+			.flush()
+			.catch((err) => reportWarning("Could not save the sync state.", err));
 	};
 
 	plugin.registerDomEvent(document, "visibilitychange", () => {

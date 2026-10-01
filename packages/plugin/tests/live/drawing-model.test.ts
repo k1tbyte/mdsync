@@ -81,6 +81,20 @@ describe("DrawingModel", () => {
 	});
 });
 
+describe("DRAWING.holds", () => {
+	it("holds what the room agreed once the file has every live element at its version", () => {
+		const { model } = room(drawing([element("1"), element("2", 1, true)]));
+		const agreed = model.agreed();
+
+		expect(DRAWING.holds(agreed, drawing([element("1")]))).toBe(true);
+		expect(DRAWING.holds(agreed, drawing([element("1", 2)]))).toBe(false);
+		expect(DRAWING.holds(agreed, drawing([element("1"), element("3")]))).toBe(
+			false,
+		);
+		expect(DRAWING.holds(agreed, "# A note")).toBe(false);
+	});
+});
+
 describe("elementsIn", () => {
 	it("reads a drawing file, a scene and agreed stamps", () => {
 		const elements = [element("1")];

@@ -82,20 +82,10 @@ export function actionItems(facts: MenuFacts): MenuItem[] {
 
 export interface PersonView {
 	idle: boolean;
-	hasCursor: boolean;
-	/** Text notes show cursors; other views have none to follow. */
-	cursorsShown: boolean;
 	following: boolean;
 }
 
-export function personState({
-	idle,
-	hasCursor,
-	cursorsShown,
-	following,
-}: PersonView): string {
+export function personState({ idle, following }: PersonView): string {
 	if (following) return "following";
-	if (hasCursor) return idle ? "follow cursor (away)" : "follow cursor";
-	if (idle) return "away";
-	return cursorsShown ? "no cursor here" : "no cursor in this view";
+	return idle ? "follow (away)" : "follow";
 }

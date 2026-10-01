@@ -148,7 +148,7 @@ export async function setup() {
 	const accessFor =
 		(device: string, person: string, name: string) => async (space: Space) =>
 			space.id === SHARE_ID
-				? { keys: shareKeys, key: person, name }
-				: { keys: vaultKeys, key: device, name: device };
+				? { keys: shareKeys, key: person, name, device }
+				: { keys: vaultKeys, key: device, name: device, device: null };
 	return { relay, accessFor, vaultKeys, shareKeys };
 }

@@ -153,7 +153,7 @@ describe("vault baseline entries under a share root are frozen", () => {
 			local: vaultScan.snapshot,
 			remote: synced,
 			baseline: synced,
-			includes: (p) => vaultScope.includesInDiff(p),
+			includes: (p) => vaultScope.includes(p),
 		});
 
 		// The share path must not appear as a local delete.
@@ -189,7 +189,7 @@ describe("vault baseline entries under a share root are frozen", () => {
 			local: shareScan.snapshot,
 			remote: synced,
 			baseline: synced,
-			includes: (p) => shareScope.includesInDiff(p),
+			includes: (p) => shareScope.includes(p),
 		});
 
 		expect(result.localChanges).toHaveLength(0);

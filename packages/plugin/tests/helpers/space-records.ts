@@ -48,6 +48,7 @@ const LOCATION = {
 export function device(spaces: SpaceRecord[] = []) {
 	const settings = {
 		spaces,
+		useSharedFolders: true,
 		pausedSpaces: [] as string[],
 		pauseArrivingShares: false,
 		localRoots: {} as Record<string, string>,

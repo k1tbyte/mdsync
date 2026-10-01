@@ -13,14 +13,13 @@ export function registerVaultAdoptionPrompt(
 	plugin: Plugin,
 	controller: SyncController,
 ): void {
+	/** Only the modal's own answer frees it: a broadcast without the error meanwhile would open a second one. */
 	let active = false;
 
 	const maybePrompt = async (snapshot: SyncStatusSnapshot): Promise<void> => {
-		if (!(snapshot.error?.includes(VAULT_MISMATCH_ERROR) ?? false)) {
-			active = false;
+		if (active || !(snapshot.error?.includes(VAULT_MISMATCH_ERROR) ?? false)) {
 			return;
 		}
-		if (active) return;
 		active = true;
 		try {
 			if (!(await confirmAdoptNewVault(plugin.app))) return;

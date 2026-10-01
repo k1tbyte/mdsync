@@ -12,6 +12,7 @@ const facts = (over: Partial<RelayFacts> = {}): RelayFacts => ({
 	paused: false,
 	link: "connected",
 	revoked: false,
+	full: false,
 	...over,
 });
 
@@ -36,6 +37,11 @@ describe("relayStatus", () => {
 		expect(relayStatus(facts({ realtime: false }))).toBe("off");
 		expect(relayStatus(facts({ link: null }))).toBe("no-relay");
 		expect(relayStatus(facts({ paused: true }))).toBe("paused");
+	});
+
+	it("tells a space the relay had no slot left for from one with no relay", () => {
+		expect(relayStatus(facts({ link: null, full: true }))).toBe("full");
+		expect(isLinkState("full")).toBe(false);
 	});
 
 	it("keeps a paused space paused with real-time off or no socket", () => {

@@ -176,7 +176,9 @@ export function timelineDiffTarget(
 export function describeRestorePlan(plan: VaultRestorePlan): string[] {
 	const lines: string[] = [];
 	if (plan.remove.length > 0) {
-		lines.push(`${pluralize(plan.remove.length, "file")} will be deleted.`);
+		lines.push(
+			`${pluralize(plan.remove.length, "file")} will be moved to the trash.`,
+		);
 	}
 	if (plan.write.length > 0) {
 		lines.push(

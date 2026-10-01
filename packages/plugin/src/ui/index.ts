@@ -39,10 +39,11 @@ export { registerRibbon } from "./ribbon";
 export { openInvite } from "./shares/invite-action";
 export { shareSummary } from "./shares/share-summary";
 export { addShareMenuItem, openShareWindow } from "./shares/share-window";
+export { createSpaceGone } from "./shares/space-gone";
 export {
 	confirmAdoptNewVault,
 	confirmBatchResolve,
-	showIgnoredFiles,
+	showFileList,
 } from "./source-control";
 export {
 	openDiffView,

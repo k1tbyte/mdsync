@@ -166,6 +166,15 @@ describe("session projection", () => {
 		expect(projectSession(local, "unknown", "")?.vaultId).toBeNull();
 	});
 
+	it("keeps a device rename made while the operation ran", () => {
+		const session = projectSession(local, "s3:one", "");
+		const renamed = { ...local, deviceName: "Desk" };
+
+		const next = mergeSessionIntoLocal(renamed, session, "s3:one", VAULT_SPACE);
+
+		expect(next.deviceName).toBe("Desk");
+	});
+
 	it("writes back one slot without disturbing the others", () => {
 		const next = mergeSessionIntoLocal(
 			local,

@@ -26,6 +26,7 @@ const TEAM: SpaceRecord = {
 function setup(folders: Record<string, string[]>) {
 	const settings = {
 		spaces: [TEAM],
+		useSharedFolders: true,
 		pausedSpaces: [] as string[],
 		pauseArrivingShares: false,
 		localRoots: { a: "Team" } as Record<string, string>,

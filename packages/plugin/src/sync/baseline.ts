@@ -161,8 +161,8 @@ export function resetSessionState(state: SessionState): SessionState {
 
 /**
  * Three-way merge of the empty-folder list: keep everything either side knows
- * about, but drop folders the baseline recorded and this device no longer has -
- * otherwise a locally deleted empty folder is resurrected by every push.
+ * about, but a folder the baseline recorded stays only while both sides still
+ * have it - otherwise a deletion on either side is resurrected by every push.
  */
 export function mergeFolderArrays(
 	remoteFolders: ReadonlyArray<string> | undefined,
@@ -170,10 +170,10 @@ export function mergeFolderArrays(
 	baselineFolders: ReadonlyArray<string> = [],
 ): string[] {
 	const local = new Set(localFolders);
-	const merged = new Set<string>(remoteFolders ?? []);
-	for (const dir of local) merged.add(dir);
+	const remote = new Set(remoteFolders ?? []);
+	const merged = new Set([...remote, ...local]);
 	for (const dir of baselineFolders) {
-		if (!local.has(dir)) merged.delete(dir);
+		if (!local.has(dir) || !remote.has(dir)) merged.delete(dir);
 	}
 	return Array.from(merged);
 }

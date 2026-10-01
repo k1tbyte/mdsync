@@ -10,6 +10,7 @@ export const SUB_SETTING_CLASS = "obsync-sub-setting";
 const ERROR_DESC_CLASS = "obsync-settings-error";
 /** A relay URL typed letter by letter must not open a socket, or send a grant, per prefix. */
 export const TYPING_SETTLE_MS = 800;
+const WHOLE_NUMBER = /^\s*\d+\s*$/;
 
 export interface FieldContext {
 	plugin: PluginHost;
@@ -98,9 +99,10 @@ export function renderField(
 
 	if (field.kind === EFieldKind.Number) {
 		return setting.addText((text) =>
-			text
-				.setValue(field.get(ctx.plugin.settings))
-				.onChange((raw) => type(field.set(field.parse(raw), ctx.plugin))),
+			text.setValue(field.get(ctx.plugin.settings)).onChange((raw) => {
+				if (!WHOLE_NUMBER.test(raw)) return;
+				type(field.set(field.parse(raw), ctx.plugin));
+			}),
 		);
 	}
 

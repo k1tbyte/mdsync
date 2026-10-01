@@ -5,8 +5,14 @@
  */
 
 import { entryAt } from "@/shared/records";
-import { ensureDir, ensureParent, removeEmptyDir } from "@/vault/io";
+import {
+	ensureDir,
+	ensureParent,
+	removeEmptyDir,
+	unchangedSince,
+} from "@/vault/io";
 
+import { untouchedSince } from "./content";
 import type { CompareResult, EngineDependencies } from "./engine";
 import { writeIncoming } from "./live-notes";
 import { isUnder } from "./space";
@@ -41,7 +47,12 @@ export async function pullMoves(
 			// `to` still holds what `from` had, so their newer text replaces nothing of ours.
 			const theirs = entryAt(result.remote?.files ?? {}, from);
 			if (!theirs) continue;
-			written.set(to, await writeIncoming(deps, to, theirs));
+			const ours = entryAt(result.snapshot.files, to);
+			if (!(await unchangedSince(deps.adapter, to, ours))) continue;
+			const ready = untouchedSince(deps, to, ours);
+			const local = await writeIncoming(deps, to, theirs, ready);
+			if (!local) continue;
+			written.set(to, local);
 		}
 		written.set(from, null);
 	}
@@ -65,8 +76,13 @@ export async function syncFolders(
 		deps.scope.canDescend(dir),
 	);
 	const remoteFolderSet = new Set(remoteFolders);
+	const baselineFolderSet = new Set(baselineFolders);
 	await removeEmptied(deps, written, remoteFolderSet);
 	for (const dir of remoteFolders) {
+		// Deleted here since the baseline: the next push deletes it there too.
+		if (baselineFolderSet.has(dir) && !(await deps.adapter.exists(dir))) {
+			continue;
+		}
 		await ensureDir(deps.adapter, dir);
 	}
 	for (const dir of baselineFolders) {

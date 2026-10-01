@@ -1,5 +1,6 @@
 import type { Person } from "@/presence";
 import { personColor } from "@/shared/colors";
+import { withDevices } from "@/shared/format";
 
 /** More faces than this collapse into a "+N". */
 const STACK_MAX = 3;
@@ -33,10 +34,13 @@ export function renderAvatarStack(
 	return stack;
 }
 
-/** "Alex, Sam (away)" */
+/** "Alex · Laptop, Sam (away)" */
 export function describePeople(people: readonly Person[]): string {
 	return people
-		.map(({ name, idle }) => (idle ? `${name} (away)` : name))
+		.map(({ name, devices, idle }) => {
+			const label = withDevices(name, devices);
+			return idle ? `${label} (away)` : label;
+		})
 		.join(", ");
 }
 

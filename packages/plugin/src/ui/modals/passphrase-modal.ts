@@ -1,5 +1,6 @@
 import { type App, Modal, Setting } from "obsidian";
 
+import { weakPassphrase } from "@/crypto";
 import { alertLine, onEnter } from "@/ui/common";
 
 import { openPromiseModal } from "./promise-modal";
@@ -124,8 +125,9 @@ class NewPassphraseModal extends Modal {
 	}
 
 	private submit(): void {
-		if (!this.next) {
-			this.showError("Enter a new passphrase.");
+		const weak = weakPassphrase(this.next);
+		if (weak) {
+			this.showError(weak);
 			return;
 		}
 		if (this.next !== this.confirm) {

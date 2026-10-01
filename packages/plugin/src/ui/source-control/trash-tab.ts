@@ -2,11 +2,17 @@ import { TFolder } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { errorMessage } from "@/shared/errors";
 import type { DeletedFilesResult } from "@/sync/history";
-import { appendLabeledButton, notifyError, notifyInfo } from "@/ui/common";
+import {
+	appendLabeledButton,
+	attempt,
+	notifyError,
+	notifyInfo,
+} from "@/ui/common";
 
 import { openPromptModal } from "@/ui/modals";
 import { actionButton } from "./action-button";
 import { confirmBulkRestore, confirmRestore } from "./restore-modal";
+import { RowPager } from "./row-pager";
 import {
 	buildTrashRows,
 	resolveRestoreTarget,
@@ -23,6 +29,7 @@ export class TrashTab {
 	/** Selected row paths; pruned to the rows the latest render produced. */
 	private readonly selected = new Set<string>();
 	private rows: TrashRow[] = [];
+	private readonly pager = new RowPager();
 	private bulkButton: HTMLButtonElement | null = null;
 
 	constructor(
@@ -133,7 +140,8 @@ export class TrashTab {
 			}
 			return;
 		}
-		for (const row of rows) this.renderRow(body, row);
+		for (const row of this.pager.slice(rows)) this.renderRow(body, row);
+		this.pager.render(body, rows.length, this.onRerender);
 	}
 
 	/** A selection outliving its row (restored or pushed away) must not linger. */
@@ -204,11 +212,14 @@ export class TrashTab {
 		// Every row repeats these three labels, so name the file in each.
 		const preview = this.action(actions, "Preview", `Preview ${row.path}`);
 		preview.addEventListener("click", () => {
-			void this.openDiff(row.path, {
-				hash: row.hash,
-				label: row.label,
-				size: row.size,
-			});
+			attempt(
+				this.openDiff(row.path, {
+					hash: row.hash,
+					label: row.label,
+					size: row.size,
+				}),
+				"Could not open the diff",
+			);
 		});
 		const restore = actionButton(actions, "cta")
 			.setButtonText("Restore")

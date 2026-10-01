@@ -182,6 +182,22 @@ describe("publishing from a space with another space's folder in it", () => {
 		).toEqual(["Shared/p/b.md"]);
 	});
 
+	it("leaves the other space's empty folders out of the manifest too", async () => {
+		const session = await vaultWithFrozenCopy();
+		await session.adapter.mkdir("Shared/p/empty");
+		await session.adapter.mkdir("mine");
+		const plain = await session.compare();
+		const before = await pushPaths(session.deps(), plain, ["a.md"]);
+		session.state = advanceSessionAfterPush(session.state, plain, before);
+		expect(before.folders).toContain("Shared/p/empty");
+
+		session.adapter.putText("a.md", "A3");
+		const deps = { ...session.deps(), scope: vaultScope };
+		const published = await pushPaths(deps, await compare(deps), ["a.md"]);
+
+		expect(published.folders).toEqual(["mine"]);
+	});
+
 	it("frees the folder's blobs once the prune rolls off the history", async () => {
 		const session = await vaultWithFrozenCopy();
 		const frozenBlob = objectKey(

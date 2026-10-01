@@ -1,119 +1,156 @@
-import type { Editor, MarkdownView, WorkspaceLeaf } from "obsidian";
+import {
+	FileView,
+	ItemView,
+	MarkdownView,
+	type Notice,
+	type WorkspaceLeaf,
+} from "obsidian";
 
-import { type LiveSession, type WatchedCursor, watchCursor } from "@/live";
+import type { LiveSession } from "@/live";
 import type { PluginHost } from "@/plugin/host";
+import type { Person } from "@/presence";
 
-const TAKE_BACK = ["keydown", "pointerdown", "wheel", "touchstart"] as const;
+import { showFollowNudge } from "./follow-nudge";
+import { trackCursor } from "./follow-scroll";
 
-export interface FollowTarget {
-	room: object;
-	key: string;
-	editor: Editor;
-	/** Its own input here takes the view back. */
-	input: HTMLElement;
-	cursor: WatchedCursor;
-	/** False once the view shows another note or the room closed: offsets would land in other text. */
-	shown(): boolean;
-}
+const NUDGED_BY = ["keydown", "pointerdown", "wheel", "touchstart"] as const;
 
 interface Following {
-	room: object;
+	leaf: WorkspaceLeaf;
+	space: string;
 	key: string;
-	editor: Editor;
-	end(): void;
+	name: string;
+	/** The note this tab follows them in: another one opened here by hand ends following. */
+	path: string;
+	opening: boolean;
+	cursor: { session: LiveSession; stop(): void } | null;
+	input: HTMLElement | null;
+	unsubscribe(): void;
 }
 
-/** Scrolls only, never moves the caret: the keystroke that ends following types where it already was. */
+/** One tab follows one person of a space: into each note they open, then their cursor there. */
 export class CursorFollow {
 	private current: Following | null = null;
+	private nudge: Notice | null = null;
 
-	of(room: object, editor: Editor): string | null {
-		return this.current?.room === room && this.current.editor === editor
-			? this.current.key
-			: null;
+	constructor(private readonly plugin: PluginHost) {}
+
+	of(leaf: WorkspaceLeaf): string | null {
+		return this.current?.leaf === leaf ? this.current.key : null;
 	}
 
-	start(target: FollowTarget): void {
+	start(
+		leaf: WorkspaceLeaf,
+		space: string,
+		{ key, name }: Pick<Person, "key" | "name">,
+	): void {
 		this.stop();
-		const { room, key, editor, input, cursor, shown } = target;
-		let last: number | null = null;
-		const show = (): void => {
-			if (!shown() || !cursor.present()) {
-				this.stop();
-				return;
-			}
-			const at = cursor.at();
-			if (at === null || at === last) return;
-			last = at;
-			const pos = editor.offsetToPos(at);
-			editor.scrollIntoView({ from: pos, to: pos });
-		};
-		let frame: number | null = null;
-		// Out of the event: y-codemirror changes awareness inside an editor update, where a scroll throws.
-		const changed = (): void => {
-			frame ??= window.requestAnimationFrame(() => {
-				frame = null;
-				show();
-			});
-		};
-		const takeBack = (): void => this.stop();
-		const unwatch = cursor.watch(changed);
-		for (const type of TAKE_BACK) {
-			input.addEventListener(type, takeBack, { passive: true });
-		}
+		const path = pathIn(leaf);
+		if (path === null) return;
+		const { app, realtime } = this.plugin;
+		const sync = (): void => this.sync();
+		const unsubscribe = [
+			realtime.people.subscribe(sync),
+			realtime.live.subscribe(sync),
+		];
+		const opened = app.workspace.on("file-open", sync);
 		this.current = {
-			room,
+			leaf,
+			space,
 			key,
-			editor,
-			end() {
-				unwatch();
-				if (frame !== null) window.cancelAnimationFrame(frame);
-				for (const type of TAKE_BACK) input.removeEventListener(type, takeBack);
+			name,
+			path,
+			opening: false,
+			cursor: null,
+			input: null,
+			unsubscribe: () => {
+				for (const off of unsubscribe) off();
+				app.workspace.offref(opened);
 			},
 		};
-		show();
+		app.workspace.setActiveLeaf(leaf, { focus: true });
+		this.sync();
 	}
 
 	stop(): void {
-		const ending = this.current;
+		const following = this.current;
 		this.current = null;
-		ending?.end();
+		this.nudge?.hide();
+		this.nudge = null;
+		if (!following) return;
+		following.unsubscribe();
+		following.cursor?.stop();
+		this.listen(following, null);
 	}
+
+	private sync(): void {
+		const following = this.current;
+		if (!following || following.opening) return;
+		if (pathIn(following.leaf) !== following.path) {
+			this.stop();
+			return;
+		}
+		const person = this.plugin.realtime.people
+			.online(following.space)
+			.find(({ key }) => key === following.key);
+		if (!person) {
+			this.stop();
+			return;
+		}
+		if (person.note !== null && person.note !== following.path) {
+			void this.open(following, person.note);
+			return;
+		}
+		const { view } = following.leaf;
+		this.listen(following, view instanceof ItemView ? view.contentEl : null);
+		this.track(following);
+	}
+
+	private async open(following: Following, path: string): Promise<void> {
+		// Not on this device yet: it may still arrive.
+		const file = this.plugin.app.vault.getFileByPath(path);
+		if (!file) return;
+		following.opening = true;
+		following.cursor?.stop();
+		following.cursor = null;
+		try {
+			await following.leaf.openFile(file);
+			following.path = path;
+		} finally {
+			following.opening = false;
+		}
+		if (this.current === following) this.sync();
+	}
+
+	private track(following: Following): void {
+		const { view } = following.leaf;
+		const session = this.plugin.realtime.live.roomOf(following.path);
+		if (following.cursor && following.cursor.session === session) return;
+		following.cursor?.stop();
+		following.cursor =
+			view instanceof MarkdownView && session
+				? { session, stop: trackCursor(view, session, following.key) }
+				: null;
+	}
+
+	private listen(following: Following, input: HTMLElement | null): void {
+		if (following.input === input) return;
+		for (const type of NUDGED_BY) {
+			following.input?.removeEventListener(type, this.onInput);
+			input?.addEventListener(type, this.onInput, { passive: true });
+		}
+		following.input = input;
+	}
+
+	/** A stray click or key would end following by surprise: it only asks. */
+	private readonly onInput = (): void => {
+		const following = this.current;
+		if (!following || this.nudge?.messageEl.isConnected) return;
+		this.nudge = showFollowNudge(following.name, () => this.stop());
+	};
 }
 
-interface FollowRequest {
-	plugin: PluginHost;
-	leaf: WorkspaceLeaf;
-	markdown: MarkdownView;
-	session: LiveSession;
-	key: string;
-	offset: number;
-	follows: CursorFollow;
-}
-
-export function followCursor({
-	plugin,
-	leaf,
-	markdown,
-	session,
-	key,
-	offset,
-	follows,
-}: FollowRequest): void {
-	const { editor, file } = markdown;
-	const at = editor.offsetToPos(offset);
-	plugin.app.workspace.setActiveLeaf(leaf, { focus: true });
-	editor.scrollIntoView({ from: at, to: at }, true);
-	follows.start({
-		room: session,
-		key,
-		editor,
-		input: markdown.contentEl,
-		cursor: watchCursor(session, key),
-		shown: () =>
-			leaf.view === markdown &&
-			markdown.file === file &&
-			file !== null &&
-			plugin.realtime.live.roomOf(file.path) === session,
-	});
+function pathIn(leaf: WorkspaceLeaf): string | null {
+	const { view } = leaf;
+	return view instanceof FileView ? (view.file?.path ?? null) : null;
 }

@@ -1,3 +1,4 @@
+import { MAX_SLOTS } from "@obsync/protocol";
 import type { App } from "obsidian";
 
 import { PLUGIN_ID } from "@/constants";
@@ -7,6 +8,7 @@ export const RELAY_TEXT: Record<RelayStatus, string> = {
 	off: "Real-time sync is off",
 	"no-relay": "Set up the relay under Connection",
 	paused: "Paused on this device: nothing syncs",
+	full: `One relay carries ${MAX_SLOTS} folders at most, the vault included: this one syncs on the schedule. Pause a shared folder you do not need here to make room`,
 	connecting: "Connecting to the relay…",
 	connected: "Relay connected",
 	unauthorized:

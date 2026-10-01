@@ -41,7 +41,7 @@ export function recomputeAfterWrite(
 		local: snapshot,
 		remote: outcome.newRemote,
 		baseline,
-		includes: (path) => scope.includesInDiff(path),
+		includes: (path) => scope.includes(path),
 	});
 	return {
 		snapshot,
@@ -107,9 +107,10 @@ export function mergeSessionIntoLocal(
 	} else {
 		delete storages[identity];
 	}
+	// The device's own fields as they are now: a rename made while this ran stays.
 	return {
-		deviceId: session.deviceId,
-		deviceName: session.deviceName,
+		deviceId: current.deviceId || session.deviceId,
+		deviceName: current.deviceName,
 		storages,
 		hashCache: session.hashCache,
 	};

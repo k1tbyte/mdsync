@@ -28,6 +28,7 @@ export interface PresenceAccess {
 	keys: LiveKeys;
 	key: string;
 	name: string;
+	device: string | null;
 }
 
 export interface PeopleDeps {
@@ -212,8 +213,14 @@ export class People {
 			.then(async (access) => {
 				if (this.channels.get(channel.space.id) !== channel) return;
 				if (!access) return this.lock(channel);
-				const { name, keys } = channel.access ?? {};
-				if (name !== access.name || keys !== access.keys) channel.sent = null;
+				const { name, device, keys } = channel.access ?? {};
+				if (
+					name !== access.name ||
+					device !== access.device ||
+					keys !== access.keys
+				) {
+					channel.sent = null;
+				}
 				channel.access = access;
 				const changed = await channel.presence.unlock(access.keys, access.key);
 				this.announce(channel);
@@ -244,6 +251,7 @@ export class People {
 		const announcement: Announcement = {
 			key: access.key,
 			name: access.name,
+			device: access.device,
 			note: this.noteIn(space),
 			idle: this.here.idle,
 		};
@@ -282,12 +290,15 @@ export class People {
 
 	private peopleIn(channel: Channel): Person[] {
 		const { space } = channel;
-		return channel.presence.entries().map(({ key, name, note, idle }) => ({
-			key,
-			name,
-			note: note === null ? null : vaultPathOf(space, note),
-			idle,
-		}));
+		return channel.presence
+			.entries()
+			.map(({ key, name, device, note, idle }) => ({
+				key,
+				name,
+				devices: device ? [device] : [],
+				note: note === null ? null : vaultPathOf(space, note),
+				idle,
+			}));
 	}
 
 	private emit(): void {

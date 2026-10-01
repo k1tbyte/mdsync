@@ -5,6 +5,7 @@ import {
 	encryptBytes,
 	importAesKey,
 	randomBytes,
+	weakPassphrase,
 } from "@/crypto";
 import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
 import { errorMessage } from "@/shared/errors";
@@ -124,6 +125,7 @@ export async function resolveContentKey(
 		);
 	}
 
+	assertStrong(passphrase);
 	const raw = randomBytes(DATA_KEY_BYTES);
 	const now = Date.now();
 	const wrapped = await wrapRawKey(kek, raw);
@@ -164,6 +166,7 @@ export async function rotatePassphrase(
 	currentPassphrase: string,
 	newPassphrase: string,
 ): Promise<number> {
+	assertStrong(newPassphrase);
 	const salt = await loadOrCreateSalt(storage);
 	const keyfile = await readKeyfile(storage);
 	if (!keyfile) {
@@ -189,6 +192,13 @@ export async function rotatePassphrase(
 		);
 	}
 	return nextEpoch;
+}
+
+/** Only a new key or a new wrapping: an existing passphrase still opens the vault it set. */
+function assertStrong(passphrase: string): void {
+	const weak = weakPassphrase(passphrase);
+	if (weak)
+		throw new Error(`${weak} Replace it in Obsync's security settings.`);
 }
 
 async function wrapRawKey(

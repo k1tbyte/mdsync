@@ -56,6 +56,36 @@ describe("symlinkDetector", () => {
 		expect(seen).toEqual(["/base", "/base/a", "/base/a/b"]);
 	});
 
+	it("invalidates only a changed path's parent and subtree", () => {
+		const seen: string[] = [];
+		const links = new Map<string, ReadonlySet<string>>();
+		const detector = symlinkDetector(vault, (dir) => {
+			seen.push(dir);
+			return links.get(dir) ?? new Set();
+		});
+		detector.findLink("a/old/note.md");
+		detector.findLink("b/keep.md");
+		seen.length = 0;
+		links.set(`${vault}/a`, new Set(["old"]));
+		detector.invalidate("a/old");
+		expect(detector.findLink("a/old/note.md")).toBe("a/old");
+		expect(detector.findLink("b/keep.md")).toBeNull();
+		expect(seen).toEqual([`${vault}/a`]);
+	});
+
+	it("invalidates cached directories regardless of case on Windows", () => {
+		let linked = false;
+		const detector = symlinkDetector(
+			vault,
+			() => (linked ? new Set(["Alias"]) : new Set()),
+			true,
+		);
+		expect(detector.findLink("Notes/Alias")).toBeNull();
+		linked = true;
+		detector.invalidate("notes/alias");
+		expect(detector.findLink("Notes/Alias")).toBe("Notes/Alias");
+	});
+
 	it("never lists inside a linked folder", () => {
 		const seen: string[] = [];
 		const detector = symlinkDetector(vault, (dir) => {
@@ -112,12 +142,13 @@ describe("scope policy with symlinks", () => {
 			isLink: (path) => path.split("/")[0] === "Junction",
 			findLink: (path) =>
 				path.split("/")[0] === "Junction" ? "Junction" : null,
+			invalidate: () => {},
 		},
 	});
 
 	it("keeps linked paths out of the scan and the diff", () => {
 		expect(scope.includes("Junction/note.md")).toBe(false);
-		expect(scope.includesInDiff("Junction/note.md")).toBe(false);
+		expect(scope.includes("Junction/note.md")).toBe(false);
 		expect(scope.canDescend("Junction")).toBe(false);
 	});
 

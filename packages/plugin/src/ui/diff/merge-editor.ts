@@ -11,7 +11,6 @@ import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { DropdownComponent } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
-import { eolOf } from "@/sync/conflict-merge";
 import {
 	applyPlan,
 	buildMergeSession,
@@ -31,6 +30,7 @@ import {
 	notifyInfo,
 	runWithNotice,
 } from "@/ui/common";
+import { eolOf } from "@/utils/eol";
 import { Divider } from "./divider";
 import { sideSpan, spanBounds, updatePaneViewportWidth } from "./geometry";
 import { LayoutMode } from "./layout-mode";
@@ -71,6 +71,7 @@ export class MergeEditorPanel {
 	private sides: Record<EMergeSide, string[]> = { local: [], remote: [] };
 	private base: string[] = [];
 	private eol = "\n";
+	private expected: { localHash: string; remoteHash: string } | null = null;
 	private conflictCount = 0;
 	private resultView: EditorView | null = null;
 	private sideViews: Partial<Record<EMergeSide, EditorView>> = {};
@@ -102,6 +103,13 @@ export class MergeEditorPanel {
 		return this.active;
 	}
 
+	/** Undoing every step back counts as none: nothing would be lost. */
+	get hasEdits(): boolean {
+		return (
+			this.active && !!this.resultView && undoDepth(this.resultView.state) > 0
+		);
+	}
+
 	reset(): void {
 		this.active = false;
 	}
@@ -128,6 +136,7 @@ export class MergeEditorPanel {
 				remote: session.remoteLines,
 			};
 			this.eol = eolOf(texts.local);
+			this.expected = texts.expected;
 			this.conflictCount = session.changes.filter((c) => c.conflict).length;
 			this.onlyUnresolved = this.conflictCount > 0;
 			this.active = true;
@@ -463,10 +472,12 @@ export class MergeEditorPanel {
 			notifyError("Resolve every conflict before saving.");
 			return;
 		}
+		const { expected } = this;
+		if (!expected) return;
 		const text = view.state.doc.toString().replace(/\n/g, this.eol);
 		try {
 			const saved = await runWithNotice(
-				() => plugin.controller.resolveConflictMerged(path, text),
+				() => plugin.controller.resolveConflictMerged(path, text, expected),
 				"Conflict resolved with merged content.",
 				"Save resolution failed",
 			);

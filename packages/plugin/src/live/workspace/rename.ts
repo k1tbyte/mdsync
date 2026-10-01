@@ -37,6 +37,8 @@ export async function moveRoom(
 	path: string,
 	still: () => boolean,
 ): Promise<Rotation> {
+	// A reader never moves a room: its note starts over at the new path at once.
+	if (space.readOnly) return "refused";
 	for (let attempt = 0; attempt < ATTEMPTS && still(); attempt++) {
 		const generation = await freeGeneration(hub, space, path);
 		// Taken: a room readers reach already holds this path, another note's.

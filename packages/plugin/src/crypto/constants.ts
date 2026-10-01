@@ -39,4 +39,7 @@ export const IV_BYTES = 12;
 
 export const KDF_ITERATIONS = 200_000;
 
+/** Code points; length buys far more against offline guessing than iterations. */
+export const MIN_PASSPHRASE_LENGTH = 12;
+
 export const KDF_SALT_LABEL = "obsync.v1.kdf";

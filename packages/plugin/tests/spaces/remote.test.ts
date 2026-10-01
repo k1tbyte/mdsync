@@ -45,16 +45,21 @@ async function publish(
 }
 
 class NoValidators extends RevalidatingStorage {
-	override async listWithEtags(prefix: string): Promise<ListedObject[]> {
-		return (await this.list(prefix)).map((name) => ({ key: name, etag: null }));
+	override async listDetailed(prefix: string): Promise<ListedObject[]> {
+		return (await this.list(prefix)).map((name) => ({
+			key: name,
+			etag: null,
+			modified: null,
+		}));
 	}
 }
 
 class CoarseValidators extends RevalidatingStorage {
-	override async listWithEtags(prefix: string): Promise<ListedObject[]> {
+	override async listDetailed(prefix: string): Promise<ListedObject[]> {
 		return (await this.list(prefix)).map((name) => ({
 			key: name,
 			etag: "same",
+			modified: null,
 		}));
 	}
 }
@@ -80,9 +85,12 @@ class LaggingReads extends RevalidatingStorage {
 }
 
 class Vanishing extends RevalidatingStorage {
-	override async listWithEtags(prefix: string): Promise<ListedObject[]> {
-		const listed = await super.listWithEtags(prefix);
-		return [...listed, { key: objectName("gone"), etag: '"gone"' }];
+	override async listDetailed(prefix: string): Promise<ListedObject[]> {
+		const listed = await super.listDetailed(prefix);
+		return [
+			...listed,
+			{ key: objectName("gone"), etag: '"gone"', modified: null },
+		];
 	}
 }
 
@@ -183,6 +191,17 @@ describe("space records over a storage that lists validators", () => {
 		await publish(storage, record("x", "X"));
 		const healed = await syncRecords(storage, key, []);
 		expect(ids(healed.records)).toEqual(["x", "y"]);
+	});
+
+	it("never writes its own copy over a record it cannot read: that one may be newer", async () => {
+		const storage = new RevalidatingStorage();
+		const unreadable = new Uint8Array([1, 2, 3]);
+		await storage.put(objectName("x"), unreadable);
+
+		const { published } = await syncRecords(storage, key, [record("x", "X")]);
+
+		expect(published).toBe(false);
+		expect(await storage.get(objectName("x"))).toEqual(unreadable);
 	});
 
 	it("warns each cycle for a record filed under another record's name", async () => {

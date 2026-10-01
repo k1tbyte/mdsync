@@ -1,6 +1,7 @@
 import type { DataAdapter } from "obsidian";
 
 import { isDrawing, mergeDrawings } from "@/drawing";
+import { withEolOf } from "@/utils/eol";
 import {
 	loadLocalText,
 	loadRemoteText,
@@ -36,10 +37,5 @@ export async function tryAutoMergeConflict(
 	// The same regions the merge editor shows, so a file it calls clean opens without conflicts.
 	const { text, changes } = buildMergeSession(baseText, localText, remoteText);
 	if (countUnresolved(changes) > 0) return null;
-	return text.split("\n").join(eolOf(localText));
-}
-
-/** The merge compares on LF, so the file's own endings have to be put back. */
-export function eolOf(value: string): string {
-	return value.includes("\r\n") ? "\r\n" : "\n";
+	return withEolOf(localText, text);
 }

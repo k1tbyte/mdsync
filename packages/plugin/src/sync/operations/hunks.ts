@@ -20,7 +20,8 @@ import {
 	selectionSize,
 } from "@/sync/hunks";
 import type { Manifest, ManifestEntry } from "@/sync/types";
-import { deletePath } from "@/vault/io";
+import { withEolOf } from "@/utils/eol";
+import { trashPath } from "@/vault/io";
 import {
 	assertSidesUnchanged,
 	EHunkPair,
@@ -72,14 +73,13 @@ export const localHunksOp: Operation<LocalHunksArgs> = async (
 
 	let localEntry: ManifestEntry | null = result.snapshot.files[path] ?? null;
 	if (reverting > 0) {
-		const kept = applyHunks(
+		const kept = withEolOf(
 			sides.left,
-			hunks,
-			complementSelection(hunks, revert),
+			applyHunks(sides.left, hunks, complementSelection(hunks, revert)),
 		);
 		// Reverting a local add leaves nothing; remove file instead of leaving it empty.
 		if (kept === "" && !deps.state.baseline?.files[path]) {
-			await deletePath(deps.adapter, path);
+			await trashPath(deps.adapter, path);
 			localEntry = null;
 		} else {
 			localEntry = await writeLocalFile(deps, path, textToBytes(kept));
@@ -96,7 +96,7 @@ export const localHunksOp: Operation<LocalHunksArgs> = async (
 
 	let manifest = result.remote;
 	if (pushing > 0) {
-		const merged = applyHunks(sides.left, hunks, push);
+		const merged = withEolOf(sides.left, applyHunks(sides.left, hunks, push));
 		// Empty result means local deletion, not zero-byte file. Publish without path.
 		const deleted = merged === "" && !(await deps.adapter.exists(path));
 		manifest = deleted
@@ -155,7 +155,7 @@ export const pullHunksOp: Operation<PullHunksArgs> = async (
 	const sides = await loadHunkSides(deps, result, path, EHunkPair.Remote);
 	await assertSidesUnchanged(sides, args.expected);
 	const { hunks } = computeHunks(sides.left, sides.right);
-	const merged = applyHunks(sides.left, hunks, selected);
+	const merged = withEolOf(sides.left, applyHunks(sides.left, hunks, selected));
 	const localEntry = await writeLocalFile(deps, path, textToBytes(merged));
 
 	// Only a pull that took every segment has acknowledged the remote version.

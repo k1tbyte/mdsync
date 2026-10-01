@@ -20,6 +20,7 @@ re-injected only on reload.
 
 `tools/e2e/` runs scenarios against real processes and tears them down:
 
+- `pnpm exec jiti tools/e2e/optimization-ui.ts` - a real Obsidian renders synthetic 20,000-file Timeline and Trash lists in 100-row pages; page navigation and full-list selection are checked. Build first. Uses ports 8832 and 9233.
 - `pnpm e2e:hub` - the relay hub under `wrangler dev`, driven by scripted peers;
   ending a share cuts its channel for good (across a restart too); its last run
   sets `HUB_STALE_MS` low to watch the stale-socket sweep.

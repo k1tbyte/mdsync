@@ -3,6 +3,7 @@ import { Modal, Setting } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { isRelayConfigured } from "@/settings/model";
 import { errorMessage } from "@/shared/errors";
+import type { PauseKind } from "@/spaces";
 import type { SpaceRecord } from "@/spaces/record";
 import {
 	type BrokerAdmin,
@@ -21,7 +22,6 @@ import {
 } from "@/ui/common";
 import { createInvite } from "./invite-action";
 import { renderInviteForm } from "./invite-section";
-import { pauseToggle } from "./pause-toggle";
 import {
 	closeLabel,
 	closeShare,
@@ -32,12 +32,21 @@ import {
 import { presenceNote, type ShareRow, shareRows } from "./share-people";
 import { shareSummary } from "./share-summary";
 
+type Pause = Exclude<PauseKind, "off">;
+
+const PAUSE: Record<Pause | "", string> = {
+	"": "Off",
+	here: "On this device",
+	everywhere: "On all my devices",
+};
+
 /** One place for a shared folder: its people, invites, pause, stop. */
 export class ShareModal extends Modal {
 	private participants: Participant[] | null = null;
 	private failure: string | null = null;
 	private shown = "";
 	private redraw = (): void => {};
+	private summary: HTMLElement | null = null;
 	private unsubscribe: (() => void) | null = null;
 	private readonly owner: boolean;
 	private readonly admin: BrokerAdmin | null;
@@ -59,7 +68,7 @@ export class ShareModal extends Modal {
 		const { contentEl, plugin, record } = this;
 		this.modalEl.addClass("obsync-share-modal");
 		this.titleEl.setText(`Sharing "${record.name}"`);
-		contentEl.createEl("p", {
+		this.summary = contentEl.createEl("p", {
 			cls: "setting-item-description",
 			text: shareSummary(plugin.spaces, record),
 		});
@@ -70,6 +79,7 @@ export class ShareModal extends Modal {
 				text: `People were invited through ${stranded}, which this vault no longer uses: invite them again, and the new link takes over the folder they have.`,
 			});
 		}
+		this.renderPause();
 		heading(contentEl, "People");
 		const failure = alertLine(contentEl);
 		const list = contentEl.createDiv({ cls: "obsync-share-access" });
@@ -185,48 +195,70 @@ export class ShareModal extends Modal {
 
 	private renderFooter(): void {
 		const { plugin, record } = this;
-		const footer = new Setting(this.modalEl);
-		footer.settingEl.addClass("obsync-share-footer");
-		const space = plugin.spaces.partition().find(({ id }) => id === record.id);
-		if (space) {
-			footer.setDesc("Pausing affects this device only.");
-			footer.addButton((button) => {
-				const show = (paused: boolean) =>
-					button.setButtonText(
-						paused ? "Resume on this device" : "Pause on this device",
-					);
-				const paused = space.paused === true;
-				show(paused);
-				button.onClick(
-					pauseToggle(
-						paused,
-						async (next) => {
-							await plugin.spaces.setPaused(record.id, next);
-							void plugin.controller.refresh();
-						},
-						show,
-					),
-				);
-			});
-		}
 		const label = closeLabel(record);
-		footer.addButton((button) =>
-			button
-				.setButtonText(label)
-				.setWarning()
-				.onClick(
-					serial(async () => {
-						button.setDisabled(true);
-						try {
-							if (await closeShare(plugin, record)) this.close();
-						} catch (err) {
-							notifyError(`Could not ${label.toLowerCase()}`, err);
-						} finally {
-							button.setDisabled(false);
-						}
-					}),
-				),
-		);
+		new Setting(this.modalEl)
+			.setClass("obsync-share-footer")
+			.setDesc(
+				this.owner
+					? "Everyone you invited loses access. The files stay in your vault."
+					: "Its changes stop reaching you. The files stay in your vault.",
+			)
+			.addButton((button) =>
+				button
+					.setButtonText(label)
+					.setWarning()
+					.onClick(
+						serial(async () => {
+							button.setDisabled(true);
+							try {
+								if (await closeShare(plugin, record)) this.close();
+							} catch (err) {
+								notifyError(`Could not ${label.toLowerCase()}`, err);
+							} finally {
+								button.setDisabled(false);
+							}
+						}),
+					),
+			);
+	}
+
+	/** Shares off here say so in the summary: nothing to choose. */
+	private renderPause(): void {
+		const { contentEl, plugin, record } = this;
+		const { spaces, controller } = plugin;
+		const mounted = spaces.partition().some(({ id }) => id === record.id);
+		const paused = spaces.pauseOf(record.id);
+		if (!mounted || paused === "off") return;
+		new Setting(contentEl)
+			.setName("Pause")
+			.setDesc("Paused, the folder stays as it is and nothing of it syncs.")
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOptions(PAUSE)
+					.setValue(paused ?? "")
+					.onChange(
+						serial(async (value) => {
+							const pause = value === "" ? null : (value as Pause);
+							// A pull or push running now would go on writing into it.
+							if (spaces.pauseOf(record.id) === null) controller.cancel();
+							dropdown.setDisabled(true);
+							try {
+								await spaces.setPause(
+									record.id,
+									pause,
+									controller.currentDevice().id,
+								);
+							} catch (err) {
+								notifyError("Could not change pause", err);
+							} finally {
+								dropdown.setDisabled(false);
+							}
+							void controller.refresh();
+							dropdown.setValue(spaces.pauseOf(record.id) ?? "");
+							this.summary?.setText(shareSummary(spaces, record));
+						}),
+					),
+			);
 	}
 }
 

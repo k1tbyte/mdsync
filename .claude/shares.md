@@ -13,7 +13,7 @@ data safe are in [sync invariants](sync-invariants.md); open work is in
 | No accounts: a person is a vault (storage + passphrase), their bucket is their control plane | serverless, no third-party service |
 | A space is the unit of sync; the vault and a share run one engine | one history, one live path, no parallel share cycle |
 | Every path belongs to exactly one space; a share's data lives once | two writers on one path corrupt it |
-| A share mounts itself on all of a person's devices; pause is per device | otherwise the folder freezes: out of the vault, not in the share |
+| A share mounts itself on all of a person's devices; pause is per device or on all of them, and a device can turn shares off | otherwise the folder freezes: out of the vault, not in the share; paused, it stays out of the vault while nothing of it syncs |
 | Leaving, closing or revocation never deletes files | they return to that person's vault |
 | One socket per relay with channels in slots; one hub object per deployment | fewer sockets, handshakes and wake-ups; one `RELAY_SECRET` is one trust domain |
 | Owning a share needs S3-compatible storage | WebDAV and Google Drive cannot presign |
@@ -24,8 +24,12 @@ data safe are in [sync invariants](sync-invariants.md); open work is in
 A **person** is a vault's owner (`owner` on the hub) or a broker token's
 `participantId`; a **device** syncing that vault is the person's, anything
 else joins by invite. Attribution, presence and revocation work per person. A
-participant is named as the owner invited them (`personName`); the owner shows
-as "Owner".
+participant is named as the owner invited them (`personName`); the owner by
+**Your name** (Settings, Shared folders), kept on each of their open shares'
+owner access so every device of theirs reads one through the records' trade,
+"Owner" while empty. A new share takes the name the others carry. The relay
+vouches only the `owner` key, so peers read that name from the owner's own
+announcement (`ChannelPresence.nameOf`).
 
 ## Spaces and records
 
@@ -47,7 +51,14 @@ as "Owner".
 - A share's location (endpoint, bucket, prefix) is pinned once: re-deriving it
   from current settings orphans its objects. Credentials never enter a record;
   each owner device uses its vault's current S3 credentials.
-- Device-local, never published: `pausedSpaces`, `pauseArrivingShares`,
+- A share is paused on a device by one rule (`pauseOf` in `spaces/partition.ts`,
+  read by the partition, the hub's routes and status, and `openShare`):
+  `useSharedFolders` off there pauses every share, arriving ones too; the
+  record's `paused` pauses it on every device of the person (published, LWW
+  like any record edit; a resume from any device clears it); `pausedSpaces`
+  on this device alone. Records still trade while shares are off, or the
+  device would read a share's folder as vault files the vault no longer lists.
+- Device-local, never published: `useSharedFolders`, `pausedSpaces`, `pauseArrivingShares`,
   `localRoots` (a move not yet followed here).
 - Every space ignores by its own `syncignore.md` in its root, rules relative to
   it (`vault/ignore.ts`); the vault's rules stop at a share's root. **Share
@@ -59,13 +70,13 @@ as "Owner".
   wins, the other record is inert.
 - The broker lets a participant into `shares/<id>/` only (`share/key.ts`); vault
   GC lists only `objects/` and `pins/`. Keep both so.
-- A participant's pull signs its objects in batches: `pullPaths` hints the
-  object keys (`prepareReads`), and the broker adapter asks
-  `POST /share/sign {op: "get", keys}` for the next `SIGN_BATCH_MAX` (32) when
-  the first is needed (`share-read-urls.ts`), falling back to one sign per
-  object on any failure (an older relay refuses batches: one wasted request,
-  then single signs until the next pull). The relay checks the token once, derives one signing
-  key, and one bad key refuses the whole batch. Pushes are not batched.
+- Participant pulls and pushes hint their object keys (`prepareReads`,
+  `prepareWrites`). `share-signed-urls.ts` lazily signs up to `SIGN_BATCH_MAX`
+  (32) GET or PUT URLs when the first is needed. Expired URLs and failed
+  batches fall back to single signing; an older relay costs one refused batch
+  per transfer. GET and PUT caches are separate. The relay checks the token
+  once, derives one signing key, rejects an unsafe key's whole batch, and
+  refuses PUT batches from read-only grants. Existence probes remain listings.
   Measured 2026-09-29 on 1000 files with modelled round trips: one sign per
   object made the pull 2-7.7x slower than direct S3, batches 1.1x.
 
@@ -112,8 +123,10 @@ as "Owner".
   writes: each write is answered `Refused(ReadOnly)`. It never signals (the
   hub drops it, HTTP answers 403: it would only wake everyone into a sync),
   and its awareness runs under its own ceiling (20 a second, bursts of 40, 4 KB).
-  Every socket's frames run under one more (32 a second, bursts of 128, excess
-  dropped unanswered): clients flush a document every 250 ms and follow at most 64.
+  Every socket's frames run under one more (32 a second, bursts of 256, excess
+  dropped unanswered). The burst takes an update and a cursor from all 64
+  documents a socket may follow; sustained bulk edits can pass the rate, and the
+  client resends what was dropped (see the echo below).
 - Per-socket state (slot -> channel, grant fingerprint, `who`, `name`) lives
   in the 16 KB WebSocket attachment, not in tags (at most 10). `name` is the
   label the owner invited a participant by, from the broker token, cut to 64
@@ -151,8 +164,12 @@ as "Owner".
 Frames are `[type][slot][docLen][doc][body]`. Choices that would cost three
 places to change later:
 
-- The echo is the ack; unacked updates are resent after a reconnect (Yjs
-  updates are idempotent).
+- The echo is the ack and names the update by the sender's counter (`n`). The
+  hub answers a socket in order, so an earlier update still unacked was
+  dropped and goes out again at once; one with no echo for 15 s goes out
+  again too, and all of them after a reconnect (Yjs updates are idempotent).
+  A dropped `SUB`, `SEED` or `ROTATE` is not retried: the note turns
+  "unanswered" until the next socket.
 - `SUB` carries `since`: a reconnect gets the tail, not the whole state.
 - `LEAVE` drops a socket's awareness at once, without y-protocols' 30 s timeout,
   but only clients that socket announced last: a silently dead socket's comes
@@ -225,6 +242,10 @@ places to change later:
   (2.27), so the file sync clears the flag first (`letWriteIn`).
 - A drawing view that reloads replaces its `excalidrawAPI`; its binding then
   asks for a new one (`stale`).
+- Another device's deletion leaves a note open here be: it stays as a new
+  file, and `LiveNotes.kept` asks the person at once to delete it here too or
+  push it back (`ui/live/deleted-elsewhere.ts`). A remote text that is not
+  readable is not a deletion and asks nothing.
 - A room silent 15 s after its `SUB` leaves the note to the file sync, as a
   dead hub does; if it answers later, the session merges in like a reopen.
 - A note renamed with its room open takes the room along (`live/workspace/rename.ts`,
@@ -255,10 +276,14 @@ places to change later:
 
 ## Presence
 
-- Each device announces `{key, name, note, idle}` on every space channel it
-  holds, sealed whole with that space's frame key: a device with no note of a
-  share open still sees who is in which one, and the relay sees no names or
+- Each device announces `{key, name, device, note, idle}` on every space channel
+  it holds, sealed whole with that space's frame key: a device with no note of
+  a share open still sees who is in which one, and the relay sees no names or
   paths. `note` is the path inside the root, so each mount maps it onto its own.
+  `device` is the device's own name in a share, where one person's devices
+  share a key: a person's entry lists theirs ("Owner · Laptop, Phone") and each
+  cursor carries its own; null in the vault, whose keys are devices. A device
+  rename reaches both, as every settings save refreshes presence and rooms.
 - A client can seal any name, not the `who` the hub vouches for its socket
   (`JOIN`/`HERE`): an announcement shows only from a vouched socket whose key
   is its `who`, and a participant under their invited label (the owner's
@@ -271,12 +296,22 @@ places to change later:
 - A file counts only while a tab shows it (Obsidian keeps naming a closed one
   active); away after 5 minutes without input in any window, popouts
   included, or with every window hidden.
-- The header menu's "follow cursor" reads the doc awareness `user.key`
-  (`live/text/cursors.ts` `watchCursor`): it watches edits too, since a
-  relative cursor moves without a new awareness state, and scrolls a frame
-  later, since y-codemirror changes awareness inside an editor update. It
-  ends once the view shows another note or the room closes (the doc's
-  `destroy`): their offsets would land in another text.
+- The header menu's "follow" (`ui/live/header/cursor-follow.ts`) follows a
+  space's person: their presence `note` opens in the same tab (one not on
+  this device yet waits), and there the doc awareness `user.key` cursor is
+  kept in the middle half of the view, centred again once it leaves it
+  (`follow-scroll.ts`). The cursor watch reads edits too, since a relative
+  cursor moves without a new awareness state, and scrolls a frame later,
+  since y-codemirror changes awareness inside an editor update. Input in the
+  tab only asks (a notice with **Stop following**): a stray key would end it
+  by surprise. It ends on that button, on another note opened there by hand,
+  or once they leave the space.
+- A note header shows its live mark only after the room answers or a second
+  passes (`note-presence.ts`), so switching notes never blinks through
+  joining. A vault note shows none unless another device is in it or the
+  relay has trouble: it is live only between this person's devices, and a
+  mark there read as shared. The header is its own button, not
+  `clickable-icon`, which themes size to one icon.
 - Each manifest entry names its publisher: `by` indexes the manifest's
   `authors` (`{key, name}`: the person in a share, the device in the vault).
   The table only grows, so an unchanged entry stays byte-identical; the merged
@@ -304,9 +339,9 @@ places to change later:
 
 ## Accepted limitations
 
-- Every share owner is the key `owner` named "Owner": two shares of different
-  owners show them alike. A remote cursor moves only while its window has
-  focus (y-codemirror), so "follow cursor" goes where they last were there.
+- Every share owner is the key `owner`: two shares of unnamed owners show them
+  alike. A remote cursor moves only while its window has
+  focus (y-codemirror), so "follow" goes where they last were there.
 - The read-only lock is the editor's: Properties, renames and other plugins
   still change files there, which then wait unpushed as before. A note moved
   into a read-only root while open locks on reopening. A drawing locks once
@@ -333,10 +368,19 @@ places to change later:
   nothing.
 - The vault's device list needs the vault key: until a sync knows the
   passphrase, settings say so instead of listing devices.
-- Revocation is not automatic: a broker `unauthorized` stays the share's error
-  and the participant leaves or opens a new link. The broker's KV is eventually consistent (~60 s,
-  negative answers cached): a fresh token can look revoked. For the same reason
-  People may lag an invite or revoke, and a hub `REVOKED` only mutes that slot.
+- Revocation closes the share on the participant's devices: a broker
+  `unauthorized` that still holds for the same token 90 s later tombstones the
+  record as Leave does (no broker call, the token is dead) and asks at once
+  whether to keep its files or trash the folder (`ui/shares/access-ended.ts`).
+  The wait is because the broker's KV is eventually consistent (~60 s, negative
+  answers cached): a fresh or renewed token looks revoked at first, and a false
+  close would reach every device of that person. A hub `REVOKED` pulls, so the
+  broker is asked soon. People may lag an invite; a revoke shows at once, as
+  the list reads each pointer.
+- A revoked writer keeps file storage for up to about three minutes: the broker
+  signs by the KV grant (cached ~60 s), never the hub's revoked table, and a
+  presigned URL lives 120 s. They held the same rights a moment before; asking
+  the hub on every signature costs a Durable Object round trip per object.
 - Re-inviting recognises a person by name, case-insensitively: one name is one
   participant, a renamed person is a new one, an unnamed invite is always new.
 - `reset-remote-storage` leaves `shares/` and `spaces/`: resetting the vault does

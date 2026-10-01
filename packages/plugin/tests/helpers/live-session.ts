@@ -1,4 +1,4 @@
-import { EFrame, type Refusal, type ServerFrame } from "@obsync/protocol";
+import { EFrame, type ServerFrame } from "@obsync/protocol";
 import { afterEach, beforeEach, expect, vi } from "vitest";
 import * as Y from "yjs";
 
@@ -6,6 +6,7 @@ import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
 import { seal } from "@/crypto/seal";
 import { docIdFor } from "@/live/doc-id";
 import { LiveSession } from "@/live/session/session";
+import type { Refused } from "@/live/session/session-deps";
 import { TEXT, type TextModel } from "@/live/text/model";
 import { LiveHub, type TestConnection } from "./live-hub";
 
@@ -20,7 +21,7 @@ export interface Device {
 	connection: TestConnection;
 	session: LiveSession<TextModel>;
 	agreed: { text: string; seq: number } | null;
-	refused: Refusal | null;
+	refused: Refused | null;
 }
 
 /** A room other than the note's first, or one this device knew further along. */
@@ -112,7 +113,7 @@ export function useLiveRoom() {
 				doc.getText("body").insert(0, "z");
 				const update = Y.encodeStateAsUpdate(doc, before);
 				const payload = await seal(live.keys, update, `doc:${live.docId}`);
-				raw.send({ type: EFrame.Update, doc: live.docId, payload });
+				raw.send({ type: EFrame.Update, doc: live.docId, n: sent, payload });
 			}
 			raw.disconnect();
 		}

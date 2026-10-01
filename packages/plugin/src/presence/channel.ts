@@ -102,6 +102,13 @@ export class ChannelPresence {
 		for (const { who, name } of this.vouched.values()) {
 			if (who === person && name !== "") return name;
 		}
+		// The relay vouches only the owner's key: their own announcement names them.
+		for (const [from, announcement] of this.open) {
+			const vouched = this.vouched.get(from);
+			if (vouched?.who === person && announcement.key === person) {
+				return announcement.name;
+			}
+		}
 		return null;
 	}
 

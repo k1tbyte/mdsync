@@ -98,6 +98,19 @@ describe("S3 request signing", () => {
 		expect(signed.url).toBe("https://host.example.com/s3/examplebucket/a/b");
 	});
 
+	it("signs a base path with escapes once, not encoded twice", async () => {
+		const signed = await createS3Signer(
+			config({
+				endpoint: "https://host.example.com/my base/",
+				forcePathStyle: true,
+			}),
+		)({ method: "GET", key: "a/b" });
+
+		expect(signed.url).toBe(
+			"https://host.example.com/my%20base/examplebucket/a/b",
+		);
+	});
+
 	it("addresses the bucket itself for a listing", async () => {
 		const pathStyle = await createS3Signer(
 			config({ endpoint: "https://minio.example.com", forcePathStyle: true }),

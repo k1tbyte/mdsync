@@ -8,7 +8,7 @@ export { HistoryTab } from "./history-tab";
 export {
 	confirmAdoptNewVault,
 	confirmBatchResolve,
-	showIgnoredFiles,
+	showFileList,
 } from "./modals";
 export { confirmRestore } from "./restore-modal";
 export { rowFromChange, rowFromConflict } from "./row-formatter";

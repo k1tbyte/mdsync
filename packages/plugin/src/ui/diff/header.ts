@@ -6,6 +6,8 @@ export interface DiffHeaderState {
 	path: string;
 	direction: EDiffDirection | null;
 	isBinary: boolean;
+	/** A remote deletion leaves no version to keep beside the local one. */
+	remotePresent: boolean;
 	isEditing: boolean;
 	canGoPrevFile: boolean;
 	canGoNextFile: boolean;
@@ -79,11 +81,13 @@ export function renderDiffHeader(
 		appendButton(actionParent, "Keep local", actions.keepLocal);
 		appendButton(actionParent, "Accept remote", actions.acceptRemote);
 		if (!state.isBinary) {
-			appendButton(
-				actionParent,
-				"Keep both versions",
-				actions.keepBothVersions,
-			);
+			if (state.remotePresent) {
+				appendButton(
+					actionParent,
+					"Keep both versions",
+					actions.keepBothVersions,
+				);
+			}
 			appendButton(actionParent, "Merge…", actions.startMerge);
 		}
 	}

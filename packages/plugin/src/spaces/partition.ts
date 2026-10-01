@@ -11,11 +11,12 @@ import type { SpaceRecord } from "./record";
  */
 export function spacesOf(
 	records: readonly SpaceRecord[],
-	paused: ReadonlySet<string> = new Set(),
+	isPaused: (record: SpaceRecord) => boolean = () => false,
 ): Space[] {
 	const spaces: Space[] = [VAULT_SPACE];
 	const byId = [...records].sort((a, b) => (a.id < b.id ? -1 : 1));
-	for (const { id, root, closed, access } of byId) {
+	for (const record of byId) {
+		const { id, root, closed, access } = record;
 		if (closed || mountError(root, spaces) !== null) continue;
 		spaces.push({
 			id,
@@ -23,10 +24,22 @@ export function spacesOf(
 			...(access.kind === "participant" && access.readOnly
 				? { readOnly: true }
 				: {}),
-			...(paused.has(id) ? { paused: true } : {}),
+			...(isPaused(record) ? { paused: true } : {}),
 		});
 	}
 	return spaces;
+}
+
+/** Why this device holds a share out of sync: shares off here, paused on all the person's devices, or here. */
+export type PauseKind = "off" | "everywhere" | "here";
+
+export function pauseOf(
+	record: SpaceRecord,
+	settings: { useSharedFolders: boolean; pausedSpaces: readonly string[] },
+): PauseKind | null {
+	if (!settings.useSharedFolders) return "off";
+	if (record.paused) return "everywhere";
+	return settings.pausedSpaces.includes(record.id) ? "here" : null;
 }
 
 /** Why no space can be mounted at `root` beside `spaces`, or null when it can. */

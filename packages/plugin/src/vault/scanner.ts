@@ -3,7 +3,7 @@ import { Platform } from "obsidian";
 import { DEFAULT_CONCURRENCY } from "@/constants";
 import { sha256Hex } from "@/crypto";
 import { sceneOfBytes } from "@/drawing";
-import { stripTrailingSlash } from "@/shared/path";
+import { hasDotSegment, stripTrailingSlash } from "@/shared/path";
 import { sortedByPath } from "@/shared/records";
 import type {
 	HashCacheEntry,
@@ -12,16 +12,14 @@ import type {
 	SkippedFile,
 } from "@/sync/types";
 import { runWithConcurrency } from "@/utils/concurrency";
+import {
+	createLargeFileGate,
+	LARGE_FILE_BYTES,
+} from "@/utils/file-concurrency";
 import type { VaultIndex } from "./file-index";
 import type { ScopePolicy } from "./scope";
 
 const RACY_INDEX_WINDOW_MS = 2_000;
-
-/**
- * Above this a file is hashed on its own. Hashing holds the whole file, and the
- * size cap defaults to 100 MB - four of those at once is a mobile crash.
- */
-const LARGE_FILE_BYTES = 8 * 1024 * 1024;
 
 const ROOT = "";
 
@@ -43,6 +41,10 @@ export interface ScannerOptions {
 	 * the disk before the scan is allowed to call it gone.
 	 */
 	expected?: Readonly<Record<string, unknown>>;
+	/** With `index`, the disk is listed too: the watcher misses a bulk copy from outside the app. */
+	walk?: boolean;
+	/** Found by an earlier walk: scanned until the index has them. */
+	unindexed?: ReadonlySet<string>;
 }
 
 /** A path to scan, carrying the index's stat when one was available. */
@@ -72,6 +74,7 @@ export async function scanVault(
 		emptyFolders: rawEmptyFolders,
 		ignored,
 		unreadable,
+		unindexed,
 	} = options.index
 		? await collectFromIndex(
 				adapter,
@@ -79,17 +82,15 @@ export async function scanVault(
 				options.index,
 				concurrency,
 				options.expected,
+				options.walk ? null : (options.unindexed ?? new Set()),
 			)
 		: await collectFromWalk(adapter, scope);
 	ignoredPaths.push(...ignored);
 	for (const dir of unreadable) {
-		skipped.push({
-			path: dir === "" ? "/" : dir,
-			reason: "Directory could not be listed",
-		});
+		skipped.push({ path: dir === "" ? "/" : dir, reason: "unreadable" });
 	}
 	let scanned = 0;
-	const gate = serialGate();
+	const gate = createLargeFileGate();
 	await runWithConcurrency(paths, concurrency, async (candidate) => {
 		const path = candidate.path;
 		// The index listed this path, so it existed moments ago.
@@ -113,7 +114,7 @@ export async function scanVault(
 					// knows about but the adapter will not stat has to be reported as
 					// skipped, or the diff publishes it as a deletion.
 					if (indexed) {
-						skipped.push({ path, reason: "Could not stat the file" });
+						skipped.push({ path, reason: "unreadable" });
 					}
 					return;
 				}
@@ -121,10 +122,7 @@ export async function scanVault(
 				mtime = stat.mtime;
 			}
 			if (size > options.maxFileBytes) {
-				skipped.push({
-					path,
-					reason: `File exceeds max size (${size} bytes)`,
-				});
+				skipped.push({ path, reason: "too-large", size });
 				return;
 			}
 			const cached = hashCache[path];
@@ -145,7 +143,7 @@ export async function scanVault(
 				? cached
 				: { mtime, size, hash: entry.hash, scene: entry.scene };
 		} catch (err) {
-			skipped.push({ path, reason: `Could not read: ${String(err)}` });
+			skipped.push({ path, reason: "unreadable", detail: String(err) });
 			return;
 		}
 		const count = ++scanned;
@@ -160,10 +158,7 @@ export async function scanVault(
 			const lc = path.toLowerCase();
 			const existing = lower.get(lc);
 			if (existing) {
-				skipped.push({
-					path,
-					reason: `Case-insensitive collision with "${existing}"`,
-				});
+				skipped.push({ path, reason: "case-clash", other: existing });
 				delete files[path];
 				delete updatedCache[path];
 			} else {
@@ -192,9 +187,21 @@ export async function scanVault(
 			emptyFolders,
 			ignoredPaths,
 			unreadableDirs: unreadable,
+			...unindexedOf(unindexed, files, skipped),
 		},
 		updatedCache: sortedByPath(updatedCache),
 	};
+}
+
+/** Only those still on disk, so a deleted one is not carried on. */
+function unindexedOf(
+	paths: readonly string[] | undefined,
+	files: Readonly<Record<string, unknown>>,
+	skipped: readonly SkippedFile[],
+): { unindexed?: string[] } {
+	const left = new Set(skipped.map(({ path }) => path));
+	const here = paths?.filter((path) => path in files || left.has(path)) ?? [];
+	return here.length > 0 ? { unindexed: here } : {};
 }
 
 async function buildEntry(
@@ -210,28 +217,12 @@ async function buildEntry(
 	gate?: <T>(run: () => Promise<T>) => Promise<T>,
 ): Promise<ManifestEntry> {
 	if (hit) return { hash: hit.hash, size, mtime, kind, scene: hit.scene };
-	// Gated around the read alone: a cache hit reads nothing and must not queue.
-	const read = (): Promise<ArrayBuffer> => adapter.readBinary(path);
-	const bytes = new Uint8Array(await (gate ? gate(read) : read()));
-	const hash = await sha256Hex(bytes);
-	return { hash, size, mtime, kind, scene: await sceneOfBytes(path, bytes) };
-}
-
-/**
- * Admits one caller at a time. Hashing needs the whole file resident, so the
- * worker pool would otherwise hold `concurrency` large files at once - four
- * 100 MB attachments is enough to end an Obsidian mobile session.
- */
-function serialGate(): <T>(run: () => Promise<T>) => Promise<T> {
-	let tail: Promise<unknown> = Promise.resolve();
-	return <T>(run: () => Promise<T>): Promise<T> => {
-		const next = tail.then(run);
-		tail = next.then(
-			() => undefined,
-			() => undefined,
-		);
-		return next;
+	const build = async (): Promise<ManifestEntry> => {
+		const bytes = new Uint8Array(await adapter.readBinary(path));
+		const hash = await sha256Hex(bytes);
+		return { hash, size, mtime, kind, scene: await sceneOfBytes(path, bytes) };
 	};
+	return gate ? gate(build) : build();
 }
 
 function isCacheHit(
@@ -254,6 +245,7 @@ interface Collected {
 	emptyFolders: string[];
 	ignored: string[];
 	unreadable: string[];
+	unindexed?: string[];
 }
 
 async function collectFromWalk(
@@ -282,6 +274,8 @@ async function collectFromIndex(
 	index: VaultIndex,
 	concurrency: number,
 	expected?: Readonly<Record<string, unknown>>,
+	/** Null lists the disk. */
+	known: ReadonlySet<string> | null = new Set(),
 ): Promise<Collected> {
 	const files: ScanCandidate[] = [];
 	const ignored: string[] = [];
@@ -332,11 +326,25 @@ async function collectFromIndex(
 	// Candidates with no stat: the worker takes the authoritative one and drops
 	// the path only once the adapter agrees it is gone. In a settled vault this
 	// list is empty, so the guard costs nothing until the index is behind.
+	const unstated = new Set<string>();
 	for (const path of Object.keys(expected ?? {})) {
 		if (seen.has(path) || isConfigPath(path)) continue;
 		if (hasPrunedAncestor(path, pruned)) continue;
-		if (scope.includes(path)) files.push({ path });
+		if (scope.includes(path)) unstated.add(path);
 	}
+
+	const onDisk = known ?? (await listAllFiles(adapter, scope, ROOT)).files;
+	// The index hides dot-paths, so the walk does too.
+	const unindexed = [...onDisk].filter(
+		(path) =>
+			!isConfigPath(path) &&
+			!seen.has(path) &&
+			!hasDotSegment(path) &&
+			!hasPrunedAncestor(path, pruned) &&
+			scope.includes(path),
+	);
+	for (const path of unindexed) unstated.add(path);
+	for (const path of unstated) files.push({ path });
 
 	// The index hides dotfiles, so a folder holding only a `.DS_Store` looks
 	// empty to it. Only the candidates are listed, never the whole tree.
@@ -363,7 +371,7 @@ async function collectFromIndex(
 	// these folders, so a stable spelling keeps identical scans identical.
 	emptyFolders.sort();
 	unreadable.sort();
-	return { files, emptyFolders, ignored, unreadable };
+	return { files, emptyFolders, ignored, unreadable, unindexed };
 }
 
 function hasPrunedAncestor(path: string, pruned: ReadonlySet<string>): boolean {

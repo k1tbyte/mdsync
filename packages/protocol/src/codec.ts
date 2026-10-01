@@ -35,8 +35,8 @@ const CLIENT: Codec<ClientFrame> = {
 	},
 	[EFrame.Unsub]: none,
 	[EFrame.Update]: {
-		write: (f, out) => out.bytes(f.payload),
-		read: (input) => ({ payload: input.rest() }),
+		write: (f, out) => out.u32(f.n).bytes(f.payload),
+		read: (input) => ({ n: input.u32(), payload: input.rest() }),
 	},
 	[EFrame.Awareness]: {
 		write: (f, out) => out.bytes(f.payload),
@@ -58,8 +58,8 @@ const CLIENT: Codec<ClientFrame> = {
 	},
 	[EFrame.Signal]: none,
 	[EFrame.Seed]: {
-		write: (f, out) => out.bytes(f.payload),
-		read: (input) => ({ payload: input.rest() }),
+		write: (f, out) => out.u32(f.n).bytes(f.payload),
+		read: (input) => ({ n: input.u32(), payload: input.rest() }),
 	},
 };
 
@@ -97,8 +97,8 @@ const SERVER: Codec<ServerFrame> = {
 		}),
 	},
 	[EFrame.Echo]: {
-		write: (f, out) => out.u32(f.seq),
-		read: (input) => ({ seq: input.u32() }),
+		write: (f, out) => out.u32(f.seq).u32(f.n),
+		read: (input) => ({ seq: input.u32(), n: input.u32() }),
 	},
 	[EFrame.Peer]: {
 		write: (f, out) => out.u32(f.from).bytes(f.payload),

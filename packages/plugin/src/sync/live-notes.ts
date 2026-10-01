@@ -11,8 +11,7 @@ import {
 	loadBaselineText,
 	loadRemoteBytes,
 	loadRemoteText,
-	writeLocalFile,
-	writeRemoteEntry,
+	writeFetched,
 } from "./content";
 import type { CompareResult, EngineDependencies } from "./engine";
 import type { LiveMark, ManifestEntry } from "./types";
@@ -41,6 +40,8 @@ export interface LiveNotes {
 	wrote(path: string, mark: LiveMark, text: string): Promise<void>;
 	/** A room has, or is opening, the note: the file sync neither moves nor writes it. */
 	holds(path: string): boolean;
+	/** Another device deleted a note open here: it stays, now a new file. */
+	kept(path: string): void;
 }
 
 /** Which side an incoming version of a live note settles on, or null for the cold path. */
@@ -54,15 +55,23 @@ export async function settleLive(
 	const { live } = deps;
 	if (!live) return null;
 	const remote = entryAt(result.remote?.files ?? {}, path);
+	let unreadable = false;
 	const take = await live.absorb(path, remote?.live, async () => {
 		if (!remote) return null;
 		const [base, incoming] = await Promise.all([
 			loadBaselineText(deps, deps.state.baseline, path),
 			loadRemoteText(deps, remote.hash),
 		]);
+		// Missing, too large or not text: no deletion, and nothing the room could take.
+		if (incoming === null) unreadable = true;
 		return incoming === null ? null : { base: base ?? "", incoming };
 	});
-	if (take === "taken") return "local";
+	// Read as a deletion the room left the note be; settled "local", the next push would overwrite the remote.
+	if (unreadable) return "later";
+	if (take === "taken") {
+		if (!remote) live.kept(path);
+		return "local";
+	}
 	if (take === "later") return "later";
 	const local = entryAt(result.snapshot.files, path);
 	if (!remote?.live || !local) return null;
@@ -129,13 +138,14 @@ export async function writeIncoming(
 	deps: EngineDependencies,
 	path: string,
 	entry: ManifestEntry,
-): Promise<ManifestEntry> {
-	const mark = entry.live;
-	if (!mark || !deps.live) return writeRemoteEntry(deps, path, entry);
+	/** False after the download leaves the file be, and returns null. */
+	ready?: () => Promise<boolean>,
+): Promise<ManifestEntry | null> {
 	const bytes = await loadRemoteBytes(deps, entry.hash);
 	if (!bytes) throw new Error(`Missing remote object for ${path}`);
-	const written = await writeLocalFile(deps, path, bytes);
+	if (ready && !(await ready())) return null;
+	const written = await writeFetched(deps.adapter, path, entry, bytes);
 	// After the file: a merge base newer than the disk would read as deletions.
-	await deps.live.wrote(path, mark, bytesToText(bytes));
+	if (entry.live) await deps.live?.wrote(path, entry.live, bytesToText(bytes));
 	return written;
 }

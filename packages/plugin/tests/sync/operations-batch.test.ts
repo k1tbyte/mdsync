@@ -9,6 +9,7 @@ import {
 	batchAcceptRemoteOp,
 	batchKeepLocalOp,
 	keepBothConflictOp,
+	saveMergedOp,
 } from "@/sync/operations/resolve";
 import { revertPathsOp } from "@/sync/operations/revert";
 import { recomputeAfterWrite } from "@/sync/session-state";
@@ -254,6 +255,17 @@ describe("batch operations", () => {
 		);
 	});
 
+	it("revert moves a file that never synced to the trash, not out of existence", async () => {
+		const [a] = await syncedPair({ "note.md": "original\n" });
+		a.adapter.putText("draft.md", "only here\n");
+		const result = await a.compare();
+
+		await revertPathsOp(a.deps(), result, ["draft.md"], a.context());
+
+		expect(a.adapter.hasFile("draft.md")).toBe(false);
+		expect(a.text(".trash/draft.md")).toBe("only here\n");
+	});
+
 	it("push refuses while any conflict is unresolved", async () => {
 		const [a, b] = await syncedPair({ "note.md": "shared\n" });
 		b.adapter.putText("note.md", "by B\n");
@@ -265,6 +277,22 @@ describe("batch operations", () => {
 		await expect(
 			pushPathsOp(a.deps(), aResult, ["note.md"], a.context()),
 		).rejects.toThrow(/conflicts/);
+	});
+
+	it("keep-both refuses a remote deletion: there is no version to park", async () => {
+		const [a, b] = await syncedPair({ "note.md": "shared\n" });
+		await b.adapter.remove("note.md");
+		const bResult = await b.compare();
+		await pushPathsOp(b.deps(), bResult, ["note.md"], b.context());
+
+		a.adapter.putText("note.md", "local edit\n");
+		const aResult = await a.compare();
+		expect(aResult.diff.conflicts.map((c) => c.path)).toEqual(["note.md"]);
+
+		await expect(
+			keepBothConflictOp(a.deps(), aResult, "note.md", a.context()),
+		).rejects.toThrow(/deleted remotely/);
+		expect(a.text("note.md")).toBe("local edit\n");
 	});
 
 	it("keep-both parks the remote version beside the file and publishes only the local side", async () => {
@@ -301,5 +329,160 @@ describe("batch operations", () => {
 		const after = await a.compare();
 		expect(after.diff.localChanges.map((c) => c.path)).toEqual([copy]);
 		expect(after.diff.conflicts).toHaveLength(0);
+	});
+});
+
+describe("saving a merge resolution", () => {
+	const SHARED = "one\ntwo\nthree\nfour\nfive\nsix\n";
+
+	async function conflicted() {
+		const [a, b] = await syncedPair({ "note.md": SHARED });
+		b.adapter.putText("note.md", SHARED.replace("one", "ONE"));
+		const bResult = await b.compare();
+		await pushPathsOp(b.deps(), bResult, ["note.md"], b.context());
+		a.adapter.putText("note.md", SHARED.replace("six", "SIX"));
+		const result = await a.compare();
+		const [conflict] = result.diff.conflicts;
+		if (!conflict) throw new Error("expected a conflict");
+		const expected = {
+			localHash: conflict.localHash,
+			remoteHash: conflict.remoteHash,
+		};
+		return { a, b, result, expected };
+	}
+
+	const merged = SHARED.replace("one", "ONE").replace("six", "SIX");
+
+	it("writes the merge and publishes it when both sides are still the ones it was made from", async () => {
+		const { a, result, expected } = await conflicted();
+
+		const outcome = await saveMergedOp(
+			a.deps(),
+			result,
+			{ path: "note.md", content: merged, expected },
+			a.context(),
+		);
+
+		expect(a.text("note.md")).toBe(merged);
+		expect(outcome.newRemote?.files["note.md"]).toBeDefined();
+	});
+
+	it("refuses, leaving the file alone, when the remote moved since the merge was opened", async () => {
+		const { a, b, expected } = await conflicted();
+		b.adapter.putText("note.md", SHARED.replace("one", "ONE").concat("more\n"));
+		const again = await b.compare();
+		await pushPathsOp(b.deps(), again, ["note.md"], b.context());
+		const result = await a.compare();
+
+		await expect(
+			saveMergedOp(
+				a.deps(),
+				result,
+				{ path: "note.md", content: merged, expected },
+				a.context(),
+			),
+		).rejects.toThrow(/changed since the merge was opened/);
+		expect(a.text("note.md")).toBe(SHARED.replace("six", "SIX"));
+	});
+
+	it("refuses when the local file changed since the merge was opened", async () => {
+		const { a, expected } = await conflicted();
+		a.adapter.putText("note.md", "typed meanwhile\n");
+		const result = await a.compare();
+
+		await expect(
+			saveMergedOp(
+				a.deps(),
+				result,
+				{ path: "note.md", content: merged, expected },
+				a.context(),
+			),
+		).rejects.toThrow(/changed since the merge was opened/);
+		expect(a.text("note.md")).toBe("typed meanwhile\n");
+	});
+
+	it("refuses when the conflict is gone", async () => {
+		const { a, expected } = await conflicted();
+		a.adapter.putText("note.md", SHARED.replace("one", "ONE"));
+		const result = await a.compare();
+
+		await expect(
+			saveMergedOp(
+				a.deps(),
+				result,
+				{ path: "note.md", content: merged, expected },
+				a.context(),
+			),
+		).rejects.toThrow(/changed since the merge was opened/);
+	});
+});
+
+describe("a pull of a file edited after the scan", () => {
+	async function remoteChanged(change: "edit" | "delete") {
+		const [a, b] = await syncedPair({ "note.md": "shared\n" });
+		if (change === "edit") b.adapter.putText("note.md", "from B\n");
+		else await b.adapter.remove("note.md");
+		const bResult = await b.compare();
+		await pushPathsOp(b.deps(), bResult, ["note.md"], b.context());
+		return { a, result: await a.compare() };
+	}
+
+	it("keeps the edit instead of overwriting it", async () => {
+		const { a, result } = await remoteChanged("edit");
+		a.adapter.putText("note.md", "typed while downloading\n");
+
+		const pulled = await pullPaths(a.deps(), result, ["note.md"]);
+
+		expect(a.text("note.md")).toBe("typed while downloading\n");
+		expect(pulled.written.has("note.md")).toBe(false);
+	});
+
+	it("keeps the edit instead of deleting the file", async () => {
+		const { a, result } = await remoteChanged("delete");
+		a.adapter.putText("note.md", "typed while downloading\n");
+
+		const pulled = await pullPaths(a.deps(), result, ["note.md"]);
+
+		expect(a.text("note.md")).toBe("typed while downloading\n");
+		expect(pulled.written.has("note.md")).toBe(false);
+	});
+
+	it("writes a file nobody touched since the scan", async () => {
+		const { a, result } = await remoteChanged("edit");
+
+		const pulled = await pullPaths(a.deps(), result, ["note.md"]);
+
+		expect(a.text("note.md")).toBe("from B\n");
+		expect(pulled.written.has("note.md")).toBe(true);
+	});
+
+	it("keeps an edit to a file moved here when the remote edit of its old path arrives", async () => {
+		const { a } = await remoteChanged("edit");
+		await a.adapter.rename("note.md", "moved.md");
+		const result = await a.compare();
+		expect(result.diff.moves).toMatchObject([
+			{ from: "note.md", to: "moved.md", side: "local" },
+		]);
+		a.adapter.putText("moved.md", "typed while downloading\n");
+
+		const pulled = await pullPaths(a.deps(), result, ["moved.md"]);
+
+		expect(a.text("moved.md")).toBe("typed while downloading\n");
+		expect(pulled.written.has("moved.md")).toBe(false);
+	});
+
+	it("refuses to accept the remote side over an edit made after the compare", async () => {
+		const [a, b] = await syncedPair({ "note.md": "shared\n" });
+		b.adapter.putText("note.md", "from B\n");
+		const bResult = await b.compare();
+		await pushPathsOp(b.deps(), bResult, ["note.md"], b.context());
+		a.adapter.putText("note.md", "from A\n");
+		const result = await a.compare();
+		a.adapter.putText("note.md", "typed after the compare\n");
+
+		await expect(
+			batchAcceptRemoteOp(a.deps(), result, new Set(["note.md"]), a.context()),
+		).rejects.toThrow(/changed since the compare/);
+		expect(a.text("note.md")).toBe("typed after the compare\n");
 	});
 });

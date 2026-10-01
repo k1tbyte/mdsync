@@ -68,6 +68,19 @@ describe("share invites", () => {
 		expect(again.closed).toBeUndefined();
 	});
 
+	it.each(["../manifest", "a/b", "", "a".repeat(65)])(
+		"refuse an id that is not a safe path segment (%j)",
+		async (id) => {
+			const link = await inviteLink({ ...INVITE, id }, "right");
+			await expect(readInvite(link, "right")).rejects.toThrow(
+				"not an Obsync invite",
+			);
+			expect(isSpaceRecord({ ...acceptInvite(INVITE, "x", "phone"), id })).toBe(
+				false,
+			);
+		},
+	);
+
 	it("stay shut to another password and to links that are not invites", async () => {
 		const link = await inviteLink(INVITE, "right");
 		await expect(readInvite(link, "wrong")).rejects.toThrow();

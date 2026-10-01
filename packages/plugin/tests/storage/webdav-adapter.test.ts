@@ -26,11 +26,11 @@ vi.mock("obsidian", async (importOriginal) => ({
 	},
 }));
 
-const adapter = () =>
+const adapter = (basePath = "obsync/") =>
 	createWebDAVAdapter({
 		kind: EStorageBackend.WebDAV,
 		baseUrl: "https://dav.example/dav/",
-		basePath: "obsync/",
+		basePath,
 		username: "u",
 		password: "p",
 		concurrency: 4,
@@ -39,8 +39,8 @@ const adapter = () =>
 const ROOT = "/dav/obsync/";
 const collection = (path: string) =>
 	`<d:response><d:href>${ROOT}${path}</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>`;
-const file = (path: string, etag?: string) =>
-	`<d:response><d:href>${ROOT}${path}</d:href><d:propstat><d:prop><d:resourcetype/>${etag ? `<d:getetag>${etag}</d:getetag>` : ""}</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>${etag ? "" : `<d:propstat><d:prop><d:getetag/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat>`}</d:response>`;
+const file = (path: string, etag?: string, modified?: string) =>
+	`<d:response><d:href>${ROOT}${path}</d:href><d:propstat><d:prop><d:resourcetype/>${etag ? `<d:getetag>${etag}</d:getetag>` : ""}${modified ? `<d:getlastmodified>${modified}</d:getlastmodified>` : ""}</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>${etag ? "" : `<d:propstat><d:prop><d:getetag/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat>`}</d:response>`;
 const multistatus = (...responses: string[]) => ({
 	status: 207,
 	text: `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">${responses.join("")}</d:multistatus>`,
@@ -56,24 +56,32 @@ describe("WebDAV listings", () => {
 	it("asks for each entry's etag", async () => {
 		replies = [multistatus(collection("spaces/"))];
 
-		await adapter().listWithEtags?.("spaces/");
+		await adapter().listDetailed?.("spaces/");
 
 		expect(requests[0]?.method).toBe("PROPFIND");
 		expect(requests[0]?.body).toContain("<d:getetag/>");
 	});
 
-	it("reports each file's decoded etag, and none for a server that has none", async () => {
+	it("reports each file's decoded etag and last write, and none for a server that has none", async () => {
 		replies = [
 			multistatus(
 				collection("spaces/"),
-				file("spaces/a.json.enc", "&quot;e1&quot;"),
+				file(
+					"spaces/a.json.enc",
+					"&quot;e1&quot;",
+					"Wed, 30 Sep 2026 10:00:00 GMT",
+				),
 				file("spaces/b.json.enc"),
 			),
 		];
 
-		expect(await adapter().listWithEtags?.("spaces/")).toEqual([
-			{ key: "spaces/a.json.enc", etag: '"e1"' },
-			{ key: "spaces/b.json.enc", etag: null },
+		expect(await adapter().listDetailed?.("spaces/")).toEqual([
+			{
+				key: "spaces/a.json.enc",
+				etag: '"e1"',
+				modified: Date.UTC(2026, 8, 30, 10),
+			},
+			{ key: "spaces/b.json.enc", etag: null, modified: null },
 		]);
 	});
 
@@ -88,5 +96,42 @@ describe("WebDAV listings", () => {
 			"https://dav.example/dav/obsync/",
 			"https://dav.example/dav/obsync/spaces/",
 		]);
+	});
+
+	it("reads hrefs a server escapes differently from the request", async () => {
+		const href = (path: string) =>
+			`<d:response><d:href>${path}</d:href><d:propstat><d:prop><d:resourcetype/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>`;
+		replies = [
+			multistatus(
+				href("/dav/Bob%27s%20vault/spaces/a.json.enc"),
+				href("/dav/bob%27s%20vault/spaces/ignored.enc"),
+				href("/dav/Bob's%20vault/spaces/b.json.enc"),
+			),
+		];
+
+		expect(await adapter("Bob's vault/").list("spaces/")).toEqual([
+			"spaces/a.json.enc",
+			"spaces/b.json.enc",
+		]);
+	});
+
+	it("does not take a listing it cannot read for an empty folder", async () => {
+		replies = [
+			{ status: 207, text: "<parsererror>not well-formed</parsererror>" },
+		];
+
+		await expect(adapter().list("spaces/")).rejects.toThrow(
+			/could not be read/,
+		);
+	});
+
+	it("does not take a listing of another folder for an empty one", async () => {
+		replies = [
+			multistatus(
+				`<d:response><d:href>/elsewhere/x</d:href><d:propstat><d:prop><d:resourcetype/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>`,
+			),
+		];
+
+		await expect(adapter().list("spaces/")).rejects.toThrow(/outside/);
 	});
 });

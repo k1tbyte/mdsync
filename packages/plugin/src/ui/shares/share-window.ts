@@ -15,6 +15,7 @@ export function addShareMenuItem(
 	plugin: PluginHost,
 	root: string,
 ): void {
+	if (!plugin.settings.useSharedFolders) return;
 	const shared = plugin.spaces
 		.list()
 		.find((record) => !record.closed && isUnder(root, record.root));

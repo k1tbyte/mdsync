@@ -3,6 +3,7 @@ import type { PluginHost } from "@/plugin/host";
 import { errorMessage } from "@/shared/errors";
 import { formatBytes } from "@/shared/format";
 import type { FileDiffModel, HistoryVersionRef } from "@/sync/projection";
+import { alertLine } from "@/ui/common";
 import { renderHunkPreview } from "@/ui/diff";
 import { openPromiseModal } from "@/ui/modals/promise-modal";
 import { actionButton } from "./action-button";
@@ -67,7 +68,7 @@ export function confirmRestore(
 		void loadPreview(options)
 			.then((model) => {
 				renderPreview(body, model);
-				confirm.setDisabled(false);
+				confirm.setDisabled(model === null);
 			})
 			.catch((err: unknown) => {
 				body.empty();
@@ -115,10 +116,22 @@ export function confirmBulkRestore(
 			cls: "obsync-restore-summary",
 			text: "Writes each version below back into the vault. Nothing is pushed until you say so. Use a row's Preview to inspect a file first.",
 		});
+		// A file recreated since its deletion is overwritten, as a single restore warns.
+		const present = entries.filter(
+			(entry) => plugin.app.vault.getAbstractFileByPath(entry.path) !== null,
+		);
+		if (present.length > 0) {
+			alertLine(modal.contentEl).setText(
+				`${present.length} of them are in the vault again: their current content is replaced.`,
+			);
+		}
 		const list = modal.contentEl.createDiv({ cls: "obsync-bulk-restore-list" });
 		for (const entry of entries) {
+			const replaces = present.includes(entry)
+				? ", replaces the current file"
+				: "";
 			list.createDiv({
-				text: `${entry.path} - ${entry.label} (${formatBytes(entry.size)})`,
+				text: `${entry.path} - ${entry.label} (${formatBytes(entry.size)})${replaces}`,
 			});
 		}
 		const buttons = modal.contentEl.createDiv({ cls: "obsync-modal-buttons" });

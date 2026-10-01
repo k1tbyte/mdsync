@@ -1,6 +1,6 @@
 import { type FileView, MarkdownView, type TFile } from "obsidian";
 
-import { isLinkState } from "@/hub/status";
+import { isLinkState, type RelayStatus } from "@/hub/status";
 import { type ColdCause, docKindOf, LIVE_VIEWS, liveKindOf } from "@/live";
 import type { PluginHost } from "@/plugin/host";
 import type { Space } from "@/sync/space";
@@ -13,6 +13,7 @@ const COLD_CAUSES: Record<ColdCause, string> = {
 	"too-large": "Too large to edit live: changes sync on the schedule",
 	"too-many": "Too many notes open live: this one syncs on the schedule",
 	"read-only": ARRIVES_ON_SYNC,
+	unreadable: "Can't read the live room: a different key or access",
 	"moved-away": "Live editing moved elsewhere: changes sync on the schedule",
 	empty: "Nobody is editing it live yet: reopen it to follow them",
 	diverged: "This copy differs from the live one: changes sync on the schedule",
@@ -23,6 +24,11 @@ export interface LiveStatus {
 	label: string;
 }
 
+const NOT_CARRIED: Partial<Record<RelayStatus, LiveStatus>> = {
+	paused: { state: "cold", label: RELAY_TEXT.paused },
+	full: { state: "warning", label: RELAY_TEXT.full },
+};
+
 /** Null where no relay carries `space`, the file's. */
 export function liveStatusOf(
 	plugin: PluginHost,
@@ -32,11 +38,7 @@ export function liveStatusOf(
 ): LiveStatus | null {
 	const { people, live, hub } = plugin.realtime;
 	const relay = hub.statusOf(space.id);
-	if (!isLinkState(relay)) {
-		return relay === "paused"
-			? { state: "cold", label: RELAY_TEXT.paused }
-			: null;
-	}
+	if (!isLinkState(relay)) return NOT_CARRIED[relay] ?? null;
 	if (relay !== "connected") {
 		return { state: LINK_LIVE_STATE[relay], label: RELAY_TEXT[relay] };
 	}
