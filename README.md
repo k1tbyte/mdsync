@@ -253,6 +253,13 @@ From the share's window you can see who is in it, revoke a person, pause the sha
 **Settings → Obsync → Connection → Export setup** creates an encrypted link and QR code with your main sync settings, storage credentials included. It leaves out the cached passphrase and display preferences. The link is encrypted with your passphrase, so the new device needs the same passphrase and confirms the import before anything is applied.
 
 <details>
+<summary>Demo</summary>
+
+![Export a setup QR on one device and scan it into the import prompt of another](https://raw.githubusercontent.com/k1tbyte/obsync/main/docs/demos/transfer.webp)
+
+</details>
+
+<details>
 <summary>All commands</summary>
 
 - **Compare with remote**: refresh sync status and open the source control view.
