@@ -161,6 +161,21 @@ body:not(.is-phone) .menu-item.is-label:has(.obsync-menu-info) {
 	}
 }
 
+/* y-codemirror's flag is white serif text; this one reads as part of Obsidian. The extra class
+   outranks the editor's own theme, which is injected after this sheet. */
+.markdown-source-view .cm-editor .cm-ySelectionInfo {
+	top: -1.7em;
+	padding: 1px var(--size-4-1);
+	border-radius: var(--radius-s) var(--radius-s) var(--radius-s) 0;
+	font-family: var(--font-interface);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-medium);
+	line-height: 1.3;
+	/* One text colour for every person's hue, from yellow to violet. */
+	color: #fff;
+	text-shadow: 0 1px 2px rgb(0 0 0 / 45%);
+}
+
 .obsync-scroll-marks {
 	position: absolute;
 	inset-block: 0;

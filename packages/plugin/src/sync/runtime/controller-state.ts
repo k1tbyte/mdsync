@@ -1,4 +1,5 @@
 import type { CompareResult } from "@/sync/engine";
+import { changeCount } from "@/sync/moves";
 import { type Space, VAULT_SPACE } from "@/sync/space";
 import { StatusBroadcaster } from "@/sync/status-broadcaster";
 import { mergeResults } from "./merged-result";
@@ -56,8 +57,8 @@ export class SyncControllerRuntimeState {
 		const result = this.getResult();
 		const diff = result?.diff;
 		return {
-			pendingLocal: diff?.localChanges.length ?? 0,
-			pendingRemote: diff?.remoteChanges.length ?? 0,
+			pendingLocal: diff ? changeCount(diff.localChanges, diff.moves) : 0,
+			pendingRemote: diff ? changeCount(diff.remoteChanges, diff.moves) : 0,
 			conflicts: diff?.conflicts.length ?? 0,
 			lastCompareAt: this.resultAt,
 			busy: this.pendingOps > 0,

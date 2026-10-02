@@ -3,10 +3,14 @@ import type { Text } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { ButtonComponent, Platform } from "obsidian";
 
-import type { SyncHunk } from "@/sync/hunks";
 import { appendIconButton, appendLabeledButton, notifyInfo } from "@/ui/common";
 
-import { hunkTitle, presentChunk, presentSyncHunk } from "./helpers";
+import {
+	hunkTitle,
+	presentChunk,
+	presentSyncChange,
+	type SyncChange,
+} from "./helpers";
 import { revertHunk } from "./hunk-revert";
 import type { SignsProvider } from "./provider";
 
@@ -18,16 +22,16 @@ export interface HunkTarget {
 	baseline: Text;
 	provider: SignsProvider;
 	path: string | null;
-	syncHunk: SyncHunk | null;
+	syncChange: SyncChange | null;
 }
 
 export function buildPopup(
 	target: HunkTarget,
 	dismiss: () => void,
 ): HTMLElement {
-	const { view, chunk, baseline, provider, path, syncHunk } = target;
-	const { removedLines, addedLines } = syncHunk
-		? presentSyncHunk(syncHunk)
+	const { view, chunk, baseline, provider, path, syncChange } = target;
+	const { removedLines, addedLines } = syncChange
+		? presentSyncChange(syncChange)
 		: presentChunk(chunk, baseline, view.state.doc);
 	const title = hunkTitle(removedLines.length, addedLines.length);
 	const popup = createDiv({ cls: "obsync-hunk-popup" });
@@ -63,20 +67,22 @@ export function buildPopup(
 		}
 		dismiss();
 	};
-	if (path !== null && syncHunk !== null) {
+	if (path !== null && syncChange !== null) {
 		new ButtonComponent(footer)
 			.setButtonText("Push hunk")
 			.setCta()
 			.onClick(
 				whileUnchanged(() => {
-					void provider.pushHunk(path, syncHunk, doc.toString());
+					void provider.pushHunk(path, syncChange, doc.toString());
 				}),
 			);
 	}
 	new ButtonComponent(footer)
 		.setButtonText("Revert hunk")
 		.setDestructive()
-		.onClick(whileUnchanged(() => revertHunk(view, baseline, chunk, syncHunk)));
+		.onClick(
+			whileUnchanged(() => revertHunk(view, baseline, chunk, syncChange)),
+		);
 	return popup;
 }
 

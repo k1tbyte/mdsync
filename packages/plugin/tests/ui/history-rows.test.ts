@@ -62,6 +62,8 @@ describe("buildHistoryRows", () => {
 		);
 		expect(row?.title).toBe("before the rewrite");
 		expect(row?.label).toBe("before the rewrite");
+		// The age leaves the title, so it moves to the meta line.
+		expect(row?.meta).toContain("1 day ago");
 		// The diff pane still names the version by age, not by the pin.
 		expect(row?.version.label).toBe("1 day ago");
 	});

@@ -10,7 +10,7 @@ import {
 	onLongPress,
 } from "@/ui/common";
 import type { HistoryDiffTarget } from "@/ui/source-control-view";
-import { groupByDay } from "./day-groups";
+import { groupRows } from "./day-groups";
 import { STATUS_CLASSES, STATUS_LETTERS } from "./row-formatter";
 import { RowPager } from "./row-pager";
 import { renderPath, renderSize } from "./row-parts";
@@ -146,7 +146,7 @@ export class TimelineTab {
 				text: "No pushes recorded yet. The timeline fills up as you push.",
 			});
 		}
-		for (const group of groupByDay(rows)) {
+		for (const group of groupRows(rows)) {
 			body.createDiv({ cls: "obsync-timeline-day", text: group.label });
 			for (const row of group.rows) this.renderRow(body, row);
 		}

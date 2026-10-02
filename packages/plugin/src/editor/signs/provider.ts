@@ -6,10 +6,9 @@ import { sha256Hex } from "@/crypto";
 import { reportWarning } from "@/shared";
 import { textToBytes } from "@/sync/content";
 import type { SyncController } from "@/sync/controller";
-import { type SyncHunk, wholeHunks } from "@/sync/hunks";
 import { notifyError, runWithNotice } from "@/ui";
 
-import { toCmText } from "./helpers";
+import { type SyncChange, toCmText } from "./helpers";
 import { pathFromState, setCompareTextEffect } from "./state";
 
 const BASELINE_CACHE_MAX = 64;
@@ -89,7 +88,7 @@ export class SignsProvider {
 	/** currentText is compared against disk before publishing so an unsaved buffer does not push a different hunk. */
 	async pushHunk(
 		path: string,
-		hunk: SyncHunk,
+		{ hunk, segment }: SyncChange,
 		currentText: string,
 	): Promise<void> {
 		const baseline = this.cache.get(path);
@@ -99,10 +98,14 @@ export class SignsProvider {
 		}
 		await runWithNotice(
 			async () =>
-				this.controller.pushHunks(path, wholeHunks([hunk]), {
-					left: baseline.hash,
-					right: await sha256Hex(textToBytes(currentText)),
-				}),
+				this.controller.pushHunks(
+					path,
+					new Map([[hunk.index, new Set([segment.index])]]),
+					{
+						left: baseline.hash,
+						right: await sha256Hex(textToBytes(currentText)),
+					},
+				),
 			"Pushed the hunk.",
 			"Push hunk failed",
 		);

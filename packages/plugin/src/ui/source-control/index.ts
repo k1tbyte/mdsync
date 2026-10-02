@@ -2,7 +2,7 @@ export { SourceControlActions } from "./actions";
 export { ChangesTab } from "./changes-tab";
 export { renderConflictPreview } from "./conflict-preview";
 export { ConflictPreviewManager } from "./conflict-preview-manager";
-export { type DayGroup, groupByDay } from "./day-groups";
+export { type DayGroup, groupRows } from "./day-groups";
 export { buildHistoryRows, type HistoryRow } from "./history-rows";
 export { HistoryTab } from "./history-tab";
 export {

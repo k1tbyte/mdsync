@@ -1,7 +1,12 @@
 import type { Chunk } from "@codemirror/merge";
 import { Text } from "@codemirror/state";
 
-import { computeHunks, type SyncHunk } from "@/sync/hunks";
+import {
+	computeHunks,
+	type HunkSegment,
+	hunkSegments,
+	type SyncHunk,
+} from "@/sync/hunks";
 
 export interface PresentedChunk {
 	removedLines: string[];
@@ -11,12 +16,19 @@ export interface PresentedChunk {
 	deletionLine: number;
 }
 
-export function presentSyncHunk(
-	hunk: SyncHunk,
-): Pick<PresentedChunk, "removedLines" | "addedLines"> {
+/** One change a gutter mark stands for: a segment of a sync hunk, the unit push and revert act on. */
+export interface SyncChange {
+	hunk: SyncHunk;
+	segment: HunkSegment;
+}
+
+export function presentSyncChange({
+	hunk,
+	segment,
+}: SyncChange): Pick<PresentedChunk, "removedLines" | "addedLines"> {
 	const removedLines: string[] = [];
 	const addedLines: string[] = [];
-	for (const line of hunk.lines) {
+	for (const line of hunk.lines.slice(segment.from, segment.to)) {
 		if (line.startsWith("-")) removedLines.push(line.slice(1));
 		else if (line.startsWith("+")) addedLines.push(line.slice(1));
 	}
@@ -108,22 +120,26 @@ export function presentChunk(
 }
 
 /**
- * The sync hunk a gutter line belongs to. CodeMirror chunks are finer than `computeHunks` hunks, so the popup and push
- * must use this one, or a nearby edit rides along unannounced.
+ * The sync change a gutter line belongs to. A hunk's context swallows nearby edits, so the popup, push and
+ * revert all take the segment: what the popup shows is all that moves.
  */
-export function findSyncHunkForLine(
+export function findSyncChangeForLine(
 	lineNumber: number,
 	baseline: Text,
 	current: Text,
-): SyncHunk | null {
-	const result = computeHunks(
+): SyncChange | null {
+	const { hunks } = computeHunks(
 		baseline.sliceString(0, baseline.length),
 		current.sliceString(0, current.length),
 	);
-	for (const hunk of result.hunks) {
-		const from = hunk.newStart;
-		const to = hunk.newStart + Math.max(hunk.newLines, 1) - 1;
-		if (lineNumber >= from && lineNumber <= to) return hunk;
+	for (const hunk of hunks) {
+		for (const segment of hunkSegments(hunk)) {
+			const [from, to] = segment.right;
+			// A removal has no lines here: its mark sits on the line after the gap, or before it at the end.
+			const first = from === to ? Math.max(1, from) : from + 1;
+			const last = Math.max(to, from + 1);
+			if (lineNumber >= first && lineNumber <= last) return { hunk, segment };
+		}
 	}
 	return null;
 }

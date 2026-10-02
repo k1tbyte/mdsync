@@ -15,6 +15,8 @@ export interface TrashRow {
 	/** How much longer the record survives; null only when nothing can be said. */
 	retention: string | null;
 	pinned: boolean;
+	/** Back in the vault but not pushed, so the remote still lists it as deleted. */
+	restored: boolean;
 }
 
 export interface TrashRowOptions {
@@ -23,6 +25,8 @@ export interface TrashRowOptions {
 	now?: number;
 	/** Lets rows name this device instead of showing a raw id. */
 	currentDevice?: { id: string; name: string } | null;
+	/** Whether a file exists in the vault right now. */
+	inVault?: (path: string) => boolean;
 }
 
 export function buildTrashRows(
@@ -51,6 +55,7 @@ export function buildTrashRows(
 			].join(" · "),
 			retention: retentionText(file.rank, options.maxSnapshots),
 			pinned: file.rank === null,
+			restored: options.inVault?.(file.path) ?? false,
 		};
 	});
 }

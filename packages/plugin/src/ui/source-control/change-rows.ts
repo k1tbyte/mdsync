@@ -73,25 +73,20 @@ export function renderFileRow(
 		ctx.openFileDiff(item, row.path),
 	);
 
-	// Conflicts are resolved one by one or all at once, never by selection; the gap keeps rows aligned.
-	if (ctx.section === ESection.Conflicts) {
-		item.createSpan({ cls: "obsync-file-selection" });
-	} else {
-		renderCheckbox(item, row.path, ctx);
-	}
+	// Conflicts are resolved one by one or all at once, never by selection.
+	if (ctx.section !== ESection.Conflicts) renderCheckbox(item, row.path, ctx);
 
 	const copy = renderPath(item, row.path, ctx.layout === "flat");
 	if (row.from !== undefined) {
 		copy.createSpan({ cls: "obsync-file-parent", text: `from ${row.from}` });
 	}
 
-	if (row.isConflict) renderConflictRowControls(parent, item, row, ctx);
-
 	if (row.size !== undefined) renderSize(item, row.size, row.sizeDelta);
 	item.createSpan({
 		cls: `obsync-file-status ${row.statusClass}`,
 		text: row.statusLetter,
 	});
+	if (row.isConflict) renderConflictRowControls(parent, item, row, ctx);
 
 	item.addEventListener("contextmenu", (event) => {
 		event.preventDefault();

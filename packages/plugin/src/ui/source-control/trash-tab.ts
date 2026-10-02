@@ -1,4 +1,4 @@
-import { TFolder } from "obsidian";
+import { TFile, TFolder } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { errorMessage } from "@/shared";
 import type { DeletedFilesResult } from "@/sync/history";
@@ -127,6 +127,8 @@ export class TrashTab {
 		const rows = buildTrashRows(this.deleted.files, {
 			maxSnapshots: this.plugin.settings.fileHistoryMaxSnapshots,
 			currentDevice: this.plugin.controller.currentDevice(),
+			inVault: (path) =>
+				this.plugin.app.vault.getAbstractFileByPath(path) instanceof TFile,
 		});
 		this.rows = rows;
 		this.pruneSelection();
@@ -204,7 +206,12 @@ export class TrashTab {
 			});
 		}
 		item.createDiv({ cls: "obsync-history-row-meta", text: row.meta });
-		if (row.retention) {
+		if (row.restored) {
+			item.createDiv({
+				cls: "obsync-history-row-meta is-restored",
+				text: "Restored here, not pushed yet",
+			});
+		} else if (row.retention) {
 			item.createDiv({ cls: "obsync-history-row-meta", text: row.retention });
 		}
 
@@ -276,8 +283,9 @@ export class TrashTab {
 		if (!confirmed) return;
 		try {
 			await this.plugin.controller.history.restoreFileVersion(target, row.hash);
-			// The row stays: the remote still has the file deleted until this is pushed.
+			// The row stays, marked: the remote still has the file deleted until this is pushed.
 			notifyInfo(`Restored ${target}. Review and push the change when ready.`);
+			this.onRerender();
 		} catch (err) {
 			notifyError("Restore failed", err);
 		}

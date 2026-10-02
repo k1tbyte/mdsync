@@ -70,6 +70,18 @@ describe("moves across devices", () => {
 		});
 	});
 
+	it("counts a move as one change on both sides", async () => {
+		const { laptop, phone } = await synced({ "a.md": "A", "c.md": "C" });
+		await laptop.adapter.asDataAdapter().rename("a.md", "b.md");
+		await laptop.adapter.asDataAdapter().remove("c.md");
+		await laptop.controller.refresh();
+		expect(laptop.controller.getSnapshot().pendingLocal).toBe(2);
+
+		await laptop.sync();
+		await phone.controller.refresh();
+		expect(phone.controller.getSnapshot().pendingRemote).toBe(2);
+	});
+
 	it("carries an edit made here to where the file moved", async () => {
 		const { laptop, phone } = await synced({ "a.md": "A" });
 		phone.adapter.putText("a.md", "A mine");

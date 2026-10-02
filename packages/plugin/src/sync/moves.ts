@@ -90,6 +90,26 @@ export function withMoves(
 	return [...taken];
 }
 
+/** Each move under both of its paths. */
+export function movesByPath(moves: readonly Move[]): Map<string, Move> {
+	return new Map(
+		moves.flatMap((move): [string, Move][] => [
+			[move.from, move],
+			[move.to, move],
+		]),
+	);
+}
+
+/** Changes as the list shows them: a move's two paths are one change. */
+export function changeCount(
+	changes: readonly FileChange[],
+	moves: readonly Move[],
+): number {
+	if (moves.length === 0) return changes.length;
+	const moveOf = movesByPath(moves);
+	return new Set(changes.map(({ path }) => moveOf.get(path) ?? path)).size;
+}
+
 /** Where a moved file sits here and in the remote. */
 export function sidesOf({ from, to, side }: Move): {
 	here: string;

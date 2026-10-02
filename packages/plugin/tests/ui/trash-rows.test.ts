@@ -93,6 +93,23 @@ describe("buildTrashRows", () => {
 		expect(buildTrashRows([], { maxSnapshots: 50 })).toEqual([]);
 	});
 
+	it("marks a file that is back in the vault as restored", () => {
+		const rows = buildTrashRows(
+			[deleted(), deleted({ path: "notes/other.md" })],
+			{
+				maxSnapshots: 50,
+				now: NOW,
+				inVault: (path) => path === "notes/gone.md",
+			},
+		);
+		expect(rows.map((row) => row.restored)).toEqual([true, false]);
+	});
+
+	it("treats every file as still deleted without a vault to ask", () => {
+		const [row] = buildTrashRows([deleted()], { maxSnapshots: 50, now: NOW });
+		expect(row?.restored).toBe(false);
+	});
+
 	it("dates against the wall clock when no time is supplied", () => {
 		const [row] = buildTrashRows([deleted({ createdAt: Date.now() })], {
 			maxSnapshots: 50,

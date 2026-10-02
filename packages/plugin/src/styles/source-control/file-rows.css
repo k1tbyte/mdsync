@@ -178,6 +178,7 @@
 	flex: 0 0 auto;
 	align-items: center;
 	gap: var(--size-2-1);
+	margin-left: var(--size-2-2);
 }
 
 .obsync-conflict-controls .obsync-icon-btn {

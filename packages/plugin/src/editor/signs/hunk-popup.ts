@@ -1,7 +1,7 @@
 import type { EditorView } from "@codemirror/view";
 import { type App, Modal, Platform } from "obsidian";
 
-import { findChunkForLine, findSyncHunkForLine } from "./helpers";
+import { findChunkForLine, findSyncChangeForLine } from "./helpers";
 import { installDismissHandlers } from "./popup-dismiss";
 import { positionPopup } from "./popup-placement";
 import { buildPopup, type HunkTarget } from "./popup-view";
@@ -30,10 +30,10 @@ export function showHunkPopupAt(
 		baseline,
 		provider,
 		path,
-		syncHunk:
+		syncChange:
 			path === null
 				? null
-				: findSyncHunkForLine(lineNumber, baseline, view.state.doc),
+				: findSyncChangeForLine(lineNumber, baseline, view.state.doc),
 	};
 	dismissPopup();
 	if (Platform.isPhone) {

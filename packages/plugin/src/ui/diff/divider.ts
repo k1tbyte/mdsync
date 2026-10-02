@@ -89,6 +89,20 @@ export class Divider {
 		this.canvas.addEventListener("keydown", (event) => this.onKeyDown(event), {
 			signal,
 		});
+		this.canvas.addEventListener(
+			"focus",
+			() => {
+				// Tabbed in: select a connector so focus has something to show.
+				if (this.selected !== null || !this.canvas.matches(":focus-visible")) {
+					return;
+				}
+				this.selected =
+					this.visibleItems().find(({ item }) => item.actions.length > 0)?.item
+						.key ?? null;
+				this.draw();
+			},
+			{ signal },
+		);
 		for (const view of [nearView, farView]) {
 			view.scrollDOM.addEventListener("scroll", () => this.closePopup(), {
 				passive: true,

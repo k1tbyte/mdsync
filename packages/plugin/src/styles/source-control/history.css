@@ -54,6 +54,10 @@
 	white-space: nowrap;
 }
 
+.obsync-history-row-meta.is-restored {
+	color: var(--text-success);
+}
+
 .obsync-history-row-actions {
 	display: flex;
 	flex-wrap: wrap;

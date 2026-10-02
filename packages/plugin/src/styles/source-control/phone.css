@@ -43,10 +43,6 @@ body.is-phone .obsync-source-control .obsync-file-row {
 	padding-bottom: 0;
 }
 
-body.is-phone .obsync-source-control .obsync-file-row.is-conflict {
-	flex-wrap: nowrap;
-}
-
 body.is-phone .obsync-source-control .obsync-file-size {
 	font-size: var(--font-ui-smaller);
 }

@@ -23,9 +23,9 @@
 	cursor: pointer;
 }
 
+/* The selected connector shows focus. */
 .obsync-divider-canvas:focus {
-	outline: 2px solid var(--interactive-accent);
-	outline-offset: -2px;
+	outline: none;
 }
 
 .obsync-divider-action {

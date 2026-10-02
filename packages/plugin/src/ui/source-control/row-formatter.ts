@@ -1,4 +1,5 @@
 import { deviceLabel } from "@/sync/device";
+import { movesByPath } from "@/sync/moves";
 import type { Conflict, FileChange, Move } from "@/sync/types";
 import { type ChangeAction, changeActionOf } from "@/ui/common";
 import type { FileRow } from "./types";
@@ -40,12 +41,7 @@ export function foldMoves(
 	moves: readonly Move[],
 	toRow: (change: FileChange) => FileRow,
 ): FileRow[] {
-	const moveOf = new Map(
-		moves.flatMap((m) => [
-			[m.from, m],
-			[m.to, m],
-		]),
-	);
+	const moveOf = movesByPath(moves);
 	const folded = new Set<Move>();
 	const rows: FileRow[] = [];
 	for (const change of changes) {

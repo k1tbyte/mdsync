@@ -2,9 +2,9 @@ import type { Chunk } from "@codemirror/merge";
 import type { Text } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 
-import type { SyncHunk } from "@/sync/hunks";
+import type { HunkSegment } from "@/sync/hunks";
 
-import { clampPos } from "./helpers";
+import { clampPos, type SyncChange } from "./helpers";
 
 export interface TextChange {
 	from: number;
@@ -12,19 +12,20 @@ export interface TextChange {
 	insert: string;
 }
 
-export function syncHunkRevert(
+/** Whole lines out of the baseline; a line's terminator goes with it, so EOF newline changes revert too. */
+export function segmentRevert(
 	current: Text,
 	baseline: Text,
-	hunk: SyncHunk,
+	{ left, right }: HunkSegment,
 ): TextChange {
-	const from = lineStart(current, hunk.newStart);
-	const to = lineStart(current, hunk.newStart + hunk.newLines);
-	// Trailing context makes a hunk reach both ends or neither: the slice keeps the baseline's EOF as is.
-	const insert = baseline.sliceString(
-		lineStart(baseline, hunk.oldStart),
-		lineStart(baseline, hunk.oldStart + hunk.oldLines),
-	);
-	return { from, to, insert };
+	return {
+		from: lineStart(current, right[0] + 1),
+		to: lineStart(current, right[1] + 1),
+		insert: baseline.sliceString(
+			lineStart(baseline, left[0] + 1),
+			lineStart(baseline, left[1] + 1),
+		),
+	};
 }
 
 export function chunkRevert(
@@ -46,12 +47,12 @@ export function revertHunk(
 	view: EditorView,
 	baseline: Text,
 	chunk: Chunk,
-	syncHunk: SyncHunk | null,
+	syncChange: SyncChange | null,
 ): void {
 	const { doc } = view.state;
 	view.dispatch({
-		changes: syncHunk
-			? syncHunkRevert(doc, baseline, syncHunk)
+		changes: syncChange
+			? segmentRevert(doc, baseline, syncChange.segment)
 			: chunkRevert(doc, baseline, chunk),
 	});
 }

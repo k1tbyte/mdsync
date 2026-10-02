@@ -10,6 +10,7 @@ import {
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { DropdownComponent } from "obsidian";
+import { randomId } from "@/crypto";
 import type { PluginHost } from "@/plugin/host";
 import {
 	applyPlan,
@@ -203,10 +204,17 @@ export class MergeEditorPanel {
 	private renderDesktop(root: HTMLElement): void {
 		const heads = root.createDiv({ cls: "obsync-merge-pane-heads" });
 		const body = root.createDiv({ cls: "obsync-merge-body" });
-		const col = (headCls: string, bodyCls: string, text?: string) => {
-			heads.createDiv({ cls: headCls, text });
+		const col = (
+			headCls: string,
+			bodyCls: string,
+			text?: string,
+			id?: string,
+		) => {
+			const head = heads.createDiv({ cls: headCls, text });
+			if (id) head.id = id;
 			return body.createDiv({ cls: bodyCls });
 		};
+		const resultLabel = randomId();
 		const localHost = col(
 			"obsync-merge-pane-head is-local",
 			"obsync-merge-editor-host is-local",
@@ -220,6 +228,7 @@ export class MergeEditorPanel {
 			"obsync-merge-pane-head",
 			"obsync-merge-editor-host is-result",
 			"Result (editable)",
+			resultLabel,
 		);
 		const rightEl = col(
 			"obsync-merge-divider-head",
@@ -233,7 +242,7 @@ export class MergeEditorPanel {
 
 		const marks = sideMarks(this.base, this.sides);
 		const local = this.makeSideEditor(localHost, "local", marks);
-		const result = this.makeResultEditor(resultHost, marks);
+		const result = this.makeResultEditor(resultHost, marks, resultLabel);
 		const remote = this.makeSideEditor(remoteHost, "remote", marks);
 		this.sideViews = { local, remote };
 		this.dividers = {
@@ -289,7 +298,11 @@ export class MergeEditorPanel {
 		});
 	}
 
-	private makeResultEditor(parent: HTMLElement, marks: SideMarks): EditorView {
+	private makeResultEditor(
+		parent: HTMLElement,
+		marks: SideMarks,
+		labelId: string,
+	): EditorView {
 		const view = new EditorView({
 			state: EditorState.create({
 				doc: this.text,
@@ -302,7 +315,8 @@ export class MergeEditorPanel {
 						marks,
 					}),
 					history(),
-					EditorView.contentAttributes.of({ "aria-label": "Merge result" }),
+					// Labelled by the pane head: an aria-label shows Obsidian's tooltip over the whole editor.
+					EditorView.contentAttributes.of({ "aria-labelledby": labelId }),
 					changeNavigation((delta) => this.jumpUnresolved(delta)),
 					keymap.of(historyKeymap),
 					lineNumbers(),

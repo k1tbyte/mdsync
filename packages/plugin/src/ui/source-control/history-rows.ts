@@ -43,17 +43,20 @@ export function buildHistoryRows(
 	return versions.map((version, index) => {
 		const older = versions[index + 1];
 		const relative = formatRelativeTime(version.createdAt, now);
+		const label = version.label?.trim() ?? "";
+		const device = deviceText(version, options.currentDevice);
 		return {
 			snapshotId: version.snapshotId,
 			createdAt: version.createdAt,
 			hash: version.hash,
 			size: version.size,
 			sizeDelta: older ? version.size - older.size : undefined,
-			title: version.label?.trim() || relative,
-			meta: deviceText(version, options.currentDevice),
+			title: label || relative,
+			// A pin's name replaces the age in the title, and pins sit apart from their day.
+			meta: label ? `${relative} · ${device}` : device,
 			tooltip: formatTimestamp(version.createdAt),
 			pinned: version.pinned,
-			label: version.label?.trim() ?? "",
+			label,
 			isLatest: index === 0,
 			version: { hash: version.hash, label: relative, size: version.size },
 			previous: older

@@ -5,19 +5,20 @@ import { describe, expect, it, vi } from "vitest";
 import { registerEditorSigns } from "@/editor/signs";
 import { signsField } from "@/editor/signs/gutter";
 import {
-	findSyncHunkForLine,
+	findSyncChangeForLine,
 	presentChunk,
+	presentSyncChange,
 	shouldRedeliverBaseline,
 	toCmText,
 } from "@/editor/signs/helpers";
-import { syncHunkRevert } from "@/editor/signs/hunk-revert";
+import { segmentRevert } from "@/editor/signs/hunk-revert";
 import {
 	chunksField,
 	compareTextField,
 	setChunksEffect,
 	setCompareTextEffect,
 } from "@/editor/signs/state";
-import { computeHunks } from "@/sync/hunks";
+import { computeHunks, hunkSegments } from "@/sync/hunks";
 
 describe("signs helpers", () => {
 	it("redelivers when compare text disappears after already being set", () => {
@@ -71,7 +72,23 @@ describe("signs helpers", () => {
 		const baseline = Text.of(["There is second"]);
 		const current = Text.of(["There is second", "asdasd", "hello world"]);
 
-		expect(findSyncHunkForLine(2, baseline, current)?.index).toBe(0);
+		expect(findSyncChangeForLine(2, baseline, current)?.hunk.index).toBe(0);
+	});
+
+	it("keeps edits that share a hunk apart", () => {
+		const baseline = Text.of(["a", "b", "c", "d", "e", "f", ""]);
+		const current = Text.of(["A", "b", "c", "d", "e", ""]);
+		const at = (line: number) => {
+			const change = findSyncChangeForLine(line, baseline, current);
+			return change && presentSyncChange(change);
+		};
+
+		expect(
+			computeHunks(baseline.toString(), current.toString()).hunks,
+		).toHaveLength(1);
+		expect(at(1)).toEqual({ removedLines: ["a"], addedLines: ["A"] });
+		// The removed last line's mark sits on the line after the gap.
+		expect(at(6)).toEqual({ removedLines: ["f"], addedLines: [] });
 	});
 
 	it("presents filling an existing blank line with text as an add", () => {
@@ -111,21 +128,20 @@ describe("signs helpers", () => {
 		expect(toCmText("").lines).toBe(1);
 	});
 
-	it("maps a clicked line inside a multi-line hunk to that whole hunk", () => {
+	it("maps a clicked line inside a changed run to the whole run", () => {
 		const baseline = Text.of(["one", "two", "three", "four", ""]);
 		const current = Text.of(["one", "TWO", "THREE", "four", ""]);
-		const hunk = findSyncHunkForLine(3, baseline, current);
+		const change = findSyncChangeForLine(3, baseline, current);
 
-		expect(hunk?.index).toBe(0);
 		// The popup has to show every line the push sends, not just the click.
-		expect(hunk?.newLines).toBeGreaterThan(1);
+		expect(change?.segment.right).toEqual([1, 3]);
 	});
 
 	it("returns nothing for a line far from every hunk", () => {
 		const lines = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", ""];
 		const baseline = Text.of(lines);
 		const current = Text.of(lines.map((l) => (l === "a" ? "A" : l)));
-		expect(findSyncHunkForLine(9, baseline, current)).toBeNull();
+		expect(findSyncChangeForLine(9, baseline, current)).toBeNull();
 	});
 });
 
@@ -252,18 +268,24 @@ function createSignsPluginStub(enabled: boolean) {
 	};
 }
 
-describe("reverting a sync hunk", () => {
-	function revert(baseline: string, current: string): string {
+describe("reverting a sync change", () => {
+	function revert(baseline: string, current: string, index = 0): string {
 		const doc = Text.of(current.split("\n"));
 		const [hunk] = computeHunks(baseline, current).hunks;
-		if (!hunk) throw new Error("no hunk");
-		const { from, to, insert } = syncHunkRevert(
+		const segment = hunk && hunkSegments(hunk)[index];
+		if (!segment) throw new Error("no segment");
+		const { from, to, insert } = segmentRevert(
 			doc,
 			Text.of(baseline.split("\n")),
-			hunk,
+			segment,
 		);
 		return doc.replace(from, to, Text.of(insert.split("\n"))).toString();
 	}
+
+	it("reverts one edit and keeps its neighbour in the same hunk", () => {
+		expect(revert("a\nb\nc\nd\n", "A\nb\nc\nD\n")).toBe("a\nb\nc\nD\n");
+		expect(revert("a\nb\nc\nd\n", "A\nb\nc\n", 1)).toBe("A\nb\nc\nd\n");
+	});
 
 	it.each([
 		["a changed last line with no newline", "a\nb", "a\nc"],

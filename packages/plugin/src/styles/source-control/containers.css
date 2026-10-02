@@ -13,13 +13,3 @@
 		flex-wrap: wrap;
 	}
 }
-
-@container (max-width: 320px) {
-	.obsync-file-row.is-conflict {
-		flex-wrap: wrap;
-	}
-
-	.obsync-file-row.is-conflict .obsync-file-copy {
-		flex-basis: calc(100% - 2rem);
-	}
-}

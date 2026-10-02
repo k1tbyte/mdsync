@@ -12,7 +12,7 @@ import {
 } from "@/ui/common";
 import type { HistoryDiffTarget } from "@/ui/source-control-view";
 
-import { groupByDay } from "./day-groups";
+import { groupRows } from "./day-groups";
 import { buildHistoryRows, type HistoryRow } from "./history-rows";
 import { confirmRestore } from "./restore-modal";
 import { renderSize } from "./row-parts";
@@ -124,7 +124,7 @@ export class HistoryTab {
 		const rows = buildHistoryRows(this.historyVersions, {
 			currentDevice: this.plugin.controller.currentDevice(),
 		});
-		for (const group of groupByDay(rows)) {
+		for (const group of groupRows(rows)) {
 			body.createDiv({ cls: "obsync-timeline-day", text: group.label });
 			for (const row of group.rows) this.renderRow(body, path, row);
 		}

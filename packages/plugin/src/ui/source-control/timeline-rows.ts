@@ -53,23 +53,30 @@ export function buildTimelineRows(
 	options: TimelineRowOptions = {},
 ): TimelineRow[] {
 	const now = options.now ?? Date.now();
-	return snapshots.map((snapshot) => ({
-		snapshotId: snapshot.id,
-		createdAt: snapshot.createdAt,
-		title:
-			snapshot.label?.trim() || formatRelativeTime(snapshot.createdAt, now),
-		meta: deviceText(snapshot, options.currentDevice),
-		tooltip: formatTimestamp(snapshot.createdAt),
-		counts: countsText(snapshot),
-		netSize: snapshot.files ? formatSizeDelta(netBytes(snapshot.files)) : null,
-		pinned: snapshot.pinned,
-		isHead: snapshot.isHead,
-		restorable: snapshot.restorable,
-		label: snapshot.label?.trim() ?? "",
-		files: snapshot.files
-			? buildFileRows(snapshot.files, snapshot.createdAt)
-			: null,
-	}));
+	return snapshots.map((snapshot) => {
+		const relative = formatRelativeTime(snapshot.createdAt, now);
+		const label = snapshot.label?.trim() ?? "";
+		const device = deviceText(snapshot, options.currentDevice);
+		return {
+			snapshotId: snapshot.id,
+			createdAt: snapshot.createdAt,
+			title: label || relative,
+			// A pin's name replaces the age in the title, and pins sit apart from their day.
+			meta: label ? `${relative} · ${device}` : device,
+			tooltip: formatTimestamp(snapshot.createdAt),
+			counts: countsText(snapshot),
+			netSize: snapshot.files
+				? formatSizeDelta(netBytes(snapshot.files))
+				: null,
+			pinned: snapshot.pinned,
+			isHead: snapshot.isHead,
+			restorable: snapshot.restorable,
+			label,
+			files: snapshot.files
+				? buildFileRows(snapshot.files, snapshot.createdAt)
+				: null,
+		};
+	});
 }
 
 function buildFileRows(

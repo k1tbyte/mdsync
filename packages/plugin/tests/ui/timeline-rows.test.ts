@@ -117,6 +117,8 @@ describe("buildTimelineRows", () => {
 		expect(row?.title).toBe("before the rewrite");
 		expect(row?.pinned).toBe(true);
 		expect(row?.label).toBe("before the rewrite");
+		// The age leaves the title, so it moves to the meta line.
+		expect(row?.meta).toContain("1 day ago");
 	});
 
 	it("carries restorability through untouched", () => {
