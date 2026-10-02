@@ -56,6 +56,8 @@ Obsync syncs your vault through an S3 bucket, a WebDAV server or Google Drive. T
 4. Run **Obsync: Push all local changes** for the first upload.
 5. On the next device, import the setup with a [transfer link](#device-transfer) or enter the same storage and passphrase, then pull.
 
+> **Tip: Cloudflare R2 is an easy S3-compatible backend.** Its free tier (10 GB, 1 million write and list requests and 10 million read requests a month) covers most vaults, downloads cost nothing, and it supports the conditional writes Obsync relies on. Enable R2 on your Cloudflare account, create a bucket, and create an API token with **Object Read & Write** limited to that bucket. R2 shows the access key ID and secret only once. In Obsync pick S3-compatible and set **Endpoint** to `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` (`https://<ACCOUNT_ID>.eu.r2.cloudflarestorage.com` for a bucket created in the EU jurisdiction), leave **Region** as `auto`, and fill in the bucket and the token's keys. The same Cloudflare account can host the [relay](#self-hosting-the-relay).
+
 Give each vault its own bucket prefix. Obsync refuses a prefix that already holds another vault.
 
 Set up the first device alone and let its first sync finish. That sync creates the vault's key. On storage without conditional writes (Google Drive, some WebDAV and S3-compatible servers), two devices starting at the same moment can each create one, and files encrypted by one become unreadable to the other.
