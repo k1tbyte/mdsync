@@ -1,6 +1,4 @@
-<h1 align="center">Obsync</h1>
-
-<p align="center">Serverless, end-to-end encrypted vault sync over storage you own.</p>
+<p align="center"><img src="docs/hero.webp" alt="Obsync: serverless, end-to-end encrypted vault sync for Obsidian, with a merge editor, file history, live editing and shared folders"></p>
 
 <p align="center">
   <a href="https://github.com/k1tbyte/obsync/releases/latest"><img src="https://img.shields.io/github/v/release/k1tbyte/obsync" alt="Release"></a>
@@ -85,10 +83,10 @@ The panel has four tabs: **Changes**, **History**, **Timeline** and **Deleted**.
 
 **Changes** lists local changes, remote changes and conflicts, with a path filter. Open any file for a side-by-side diff (combined on narrow screens or on request). In a text file you can revert a single local change or accept a single remote one, then apply your choices. Binary files show the size change instead, with **Show differences anyway** where the file can be read as text.
 
-<details>
+<details open>
 <summary>Demo</summary>
 
-![Changes tab: diffs of a local and a remote change, list layouts, filter, push and pull](https://raw.githubusercontent.com/k1tbyte/obsync/main/docs/demos/changes.webp)
+![Changes tab: diffs of a local and a remote change, list layouts, filter, push and pull](docs/demos/changes.webp)
 
 </details>
 
@@ -106,10 +104,10 @@ A conflict is a file changed both here and on the remote. For each one you can *
 
 **Merge…** opens a three-way editor: your version, the result and the remote version side by side. Changes that do not overlap are merged up front, and you review and save. Autosync merges such conflicts on its own and leaves the rest to you.
 
-<details>
+<details open>
 <summary>Demo</summary>
 
-![A note edited on two devices, resolved in the three-way merge editor](https://raw.githubusercontent.com/k1tbyte/obsync/main/docs/demos/merge.webp)
+![A note edited on two devices, resolved in the three-way merge editor](docs/demos/merge.webp)
 
 </details>
 
@@ -120,7 +118,7 @@ The gutter marks lines added, changed or removed since the last sync. Click a ma
 <details>
 <summary>Demo</summary>
 
-![Marks appear while typing; one change is reverted from its popup, another pushed alone](https://raw.githubusercontent.com/k1tbyte/obsync/main/docs/demos/marks.webp)
+![Marks appear while typing; one change is reverted from its popup, another pushed alone](docs/demos/marks.webp)
 
 </details>
 
@@ -156,7 +154,7 @@ The **History** tab lists the open file's past versions. Click one to diff it ag
 <details>
 <summary>Demo</summary>
 
-![A note's versions over a few days: a diff, compare with the previous one, a named pin, a restore](https://raw.githubusercontent.com/k1tbyte/obsync/main/docs/demos/history.webp)
+![A note's versions over a few days: a diff, compare with the previous one, a named pin, a restore](docs/demos/history.webp)
 
 </details>
 
@@ -167,7 +165,7 @@ The **Timeline** tab lists every push to the vault with the files it changed. Fr
 <details>
 <summary>Demo</summary>
 
-![Every push of the vault, one push's changes, the whole vault put back to an older push](https://raw.githubusercontent.com/k1tbyte/obsync/main/docs/demos/timeline.webp)
+![Every push of the vault, one push's changes, the whole vault put back to an older push](docs/demos/timeline.webp)
 
 </details>
 
@@ -178,7 +176,7 @@ The **Deleted** tab (or **Obsync: Restore deleted files**) lists files gone from
 <details>
 <summary>Demo</summary>
 
-![Deleted files history still holds: a preview, a restore in place and a restore to another path](https://raw.githubusercontent.com/k1tbyte/obsync/main/docs/demos/deleted.webp)
+![Deleted files history still holds: a preview, a restore in place and a restore to another path](docs/demos/deleted.webp)
 
 </details>
 
@@ -193,16 +191,16 @@ A note open on two devices edits together, keystroke by keystroke, with the othe
 - **Show who typed what** tints text by the person who typed it.
 - If someone deletes a note you have open, Obsync asks whether to delete it here too or bring it back everywhere.
 
-<details>
+<details open>
 <summary>Demos</summary>
 
 **Two people in one note**: typing at once, cursors with names, text tinted by author, then one push and one pull.
 
-![Two people type into one note at once](https://raw.githubusercontent.com/k1tbyte/obsync/main/docs/demos/live.webp)
+![Two people type into one note at once](docs/demos/live.webp)
 
 **Excalidraw**: two people draw on one canvas, each seeing the other's pointer and shapes.
 
-![Two people draw on one Excalidraw canvas](https://raw.githubusercontent.com/k1tbyte/obsync/main/docs/demos/drawing.webp)
+![Two people draw on one Excalidraw canvas](docs/demos/drawing.webp)
 
 </details>
 
@@ -217,11 +215,11 @@ The note header shows who else has the note open, as coloured initials. Click on
 
 **Who is where**: people in the explorer and the note header, and a dot on what someone else changed.
 
-![Who is in which note, and a dot on what someone else changed](https://raw.githubusercontent.com/k1tbyte/obsync/main/docs/demos/presence.webp)
+![Who is in which note, and a dot on what someone else changed](docs/demos/presence.webp)
 
 **Following**: one person follows another from note to note, their view going where the other types.
 
-![Following another person from note to note](https://raw.githubusercontent.com/k1tbyte/obsync/main/docs/demos/follow.webp)
+![Following another person from note to note](docs/demos/follow.webp)
 
 </details>
 
@@ -235,16 +233,16 @@ Share a folder from its menu in the file explorer. Owning a share needs S3-compa
 
 From the share's window you can see who is in it, revoke a person, pause the share on this device or on all your devices, and stop sharing. When a share ends, its files stay and sync with your vault again. Renaming a shared folder renames it on your other devices too.
 
-<details>
+<details open>
 <summary>Demos</summary>
 
 **Invite**: share a folder from the explorer, send the link and password, the guest joins it.
 
-![Sharing a folder and joining it](https://raw.githubusercontent.com/k1tbyte/obsync/main/docs/demos/share.webp)
+![Sharing a folder and joining it](docs/demos/share.webp)
 
 **Read-only invite**: the lock, the owner's edits arriving live, a note deleted elsewhere, revoking access.
 
-![A read-only invite, from joining to revoking](https://raw.githubusercontent.com/k1tbyte/obsync/main/docs/demos/readonly.webp)
+![A read-only invite, from joining to revoking](docs/demos/readonly.webp)
 
 </details>
 
@@ -252,10 +250,10 @@ From the share's window you can see who is in it, revoke a person, pause the sha
 
 **Settings → Obsync → Connection → Export setup** creates an encrypted link and QR code with your main sync settings, storage credentials included. It leaves out the cached passphrase and display preferences. The link is encrypted with your passphrase, so the new device needs the same passphrase and confirms the import before anything is applied.
 
-<details>
+<details open>
 <summary>Demo</summary>
 
-![Export a setup QR on one device and scan it into the import prompt of another](https://raw.githubusercontent.com/k1tbyte/obsync/main/docs/demos/transfer.webp)
+![Export a setup QR on one device and scan it into the import prompt of another](docs/demos/transfer.webp)
 
 </details>
 
