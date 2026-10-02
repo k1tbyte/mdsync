@@ -1,8 +1,15 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
+import { notesFor } from "./tools/changelog.mjs";
+
 const targetVersion = process.env.npm_package_version;
 if (!targetVersion) {
 	throw new Error("npm_package_version is not set");
+}
+if (!notesFor(targetVersion)) {
+	throw new Error(
+		`Add a "## [${targetVersion}]" section to CHANGELOG.md first.`,
+	);
 }
 
 const manifest = JSON.parse(readFileSync("manifest.json", "utf8"));

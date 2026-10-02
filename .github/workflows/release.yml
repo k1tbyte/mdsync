@@ -7,6 +7,8 @@ on:
 
 permissions:
     contents: write
+    id-token: write
+    attestations: write
 
 jobs:
     release:
@@ -23,16 +25,29 @@ jobs:
                   node-version: 24.x
                   cache: "pnpm"
 
-            - name: Check the tag matches the manifest
-              run: test "$(jq -r .version manifest.json)" = "$GITHUB_REF_NAME"
+            - name: Check the tag, the manifest and the changelog agree
+              run: node tools/changelog.mjs check "$GITHUB_REF_NAME"
+
+            - name: Write the release notes from the changelog
+              run: node tools/changelog.mjs notes "$GITHUB_REF_NAME" release-notes.md
 
             - run: pnpm install --frozen-lockfile
 
             - run: pnpm --filter obsync run build
 
+            - name: Attest the build
+              uses: actions/attest@v4
+              with:
+                  subject-path: |
+                      manifest.json
+                      packages/plugin/main.js
+                      packages/plugin/styles.css
+
             - name: Create release
               uses: softprops/action-gh-release@v2
               with:
+                  body_path: release-notes.md
+                  fail_on_unmatched_files: true
                   files: |
                       manifest.json
                       packages/plugin/main.js

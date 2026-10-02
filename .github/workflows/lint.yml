@@ -18,6 +18,7 @@ jobs:
               with:
                   node-version: 24.x
                   cache: "pnpm"
+            - run: node tools/changelog.mjs check
             - run: pnpm install --frozen-lockfile
             - run: pnpm -r --if-present run build
             - run: pnpm run lint

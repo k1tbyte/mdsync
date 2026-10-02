@@ -9,10 +9,11 @@
 
 ## Process
 
-- Bump `version` in `manifest.json` and update `versions.json` to map plugin version → minimum app version.
-- Create a GitHub release whose tag exactly matches `manifest.json`'s `version` - no leading `v`.
-- Attach `manifest.json`, `main.js`, and `styles.css` as individual release assets. `main.js` and `styles.css` are both build outputs of `pnpm build`. Release artifacts live at the top level of the plugin folder in the vault (`<Vault>/.obsidian/plugins/<plugin-id>/`).
-- After the initial release, add/update the plugin in the community catalog as required.
+- Add a `## [x.y.z] - YYYY-MM-DD` section at the top of `CHANGELOG.md`: plain sentences for users under `### Important`, `### Features`, `### Improvements` or `### Fixes`, never commit titles. It is the source of truth for release notes.
+- Bump `version` (`pnpm version x.y.z`): `version-bump.mjs` refuses a version without a changelog section, then updates `manifest.json` and `versions.json` (plugin version → minimum app version).
+- Push a tag equal to `manifest.json`'s `version` - no leading `v`. The Release workflow checks that tag, manifest and the newest changelog section agree, builds, attests the assets, and creates the GitHub release with that section as its notes. CI runs the same check (`node tools/changelog.mjs check`) on every push.
+- The release carries `manifest.json`, `main.js`, and `styles.css` as individual assets. `main.js` and `styles.css` are both build outputs of `pnpm build`. Release artifacts live at the top level of the plugin folder in the vault (`<Vault>/.obsidian/plugins/<plugin-id>/`).
+- Plugins are submitted at community.obsidian.md (sign in, connect GitHub, Plugins → New plugin); its scan checks the manifest, the release assets, the source and that the build matches it. Fix findings with a new, higher version.
 
 ## References
 
