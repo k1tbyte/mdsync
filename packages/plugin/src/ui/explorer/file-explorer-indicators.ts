@@ -120,7 +120,7 @@ export function registerFileExplorerIndicators(
 function hasExternalMutation(records: MutationRecord[]): boolean {
 	for (const record of records) {
 		if (
-			record.target instanceof Element &&
+			record.target.instanceOf(Element) &&
 			record.target.closest(".obsync-path-badge")
 		) {
 			continue;
@@ -135,7 +135,7 @@ function hasExternalMutation(records: MutationRecord[]): boolean {
 
 function isIndicatorNode(node: Node): boolean {
 	return (
-		node instanceof Element &&
+		node.instanceOf(Element) &&
 		(node.matches(".obsync-path-badge") ||
 			node.closest(".obsync-path-badge") !== null)
 	);

@@ -48,10 +48,10 @@ export interface RoomDeps {
 	app: App;
 	hub: Pick<HubConnection, "space">;
 	/** Where the note goes live; null keeps it cold: live off, no key yet, a paused share. */
-	liveSpace(path: string): Promise<LiveSpace | null>;
+	liveSpace: (path: string) => Promise<LiveSpace | null>;
 	agreed: AgreedTexts;
 	/** The cold-sync baseline, the merge base for a note never agreed here. */
-	baseText(path: string): Promise<string | null>;
+	baseText: (path: string) => Promise<string | null>;
 	/** Renames a note as another device did; false when that cannot happen here. */
 	moveFile(from: string, to: string): Promise<boolean>;
 	/** The name the relay vouches for a person present in a space. */

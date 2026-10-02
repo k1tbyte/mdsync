@@ -29,6 +29,7 @@ import {
 	type IndicatorHandle,
 	notifyInfo,
 } from "@/ui";
+import { loadNodeFs } from "@/vault/symlinks";
 import {
 	bootstrapPluginRuntime,
 	disposePluginRuntime,
@@ -88,7 +89,9 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 	private savingSettings: Promise<void> = Promise.resolve();
 
 	async onload(): Promise<void> {
+		await loadNodeFs();
 		await this.loadSettings();
+		const registerShare = createShareRegistration(this);
 		const runtime = await bootstrapPluginRuntime({
 			app: this.app,
 			settings: this.settings,
@@ -96,7 +99,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 				this.realtime.hub.signal(space.id);
 				refreshOpenHistoryViewsAfterPush(this);
 			},
-			onSpaceRefreshed: createShareRegistration(this),
+			onSpaceRefreshed: (space) => void registerShare(space),
 			onShareRefused: createAccessEnded(this),
 			onSpaceGone: createSpaceGone(this),
 			onUnindexed: (count) =>

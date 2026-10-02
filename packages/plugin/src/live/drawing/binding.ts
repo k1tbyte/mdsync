@@ -175,7 +175,7 @@ function pointersIn({
 		}
 		out.set(String(client), {
 			pointer: { ...pointer, tool: "pointer" },
-			username: String(user.name ?? ""),
+			username: typeof user.name === "string" ? user.name : "",
 			id: user.key,
 		});
 	}

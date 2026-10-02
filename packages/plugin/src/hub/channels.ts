@@ -28,7 +28,7 @@ export interface HubRoute {
 	spaces: readonly string[];
 	/** Past the hub's slots: not carried, rather than waiting forever. */
 	full: readonly string[];
-	channels(): Promise<HubChannel[]>;
+	channels: () => Promise<HubChannel[]>;
 }
 
 interface Slot {

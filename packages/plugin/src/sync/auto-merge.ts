@@ -25,9 +25,9 @@ export async function autoMergeOp(
 ): Promise<OperationOutcome> {
 	const localEntries = new Map<string, ManifestEntry | null>();
 	// Indexed by conflict position so order holds whichever download finishes first.
-	const merged: Array<string | null> = new Array(
-		result.diff.conflicts.length,
-	).fill(null);
+	const merged = new Array<string | null>(result.diff.conflicts.length).fill(
+		null,
+	);
 
 	await runWithConcurrency(
 		result.diff.conflicts,

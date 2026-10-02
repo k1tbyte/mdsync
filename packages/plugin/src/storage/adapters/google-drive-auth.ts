@@ -13,15 +13,11 @@ import {
 } from "@/storage/field-spec";
 import type { StorageAuthOutcome } from "@/storage/types";
 
-/** Fallback Google Drive auth broker when the user has not self-hosted one. */
-export const DEFAULT_GDRIVE_AUTH_SERVER =
-	"https://obsync-relay.kitbyte.workers.dev";
-
 export function googleAuthUrl(
 	config: Pick<GoogleDriveStorageConfig, "authServerUrl">,
 	route: "/auth" | "/refresh",
 ): string {
-	return `${relayBase(config.authServerUrl || DEFAULT_GDRIVE_AUTH_SERVER)}${route}`;
+	return `${relayBase(config.authServerUrl)}${route}`;
 }
 
 /** Matches the relay's state lifetime. */
@@ -116,8 +112,7 @@ export function defaultGoogleDriveConfig(): GoogleDriveStorageConfig {
 	return {
 		kind: EStorageBackend.GoogleDrive,
 		folderName: "ObsidianSync",
-		clientId: "",
-		authServerUrl: DEFAULT_GDRIVE_AUTH_SERVER,
+		authServerUrl: "",
 		accessToken: "",
 		refreshToken: "",
 		expiresAt: 0,
@@ -128,7 +123,9 @@ export function defaultGoogleDriveConfig(): GoogleDriveStorageConfig {
 export function isGoogleDriveConfigured(
 	config: GoogleDriveStorageConfig,
 ): boolean {
-	return Boolean(config.folderName && config.refreshToken);
+	return Boolean(
+		config.folderName && config.authServerUrl && config.refreshToken,
+	);
 }
 
 export function describeGoogleDriveTarget(
@@ -152,7 +149,7 @@ export const GOOGLE_DRIVE_FIELDS: ReadonlyArray<SettingsFieldSpec> = [
 	{
 		key: "authServerUrl",
 		name: "Auth server URL",
-		desc: "Worker that exchanges Google auth codes for tokens. The default is run by the plugin author, and your refresh token is sent to it. Deploy packages/relay and point this at your own copy to avoid that.",
+		desc: "Your relay (packages/relay) with GDRIVE_CLIENT_ID and GDRIVE_CLIENT_SECRET set. It exchanges Google auth codes for tokens.",
 		kind: EFieldKind.Text,
 		placeholder: "https://obsync-relay...workers.dev",
 	},

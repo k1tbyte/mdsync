@@ -105,7 +105,7 @@ export class LiveSessions {
 		this.bound.clear();
 		const closing = [...this.rooms.values()].map(({ session }) => {
 			session.dispose();
-			return closedBefore(session.docId);
+			return closedBefore(session.docId) ?? Promise.resolve();
 		});
 		this.rooms.clear();
 		this.cold.clear();

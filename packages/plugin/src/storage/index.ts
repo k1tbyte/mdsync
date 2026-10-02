@@ -1,5 +1,4 @@
 export {
-	DEFAULT_GDRIVE_AUTH_SERVER,
 	defaultGoogleDriveConfig,
 	googleLoginUrl,
 } from "./adapters/google-drive-auth";

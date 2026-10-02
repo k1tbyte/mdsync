@@ -20,7 +20,7 @@ const VAULT_UNLOCK_RETRY_MS = 30_000;
 export interface SpaceAccessHost {
 	passphrase: PassphraseManager;
 	controller: SyncController;
-	settings(): ObsyncSettings;
+	settings: () => ObsyncSettings;
 	spaces: Pick<SpaceRecords, "get">;
 }
 

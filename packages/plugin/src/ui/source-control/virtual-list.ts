@@ -85,7 +85,7 @@ export function mountVirtualList(
 
 	const schedule = (): void => {
 		if (frame) return;
-		frame = requestAnimationFrame(update);
+		frame = window.requestAnimationFrame(update);
 	};
 
 	scroller.addEventListener("scroll", schedule, { passive: true });
@@ -100,7 +100,7 @@ export function mountVirtualList(
 		 * for the old position.
 		 */
 		refresh(): void {
-			if (frame) cancelAnimationFrame(frame);
+			if (frame) window.cancelAnimationFrame(frame);
 			frame = 0;
 			update();
 		},
@@ -110,7 +110,7 @@ export function mountVirtualList(
 			update();
 		},
 		destroy(): void {
-			if (frame) cancelAnimationFrame(frame);
+			if (frame) window.cancelAnimationFrame(frame);
 			scroller.removeEventListener("scroll", schedule);
 			resize.disconnect();
 			container.removeClass("is-virtual");

@@ -42,7 +42,9 @@
 
 /* Opened by clicking a connector; wider than the strip, so the strip must not clip it. */
 .obsync-divider-action.is-popup {
+	left: 50%;
 	right: auto;
+	transform: translateX(-50%);
 	width: auto;
 	z-index: 10;
 	padding: var(--size-4-1);

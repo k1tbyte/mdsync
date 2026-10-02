@@ -30,7 +30,7 @@ export function bindEditor(
 
 	// Keystrokes typed while the room was answering go in before the editor follows it.
 	session.adopt(view.editor.getValue());
-	const text = session.model.text.toString();
+	const text = session.model.text.toJSON();
 	// Skipping the no-op keeps the cursor where the user left it.
 	if (view.editor.getValue() !== text) view.editor.setValue(text);
 
@@ -102,7 +102,10 @@ const unrouted = new WeakMap<Editor, Pick<Editor, "undo" | "redo">>();
 
 /** The phone toolbar's undo calls `editor.undo()`; routed to the room's history until detached. */
 function routeUndo(editor: Editor, undoManager: Y.UndoManager): () => void {
-	const own = unrouted.get(editor) ?? { undo: editor.undo, redo: editor.redo };
+	const own = unrouted.get(editor) ?? {
+		undo: editor.undo.bind(editor),
+		redo: editor.redo.bind(editor),
+	};
 	unrouted.set(editor, own);
 	const routed = {
 		undo: () => void undoManager.undo(),

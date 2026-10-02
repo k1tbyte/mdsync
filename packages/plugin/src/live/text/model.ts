@@ -19,14 +19,14 @@ export class TextModel implements LiveModel {
 	}
 
 	merge(base: string, incoming: string): void {
-		const room = this.text.toString();
+		const room = this.text.toJSON();
 		const next = toLf(incoming);
 		if (next === room) return;
 		patchYText(this.doc, this.text, mergeThreeWay(toLf(base), next, room));
 	}
 
 	agreed(): string {
-		return this.text.toString();
+		return this.text.toJSON();
 	}
 
 	rebuild(): Uint8Array {

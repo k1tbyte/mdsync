@@ -9,7 +9,7 @@ const STORAGE_KEY = "obsync-unseen";
 export function registerUnseen(plugin: Plugin): Unseen {
 	const { vault, workspace } = plugin.app;
 	const unseen = new Unseen({
-		load: () => plugin.app.loadLocalStorage(STORAGE_KEY),
+		load: () => plugin.app.loadLocalStorage(STORAGE_KEY) as unknown,
 		save: (paths) => plugin.app.saveLocalStorage(STORAGE_KEY, paths),
 	});
 	plugin.registerEvent(

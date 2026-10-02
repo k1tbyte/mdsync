@@ -20,19 +20,19 @@ export class StorageTimeoutError extends Error {
 }
 
 function delay(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
+	return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
-		const id = setTimeout(() => reject(new StorageTimeoutError(ms)), ms);
+		const id = window.setTimeout(() => reject(new StorageTimeoutError(ms)), ms);
 		promise.then(
 			(value) => {
-				clearTimeout(id);
+				window.clearTimeout(id);
 				resolve(value);
 			},
 			(err: unknown) => {
-				clearTimeout(id);
+				window.clearTimeout(id);
 				reject(err instanceof Error ? err : new Error(String(err)));
 			},
 		);

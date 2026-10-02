@@ -98,7 +98,7 @@ export class HubConnection {
 		return {
 			send: (frame) => {
 				const at = this.slotOf(id);
-				at?.open.link.send({ ...frame, slot: at.slot } as ClientFrame);
+				at?.open.link.send({ ...frame, slot: at.slot });
 			},
 			isConnected: () => this.spaceConnected(id),
 			listen: (listener) => {

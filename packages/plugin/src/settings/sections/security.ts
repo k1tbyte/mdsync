@@ -51,7 +51,7 @@ export function renderSecuritySection(
 		.addButton((b) =>
 			b
 				.setButtonText("Forget")
-				.setWarning()
+				.setDestructive()
 				.setDisabled(!plugin.passphrase.has())
 				.onClick(async () => {
 					await plugin.passphrase.forget();

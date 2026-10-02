@@ -7,5 +7,5 @@ export function actionButton(
 	tone: ActionTone,
 ): ButtonComponent {
 	const button = new ButtonComponent(parent);
-	return tone === "warning" ? button.setWarning() : button.setCta();
+	return tone === "warning" ? button.setDestructive() : button.setCta();
 }

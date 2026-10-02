@@ -53,7 +53,7 @@ export function openChoiceModal<K extends string>(
 					answer(key);
 					modal.close();
 				});
-			if (cls === "mod-warning") button.setWarning();
+			if (cls === "mod-warning") button.setDestructive();
 			else if (cls === "mod-cta") button.setCta();
 		}
 		return modal;

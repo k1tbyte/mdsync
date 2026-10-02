@@ -69,7 +69,7 @@ export async function movedWith(
 	if (!opened) return null;
 	let note: Partial<MoveNote>;
 	try {
-		note = JSON.parse(bytesToText(opened));
+		note = JSON.parse(bytesToText(opened)) as Partial<MoveNote>;
 	} catch {
 		return null;
 	}

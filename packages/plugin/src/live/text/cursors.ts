@@ -29,7 +29,11 @@ export function cursorsIn(session: LiveSession, key?: string): RoomCursor[] {
 			session.doc,
 		);
 		if (!at || at.type !== model.text) continue;
-		out.push({ key: user.key, name: String(user.name ?? ""), at: at.index });
+		out.push({
+			key: user.key,
+			name: typeof user.name === "string" ? user.name : "",
+			at: at.index,
+		});
 	}
 	return out;
 }

@@ -53,7 +53,7 @@ class RemoteResetModal extends Modal {
 				resetButton = button;
 				button
 					.setButtonText("Reset remote")
-					.setWarning()
+					.setDestructive()
 					.setDisabled(true)
 					.onClick(() => this.submit());
 			});

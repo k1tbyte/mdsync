@@ -241,7 +241,8 @@ async function editIgnoreNote(
 		const content = file ? await vault.read(file) : "";
 		const next = edit(content);
 		if (next === content) return false;
-		if (file) await vault.modify(file, next);
+		// Re-applied on the content as written, should it change since the read.
+		if (file) await vault.process(file, edit);
 		else await vault.create(note, next);
 		return true;
 	} catch (error) {

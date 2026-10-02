@@ -126,7 +126,7 @@ class SettingsTransferConfirmModal extends Modal {
 				importButton = button;
 				button
 					.setButtonText("Import setup")
-					.setWarning()
+					.setDestructive()
 					.setDisabled(true)
 					.onClick(() => this.submit());
 			});

@@ -37,7 +37,7 @@ export interface HubLinkOptions {
 	/** With no trailing slash, as `hubRoutes` gives it. */
 	serverUrl: string;
 	/** In slot order; asked per connection, since owner grants expire. */
-	channels(): Promise<readonly HubChannel[]>;
+	channels: () => Promise<readonly HubChannel[]>;
 	/** Opaque; lets an HTTP signal skip this device's own socket. */
 	deviceId: string;
 	onFrame(frame: ServerFrame): void;
@@ -235,7 +235,9 @@ export class HubLink {
 		this.ws = null;
 		try {
 			socket?.close();
-		} catch {}
+		} catch {
+			// Already closing: nothing left to release.
+		}
 	}
 
 	private scheduleReconnect(): void {

@@ -113,9 +113,8 @@ export function gapRow(
 	label: string,
 	onClick: () => void,
 ): HTMLElement {
-	const button = document.createElement("button");
+	const button = createEl("button", { cls: "obsync-gap" });
 	button.type = "button";
-	button.className = "obsync-gap";
 	button.setAttribute("aria-label", label);
 	const content = button.createSpan({ cls: "obsync-gap-content" });
 	const glyph = content.createSpan({ cls: "obsync-gap-icon" });

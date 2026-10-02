@@ -41,8 +41,8 @@ export interface CompareSegment {
 	leftText: readonly string[];
 	rightText: readonly string[];
 	/** Word marks of one line, computed the first time that line is drawn. */
-	leftMarks(offset: number): readonly Span[];
-	rightMarks(offset: number): readonly Span[];
+	leftMarks: (offset: number) => readonly Span[];
+	rightMarks: (offset: number) => readonly Span[];
 }
 
 export function buildSegments(model: FileDiffModel): CompareSegment[] {

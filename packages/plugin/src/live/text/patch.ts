@@ -20,7 +20,7 @@ const opsOf = ({ removed, added }: Group): number =>
  * replacement.
  */
 export function patchYText(doc: Y.Doc, text: Y.Text, target: string): void {
-	const current = text.toString();
+	const current = text.toJSON();
 	if (current === target) return;
 
 	// Code points, not UTF-16 units: Yjs turns a split surrogate pair into U+FFFD.

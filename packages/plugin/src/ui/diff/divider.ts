@@ -317,8 +317,6 @@ export class Divider {
 		const height = popup.offsetHeight;
 		const top = y - height - 6;
 		popup.style.top = `${Math.max(0, Math.min(top < 0 ? y + 6 : top, this.el.clientHeight - height))}px`;
-		popup.style.left = "50%";
-		popup.style.transform = "translateX(-50%)";
 		popup.querySelector("button")?.focus();
 	}
 

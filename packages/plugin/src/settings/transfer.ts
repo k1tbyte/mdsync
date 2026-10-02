@@ -409,10 +409,9 @@ function expandStorageConfigs(
 
 function isCompactStorageConfig(value: unknown): value is CompactStorageConfig {
 	if (!isPlainObject(value)) return false;
-	const config = value as Record<string, unknown>;
-	if (!isStorageBackend(config.kind)) return false;
-	const defaults = storageDefaults(config.kind);
-	for (const [key, entry] of Object.entries(config)) {
+	if (!isStorageBackend(value.kind)) return false;
+	const defaults = storageDefaults(value.kind);
+	for (const [key, entry] of Object.entries(value)) {
 		if (key === "kind") continue;
 		if (!(key in defaults)) return false;
 		if (entry !== undefined && typeof entry !== typeof defaults[key]) {

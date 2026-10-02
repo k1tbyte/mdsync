@@ -1,11 +1,10 @@
 {
 	"id": "obsync",
 	"name": "Obsync",
-	"version": "1.2.0",
-	"minAppVersion": "1.8.7",
-	"description": "Simple S3 sync for Obsidian.",
+	"version": "1.0.0",
+	"minAppVersion": "1.13.0",
+	"description": "Encrypted vault sync over your own S3, WebDAV or Google Drive storage, with conflict resolution, file history, shared folders and live editing.",
 	"author": "kitbyte",
-	"authorUrl": "",
-	"fundingUrl": "",
+	"authorUrl": "https://github.com/k1tbyte",
 	"isDesktopOnly": false
 }

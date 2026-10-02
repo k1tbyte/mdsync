@@ -157,7 +157,7 @@ export class SourceBlockWidget extends WidgetType {
 	}
 
 	toDOM(view: EditorView): HTMLElement {
-		const host = document.createElement("div");
+		const host = createDiv();
 		return renderSourceBlock(host, this.block, () => view.requestMeasure());
 	}
 

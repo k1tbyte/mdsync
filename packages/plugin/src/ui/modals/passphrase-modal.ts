@@ -77,7 +77,7 @@ class NewPassphraseModal extends Modal {
 		const { contentEl, titleEl } = this;
 		titleEl.setText("Change passphrase");
 		contentEl.createEl("p", {
-			text: "Re-wraps the vault's data key under a new passphrase. Your notes are NOT re-encrypted, so this is instant. Every device must switch to the new passphrase afterwards.",
+			text: "Re-wraps the vault's data key under a new passphrase. Your notes are not re-encrypted, so this is instant. Every device must switch to the new passphrase afterwards.",
 		});
 
 		let confirmField: HTMLInputElement | undefined;

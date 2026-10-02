@@ -215,7 +215,7 @@ export class LiveSession<M extends LiveModel = LiveModel>
 			this.onRefused(ERefusal.TooLarge);
 			return;
 		}
-		this.deps.hub.send({ ...frame, doc: this.docId } as SpaceFrame);
+		this.deps.hub.send({ ...frame, doc: this.docId });
 	}
 
 	protected local(update: Uint8Array): void {
@@ -300,9 +300,7 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		const payloads = [frame.snapshot, ...frame.deltas].filter(
 			(payload): payload is Uint8Array => payload !== null,
 		);
-		const updates: (Uint8Array | null)[] = new Array(payloads.length).fill(
-			null,
-		);
+		const updates = new Array<Uint8Array | null>(payloads.length).fill(null);
 		await runWithConcurrency(
 			payloads,
 			DECRYPT_CONCURRENCY,

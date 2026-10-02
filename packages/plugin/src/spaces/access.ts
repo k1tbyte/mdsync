@@ -15,7 +15,7 @@ export interface ShareStorage {
 	/** Equal while the adapter can be reused: its manifest caches hold vault paths, so the root counts. */
 	memo: string;
 	concurrency: number;
-	create(): StorageAdapter;
+	create: () => StorageAdapter;
 }
 
 /**

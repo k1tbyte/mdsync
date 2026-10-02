@@ -195,7 +195,7 @@ export class ChangesTab {
 		};
 		input.addEventListener("input", (event) => {
 			// Replaced mid-composition, the input would drop what the IME holds.
-			if (!(event as InputEvent).isComposing) apply();
+			if (!event.isComposing) apply();
 		});
 		input.addEventListener("compositionend", apply);
 	}

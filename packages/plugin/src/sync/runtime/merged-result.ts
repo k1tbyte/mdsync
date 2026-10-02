@@ -15,9 +15,7 @@ export function mergeResults(
 		results.flatMap(pick);
 	return {
 		snapshot: {
-			files: sortedByPath(
-				Object.assign({}, ...results.map((r) => r.snapshot.files)),
-			),
+			files: sortedByPath(mergedFiles(results.map((r) => r.snapshot.files))),
 			skipped: union((r) => r.snapshot.skipped),
 			emptyFolders: union((r) => r.snapshot.emptyFolders),
 			ignoredPaths: union((r) => r.snapshot.ignoredPaths),
@@ -45,8 +43,12 @@ function mergeRemotes(results: readonly CompareResult[]): Manifest | null {
 		...head,
 		// Each space indexes its own table: a merged one would name the wrong people.
 		authors: undefined,
-		files: sortedByPath(
-			Object.assign({}, ...results.map((r) => r.remote?.files ?? {})),
-		),
+		files: sortedByPath(mergedFiles(results.map((r) => r.remote?.files ?? {}))),
 	};
+}
+
+function mergedFiles<T>(
+	parts: readonly Record<string, T>[],
+): Record<string, T> {
+	return Object.assign({}, ...parts) as Record<string, T>;
 }

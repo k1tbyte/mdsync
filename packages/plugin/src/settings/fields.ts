@@ -111,7 +111,6 @@ export function renderField(
 			slider
 				.setLimits(field.min, field.max, field.step ?? 1)
 				.setValue(field.get(ctx.plugin.settings))
-				.setDynamicTooltip()
 				.onChange((value) => apply(field.set(value, ctx.plugin))),
 		);
 	}

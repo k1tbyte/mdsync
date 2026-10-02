@@ -78,8 +78,10 @@ function makePlugin(options: PluginOptions = {}): TestPlugin {
 					return path in files ? Object.assign(new TFile(), { path }) : null;
 				},
 				read: async (file: TFile) => files[file.path] ?? "",
-				modify: async (file: TFile, content: string) => {
+				process: async (file: TFile, edit: (data: string) => string) => {
+					const content = edit(files[file.path] ?? "");
 					modified.push([file.path, content]);
+					return content;
 				},
 				create: async (path: string, content: string) => {
 					created.push([path, content]);

@@ -30,7 +30,6 @@ export interface WebDAVStorageConfig {
 export interface GoogleDriveStorageConfig {
 	kind: typeof EStorageBackend.GoogleDrive;
 	folderName: string;
-	clientId: string;
 	authServerUrl: string;
 	accessToken: string;
 	refreshToken: string;

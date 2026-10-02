@@ -26,6 +26,8 @@ interface NodeFs {
 	): ReadonlyArray<DirEntry>;
 }
 
+let nodeFs: NodeFs | null = null;
+
 const NEVER: SymlinkDetector = {
 	isLink: () => false,
 	findLink: () => null,
@@ -39,7 +41,7 @@ export function createSymlinkDetector(
 	root = "",
 ): SymlinkDetector {
 	if (!enabled || !(adapter instanceof FileSystemAdapter)) return NEVER;
-	const fs = loadFs();
+	const fs = nodeFs;
 	if (!fs) return NEVER;
 	const ignoreCase = Platform.isWin || Platform.isMacOS;
 	return symlinkDetector(
@@ -123,10 +125,8 @@ function joinPath(base: string, relative: string): string {
 	return `${base.replace(/[\\/]+$/, "")}/${relative}`;
 }
 
-function loadFs(): NodeFs | null {
-	try {
-		return require("node:fs") as NodeFs;
-	} catch {
-		return null;
-	}
+/** Once before any detector: detection is synchronous, and mobile has no Node. */
+export async function loadNodeFs(): Promise<void> {
+	if (!Platform.isDesktopApp) return;
+	nodeFs = await import("node:fs").catch(() => null);
 }

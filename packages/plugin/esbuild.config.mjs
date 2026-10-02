@@ -38,6 +38,8 @@ const jsContext = await esbuild.context({
 	],
 	format: "cjs",
 	target: "es2020",
+	// Obsidian evals main.js, where import() cannot load Node builtins; require() can.
+	supported: { "dynamic-import": false },
 	logLevel: "info",
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,

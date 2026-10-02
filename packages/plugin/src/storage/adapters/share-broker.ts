@@ -276,7 +276,9 @@ async function callBroker(
 		body: request.body && JSON.stringify(request.body),
 		throw: false,
 	});
-	if (res.status >= 200 && res.status < 300) return res.json;
+	if (res.status >= 200 && res.status < 300) {
+		return res.json as Record<string, unknown>;
+	}
 	const code = errorCode(res.text);
 	const refusal = code ? refusals[code] : undefined;
 	const message = `Share broker ${path} answered HTTP ${res.status}${code ? ` (${code})` : ""}`;

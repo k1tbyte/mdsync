@@ -31,7 +31,7 @@ export function createLive(
 	nameOf: (space: string, person: string) => string | null,
 ): {
 	sessions: LiveSessions;
-	notes(space: Space): LiveNotes;
+	notes: (space: Space) => LiveNotes;
 	dispose(): Promise<void>;
 } {
 	const { vault } = host.app;

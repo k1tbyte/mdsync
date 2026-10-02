@@ -44,9 +44,7 @@ class SignMarker extends GutterMarker {
 	}
 
 	override toDOM(): HTMLElement {
-		const el = document.createElement("div");
-		el.className = `obsync-sign ${KIND_CLASS[this.kind]}`;
-		return el;
+		return createDiv({ cls: `obsync-sign ${KIND_CLASS[this.kind]}` });
 	}
 }
 

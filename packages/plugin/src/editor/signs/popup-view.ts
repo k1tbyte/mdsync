@@ -30,8 +30,7 @@ export function buildPopup(
 		? presentSyncHunk(syncHunk)
 		: presentChunk(chunk, baseline, view.state.doc);
 	const title = hunkTitle(removedLines.length, addedLines.length);
-	const popup = document.createElement("div");
-	popup.className = "obsync-hunk-popup";
+	const popup = createDiv({ cls: "obsync-hunk-popup" });
 	popup.setAttribute("role", "dialog");
 	popup.setAttribute("aria-label", title);
 
@@ -76,7 +75,7 @@ export function buildPopup(
 	}
 	new ButtonComponent(footer)
 		.setButtonText("Revert hunk")
-		.setWarning()
+		.setDestructive()
 		.onClick(whileUnchanged(() => revertHunk(view, baseline, chunk, syncHunk)));
 	return popup;
 }

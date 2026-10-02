@@ -15,15 +15,14 @@ export interface FileExplorerRows {
 	/** Every path the explorer knows. Only the symlink scan wants them all. */
 	paths(): string[];
 	/** A folder whose rows below are hidden. */
-	collapsed(path: string): boolean;
+	collapsed: (path: string) => boolean;
 }
 
 export function readFileExplorer(
 	workspace: Workspace,
 ): FileExplorerRows | null {
-	const view = workspace.getLeavesOfType("file-explorer")[0]?.view as
-		| FileExplorerView
-		| undefined;
+	const view: FileExplorerView | undefined =
+		workspace.getLeavesOfType("file-explorer")[0]?.view;
 	const container = view?.containerEl;
 	if (!view || !(container instanceof HTMLElement)) return null;
 	const items = view.fileItems;
@@ -45,10 +44,8 @@ export function readFileExplorer(
 export function readFileExplorerContainer(
 	workspace: Workspace,
 ): HTMLElement | null {
-	const view = workspace.getLeavesOfType("file-explorer")[0]?.view as
-		| View
-		| undefined;
-	const container = view?.containerEl;
+	const container =
+		workspace.getLeavesOfType("file-explorer")[0]?.view.containerEl;
 	return container instanceof HTMLElement ? container : null;
 }
 

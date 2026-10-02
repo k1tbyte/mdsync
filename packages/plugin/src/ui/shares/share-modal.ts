@@ -178,7 +178,7 @@ export class ShareModal extends Modal {
 			focusKey(button.buttonEl, `revoke-${row.key}`);
 			button
 				.setButtonText("Revoke")
-				.setWarning()
+				.setDestructive()
 				.onClick(() => this.revoke(participant));
 		});
 	}
@@ -206,7 +206,7 @@ export class ShareModal extends Modal {
 			.addButton((button) =>
 				button
 					.setButtonText(label)
-					.setWarning()
+					.setDestructive()
 					.onClick(
 						serial(async () => {
 							button.setDisabled(true);

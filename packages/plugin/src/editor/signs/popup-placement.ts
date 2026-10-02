@@ -29,7 +29,7 @@ export function positionPopup(popup: HTMLElement, event: MouseEvent): void {
 		left: "0px",
 		top: "0px",
 	});
-	requestAnimationFrame(() => {
+	window.requestAnimationFrame(() => {
 		const { x, y } = placePopup(
 			{ x: event.clientX, y: event.clientY },
 			popup.getBoundingClientRect(),

@@ -123,7 +123,7 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 		sub: true,
 		get: (s) => s.liveEditing,
 		set: (v) => ({ liveEditing: v }),
-		after: (plugin) => plugin.realtime.live.refresh(),
+		after: (plugin) => void plugin.realtime.live.refresh(),
 	},
 	{
 		kind: EFieldKind.Toggle,

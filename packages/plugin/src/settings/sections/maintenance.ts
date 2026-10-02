@@ -67,7 +67,7 @@ export function renderMaintenanceSection(
 						button.setDisabled(false);
 					});
 				});
-				if (action.warning) button.setWarning();
+				if (action.warning) button.setDestructive();
 			});
 	}
 }

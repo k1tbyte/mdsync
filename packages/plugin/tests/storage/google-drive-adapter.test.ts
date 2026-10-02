@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createGoogleDriveAdapter } from "@/storage/adapters/google-drive";
-import { DEFAULT_GDRIVE_AUTH_SERVER } from "@/storage/adapters/google-drive-auth";
 import { EStorageBackend } from "@/storage/config";
 
 const requests: { url: string }[] = [];
@@ -24,7 +23,6 @@ const adapter = () =>
 	createGoogleDriveAdapter({
 		kind: EStorageBackend.GoogleDrive,
 		folderName: "obsync",
-		clientId: "c",
 		authServerUrl: "https://auth.example",
 		accessToken: "t",
 		refreshToken: "",
@@ -129,16 +127,12 @@ describe("Google Drive bulk read IDs", () => {
 });
 
 describe("Google Drive token refresh", () => {
-	it.each([
-		["https://auth.example/", "https://auth.example/refresh"],
-		["", `${DEFAULT_GDRIVE_AUTH_SERVER}/refresh`],
-	])("asks %j for a new token at %s", async (authServerUrl, expected) => {
+	it("asks the auth server for a new token", async () => {
 		replies = [{ access_token: "n", expires_in: 3600 }, FOLDER, { files: [] }];
 		const drive = createGoogleDriveAdapter({
 			kind: EStorageBackend.GoogleDrive,
 			folderName: "obsync",
-			clientId: "",
-			authServerUrl,
+			authServerUrl: "https://auth.example/",
 			accessToken: "old",
 			refreshToken: "r",
 			expiresAt: 0,
@@ -147,6 +141,6 @@ describe("Google Drive token refresh", () => {
 
 		await drive.exists("k");
 
-		expect(requests[0]?.url).toBe(expected);
+		expect(requests[0]?.url).toBe("https://auth.example/refresh");
 	});
 });

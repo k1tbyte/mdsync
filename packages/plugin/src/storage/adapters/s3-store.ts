@@ -234,7 +234,10 @@ function contextualRequestError(
 	}
 	const contextual = new Error(message);
 	contextual.name = error.name;
-	Object.setPrototypeOf(contextual, Object.getPrototypeOf(error));
+	Object.setPrototypeOf(
+		contextual,
+		Object.getPrototypeOf(error) as object | null,
+	);
 	Object.assign(contextual, error);
 	return contextual;
 }

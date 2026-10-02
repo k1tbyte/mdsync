@@ -8,9 +8,8 @@ import {
 	getDescriptor,
 	googleLoginUrl,
 	type SettingsFieldSpec,
-	type StorageAdapterConfig,
 } from "@/storage";
-import { notifyError } from "@/ui";
+import { notifyError, notifyInfo } from "@/ui";
 
 /**
  * Renders one backend's credential fields. Takes the kind explicitly so the shares section can edit S3
@@ -94,8 +93,10 @@ function renderGoogleDriveAuth(
 	plugin: PluginHost,
 	kind: EStorageBackend,
 ): void {
-	const config = storageOf(plugin, kind) as unknown as GoogleDriveStorageConfig;
-	const isAuth = Boolean(config.refreshToken);
+	// Read on click too: editing a field replaces the config object.
+	const config = () =>
+		storageOf(plugin, kind) as unknown as GoogleDriveStorageConfig;
+	const isAuth = Boolean(config().refreshToken);
 
 	new Setting(parent)
 		.setName("Google account")
@@ -109,7 +110,11 @@ function renderGoogleDriveAuth(
 				.setButtonText(isAuth ? "Re-authenticate" : "Log in")
 				.setCta()
 				.onClick(() => {
-					window.open(googleLoginUrl(config));
+					if (!config().authServerUrl) {
+						notifyInfo("Set the auth server URL first.");
+						return;
+					}
+					window.open(googleLoginUrl(config()));
 				}),
 		);
 }
@@ -123,7 +128,7 @@ function updateStorage(
 	settings.storageConfigs[kind] = {
 		...(settings.storageConfigs[kind] ?? getDescriptor(kind).defaults()),
 		...patch,
-	} as StorageAdapterConfig;
+	};
 	void plugin
 		.saveSettings()
 		.catch((err: unknown) => notifyError("Could not save settings", err));

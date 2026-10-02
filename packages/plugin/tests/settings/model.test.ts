@@ -74,7 +74,6 @@ describe("mergeSettings", () => {
 				[EStorageBackend.GoogleDrive]: {
 					kind: EStorageBackend.GoogleDrive,
 					folderName: "ObsidianSync",
-					clientId: "",
 					authServerUrl: "https://x",
 					accessToken: "",
 					refreshToken: "",

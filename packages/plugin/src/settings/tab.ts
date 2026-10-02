@@ -306,7 +306,7 @@ export class ObsyncSettingTab extends PluginSettingTab {
 			.addButton((button) =>
 				button
 					.setButtonText("Import")
-					.setWarning()
+					.setDestructive()
 					.onClick(() => void this.handleImportSettings()),
 			);
 	}
@@ -352,7 +352,7 @@ export class ObsyncSettingTab extends PluginSettingTab {
 				button
 					.setButtonText("Clear on remote")
 					.setTooltip(`${count} remote item(s)`)
-					.setWarning()
+					.setDestructive()
 					.onClick(() => void this.handleClearCategoryRemote(row)),
 			);
 		}

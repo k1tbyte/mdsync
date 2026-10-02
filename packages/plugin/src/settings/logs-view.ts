@@ -52,7 +52,7 @@ export function renderLogsView(
 		.addButton((button) =>
 			button
 				.setButtonText("Clear logs")
-				.setWarning()
+				.setDestructive()
 				.onClick(async () => {
 					await plugin.logs.clear();
 					onRefresh();
@@ -79,7 +79,7 @@ function renderLogEntry(parent: HTMLElement, entry: SyncLogEntry): void {
 	meta.setText(
 		`${formatTimestamp(entry.timestamp)} • ${OPERATION_LABELS[entry.operation]} • ${LOG_LEVEL_LABELS[entry.level]}`,
 	);
-	item.createEl("div", { cls: "obsync-log-message", text: entry.message });
+	item.createDiv({ cls: "obsync-log-message", text: entry.message });
 	if (entry.details.length === 0) {
 		return;
 	}
