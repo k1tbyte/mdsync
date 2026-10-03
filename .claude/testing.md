@@ -18,9 +18,9 @@ re-injected only on reload.
 
 ## End to end
 
-`tools/e2e/` runs scenarios against real processes and tears them down:
+`tests/e2e/` runs scenarios against real processes and tears them down:
 
-- `pnpm exec jiti tools/e2e/optimization-ui.ts` - a real Obsidian renders synthetic 20,000-file Timeline and Trash lists in 100-row pages; page navigation and full-list selection are checked. Build first. Uses ports 8832 and 9233.
+- `pnpm exec jiti tests/e2e/optimization-ui.ts` - a real Obsidian renders synthetic 20,000-file Timeline and Trash lists in 100-row pages; page navigation and full-list selection are checked. Build first. Uses ports 8832 and 9233.
 - `pnpm e2e:hub` - the relay hub under `wrangler dev`, driven by scripted peers;
   ending a share cuts its channel for good (across a restart too); its last run
   sets `HUB_STALE_MS` low to watch the stale-socket sweep.
@@ -69,9 +69,9 @@ re-injected only on reload.
 On Windows the Obsidians run on a desktop of their own (`hidden-desktop.ps1`),
 so they never show or take focus; `E2E_VISIBLE=1` puts them on screen.
 
-`tools/e2e/device.ts` drives a device: sync, files, folder menus, modals.
-`tools/e2e/sharing.ts` holds the owner-and-participant setup and share steps.
-`tools/e2e/editor.ts` opens, types into and reads a device's editor.
+`tests/e2e/device.ts` drives a device: sync, files, folder menus, modals.
+`tests/e2e/sharing.ts` holds the owner-and-participant setup and share steps.
+`tests/e2e/editor.ts` opens, types into and reads a device's editor.
 Obsidian 1.13 mounts modals in `activeDocument`, not `document`, and keeps
 protocol handlers in `app.workspace.protocolHandler.handlers`; never open an
 `obsidian://` URL through the OS, it would reach the user's own Obsidian.

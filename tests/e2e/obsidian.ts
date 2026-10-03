@@ -30,7 +30,7 @@ const PLUGIN_FILES = [
 ];
 const EXE =
 	process.env.OBSIDIAN_EXE ?? "C:\\Program Files\\Obsidian\\Obsidian.exe";
-const HIDDEN_DESKTOP = join(REPO, "tools/e2e/hidden-desktop.ps1");
+const HIDDEN_DESKTOP = join(REPO, "tests/e2e/hidden-desktop.ps1");
 const APP_URL = "app://obsidian.md";
 const TRUST_BUTTON = /trust author and enable plugins/i;
 
