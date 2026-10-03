@@ -250,7 +250,7 @@ async function exchange(
 		return null;
 	}
 	try {
-		return (await response.json()) as GoogleTokenResponse;
+		return await response.json<GoogleTokenResponse>();
 	} catch {
 		console.error("google token exchange returned a non-JSON body");
 		return null;
@@ -259,7 +259,7 @@ async function exchange(
 
 async function readRefreshToken(request: Request): Promise<string | null> {
 	try {
-		const body = (await request.json()) as { refresh_token?: unknown };
+		const body = await request.json<{ refresh_token?: unknown }>();
 		return typeof body.refresh_token === "string" ? body.refresh_token : null;
 	} catch {
 		return null;

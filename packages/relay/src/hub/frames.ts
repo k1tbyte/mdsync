@@ -50,7 +50,7 @@ export function send(
 	doc: string,
 	body: ServerBody,
 ): void {
-	peer.send(encodeServer({ ...body, slot, doc } as ServerFrame));
+	peer.send(encodeServer({ ...body, slot, doc }));
 }
 
 /** Unanswered, a dropped frame looks like a slow one: the client would wait forever. */
@@ -70,7 +70,7 @@ export function broadcast(
 	body: ServerBody,
 	accept: (peer: HubPeer, slot: number) => boolean,
 ): void {
-	const bytes = encodeServer({ ...body, slot: 0, doc } as ServerFrame);
+	const bytes = encodeServer({ ...body, slot: 0, doc });
 	for (const peer of peers) {
 		const slot = slotOf(peer, channel);
 		if (slot >= 0 && accept(peer, slot)) peer.send(withSlot(bytes, slot));

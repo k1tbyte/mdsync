@@ -32,7 +32,7 @@ export async function secretsEqual(
 	const [a, b] = await Promise.all([digest(left), digest(right)]);
 	let diff = 0;
 	for (let i = 0; i < a.length; i++) {
-		diff |= (a[i] as number) ^ (b[i] as number);
+		diff |= a[i] ^ b[i];
 	}
 	return diff === 0;
 }

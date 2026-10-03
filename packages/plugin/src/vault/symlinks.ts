@@ -127,6 +127,6 @@ function joinPath(base: string, relative: string): string {
 
 /** Once before any detector: detection is synchronous, and mobile has no Node. */
 export async function loadNodeFs(): Promise<void> {
-	if (!Platform.isDesktopApp) return;
+	if (!Platform.isDesktop) return;
 	nodeFs = await import("node:fs").catch(() => null);
 }

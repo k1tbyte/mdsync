@@ -101,7 +101,7 @@ async function admit(
 	const channels = params.getAll(EHubParam.Channel).slice(0, MAX_SLOTS);
 	const tokens = params.getAll(EHubParam.Token);
 	const slots = await Promise.all(
-		channels.map((channel, slot) =>
+		channels.map(async (channel, slot) =>
 			// A channel asked for twice would be announced twice; only its first slot counts.
 			channels.indexOf(channel) === slot
 				? grantFor(env, channel, tokens[slot] ?? "")

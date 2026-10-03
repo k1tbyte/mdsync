@@ -56,20 +56,14 @@ async function tokenRecord(
 	env: ShareEnv,
 	token: string,
 ): Promise<TokenRecord | null> {
-	return (await env.SHARE_TOKENS.get(
-		tokenKey(token),
-		"json",
-	)) as TokenRecord | null;
+	return await env.SHARE_TOKENS.get<TokenRecord>(tokenKey(token), "json");
 }
 
 export async function readStorage(
 	env: ShareEnv,
 	shareId: string,
 ): Promise<ShareStorage | null> {
-	return (await env.SHARE_TOKENS.get(
-		storageKey(shareId),
-		"json",
-	)) as ShareStorage | null;
+	return await env.SHARE_TOKENS.get<ShareStorage>(storageKey(shareId), "json");
 }
 
 /** The plugin re-registers on every start, and KV's free tier allows 1k writes a day. */

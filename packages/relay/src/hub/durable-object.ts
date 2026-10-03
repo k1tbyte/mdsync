@@ -188,10 +188,11 @@ function peerOver(ws: WebSocket, state: Attachment): HubPeer {
 			return state.subs;
 		},
 		send(bytes) {
-			// A socket mid-close throws; its own close handler announces the departure.
 			try {
 				ws.send(bytes);
-			} catch {}
+			} catch {
+				// A socket mid-close throws; its own close handler announces the departure.
+			}
 		},
 		revoke(slot) {
 			state.slots[slot] = null;
