@@ -1,4 +1,4 @@
-# Obsync
+# MDSync
 
 An Obsidian community plugin that syncs a vault between devices over
 user-configured remote storage (S3-compatible, WebDAV, Google Drive).
@@ -15,7 +15,7 @@ broker, Google OAuth proxy; deployed by the Deploy Relay workflow).
 - `pnpm build` - production bundle
 - `pnpm lint` / `pnpm lint:fix` - Biome over the whole repo
 - `pnpm typecheck` - `tsc -noEmit` in every package
-- `pnpm test` - all vitest suites (`pnpm --filter obsync test:watch` while iterating)
+- `pnpm test` - all vitest suites (`pnpm --filter mdsync test:watch` while iterating)
 
 ## Read before touching sync code
 

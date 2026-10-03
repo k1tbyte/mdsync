@@ -43,7 +43,7 @@ export async function readHistoryLog(
 	}
 	// Rewritten as ours, a newer client's log would lose what it added.
 	if (parsed.version > HISTORY_LOG_VERSION) {
-		throw new Error("History log is from a newer Obsync; update the plugin.");
+		throw new Error("History log is from a newer MDSync; update the plugin.");
 	}
 	return historyLogToVault(parsed, root);
 }

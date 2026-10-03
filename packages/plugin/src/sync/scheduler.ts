@@ -1,6 +1,6 @@
 import type { Plugin, TAbstractFile } from "obsidian";
 
-import { canSync, type ObsyncSettings } from "@/settings/model";
+import { canSync, type MdsyncSettings } from "@/settings/model";
 import type { SyncController } from "./controller";
 import { type Space, spaceOf, VAULT_SPACE } from "./space";
 
@@ -24,7 +24,7 @@ const SCHEDULER_BACKOFF_BASE_MS = 2 * 60_000;
 const SCHEDULER_BACKOFF_MAX_MS = 60 * 60_000;
 
 export interface SchedulerHost extends Plugin {
-	settings: ObsyncSettings;
+	settings: MdsyncSettings;
 	/** The records' partition: known from launch, before any refresh partitions. */
 	spaces: { partition(): readonly Space[] };
 }

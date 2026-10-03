@@ -5,7 +5,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 
-import { CHANNEL_DOC, deriveChannelGrant, EFrame } from "@obsync/protocol";
+import { CHANNEL_DOC, deriveChannelGrant, EFrame } from "@mdsync/protocol";
 
 import { check, runScenario, sleep } from "./harness";
 import { launchObsidian, type Obsidian } from "./obsidian";
@@ -70,11 +70,11 @@ await runScenario("realtime e2e", async () => {
 async function scenario(obsidian: Obsidian, url: string): Promise<void> {
 	await obsidian.waitFor(
 		"plugin on the hub",
-		() => app.plugins.plugins.obsync.realtime.hub.isConnected(),
+		() => app.plugins.plugins.mdsync.realtime.hub.isConnected(),
 		(connected) => connected,
 	);
 	await obsidian.evaluate(() => {
-		const plugin = app.plugins.plugins.obsync;
+		const plugin = app.plugins.plugins.mdsync;
 		plugin.__pulls = 0;
 		plugin.controller.refreshAndAutoPull = async () => {
 			plugin.__pulls++;
@@ -89,12 +89,12 @@ async function scenario(obsidian: Obsidian, url: string): Promise<void> {
 		};
 	});
 	const counter = (name: "__pulls" | "__sockets") =>
-		obsidian.evaluate((key) => app.plugins.plugins.obsync[key] as number, name);
+		obsidian.evaluate((key) => app.plugins.plugins.mdsync[key] as number, name);
 
 	// The vault here has no passphrase: its frame key is handed in instead.
 	await obsidian.evaluate(
 		async (raw) => {
-			const plugin = app.plugins.plugins.obsync;
+			const plugin = app.plugins.plugins.mdsync;
 			const key = new Uint8Array(raw);
 			const frames = await crypto.subtle.importKey(
 				"raw",
@@ -127,7 +127,7 @@ async function scenario(obsidian: Obsidian, url: string): Promise<void> {
 	const peer = await connectPeer(url, [[CHANNEL, grant]], PEER.id);
 	const hello = await peer.next(EFrame.Peer);
 	const me = await obsidian.evaluate(() =>
-		app.plugins.plugins.obsync.controller.currentDevice(),
+		app.plugins.plugins.mdsync.controller.currentDevice(),
 	);
 	check(
 		"the relay sees no device name",
@@ -157,7 +157,7 @@ async function scenario(obsidian: Obsidian, url: string): Promise<void> {
 	});
 	await obsidian.waitFor(
 		"peer in the device list",
-		() => app.plugins.plugins.obsync.realtime.people.devices().devices,
+		() => app.plugins.plugins.mdsync.realtime.people.devices().devices,
 		(devices: { id: string }[]) =>
 			devices.some((device) => device.id === PEER.id),
 	);
@@ -165,13 +165,13 @@ async function scenario(obsidian: Obsidian, url: string): Promise<void> {
 	peer.signal();
 	await obsidian.waitFor(
 		"a pull after a remote signal",
-		() => app.plugins.plugins.obsync.__pulls,
+		() => app.plugins.plugins.mdsync.__pulls,
 		(pulls: number) => pulls > 0,
 	);
 	check("remote signals debounce into one pull", await counter("__pulls"), 1);
 
 	await obsidian.evaluate(() =>
-		app.plugins.plugins.obsync.realtime.hub.signal("vault"),
+		app.plugins.plugins.mdsync.realtime.hub.signal("vault"),
 	);
 	await peer.next(EFrame.Signal);
 
@@ -181,7 +181,7 @@ async function scenario(obsidian: Obsidian, url: string): Promise<void> {
 		peer.signal();
 		await obsidian.waitFor(
 			"a pull after the soak",
-			() => app.plugins.plugins.obsync.__pulls,
+			() => app.plugins.plugins.mdsync.__pulls,
 			(pulls: number) => pulls === 2,
 		);
 	}
@@ -189,12 +189,12 @@ async function scenario(obsidian: Obsidian, url: string): Promise<void> {
 	peer.close();
 	await obsidian.waitFor(
 		"peer gone from the device list",
-		() => app.plugins.plugins.obsync.realtime.people.devices().devices,
+		() => app.plugins.plugins.mdsync.realtime.people.devices().devices,
 		(devices: unknown[]) => devices.length === 0,
 	);
 
 	const original = await obsidian.evaluate(() => {
-		const plugin = app.plugins.plugins.obsync;
+		const plugin = app.plugins.plugins.mdsync;
 		const secret = plugin.settings.relaySecret;
 		plugin.settings.relaySecret = "wrong-secret";
 		plugin.realtime.hub.restartIfChanged();
@@ -202,7 +202,7 @@ async function scenario(obsidian: Obsidian, url: string): Promise<void> {
 	});
 	await obsidian.waitFor(
 		"link down on a refused grant",
-		() => app.plugins.plugins.obsync.realtime.hub.isConnected(),
+		() => app.plugins.plugins.mdsync.realtime.hub.isConnected(),
 		(connected) => !connected,
 	);
 	await sleep(REFUSED_SETTLE_MS);
@@ -212,7 +212,7 @@ async function scenario(obsidian: Obsidian, url: string): Promise<void> {
 
 	const watcher = await connectPeer(url, [[CHANNEL, grant]], PEER.id);
 	await obsidian.evaluate((secret) => {
-		const plugin = app.plugins.plugins.obsync;
+		const plugin = app.plugins.plugins.mdsync;
 		plugin.settings.relaySecret = secret;
 		plugin.realtime.hub.restartIfChanged();
 	}, original);

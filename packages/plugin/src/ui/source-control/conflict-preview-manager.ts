@@ -40,7 +40,7 @@ export class ConflictPreviewManager {
 	}
 
 	render(parent: HTMLElement, path: string): void {
-		const previewEl = parent.createDiv({ cls: "obsync-conflict-preview" });
+		const previewEl = parent.createDiv({ cls: "mdsync-conflict-preview" });
 		const cached = this.previewCache.get(path);
 		if (cached !== undefined) {
 			this.renderInto(previewEl, cached);

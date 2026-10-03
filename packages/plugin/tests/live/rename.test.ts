@@ -1,4 +1,4 @@
-import { EFrame } from "@obsync/protocol";
+import { EFrame } from "@mdsync/protocol";
 import { InMemoryAdapter } from "@tests/helpers/in-memory-adapter";
 import { LiveHub } from "@tests/helpers/live-hub";
 import { type App, type DataAdapter, MarkdownView, TFile } from "obsidian";

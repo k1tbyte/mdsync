@@ -7,7 +7,7 @@ export function renderBinaryDiff(
 	forceText: boolean,
 	onForceText: () => void,
 ): void {
-	const wrap = parent.createDiv({ cls: "obsync-diff-binary" });
+	const wrap = parent.createDiv({ cls: "mdsync-diff-binary" });
 	const delta = model.rightSize - model.leftSize;
 	const sign = delta > 0 ? "+" : delta < 0 ? "−" : "";
 	const deltaText =
@@ -22,7 +22,7 @@ export function renderBinaryDiff(
 		button.addEventListener("click", onForceText);
 	} else if (forceText) {
 		wrap.createDiv({
-			cls: "obsync-diff-hint",
+			cls: "mdsync-diff-hint",
 			text: "File is too large or not text to diff.",
 		});
 	}

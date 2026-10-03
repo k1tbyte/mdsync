@@ -157,7 +157,7 @@ export class MergeEditorPanel {
 			() => [...Object.values(this.sideViews), this.resultView],
 			() => this.scheduleLayout(),
 		);
-		const root = parent.createDiv({ cls: "obsync-merge-panel" });
+		const root = parent.createDiv({ cls: "mdsync-merge-panel" });
 		this.renderToolbar(root);
 		renderMergeLegend(root);
 		this.renderDesktop(root);
@@ -166,8 +166,8 @@ export class MergeEditorPanel {
 	}
 
 	private renderToolbar(root: HTMLElement): void {
-		const toolbar = root.createDiv({ cls: "obsync-merge-toolbar" });
-		this.counterEl = toolbar.createSpan({ cls: "obsync-merge-counter" });
+		const toolbar = root.createDiv({ cls: "mdsync-merge-toolbar" });
+		this.counterEl = toolbar.createSpan({ cls: "mdsync-merge-counter" });
 		this.undoButton = appendIconButton(toolbar, "undo-2", "Undo", () => {
 			if (this.resultView) undo(this.resultView);
 		});
@@ -202,8 +202,8 @@ export class MergeEditorPanel {
 	}
 
 	private renderDesktop(root: HTMLElement): void {
-		const heads = root.createDiv({ cls: "obsync-merge-pane-heads" });
-		const body = root.createDiv({ cls: "obsync-merge-body" });
+		const heads = root.createDiv({ cls: "mdsync-merge-pane-heads" });
+		const body = root.createDiv({ cls: "mdsync-merge-body" });
 		const col = (
 			headCls: string,
 			bodyCls: string,
@@ -216,27 +216,27 @@ export class MergeEditorPanel {
 		};
 		const resultLabel = randomId();
 		const localHost = col(
-			"obsync-merge-pane-head is-local",
-			"obsync-merge-editor-host is-local",
+			"mdsync-merge-pane-head is-local",
+			"mdsync-merge-editor-host is-local",
 			PANE_LABEL.local,
 		);
 		const leftEl = col(
-			"obsync-merge-divider-head",
-			"obsync-merge-divider is-local",
+			"mdsync-merge-divider-head",
+			"mdsync-merge-divider is-local",
 		);
 		const resultHost = col(
-			"obsync-merge-pane-head",
-			"obsync-merge-editor-host is-result",
+			"mdsync-merge-pane-head",
+			"mdsync-merge-editor-host is-result",
 			"Result (editable)",
 			resultLabel,
 		);
 		const rightEl = col(
-			"obsync-merge-divider-head",
-			"obsync-merge-divider is-remote",
+			"mdsync-merge-divider-head",
+			"mdsync-merge-divider is-remote",
 		);
 		const remoteHost = col(
-			"obsync-merge-pane-head is-remote",
-			"obsync-merge-editor-host is-remote",
+			"mdsync-merge-pane-head is-remote",
+			"mdsync-merge-editor-host is-remote",
 			PANE_LABEL.remote,
 		);
 

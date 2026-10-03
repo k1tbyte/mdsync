@@ -11,7 +11,7 @@ importers:
       '@biomejs/biome':
         specifier: ^2.5.9
         version: 2.5.9
-      '@obsync/protocol':
+      '@mdsync/protocol':
         specifier: workspace:*
         version: link:packages/protocol
       husky:
@@ -41,7 +41,7 @@ importers:
       '@codemirror/view':
         specifier: ^6.38.6
         version: 6.43.9
-      '@obsync/protocol':
+      '@mdsync/protocol':
         specifier: workspace:*
         version: link:../protocol
       diff:
@@ -84,7 +84,7 @@ importers:
       esbuild:
         specifier: ^0.25.12
         version: 0.25.12
-      obsync-relay:
+      mdsync-relay:
         specifier: workspace:*
         version: link:../relay
       vitest:
@@ -99,7 +99,7 @@ importers:
 
   packages/relay:
     dependencies:
-      '@obsync/protocol':
+      '@mdsync/protocol':
         specifier: workspace:*
         version: link:../protocol
     devDependencies:

@@ -1,4 +1,4 @@
-import { ERefusal } from "@obsync/protocol";
+import { ERefusal } from "@mdsync/protocol";
 import type { App, TFile } from "obsidian";
 
 import type { HubConnection } from "@/hub";

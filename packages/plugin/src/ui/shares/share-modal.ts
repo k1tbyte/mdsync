@@ -66,7 +66,7 @@ export class ShareModal extends Modal {
 
 	onOpen(): void {
 		const { contentEl, plugin, record } = this;
-		this.modalEl.addClass("obsync-share-modal");
+		this.modalEl.addClass("mdsync-share-modal");
 		this.titleEl.setText(`Sharing "${record.name}"`);
 		this.summary = contentEl.createEl("p", {
 			cls: "setting-item-description",
@@ -75,14 +75,14 @@ export class ShareModal extends Modal {
 		const stranded = strandedInvites(plugin, record);
 		if (stranded) {
 			contentEl.createEl("p", {
-				cls: "obsync-share-warning",
+				cls: "mdsync-share-warning",
 				text: `People were invited through ${stranded}, which this vault no longer uses: invite them again, and the new link takes over the folder they have.`,
 			});
 		}
 		this.renderPause();
 		heading(contentEl, "People");
 		const failure = alertLine(contentEl);
-		const list = contentEl.createDiv({ cls: "obsync-share-access" });
+		const list = contentEl.createDiv({ cls: "mdsync-share-access" });
 		this.redraw = () => this.drawPeople(failure, list);
 		this.unsubscribe = plugin.realtime.people.subscribe(this.redraw);
 		this.redraw();
@@ -197,7 +197,7 @@ export class ShareModal extends Modal {
 		const { plugin, record } = this;
 		const label = closeLabel(record);
 		new Setting(this.modalEl)
-			.setClass("obsync-share-footer")
+			.setClass("mdsync-share-footer")
 			.setDesc(
 				this.owner
 					? "Everyone you invited loses access. The files stay in your vault."
@@ -266,7 +266,7 @@ function heading(parent: HTMLElement, title: string): void {
 	new Setting(parent)
 		.setName(title)
 		.setHeading()
-		.settingEl.addClass("obsync-share-section");
+		.settingEl.addClass("mdsync-share-section");
 }
 
 function named({ key, name, person }: ShareRow): DocumentFragment {

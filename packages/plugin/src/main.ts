@@ -13,10 +13,10 @@ import type { Unseen } from "@/presence";
 import {
 	canSync,
 	DEFAULT_SETTINGS,
+	type MdsyncSettings,
 	mergeSettings,
-	type ObsyncSettings,
 } from "@/settings/model";
-import type { ObsyncSettingTab } from "@/settings/tab";
+import type { MdsyncSettingTab } from "@/settings/tab";
 import { SettingsTransferController } from "@/settings/transfer-controller";
 import { reportWarning } from "@/shared";
 import type { SpaceRecords } from "@/spaces";
@@ -68,8 +68,8 @@ function safely(step: () => void): void {
 	}
 }
 
-export default class ObsyncPlugin extends Plugin implements PluginHost {
-	settings: ObsyncSettings = DEFAULT_SETTINGS;
+export default class MdsyncPlugin extends Plugin implements PluginHost {
+	settings: MdsyncSettings = DEFAULT_SETTINGS;
 	controller!: SyncController;
 	logs!: LogService;
 	passphrase!: PassphraseManager;
@@ -79,7 +79,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 	ignoreState!: IgnoreStateHandle;
 	spaces!: SpaceRecords;
 	unseen!: Unseen;
-	private settingsTab?: ObsyncSettingTab;
+	private settingsTab?: MdsyncSettingTab;
 	private statePersister!: StatePersister;
 	private scopeRefreshTimer: number | null = null;
 	private editorSigns: SignsHandle | null = null;
@@ -104,7 +104,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 			onSpaceGone: createSpaceGone(this),
 			onUnindexed: (count) =>
 				notifyInfo(
-					`Obsidian has not loaded ${count} files that are on disk. Obsync syncs them; restart Obsidian to see them.`,
+					`Obsidian has not loaded ${count} files that are on disk. MDSync syncs them; restart Obsidian to see them.`,
 				),
 			onTheirsPulled: (space, paths) =>
 				markTheirs(this, this.unseen, space, paths),
@@ -182,7 +182,7 @@ export default class ObsyncPlugin extends Plugin implements PluginHost {
 	}
 
 	async loadSettings(): Promise<void> {
-		const data = (await this.loadData()) as Partial<ObsyncSettings> | null;
+		const data = (await this.loadData()) as Partial<MdsyncSettings> | null;
 		this.settings = mergeSettings(data);
 	}
 

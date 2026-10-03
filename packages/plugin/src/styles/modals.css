@@ -1,4 +1,4 @@
-.obsync-modal-buttons {
+.mdsync-modal-buttons {
 	display: flex;
 	justify-content: flex-end;
 	gap: var(--size-4-2);
@@ -9,44 +9,44 @@
 	display: none;
 }
 
-.obsync-confirm-modal p {
+.mdsync-confirm-modal p {
 	overflow-wrap: anywhere;
 }
 
-.obsync-prompt-input {
+.mdsync-prompt-input {
 	width: 100%;
 }
 
-body.is-phone .obsync-modal-buttons button {
+body.is-phone .mdsync-modal-buttons button {
 	flex: 1 1 0;
 }
 
-.obsync-button-row {
+.mdsync-button-row {
 	border-top: 0;
 }
 
-.obsync-button-row .setting-item-info {
+.mdsync-button-row .setting-item-info {
 	display: none;
 }
 
-.is-phone .modal .obsync-button-row .setting-item-control {
+.is-phone .modal .mdsync-button-row .setting-item-control {
 	flex-wrap: wrap;
 }
 
 .is-phone
 	.modal
-	.obsync-button-row
+	.mdsync-button-row
 	.setting-item-control
 	button:not(.clickable-icon) {
 	flex: 1 1 auto;
 	width: auto;
 }
 
-.obsync-adopt-new-vault-btn {
+.mdsync-adopt-new-vault-btn {
 	margin-left: var(--size-4-2);
 }
 
-.obsync-sub-setting {
+.mdsync-sub-setting {
 	margin-left: var(--size-4-3);
 	border-left: 1px solid var(--background-modifier-border);
 	padding-left: var(--size-4-2);

@@ -1,4 +1,4 @@
-.obsync-hunk-preview {
+.mdsync-hunk-preview {
 	margin-bottom: var(--size-4-2);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-s);
@@ -9,25 +9,25 @@
 }
 
 @media (max-width: 700px) {
-	.obsync-layout-btn {
+	.mdsync-layout-btn {
 		display: none;
 	}
 
-	.obsync-merge-toolbar,
-	.obsync-merge-legend,
-	.obsync-compare-toolbar {
+	.mdsync-merge-toolbar,
+	.mdsync-merge-legend,
+	.mdsync-compare-toolbar {
 		padding-inline: var(--size-4-2);
 	}
 
-	.obsync-merge-legend {
+	.mdsync-merge-legend {
 		gap: var(--size-4-2);
 	}
 }
-.obsync-unified-line {
+.mdsync-unified-line {
 	display: block;
 }
 
-.obsync-line-prefix {
+.mdsync-line-prefix {
 	display: inline-block;
 	width: 1.5em;
 	text-align: center;
@@ -35,17 +35,17 @@
 	opacity: 0.6;
 }
 
-.obsync-line-content {
+.mdsync-line-content {
 	white-space: pre;
 }
 
 /* Tint from the theme's own hue, not `--background-modifier-error/success`: solid fills make same-hue text invisible. */
-.obsync-unified-line.is-add {
+.mdsync-unified-line.is-add {
 	background-color: rgba(var(--color-green-rgb), 0.15);
 	color: var(--text-normal);
 }
 
-.obsync-unified-line.is-del {
+.mdsync-unified-line.is-del {
 	background-color: rgba(var(--color-red-rgb), 0.15);
 	color: var(--text-normal);
 }

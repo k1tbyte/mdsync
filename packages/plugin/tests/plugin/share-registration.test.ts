@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createShareRegistration } from "@/plugin/share-registration";
-import { DEFAULT_SETTINGS, type ObsyncSettings } from "@/settings/model";
+import { DEFAULT_SETTINGS, type MdsyncSettings } from "@/settings/model";
 import type { SpaceRecord } from "@/spaces/record";
 import { SpaceRecords } from "@/spaces/records";
 
@@ -66,7 +66,7 @@ function host(spaces: SpaceRecord[]) {
 			},
 		},
 		spaces,
-	} as ObsyncSettings;
+	} as MdsyncSettings;
 	const logs = { warn: vi.fn(async () => {}) };
 	return { settings, spaces: new SpaceRecords(settings, async () => {}), logs };
 }

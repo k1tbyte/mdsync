@@ -3,7 +3,7 @@ import type { App, ObsidianProtocolData } from "obsidian";
 import type { PassphraseManager } from "@/core";
 import { confirmSettingsTransferImport, notifyError, notifyInfo } from "@/ui";
 
-import type { ObsyncSettings } from "./model";
+import type { MdsyncSettings } from "./model";
 import {
 	createSettingsTransferPackage,
 	importedSections,
@@ -15,7 +15,7 @@ import {
 
 export interface SettingsTransferDeps {
 	app: App;
-	settings: ObsyncSettings;
+	settings: MdsyncSettings;
 	passphrase: PassphraseManager;
 	saveSettings(): Promise<void>;
 	/** Restarts the services the imported settings reconfigure. */
@@ -72,7 +72,7 @@ export class SettingsTransferController {
 
 	/** `passphrase` opened the token, so it is the vault's. */
 	private async apply(
-		merged: ObsyncSettings,
+		merged: MdsyncSettings,
 		passphrase: string,
 	): Promise<void> {
 		Object.assign(this.deps.settings, merged);

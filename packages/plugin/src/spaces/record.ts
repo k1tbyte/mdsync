@@ -1,4 +1,4 @@
-import { isShareId, OWNER } from "@obsync/protocol";
+import { isShareId, OWNER } from "@mdsync/protocol";
 
 /**
  * Where a share's objects live: its owner's S3 location when it was created. Pinned for good; re-deriving

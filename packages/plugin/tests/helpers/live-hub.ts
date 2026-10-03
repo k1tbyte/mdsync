@@ -3,11 +3,11 @@ import {
 	decodeServer,
 	EFrame,
 	encodeClient,
-} from "@obsync/protocol";
-import { HubCore } from "obsync-relay/src/hub/core";
-import type { DocSub, HubPeer } from "obsync-relay/src/hub/peer";
-import { SqlDocStore } from "obsync-relay/src/hub/store";
-import { memorySql } from "obsync-relay/tests/helpers/memory-sql";
+} from "@mdsync/protocol";
+import { HubCore } from "mdsync-relay/src/hub/core";
+import type { DocSub, HubPeer } from "mdsync-relay/src/hub/peer";
+import { SqlDocStore } from "mdsync-relay/src/hub/store";
+import { memorySql } from "mdsync-relay/tests/helpers/memory-sql";
 
 import type { SpaceFrame, SpaceHub, SpaceListener } from "@/hub/connection";
 

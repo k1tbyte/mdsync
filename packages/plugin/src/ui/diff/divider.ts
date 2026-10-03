@@ -11,7 +11,7 @@ export interface DividerItem {
 	near: Span;
 	/** Span in the pane across the strip. */
 	far: Span;
-	/** CSS tone whose `--obsync-tone-<tone>` colours the connector. */
+	/** CSS tone whose `--mdsync-tone-<tone>` colours the connector. */
 	tone: string;
 	actions: RailAction[];
 	/** Picked for Apply: the connector takes the accent colour like the lines do. */
@@ -41,14 +41,14 @@ export class Divider {
 		private readonly farView: EditorView,
 		private readonly nearEdge: "left" | "right",
 	) {
-		this.canvas = el.createEl("canvas", { cls: "obsync-divider-canvas" });
+		this.canvas = el.createEl("canvas", { cls: "mdsync-divider-canvas" });
 		this.canvas.tabIndex = 0;
 		this.canvas.setAttr("role", "button");
 		this.canvas.setAttr(
 			"aria-label",
 			"Change actions: click a connector, or use arrow keys and Enter.",
 		);
-		this.actions = el.createDiv({ cls: "obsync-divider-actions" });
+		this.actions = el.createDiv({ cls: "mdsync-divider-actions" });
 		const { signal } = this.listeners;
 		el.addEventListener(
 			"wheel",
@@ -170,7 +170,7 @@ export class Divider {
 			const color =
 				item.chosen || item.key === this.selected
 					? style.getPropertyValue("--interactive-accent").trim()
-					: `rgb(${style.getPropertyValue(`--obsync-tone-${item.tone}`).trim()})`;
+					: `rgb(${style.getPropertyValue(`--mdsync-tone-${item.tone}`).trim()})`;
 			const raised = item.key === this.hovered || item.key === this.selected;
 			const path = this.connectorPath(width, near, far);
 			ctx.fillStyle = color;
@@ -312,7 +312,7 @@ export class Divider {
 		if (item.actions.length === 0) return;
 		this.selected = item.key;
 		const popup = this.actions.createDiv({
-			cls: `obsync-divider-action is-${item.tone} is-popup`,
+			cls: `mdsync-divider-action is-${item.tone} is-popup`,
 		});
 		this.popup = popup;
 		popup.setAttr("role", "toolbar");

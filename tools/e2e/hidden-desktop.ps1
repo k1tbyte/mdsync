@@ -39,7 +39,7 @@ public static class HiddenDesktop {
 	static extern bool GetExitCodeProcess(IntPtr process, out uint code);
 
 	public static int Run(string command) {
-		const string name = "obsync-e2e";
+		const string name = "mdsync-e2e";
 		const uint GenericAll = 0x10000000;
 		if (CreateDesktop(name, IntPtr.Zero, IntPtr.Zero, 0, GenericAll, IntPtr.Zero) == IntPtr.Zero)
 			throw new Win32Exception();

@@ -70,7 +70,7 @@ function askIgnoreLevel(
 		modal.titleEl.setText(`Ignore ${isFolder ? "folder" : "file"}`);
 		modal.contentEl.createEl("p", { text: path });
 		const buttons = modal.contentEl.createDiv({
-			cls: "obsync-modal-buttons",
+			cls: "mdsync-modal-buttons",
 		});
 		const localBtn = buttons.createEl("button", {
 			text: "On this machine",
@@ -105,7 +105,7 @@ export async function toggleLocalIgnore(
 		: appendIgnoreRule(previous, rule);
 	if (next === previous) {
 		notifyInfo(
-			"Ignored on this device by another rule. Edit the patterns under Settings → Obsync.",
+			"Ignored on this device by another rule. Edit the patterns under Settings → MDSync.",
 		);
 		return;
 	}
@@ -186,7 +186,7 @@ export async function stopIgnoring(
 
 	if (!changed) {
 		notifyInfo(
-			`Ignored by another rule. Edit it in Settings → Obsync or ${note}.`,
+			`Ignored by another rule. Edit it in Settings → MDSync or ${note}.`,
 		);
 		return;
 	}

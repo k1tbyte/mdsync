@@ -51,7 +51,7 @@ export class AcceptInviteModal extends Modal {
 		if (!this.link) {
 			new Setting(contentEl)
 				.setName("Link")
-				.setDesc("The obsidian://obsync-share link you were sent.")
+				.setDesc("The obsidian://mdsync-share link you were sent.")
 				.addText((text) => {
 					text.inputEl.setAttr("aria-label", "Link");
 					text.onChange((value) => {

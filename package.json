@@ -1,13 +1,13 @@
 {
-	"name": "obsync-monorepo",
+	"name": "mdsync-monorepo",
 	"version": "1.0.0",
-	"description": "Monorepo for the Obsync Obsidian plugin and its companion services.",
+	"description": "Monorepo for the MDSync Obsidian plugin and its companion services.",
 	"private": true,
 	"type": "module",
 	"packageManager": "pnpm@10.17.0",
 	"scripts": {
-		"build": "pnpm --filter obsync run build",
-		"dev": "pnpm --filter obsync run dev",
+		"build": "pnpm --filter mdsync run build",
+		"dev": "pnpm --filter mdsync run dev",
 		"test": "pnpm -r --if-present run test",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
@@ -28,7 +28,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.9",
-		"@obsync/protocol": "workspace:*",
+		"@mdsync/protocol": "workspace:*",
 		"husky": "^9.1.7",
 		"jiti": "^2.7.0",
 		"playwright-core": "^1.63.0",

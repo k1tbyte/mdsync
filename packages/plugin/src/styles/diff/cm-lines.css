@@ -1,81 +1,81 @@
-.cm-line.obsync-merge-line,
-.cm-line.obsync-diff-line {
-	background-color: rgba(var(--obsync-tone), 0.14);
-	box-shadow: inset var(--obsync-bar) 0 0 rgba(var(--obsync-tone), 0.6);
+.cm-line.mdsync-merge-line,
+.cm-line.mdsync-diff-line {
+	background-color: rgba(var(--mdsync-tone), 0.14);
+	box-shadow: inset var(--mdsync-bar) 0 0 rgba(var(--mdsync-tone), 0.6);
 }
 
-.cm-line.obsync-merge-line.is-base {
-	background-color: rgba(var(--obsync-tone), 0.05);
-	box-shadow: inset var(--obsync-bar) 0 0 rgba(var(--obsync-tone), 0.2);
+.cm-line.mdsync-merge-line.is-base {
+	background-color: rgba(var(--mdsync-tone), 0.05);
+	box-shadow: inset var(--mdsync-bar) 0 0 rgba(var(--mdsync-tone), 0.2);
 }
 
-.cm-line.obsync-merge-line.is-pending {
-	border-left: var(--obsync-bar) dotted rgb(var(--obsync-tone-conflict));
+.cm-line.mdsync-merge-line.is-pending {
+	border-left: var(--mdsync-bar) dotted rgb(var(--mdsync-tone-conflict));
 }
 
-.cm-line.obsync-merge-mark,
-.cm-line.obsync-diff-mark {
-	box-shadow: inset 0 var(--obsync-bar) 0 rgba(var(--obsync-tone), 0.6);
+.cm-line.mdsync-merge-mark,
+.cm-line.mdsync-diff-mark {
+	box-shadow: inset 0 var(--mdsync-bar) 0 rgba(var(--mdsync-tone), 0.6);
 }
 
-.cm-line.obsync-merge-mark.is-after,
-.cm-line.obsync-diff-mark.is-after {
-	box-shadow: inset 0 calc(-1 * var(--obsync-bar)) 0
-		rgba(var(--obsync-tone), 0.6);
+.cm-line.mdsync-merge-mark.is-after,
+.cm-line.mdsync-diff-mark.is-after {
+	box-shadow: inset 0 calc(-1 * var(--mdsync-bar)) 0
+		rgba(var(--mdsync-tone), 0.6);
 }
 
-.cm-line.obsync-diff-line.is-chosen {
+.cm-line.mdsync-diff-line.is-chosen {
 	background-color: color-mix(
 		in srgb,
 		var(--interactive-accent) 14%,
 		transparent
 	);
-	box-shadow: inset var(--obsync-bar-strong) 0 0 var(--interactive-accent);
+	box-shadow: inset var(--mdsync-bar-strong) 0 0 var(--interactive-accent);
 }
 
-.cm-line.obsync-diff-mark.is-chosen {
-	box-shadow: inset 0 var(--obsync-bar) 0 var(--interactive-accent);
+.cm-line.mdsync-diff-mark.is-chosen {
+	box-shadow: inset 0 var(--mdsync-bar) 0 var(--interactive-accent);
 }
 
-.cm-line.obsync-diff-mark.is-after.is-chosen {
-	box-shadow: inset 0 calc(-1 * var(--obsync-bar)) 0 var(--interactive-accent);
+.cm-line.mdsync-diff-mark.is-after.is-chosen {
+	box-shadow: inset 0 calc(-1 * var(--mdsync-bar)) 0 var(--interactive-accent);
 }
 
-.obsync-compare-panel.is-combined .cm-line.obsync-diff-line.is-last {
-	border-bottom: 1px solid rgba(var(--obsync-tone), 0.4);
+.mdsync-compare-panel.is-combined .cm-line.mdsync-diff-line.is-last {
+	border-bottom: 1px solid rgba(var(--mdsync-tone), 0.4);
 }
 
-.obsync-merge-panel.is-combined .cm-line.obsync-merge-line,
-.obsync-compare-panel.is-combined .cm-line.obsync-diff-line {
+.mdsync-merge-panel.is-combined .cm-line.mdsync-merge-line,
+.mdsync-compare-panel.is-combined .cm-line.mdsync-diff-line {
 	border-right: 1px solid var(--background-modifier-border);
 }
 
-.obsync-code-mark {
+.mdsync-code-mark {
 	border-radius: 2px;
-	background: rgba(var(--obsync-tone), 0.28);
+	background: rgba(var(--mdsync-tone), 0.28);
 }
 
 /* Combined mode: one pane, source blocks instead of side panes. */
-.obsync-merge-panel.is-combined .obsync-merge-pane-heads,
-.obsync-compare-panel.is-combined .obsync-compare-heads {
+.mdsync-merge-panel.is-combined .mdsync-merge-pane-heads,
+.mdsync-compare-panel.is-combined .mdsync-compare-heads {
 	display: none;
 }
 
-.obsync-merge-panel.is-combined .obsync-merge-body,
-.obsync-compare-panel.is-combined .obsync-compare-body {
+.mdsync-merge-panel.is-combined .mdsync-merge-body,
+.mdsync-compare-panel.is-combined .mdsync-compare-body {
 	display: block;
 }
 
-.obsync-merge-panel.is-combined .obsync-merge-editor-host.is-local,
-.obsync-merge-panel.is-combined .obsync-merge-editor-host.is-remote,
-.obsync-merge-panel.is-combined .obsync-merge-divider,
-.obsync-compare-panel.is-combined .obsync-compare-host.is-left,
-.obsync-compare-panel.is-combined .obsync-compare-divider {
+.mdsync-merge-panel.is-combined .mdsync-merge-editor-host.is-local,
+.mdsync-merge-panel.is-combined .mdsync-merge-editor-host.is-remote,
+.mdsync-merge-panel.is-combined .mdsync-merge-divider,
+.mdsync-compare-panel.is-combined .mdsync-compare-host.is-left,
+.mdsync-compare-panel.is-combined .mdsync-compare-divider {
 	display: none;
 }
 
-.obsync-merge-panel.is-combined .obsync-merge-editor-host.is-result,
-.obsync-compare-panel.is-combined .obsync-compare-host.is-right {
+.mdsync-merge-panel.is-combined .mdsync-merge-editor-host.is-result,
+.mdsync-compare-panel.is-combined .mdsync-compare-host.is-right {
 	height: 100%;
 }
 

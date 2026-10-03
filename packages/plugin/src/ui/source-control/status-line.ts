@@ -25,7 +25,7 @@ function listBadge(
 ): void {
 	if (count === 0) return;
 	const badge = line.createEl("button", {
-		cls: `obsync-ignored-badge is-${icon}`,
+		cls: `mdsync-ignored-badge is-${icon}`,
 	});
 	setIcon(badge, icon);
 	badge.createSpan({ text: formatActionCount(count) });
@@ -46,7 +46,7 @@ export function fillStatusLine(
 			actionButton(line, "warning")
 				.setButtonText("Resolve vault mismatch")
 				.onClick(() => void actions.adoptNewVault())
-				.buttonEl.addClass("obsync-adopt-new-vault-btn");
+				.buttonEl.addClass("mdsync-adopt-new-vault-btn");
 		}
 		return;
 	}
@@ -66,7 +66,7 @@ export function fillStatusLine(
 				);
 		}
 		line.createDiv({
-			text: "Restore the folder, or stop sharing or leave it in Obsync settings (Sync tab).",
+			text: "Restore the folder, or stop sharing or leave it in MDSync settings (Sync tab).",
 		});
 		return;
 	}
@@ -81,7 +81,7 @@ export function fillStatusLine(
 	);
 	if (snapshot.conflicts > 0) {
 		line.createSpan({
-			cls: "obsync-status-conflicts",
+			cls: "mdsync-status-conflicts",
 			text: ` · ${formatActionCount(snapshot.conflicts)} conflicts`,
 		});
 	}

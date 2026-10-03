@@ -7,16 +7,16 @@ export function renderSize(
 	delta?: number,
 ): HTMLElement {
 	const el = parent.createSpan({
-		cls: ["obsync-file-size", ...(delta === undefined ? [] : ["has-delta"])],
+		cls: ["mdsync-file-size", ...(delta === undefined ? [] : ["has-delta"])],
 	});
 	if (delta !== undefined) {
 		const { sign, cls } = deltaParts(delta);
 		el.createSpan({
-			cls: `obsync-file-size-delta ${cls}`,
+			cls: `mdsync-file-size-delta ${cls}`,
 			text: `${sign}${formatBytes(Math.abs(delta))}`,
 		});
 	}
-	el.createSpan({ cls: "obsync-file-size-current", text: formatBytes(size) });
+	el.createSpan({ cls: "mdsync-file-size-current", text: formatBytes(size) });
 	return el;
 }
 
@@ -27,11 +27,11 @@ export function renderPath(
 	withParent = true,
 ): HTMLElement {
 	const separator = path.lastIndexOf("/");
-	const copy = parent.createSpan({ cls: "obsync-file-copy" });
-	copy.createSpan({ cls: "obsync-file-name", text: path.slice(separator + 1) });
+	const copy = parent.createSpan({ cls: "mdsync-file-copy" });
+	copy.createSpan({ cls: "mdsync-file-name", text: path.slice(separator + 1) });
 	if (withParent && separator > 0) {
 		copy.createSpan({
-			cls: "obsync-file-parent",
+			cls: "mdsync-file-parent",
 			text: path.slice(0, separator),
 		});
 	}

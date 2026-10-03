@@ -1,4 +1,4 @@
-const FOCUS_ATTRIBUTE = "data-obsync-focus";
+const FOCUS_ATTRIBUTE = "data-mdsync-focus";
 
 export function focusKey<Element extends HTMLElement>(
 	el: Element,

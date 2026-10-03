@@ -84,23 +84,23 @@ export class TimelineTab {
 
 	render(parent: HTMLElement): void {
 		const pane = parent.createDiv({
-			cls: "obsync-history-pane obsync-timeline",
+			cls: "mdsync-history-pane mdsync-timeline",
 		});
 		if (!this.plugin.settings.fileHistoryEnabled) {
 			pane.createDiv({
-				cls: "obsync-status-line",
+				cls: "mdsync-status-line",
 				text: "File version history is disabled. Enable it in settings to see the timeline.",
 			});
 			return;
 		}
-		const head = pane.createDiv({ cls: "obsync-history-versions-head" });
-		const bar = head.createDiv({ cls: "obsync-history-head-actions" });
+		const head = pane.createDiv({ cls: "mdsync-history-versions-head" });
+		const bar = head.createDiv({ cls: "mdsync-history-head-actions" });
 		appendLabeledButton(bar, "refresh-cw", "Refresh timeline", () => {
 			this.clear();
 			this.onRerender();
 		});
 		this.list = pane.createDiv({
-			cls: "obsync-history-list obsync-timeline-list",
+			cls: "mdsync-history-list mdsync-timeline-list",
 		});
 		this.list.toggleClass("is-loading", this.snapshots === null);
 		this.renderBody(this.list);
@@ -121,19 +121,19 @@ export class TimelineTab {
 	private renderBody(body: HTMLElement): void {
 		if (this.error) {
 			body.createDiv({
-				cls: "obsync-history-error",
+				cls: "mdsync-history-error",
 				text: `Could not load the timeline: ${this.error}`,
 			});
 			return;
 		}
 		if (!this.snapshots) {
-			body.createDiv({ cls: "obsync-status-line", text: "Loading…" });
+			body.createDiv({ cls: "mdsync-status-line", text: "Loading…" });
 			this.load();
 			return;
 		}
 		if (this.snapshots.lagging) {
 			body.createDiv({
-				cls: "obsync-status-line",
+				cls: "mdsync-status-line",
 				text: "History has not caught up with the latest push yet, so the newest snapshot is missing.",
 			});
 		}
@@ -142,12 +142,12 @@ export class TimelineTab {
 		});
 		if (rows.length === 0) {
 			body.createDiv({
-				cls: "obsync-status-line is-empty",
+				cls: "mdsync-status-line is-empty",
 				text: "No pushes recorded yet. The timeline fills up as you push.",
 			});
 		}
 		for (const group of groupRows(rows)) {
-			body.createDiv({ cls: "obsync-timeline-day", text: group.label });
+			body.createDiv({ cls: "mdsync-timeline-day", text: group.label });
 			for (const row of group.rows) this.renderRow(body, row);
 		}
 	}
@@ -179,8 +179,8 @@ export class TimelineTab {
 
 	private renderRow(body: HTMLElement, row: TimelineRow): void {
 		const expanded = this.expanded.has(row.snapshotId);
-		const card = body.createDiv({ cls: "obsync-timeline-card" });
-		const head = card.createDiv({ cls: "obsync-timeline-head" });
+		const card = body.createDiv({ cls: "mdsync-timeline-card" });
+		const head = card.createDiv({ cls: "mdsync-timeline-head" });
 		head.setAttr("data-timeline-focus", row.snapshotId);
 		head.setAttr("aria-expanded", String(expanded));
 		makeActivatable(head, `${row.title} · ${row.tooltip}`, () => {
@@ -188,27 +188,27 @@ export class TimelineTab {
 			else this.expanded.add(row.snapshotId);
 			this.onRerender();
 		});
-		const chevron = head.createSpan({ cls: "obsync-timeline-icon" });
+		const chevron = head.createSpan({ cls: "mdsync-timeline-icon" });
 		setIcon(chevron, expanded ? "chevron-down" : "chevron-right");
-		const copy = head.createDiv({ cls: "obsync-timeline-copy" });
-		const title = copy.createDiv({ cls: "obsync-timeline-title" });
-		title.createSpan({ cls: "obsync-history-row-title", text: row.title });
+		const copy = head.createDiv({ cls: "mdsync-timeline-copy" });
+		const title = copy.createDiv({ cls: "mdsync-timeline-title" });
+		title.createSpan({ cls: "mdsync-history-row-title", text: row.title });
 		if (row.isHead)
-			title.createSpan({ cls: "obsync-timeline-current", text: "Latest push" });
+			title.createSpan({ cls: "mdsync-timeline-current", text: "Latest push" });
 		if (row.pinned) {
 			const pin = title.createSpan({
-				cls: "obsync-timeline-icon obsync-history-pinned-badge",
+				cls: "mdsync-timeline-icon mdsync-history-pinned-badge",
 			});
 			setIcon(pin, "pin");
 			pin.setAttr("aria-label", "Pinned snapshot");
 		}
 		copy.createDiv({
-			cls: "obsync-history-row-meta",
+			cls: "mdsync-history-row-meta",
 			text: [row.meta, row.counts ?? "Change record unavailable", row.netSize]
 				.filter((part): part is string => part !== null)
 				.join(" · "),
 		});
-		const actions = head.createDiv({ cls: "obsync-timeline-actions" });
+		const actions = head.createDiv({ cls: "mdsync-timeline-actions" });
 		const more = appendIconButton(
 			actions,
 			"ellipsis",
@@ -224,10 +224,10 @@ export class TimelineTab {
 			this.actions.showSnapshotMenu(event, row);
 		});
 		if (!expanded) return;
-		const list = card.createDiv({ cls: "obsync-timeline-files" });
+		const list = card.createDiv({ cls: "mdsync-timeline-files" });
 		if (!row.files || row.files.length === 0) {
 			list.createDiv({
-				cls: "obsync-status-line",
+				cls: "mdsync-status-line",
 				text: row.files
 					? "No file changes in this push."
 					: "The change record for this push is unavailable.",
@@ -250,7 +250,7 @@ export class TimelineTab {
 	): void {
 		const key = JSON.stringify([row.snapshotId, file.path]);
 		const item = parent.createDiv({
-			cls: "obsync-file-row obsync-timeline-file",
+			cls: "mdsync-file-row mdsync-timeline-file",
 		});
 		item.setAttr("data-timeline-focus", key);
 		item.toggleClass("is-active", this.selected === key);
@@ -260,15 +260,15 @@ export class TimelineTab {
 		// Before makeActivatable: the hold has to swallow its own trailing click.
 		onLongPress(item, (event) => this.actions.showFileMenu(event, row, file));
 		makeActivatable(item, file.path, () => void this.openFile(row, file));
-		const icon = item.createSpan({ cls: "obsync-timeline-icon" });
+		const icon = item.createSpan({ cls: "mdsync-timeline-icon" });
 		setIcon(icon, "file-text");
 		renderPath(item, file.path);
 		renderSize(item, file.size, file.sizeDelta);
 		item.createSpan({
-			cls: `obsync-file-status ${STATUS_CLASSES[file.action]}`,
+			cls: `mdsync-file-status ${STATUS_CLASSES[file.action]}`,
 			text: STATUS_LETTERS[file.action],
 		});
-		const actions = item.createDiv({ cls: "obsync-timeline-actions" });
+		const actions = item.createDiv({ cls: "mdsync-timeline-actions" });
 		const more = appendIconButton(
 			actions,
 			"ellipsis",

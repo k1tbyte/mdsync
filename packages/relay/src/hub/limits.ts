@@ -3,7 +3,7 @@
  * A read-only grant never signals (it wakes every device into a sync) and gets tighter presence.
  */
 
-import { type ClientFrame, EFrame } from "@obsync/protocol";
+import { type ClientFrame, EFrame } from "@mdsync/protocol";
 
 interface Rate {
 	perSecond: number;

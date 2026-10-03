@@ -1,15 +1,15 @@
-.obsync-history-error {
+.mdsync-history-error {
 	color: var(--text-error);
 }
 
-.obsync-history-pane {
+.mdsync-history-pane {
 	flex: 1 1 auto;
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
 }
 
-.obsync-history-list {
+.mdsync-history-list {
 	display: flex;
 	flex-direction: column;
 	gap: var(--size-4-2);
@@ -19,7 +19,7 @@
 	overflow-x: hidden;
 }
 
-.obsync-history-row {
+.mdsync-history-row {
 	display: flex;
 	flex-direction: column;
 	gap: var(--size-2-1);
@@ -29,15 +29,15 @@
 	min-width: 0;
 }
 
-.obsync-history-row.is-clickable {
+.mdsync-history-row.is-clickable {
 	cursor: pointer;
 }
 
-.obsync-history-row.is-clickable:hover {
+.mdsync-history-row.is-clickable:hover {
 	border-color: var(--interactive-accent);
 }
 
-.obsync-history-row-title {
+.mdsync-history-row-title {
 	font-weight: var(--font-semibold);
 	min-width: 0;
 	overflow: hidden;
@@ -45,7 +45,7 @@
 	white-space: nowrap;
 }
 
-.obsync-history-row-meta {
+.mdsync-history-row-meta {
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 	min-width: 0;
@@ -54,46 +54,46 @@
 	white-space: nowrap;
 }
 
-.obsync-history-row-meta.is-restored {
+.mdsync-history-row-meta.is-restored {
 	color: var(--text-success);
 }
 
-.obsync-history-row-actions {
+.mdsync-history-row-actions {
 	display: flex;
 	flex-wrap: wrap;
 	gap: var(--size-4-2);
 	margin-top: var(--size-2-1);
 }
 
-.obsync-history-row-actions button {
+.mdsync-history-row-actions button {
 	padding-inline: var(--size-4-2);
 }
 
-.obsync-history-search {
+.mdsync-history-search {
 	width: 100%;
 	height: var(--input-height);
 	margin-bottom: var(--size-4-2);
 }
 
-.obsync-history-versions-head {
+.mdsync-history-versions-head {
 	display: flex;
 	flex-direction: column;
 	gap: var(--size-2-2);
 	margin-bottom: var(--size-4-2);
 }
 
-.obsync-history-head-actions {
+.mdsync-history-head-actions {
 	display: flex;
 	flex-wrap: wrap;
 	gap: var(--size-2-2);
 }
 
-.obsync-history-head-actions > button {
+.mdsync-history-head-actions > button {
 	flex: 1 1 auto;
 	white-space: nowrap;
 }
 
-.obsync-history-pinned-badge {
+.mdsync-history-pinned-badge {
 	color: var(--text-accent);
 	font-weight: var(--font-normal);
 }

@@ -40,12 +40,12 @@ export function openChoiceModal<K extends string>(
 ): Promise<K | null> {
 	return openPromiseModal<K | null>((answer) => {
 		const modal = new Modal(options.app);
-		modal.modalEl.addClass("obsync-confirm-modal");
+		modal.modalEl.addClass("mdsync-confirm-modal");
 		modal.titleEl.setText(options.title);
 		for (const paragraph of options.body) {
 			modal.contentEl.createEl("p", { text: paragraph });
 		}
-		const buttons = modal.contentEl.createDiv({ cls: "obsync-modal-buttons" });
+		const buttons = modal.contentEl.createDiv({ cls: "mdsync-modal-buttons" });
 		for (const { key, label, cls } of options.choices) {
 			const button = new ButtonComponent(buttons)
 				.setButtonText(label)

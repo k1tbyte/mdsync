@@ -1,16 +1,16 @@
 /**
- * Google Drive OAuth proxy: `/auth` returns tokens via `obsidian://obsync-auth`, `/refresh` swaps a refresh
+ * Google Drive OAuth proxy: `/auth` returns tokens via `obsidian://mdsync-auth`, `/refresh` swaps a refresh
  * token; the client secret stays here.
  */
 
-import { toHex } from "@obsync/protocol";
+import { toHex } from "@mdsync/protocol";
 import { secretsEqual } from "./secret";
 
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const CONSENT_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
-const CALLBACK_PROTOCOL = "obsidian://obsync-auth";
-const STATE_COOKIE = "obsync_oauth_state";
+const CALLBACK_PROTOCOL = "obsidian://mdsync-auth";
+const STATE_COOKIE = "mdsync_oauth_state";
 const STATE_TTL_MS = 10 * 60 * 1000;
 /** Longer than any Google refresh token. */
 const REFRESH_TOKEN_MAX = 2048;
@@ -85,7 +85,7 @@ export async function handleAuthCallback(
 		// The plugin's one-time nonce comes back with the tokens: a link nobody started is refused there.
 		const nonce = url.searchParams.get("nonce") ?? "";
 		if (!NONCE.test(nonce)) {
-			return new Response("Start the sign-in from Obsync's settings.", {
+			return new Response("Start the sign-in from MDSync's settings.", {
 				status: 400,
 			});
 		}

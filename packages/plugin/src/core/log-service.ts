@@ -85,7 +85,7 @@ export class LogService {
 			try {
 				await saveSyncLogs(this.adapter, this.configDir, entries);
 			} catch (err) {
-				console.warn("[obsync] could not write the diagnostics log", err);
+				console.warn("[mdsync] could not write the diagnostics log", err);
 			}
 		};
 		this.writes = this.writes.then(write);

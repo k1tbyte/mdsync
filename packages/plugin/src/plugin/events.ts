@@ -57,7 +57,7 @@ function addIgnoreItem(
 		plugin,
 		file.path,
 		file instanceof TFolder,
-		"Obsync: ",
+		"MDSync: ",
 	);
 }
 
@@ -68,7 +68,7 @@ function addHistoryItem(
 ): void {
 	menu.addItem((item) =>
 		item
-			.setTitle("Obsync: File history")
+			.setTitle("MDSync: File history")
 			.setIcon("history")
 			.onClick(() => void openSourceControlHistory(plugin, path)),
 	);
@@ -77,7 +77,7 @@ function addHistoryItem(
 function addDeletedItem(menu: Menu, plugin: Plugin & PluginHost): void {
 	menu.addItem((item) =>
 		item
-			.setTitle("Obsync: Restore deleted files")
+			.setTitle("MDSync: Restore deleted files")
 			.setIcon("trash-2")
 			.onClick(() => void openSourceControlDeleted(plugin)),
 	);

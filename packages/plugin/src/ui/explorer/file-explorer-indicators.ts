@@ -121,7 +121,7 @@ function hasExternalMutation(records: MutationRecord[]): boolean {
 	for (const record of records) {
 		if (
 			record.target.instanceOf(Element) &&
-			record.target.closest(".obsync-path-badge")
+			record.target.closest(".mdsync-path-badge")
 		) {
 			continue;
 		}
@@ -136,7 +136,7 @@ function hasExternalMutation(records: MutationRecord[]): boolean {
 function isIndicatorNode(node: Node): boolean {
 	return (
 		node.instanceOf(Element) &&
-		(node.matches(".obsync-path-badge") ||
-			node.closest(".obsync-path-badge") !== null)
+		(node.matches(".mdsync-path-badge") ||
+			node.closest(".mdsync-path-badge") !== null)
 	);
 }

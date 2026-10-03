@@ -1,40 +1,40 @@
-.nav-file-title.obsync-changed-added .nav-file-title-content {
+.nav-file-title.mdsync-changed-added .nav-file-title-content {
 	color: var(--color-green);
 }
 
-.nav-file-title.obsync-changed-modified .nav-file-title-content {
+.nav-file-title.mdsync-changed-modified .nav-file-title-content {
 	color: var(--color-orange);
 }
 
-.nav-file-title.obsync-changed-deleted .nav-file-title-content {
+.nav-file-title.mdsync-changed-deleted .nav-file-title-content {
 	color: var(--color-red);
 	text-decoration: line-through;
 }
 
 /* Ignored rows read as out-of-sync-scope the way IDEs dim them, not as a change. */
-.nav-file-title.obsync-explorer-ignored .nav-file-title-content,
-.nav-folder-title.obsync-explorer-ignored .nav-folder-title-content {
+.nav-file-title.mdsync-explorer-ignored .nav-file-title-content,
+.nav-folder-title.mdsync-explorer-ignored .nav-folder-title-content {
 	color: var(--text-faint);
 }
 
-.nav-file-title.obsync-changed-conflict .nav-file-title-content {
+.nav-file-title.mdsync-changed-conflict .nav-file-title-content {
 	color: var(--color-red);
 	font-weight: 700;
 }
 
-.nav-file-title.obsync-has-path-badge,
-.nav-folder-title.obsync-has-path-badge {
+.nav-file-title.mdsync-has-path-badge,
+.nav-folder-title.mdsync-has-path-badge {
 	display: flex;
 	align-items: center;
 }
 
-.nav-file-title.obsync-has-path-badge .nav-file-title-content,
-.nav-folder-title.obsync-has-path-badge .nav-folder-title-content {
+.nav-file-title.mdsync-has-path-badge .nav-file-title-content,
+.nav-folder-title.mdsync-has-path-badge .nav-folder-title-content {
 	flex: 1 1 auto;
 	min-width: 0;
 }
 
-.obsync-path-badge {
+.mdsync-path-badge {
 	position: relative;
 	display: inline-flex;
 	align-items: center;
@@ -46,125 +46,125 @@
 	color: var(--text-muted);
 }
 
-.obsync-path-badge svg,
-.obsync-context-chip svg {
+.mdsync-path-badge svg,
+.mdsync-context-chip svg {
 	width: 0.9rem;
 	height: 0.9rem;
 }
 
-.obsync-link-badge,
-.obsync-link-context {
+.mdsync-link-badge,
+.mdsync-link-context {
 	color: var(--color-cyan);
 }
 
-.nav-file-title.obsync-explorer-skipped .nav-file-title-content,
-.nav-folder-title.obsync-explorer-skipped .nav-folder-title-content {
+.nav-file-title.mdsync-explorer-skipped .nav-file-title-content,
+.nav-folder-title.mdsync-explorer-skipped .nav-folder-title-content {
 	color: var(--text-faint);
 	text-decoration: line-through;
 	text-decoration-color: var(--color-red);
 }
 
-.obsync-skip-badge {
+.mdsync-skip-badge {
 	color: var(--color-red);
 }
 
-.obsync-ignored-context {
+.mdsync-ignored-context {
 	color: var(--text-faint);
 }
 
-.obsync-file-context {
+.mdsync-file-context {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--size-4-1);
 	cursor: pointer;
 }
 
-.obsync-file-context:focus-visible {
+.mdsync-file-context:focus-visible {
 	outline: 2px solid var(--interactive-accent);
 	outline-offset: 2px;
 	border-radius: var(--radius-s);
 }
 
-.obsync-file-context.obsync-hidden {
+.mdsync-file-context.mdsync-hidden {
 	display: none;
 }
 
-.obsync-context-chip {
+.mdsync-context-chip {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--size-4-1);
 	max-width: 18rem;
 }
 
-.obsync-context-chip > span {
+.mdsync-context-chip > span {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.obsync-people-badge,
-.obsync-share-badge {
+.mdsync-people-badge,
+.mdsync-share-badge {
 	width: auto;
 	gap: var(--size-2-1);
 }
 
 /* As tall as its avatar: the row centres it on whole pixels. */
-.obsync-people-badge {
-	--obsync-avatar: 16px;
+.mdsync-people-badge {
+	--mdsync-avatar: 16px;
 	height: auto;
 }
 
 /* Out of a line box: an inline icon sits on the text baseline, above centre. */
-.obsync-share-icon {
+.mdsync-share-icon {
 	display: flex;
 }
 
-.obsync-share-badge {
+.mdsync-share-badge {
 	cursor: pointer;
 }
 
-.obsync-share-badge:focus-visible {
+.mdsync-share-badge:focus-visible {
 	outline: 2px solid var(--interactive-accent);
 	outline-offset: 1px;
 	border-radius: var(--radius-s);
 }
 
 /* Reaches the touch size without growing the row: the tree's row metrics are a contract. */
-body.is-mobile .obsync-path-badge:not(.obsync-link-badge)::after {
+body.is-mobile .mdsync-path-badge:not(.mdsync-link-badge)::after {
 	content: "";
 	position: absolute;
 	top: 50%;
 	inset-inline: calc(var(--size-2-1) * -1);
-	height: var(--obsync-touch);
+	height: var(--mdsync-touch);
 	transform: translateY(-50%);
 }
 
 body.is-mobile
-	.obsync-path-badge:not(
-		.obsync-link-badge,
-		.obsync-path-badge + .obsync-path-badge
+	.mdsync-path-badge:not(
+		.mdsync-link-badge,
+		.mdsync-path-badge + .mdsync-path-badge
 	)::after {
 	inset-inline: auto calc(var(--size-2-1) * -1);
-	width: max(calc(100% + var(--size-4-1)), var(--obsync-touch));
+	width: max(calc(100% + var(--size-4-1)), var(--mdsync-touch));
 }
 
-.obsync-share-badge.has-people {
+.mdsync-share-badge.has-people {
 	padding: 0 var(--size-4-1);
-	border-radius: var(--obsync-radius-pill);
+	border-radius: var(--mdsync-radius-pill);
 	background: var(--background-modifier-hover);
 	color: var(--interactive-accent);
 }
 
-.obsync-share-badge.is-paused {
+.mdsync-share-badge.is-paused {
 	color: var(--text-faint);
 }
 
-.obsync-share-count {
+.mdsync-share-count {
 	font-size: var(--font-ui-smaller);
 	font-weight: var(--font-semibold);
 }
 
-.obsync-unseen-dot::before {
+.mdsync-unseen-dot::before {
 	content: "";
 	width: 6px;
 	height: 6px;

@@ -30,8 +30,8 @@ const TONE_LABEL: Record<MergeTone, string> = {
 };
 
 export function renderMergeLegend(parent: HTMLElement): void {
-	const legend = parent.createDiv({ cls: "obsync-merge-legend" });
-	const help = legend.createDiv({ cls: "obsync-merge-help" });
+	const legend = parent.createDiv({ cls: "mdsync-merge-legend" });
+	const help = legend.createDiv({ cls: "mdsync-merge-help" });
 	const button = renderRailButton(help, {
 		icon: "info",
 		label: "How to merge changes",
@@ -41,12 +41,12 @@ export function renderMergeLegend(parent: HTMLElement): void {
 		},
 	});
 	const hint = help.createDiv({
-		cls: "obsync-merge-help-text",
+		cls: "mdsync-merge-help-text",
 		text: "Use arrows to accept and × to reject. Accept both sides in the order you want. Non-conflicting changes start in Result. Nothing is written until you select Save and push.",
 	});
 	button.setAttr("aria-description", hint.textContent ?? "");
 	for (const [tone, label] of Object.entries(TONE_LABEL)) {
-		legend.createSpan({ cls: `obsync-merge-key is-${tone}`, text: label });
+		legend.createSpan({ cls: `mdsync-merge-key is-${tone}`, text: label });
 	}
 }
 

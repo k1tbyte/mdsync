@@ -48,7 +48,7 @@ export const WEBDAV_FIELDS: ReadonlyArray<SettingsFieldSpec> = [
 		key: "basePath",
 		name: "Path",
 		desc: "Subfolder inside the WebDAV root. Created on first push.",
-		placeholder: "obsync/",
+		placeholder: "mdsync/",
 	},
 	{ kind: EFieldKind.Text, key: "username", name: "Username" },
 	{ kind: EFieldKind.Password, key: "password", name: "Password" },
@@ -59,7 +59,7 @@ export function defaultWebDAVConfig(): WebDAVStorageConfig {
 	return {
 		kind: EStorageBackend.WebDAV,
 		baseUrl: "",
-		basePath: "obsync/",
+		basePath: "mdsync/",
 		username: "",
 		password: "",
 		concurrency: DEFAULT_CONCURRENCY,

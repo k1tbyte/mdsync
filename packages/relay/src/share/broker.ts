@@ -3,7 +3,7 @@
  * `shares/<shareId>/`; the owner's plugin registers the storage.
  */
 
-import { SIGN_BATCH_MAX } from "@obsync/protocol";
+import { SIGN_BATCH_MAX } from "@mdsync/protocol";
 import {
 	endShare,
 	issueToken,

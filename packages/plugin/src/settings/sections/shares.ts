@@ -78,7 +78,7 @@ export function renderSharesSection(
 		);
 	if (open.length === 0) {
 		new Setting(parent).setDesc(
-			"Nothing shared yet. Open a folder's menu in the file explorer and select Obsync: Share folder.",
+			"Nothing shared yet. Open a folder's menu in the file explorer and select MDSync: Share folder.",
 		);
 	}
 	for (const record of open) {

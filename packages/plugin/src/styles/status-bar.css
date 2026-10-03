@@ -1,43 +1,43 @@
-.obsync-status-bar {
+.mdsync-status-bar {
 	cursor: pointer;
 	display: inline-flex;
 	gap: var(--size-4-2);
 	align-items: center;
 }
 
-.obsync-status-bar.is-error {
+.mdsync-status-bar.is-error {
 	color: var(--color-red);
 }
 
 /* Mutually exclusive with is-error (see status-bar.ts), so order is free. */
-.obsync-status-bar.is-offline {
+.mdsync-status-bar.is-offline {
 	color: var(--text-muted);
 }
 
-.obsync-status-spinner,
-.obsync-file-row.is-opening::after {
+.mdsync-status-spinner,
+.mdsync-file-row.is-opening::after {
 	display: inline-block;
 	width: 0.75rem;
 	height: 0.75rem;
 	border: 2px solid var(--background-modifier-border);
 	border-top-color: var(--interactive-accent);
 	border-radius: 50%;
-	animation: obsync-spin 0.65s linear infinite;
+	animation: mdsync-spin 0.65s linear infinite;
 }
 
-.obsync-status-spinner.obsync-hidden,
-.obsync-hidden {
+.mdsync-status-spinner.mdsync-hidden,
+.mdsync-hidden {
 	display: none;
 }
 
-@keyframes obsync-spin {
+@keyframes mdsync-spin {
 	to {
 		transform: rotate(360deg);
 	}
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.obsync-file-row.is-opening::after {
+	.mdsync-file-row.is-opening::after {
 		animation: none;
 	}
 }

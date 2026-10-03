@@ -23,9 +23,9 @@ const SHARE_TOOLTIPS: Record<ShareKind, string> = {
 	paused: "Shared folder, paused on this device",
 };
 const SHARE_ROOT_ATTR = "data-share-root";
-const SHARE_BADGE = ".obsync-share-badge";
+const SHARE_BADGE = ".mdsync-share-badge";
 const TAP_BADGES =
-	".obsync-people-badge, .obsync-unseen-dot, .obsync-skip-badge";
+	".mdsync-people-badge, .mdsync-unseen-dot, .mdsync-skip-badge";
 const TIP_MS = 4000;
 
 /** Read here, not while computing marks: a pass runs on every sync event. */
@@ -36,13 +36,13 @@ export function renderPresenceMarks(
 ): void {
 	if (marks.unseen) {
 		target.createSpan({
-			cls: "obsync-path-badge obsync-unseen-dot",
+			cls: "mdsync-path-badge mdsync-unseen-dot",
 			attr: { role: "img", "aria-label": unseenTooltip(plugin, marks.unseen) },
 		});
 	}
 	if (marks.people && marks.people.length > 0) {
 		const badge = target.createSpan({
-			cls: "obsync-path-badge obsync-people-badge",
+			cls: "mdsync-path-badge mdsync-people-badge",
 			attr: {
 				role: "img",
 				"aria-label": `Here: ${describePeople(marks.people)}`,
@@ -96,7 +96,7 @@ function renderShareBadge(target: HTMLElement, share: ShareMark): void {
 	const lines = ["Manage sharing", SHARE_TOOLTIPS[share.kind]];
 	if (share.here > 0) lines.push(`${share.here} in its notes now`);
 	const badge = target.createSpan({
-		cls: `obsync-path-badge obsync-share-badge is-${share.kind}`,
+		cls: `mdsync-path-badge mdsync-share-badge is-${share.kind}`,
 		attr: {
 			[SHARE_ROOT_ATTR]: share.root,
 			role: "button",
@@ -105,11 +105,11 @@ function renderShareBadge(target: HTMLElement, share: ShareMark): void {
 		},
 	});
 	setIcon(
-		badge.createSpan({ cls: "obsync-share-icon" }),
+		badge.createSpan({ cls: "mdsync-share-icon" }),
 		SHARE_ICONS[share.kind],
 	);
 	if (share.here > 0) {
 		badge.addClass("has-people");
-		badge.createSpan({ cls: "obsync-share-count", text: String(share.here) });
+		badge.createSpan({ cls: "mdsync-share-count", text: String(share.here) });
 	}
 }

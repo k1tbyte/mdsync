@@ -12,7 +12,7 @@ const SHARE: ShareMark = { root: "Team", kind: "owned", here: 1 };
 
 describe("comparing decorations", () => {
 	const full: PathDecoration = {
-		change: "obsync-changed-added",
+		change: "mdsync-changed-added",
 		linkRoot: "Team/link",
 		ignored: true,
 		skipped: "Not synced",
@@ -21,7 +21,7 @@ describe("comparing decorations", () => {
 		people: [ALEX],
 	};
 	const differing: [string, PathDecoration][] = [
-		["a changed status", { ...full, change: "obsync-changed-deleted" }],
+		["a changed status", { ...full, change: "mdsync-changed-deleted" }],
 		["another link", { ...full, linkRoot: "Team/other" }],
 		["a lost ignore mark", { ...full, ignored: undefined }],
 		["another skip reason", { ...full, skipped: "Not synced either" }],
@@ -74,7 +74,7 @@ describe("comparing decorations", () => {
 		expect(addClass).not.toHaveBeenCalled();
 
 		renderDecoration(target, { ignored: true }, plugin);
-		expect(addClass).toHaveBeenCalledWith("obsync-explorer-ignored");
-		expect(addClass).not.toHaveBeenCalledWith("obsync-has-path-badge");
+		expect(addClass).toHaveBeenCalledWith("mdsync-explorer-ignored");
+		expect(addClass).not.toHaveBeenCalledWith("mdsync-has-path-badge");
 	});
 });

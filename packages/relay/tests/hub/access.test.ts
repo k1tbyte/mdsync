@@ -1,4 +1,4 @@
-import { deriveChannelGrant, OWNER } from "@obsync/protocol";
+import { deriveChannelGrant, OWNER } from "@mdsync/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { grantFor } from "../../src/hub/access";
 import { HUB_ADMISSION_HEADER } from "../../src/hub/durable-object";
@@ -9,7 +9,7 @@ import { memorySql } from "../helpers/memory-sql";
 
 const SECRET = "deployment-secret";
 const VAULT = "s3|bucket/prefix";
-const SHARE = "obsync-share-share1";
+const SHARE = "mdsync-share-share1";
 const PARTICIPANT_TOKEN = "p".repeat(43);
 const VIEWER_TOKEN = "v".repeat(43);
 
@@ -67,7 +67,7 @@ async function shareKv(): Promise<FakeKV> {
 
 function call(path: string, env: Env, init?: RequestInit): Promise<Response> {
 	return worker.fetch(
-		new Request(`https://obsync-relay.example.workers.dev${path}`, init),
+		new Request(`https://mdsync-relay.example.workers.dev${path}`, init),
 		env,
 		{} as ExecutionContext,
 	);
@@ -129,7 +129,7 @@ describe("grants", () => {
 			name: "Alex",
 		});
 		expect(
-			await grantFor(env, "obsync-share-share2", PARTICIPANT_TOKEN),
+			await grantFor(env, "mdsync-share-share2", PARTICIPANT_TOKEN),
 		).toBeNull();
 		expect(await grantFor(env, VAULT, PARTICIPANT_TOKEN)).toBeNull();
 		expect(await grantFor(env, SHARE, VIEWER_TOKEN)).toMatchObject({
@@ -301,7 +301,7 @@ describe("hub routing", () => {
 
 	it("reports whether the relay secret matches", async () => {
 		const status = (secret: string, env = makeEnv().env) =>
-			call("/status", env, { headers: { "X-Obsync-Admin": secret } });
+			call("/status", env, { headers: { "X-Mdsync-Admin": secret } });
 
 		expect((await status(SECRET)).status).toBe(200);
 		expect((await status("wrong")).status).toBe(401);

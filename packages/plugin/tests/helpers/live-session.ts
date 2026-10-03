@@ -1,4 +1,4 @@
-import { EFrame, type ServerFrame } from "@obsync/protocol";
+import { EFrame, type ServerFrame } from "@mdsync/protocol";
 import { afterEach, beforeEach, expect, vi } from "vitest";
 import * as Y from "yjs";
 

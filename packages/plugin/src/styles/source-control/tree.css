@@ -1,4 +1,4 @@
-.obsync-tree-folder {
+.mdsync-tree-folder {
 	position: relative;
 	display: flex;
 	align-items: center;
@@ -10,47 +10,47 @@
 	border-radius: var(--radius-s);
 }
 
-.obsync-tree-folder:hover {
+.mdsync-tree-folder:hover {
 	background: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
 
-.obsync-tree-folder:focus-visible {
+.mdsync-tree-folder:focus-visible {
 	outline: 1px solid var(--interactive-accent);
 	outline-offset: -1px;
 }
 
-.obsync-tree-folder-toggle,
-.obsync-tree-folder-icon {
+.mdsync-tree-folder-toggle,
+.mdsync-tree-folder-icon {
 	display: inline-flex;
 	flex: 0 0 auto;
 }
 
-.obsync-tree-folder-toggle svg,
-.obsync-tree-folder-icon svg {
-	width: var(--obsync-icon);
-	height: var(--obsync-icon);
+.mdsync-tree-folder-toggle svg,
+.mdsync-tree-folder-icon svg {
+	width: var(--mdsync-icon);
+	height: var(--mdsync-icon);
 }
 
-.obsync-tree-folder-icon {
+.mdsync-tree-folder-icon {
 	color: var(--text-accent);
 }
 
-.obsync-tree-folder-name {
+.mdsync-tree-folder-name {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.obsync-file-row::before,
-.obsync-tree-folder::before {
+.mdsync-file-row::before,
+.mdsync-tree-folder::before {
 	content: "";
 	position: absolute;
 	top: 0;
 	bottom: 0;
 	left: calc(var(--size-4-1) + 7px);
-	width: calc(var(--obsync-depth, 0) * var(--size-4-4));
+	width: calc(var(--mdsync-depth, 0) * var(--size-4-4));
 	background-image: repeating-linear-gradient(
 		to right,
 		var(--background-modifier-border) 0 1px,
@@ -62,23 +62,23 @@
 
 /* Nesting is an indent on the row itself: the tree is flattened into one list
    so a collapsed folder costs one row rather than its whole subtree. */
-.obsync-file-row,
-.obsync-tree-folder {
+.mdsync-file-row,
+.mdsync-tree-folder {
 	padding-left: calc(
 		var(--size-4-1) +
-		var(--obsync-depth, 0) *
+		var(--mdsync-depth, 0) *
 		var(--size-4-4)
 	);
 }
 
 /* A windowed list places its rows itself, on a fixed pitch. */
-.obsync-file-list.is-virtual {
+.mdsync-file-list.is-virtual {
 	display: block;
 	position: relative;
 }
 
-.obsync-file-list.is-virtual > .obsync-file-row,
-.obsync-file-list.is-virtual > .obsync-tree-folder {
+.mdsync-file-list.is-virtual > .mdsync-file-row,
+.mdsync-file-list.is-virtual > .mdsync-tree-folder {
 	position: absolute;
 	left: 0;
 	right: 0;
@@ -89,12 +89,12 @@
 	padding-top: var(--size-2-1);
 	padding-bottom: var(--size-2-1);
 	box-sizing: border-box;
-	height: var(--obsync-row-height, auto);
+	height: var(--mdsync-row-height, auto);
 }
 
 @media (pointer: coarse) {
-	.obsync-file-row,
-	.obsync-tree-folder {
+	.mdsync-file-row,
+	.mdsync-tree-folder {
 		-webkit-touch-callout: none;
 		user-select: none;
 	}

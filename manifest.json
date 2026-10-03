@@ -1,6 +1,6 @@
 {
-	"id": "obsync",
-	"name": "Obsync",
+	"id": "mdsync",
+	"name": "MDSync",
 	"version": "1.0.0",
 	"minAppVersion": "1.13.0",
 	"description": "Sync your vault end-to-end encrypted through your own S3, WebDAV or Google Drive storage, with conflict resolution, file history, shared folders and live editing.",

@@ -58,7 +58,7 @@ export async function resetLocalState(plugin: PluginHost): Promise<void> {
 		title: "Reset local state?",
 		body: [
 			"This clears the local sync baseline, the adopted remote vault record, and the file hash cache on this device.",
-			"Remote storage, local vault files, cached passphrases, and Obsync settings are not deleted.",
+			"Remote storage, local vault files, cached passphrases, and MDSync settings are not deleted.",
 		],
 		confirmLabel: "Reset local",
 		confirmClass: "mod-warning",

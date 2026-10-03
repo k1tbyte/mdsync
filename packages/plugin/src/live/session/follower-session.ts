@@ -3,7 +3,7 @@
  * to the file sync.
  */
 
-import { EFrame } from "@obsync/protocol";
+import { EFrame } from "@mdsync/protocol";
 import type { LiveModel } from "@/live/model";
 import { toLf } from "@/utils";
 import { FOLLOWS } from "./room-awareness";

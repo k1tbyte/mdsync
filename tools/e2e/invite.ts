@@ -56,7 +56,7 @@ async function editsCross(
 	const sent = await invite(owner, "Team", "Friend");
 	check(
 		"the invite goes through the relay",
-		sent.link.startsWith("obsidian://obsync-share?d="),
+		sent.link.startsWith("obsidian://mdsync-share?d="),
 		true,
 	);
 
@@ -92,7 +92,7 @@ async function editsCross(
 	check(
 		"the friend never holds the owner's credentials",
 		await friend.evaluate(() =>
-			JSON.stringify(app.plugins.plugins.obsync.settings).includes(
+			JSON.stringify(app.plugins.plugins.mdsync.settings).includes(
 				'"secretAccessKey":"owner"',
 			),
 		),
@@ -190,7 +190,7 @@ async function shareCloses(
 /** What the broker answers the friend's (only) share token now. */
 async function brokerStatus(friend: Obsidian): Promise<number> {
 	const { relayUrl, token } = await friend.evaluate(
-		() => app.plugins.plugins.obsync.settings.spaces[0].access,
+		() => app.plugins.plugins.mdsync.settings.spaces[0].access,
 	);
 	const res = await fetch(`${relayUrl}/share/sign`, {
 		method: "POST",

@@ -1,4 +1,4 @@
-import { SIGN_BATCH_MAX } from "@obsync/protocol";
+import { SIGN_BATCH_MAX } from "@mdsync/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ShareEnv } from "../../src/share/kv";
 import { EShareRole } from "../../src/share/kv";

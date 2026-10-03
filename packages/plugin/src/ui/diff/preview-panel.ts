@@ -6,10 +6,10 @@ export class PreviewPanel {
 
 	render(parent: HTMLElement, text: string, label: string): void {
 		this.destroy();
-		const header = parent.createDiv({ cls: "obsync-diff-preview-header" });
+		const header = parent.createDiv({ cls: "mdsync-diff-preview-header" });
 		header.createSpan({ text: label });
 
-		const container = parent.createDiv({ cls: "obsync-diff-preview-body" });
+		const container = parent.createDiv({ cls: "mdsync-diff-preview-body" });
 		this.view = new EditorView({
 			parent: container,
 			state: EditorState.create({

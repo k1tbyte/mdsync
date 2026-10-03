@@ -33,7 +33,7 @@ jobs:
 
             - run: pnpm install --frozen-lockfile
 
-            - run: pnpm --filter obsync run build
+            - run: pnpm --filter mdsync run build
 
             - name: Attest the build
               uses: actions/attest@v4

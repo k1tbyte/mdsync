@@ -1,4 +1,4 @@
-.obsync-rail-btn {
+.mdsync-rail-btn {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -13,49 +13,49 @@
 	cursor: pointer;
 }
 
-.obsync-rail-label {
+.mdsync-rail-label {
 	display: none;
 }
 
-.obsync-rail-btn svg {
-	width: var(--obsync-icon);
-	height: var(--obsync-icon);
+.mdsync-rail-btn svg {
+	width: var(--mdsync-icon);
+	height: var(--mdsync-icon);
 }
 
-.obsync-divider-action .obsync-rail-btn {
-	color: rgb(var(--obsync-tone));
+.mdsync-divider-action .mdsync-rail-btn {
+	color: rgb(var(--mdsync-tone));
 }
 
-.obsync-rail-btn:hover,
-.obsync-divider-action:hover .obsync-rail-btn {
+.mdsync-rail-btn:hover,
+.mdsync-divider-action:hover .mdsync-rail-btn {
 	background: var(--interactive-hover);
 	color: var(--text-normal);
 	opacity: 1;
 }
 
-.obsync-rail-btn.is-active,
-.obsync-rail-btn.is-active:hover {
+.mdsync-rail-btn.is-active,
+.mdsync-rail-btn.is-active:hover {
 	background: var(--interactive-accent);
 	border-color: var(--interactive-accent);
 	color: var(--text-on-accent);
 	opacity: 1;
 }
 
-.obsync-rail-btn:focus-visible {
+.mdsync-rail-btn:focus-visible {
 	opacity: 1;
 	outline: 2px solid var(--interactive-accent);
 	outline-offset: -2px;
 }
 
 /* Floats over a pane's changes: fold buttons clear of its scrollbar and the navigation ring. */
-.obsync-change-layer {
+.mdsync-change-layer {
 	position: absolute;
 	inset: 0;
 	overflow: hidden;
 	pointer-events: none;
 }
 
-.obsync-change-ring {
+.mdsync-change-ring {
 	position: absolute;
 	top: 0;
 	left: var(--size-2-1);
@@ -63,11 +63,11 @@
 	box-sizing: border-box;
 	border: 2px solid var(--interactive-accent);
 	border-radius: var(--radius-s);
-	animation: obsync-ring-fade 1.4s ease-out forwards;
+	animation: mdsync-ring-fade 1.4s ease-out forwards;
 }
 
 /* A fade, not a motion, so it also plays with reduced motion: its end removes the ring. */
-@keyframes obsync-ring-fade {
+@keyframes mdsync-ring-fade {
 	60% {
 		opacity: 1;
 	}
@@ -77,7 +77,7 @@
 	}
 }
 
-.obsync-change-layer .obsync-rail-btn {
+.mdsync-change-layer .mdsync-rail-btn {
 	position: absolute;
 	top: var(--size-4-1);
 	right: var(--size-4-5);

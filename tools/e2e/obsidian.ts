@@ -56,10 +56,10 @@ export async function launchObsidian(options: {
 	/** Other community plugins' folders, each named by its plugin id. */
 	plugins?: string[];
 }): Promise<Obsidian> {
-	const root = mkdtempSync(join(tmpdir(), "obsync-e2e-"));
+	const root = mkdtempSync(join(tmpdir(), "mdsync-e2e-"));
 	const userData = join(root, "userdata");
 	const vault = join(root, "vault");
-	const pluginDir = join(vault, ".obsidian", "plugins", "obsync");
+	const pluginDir = join(vault, ".obsidian", "plugins", "mdsync");
 	mkdirSync(pluginDir, { recursive: true });
 	mkdirSync(userData);
 	for (const file of PLUGIN_FILES) {
@@ -73,7 +73,7 @@ export async function launchObsidian(options: {
 		return basename(dir);
 	});
 	writeJson(join(vault, ".obsidian", "community-plugins.json"), [
-		"obsync",
+		"mdsync",
 		...others,
 	]);
 	writeJson(join(userData, "obsidian.json"), {
@@ -134,7 +134,7 @@ export async function launchObsidian(options: {
 		await poll("plugin loaded", async () => {
 			if (await trust.isVisible()) await trust.click();
 			const loaded = await page.evaluate(
-				() => typeof app !== "undefined" && Boolean(app.plugins.plugins.obsync),
+				() => typeof app !== "undefined" && Boolean(app.plugins.plugins.mdsync),
 			);
 			return loaded || undefined;
 		});

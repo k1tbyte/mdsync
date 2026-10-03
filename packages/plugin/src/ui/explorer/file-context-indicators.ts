@@ -9,7 +9,7 @@ export function registerFileContextIndicators(
 	plugin: Plugin & PluginHost,
 ): IndicatorHandle {
 	const root = plugin.addStatusBarItem();
-	root.addClass("obsync-file-context", "obsync-hidden");
+	root.addClass("mdsync-file-context", "mdsync-hidden");
 	let actions: HTMLElement[] = [];
 	let revealPath: string | null = null;
 	let contextView: MarkdownView | null = null;
@@ -50,7 +50,7 @@ export function registerFileContextIndicators(
 		}
 		const view = contextView;
 		if (!file) {
-			root.addClass("obsync-hidden");
+			root.addClass("mdsync-hidden");
 			return;
 		}
 		const linkRoot = detector.findLink(file.path);
@@ -58,16 +58,16 @@ export function registerFileContextIndicators(
 		const ignoredGlobally = plugin.ignoreState.isIgnoredGlobally(file.path);
 		const ignored = ignoredLocally || ignoredGlobally;
 		if (!linkRoot && !ignored) {
-			root.addClass("obsync-hidden");
+			root.addClass("mdsync-hidden");
 			return;
 		}
-		root.removeClass("obsync-hidden");
+		root.removeClass("mdsync-hidden");
 		revealPath = linkRoot ?? (ignored ? file.path : null);
 
 		if (linkRoot) {
 			const tooltip = `Linked via ${linkRoot}\nExcluded from sync`;
 			const chip = root.createSpan({
-				cls: "obsync-context-chip obsync-link-context",
+				cls: "mdsync-context-chip mdsync-link-context",
 			});
 			setIcon(chip, "link-2");
 			chip.createSpan({ text: `Linked via ${linkRoot}` });
@@ -76,7 +76,7 @@ export function registerFileContextIndicators(
 				const action = view.addAction("link-2", tooltip, () => {
 					void revealInFileExplorer(plugin.app, linkRoot);
 				});
-				action.addClass("obsync-link-context");
+				action.addClass("mdsync-link-context");
 				actions.push(action);
 			}
 		}
@@ -89,7 +89,7 @@ export function registerFileContextIndicators(
 				: "globally";
 			const tooltip = `Ignored ${scope}\nExcluded from sync`;
 			const chip = root.createSpan({
-				cls: "obsync-context-chip obsync-ignored-context",
+				cls: "mdsync-context-chip mdsync-ignored-context",
 			});
 			setIcon(chip, "eye-off");
 			chip.createSpan({ text: "Ignored" });
@@ -98,7 +98,7 @@ export function registerFileContextIndicators(
 				const action = view.addAction("eye-off", tooltip, () => {
 					void revealInFileExplorer(plugin.app, file.path);
 				});
-				action.addClass("obsync-ignored-context");
+				action.addClass("mdsync-ignored-context");
 				actions.push(action);
 			}
 		}
@@ -143,7 +143,7 @@ export function registerFileContextIndicators(
 				renderFrame = null;
 				clearActions();
 				root.empty();
-				root.addClass("obsync-hidden");
+				root.addClass("mdsync-hidden");
 				return;
 			}
 			resetDetector();

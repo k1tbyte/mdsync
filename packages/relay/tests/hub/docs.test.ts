@@ -5,7 +5,7 @@ import {
 	MAX_DOC_SUBS,
 	MAX_MOVE_NOTE_BYTES,
 	type ServerFrame,
-} from "@obsync/protocol";
+} from "@mdsync/protocol";
 import { describe, expect, it } from "vitest";
 
 import { HubCore } from "../../src/hub/core";

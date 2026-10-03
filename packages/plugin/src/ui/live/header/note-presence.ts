@@ -62,7 +62,7 @@ export function registerNotePresence(
 				// The last note's people stay off the next one while it settles.
 				entry.key = "";
 				entry.el.empty();
-				entry.el.addClass("obsync-hidden");
+				entry.el.addClass("mdsync-hidden");
 			}
 			if (isPassing(state) && now - entry.since < SETTLE_MS) {
 				settle ??= window.setTimeout(() => {
@@ -111,7 +111,7 @@ function createHeader(
 	follows: CursorFollow,
 ): HTMLElement {
 	// Not `clickable-icon`: themes size those to one icon, and avatars spill out.
-	const el = actions.createSpan({ cls: "obsync-note-presence obsync-hidden" });
+	const el = actions.createSpan({ cls: "mdsync-note-presence mdsync-hidden" });
 	actions.prepend(el);
 	makeActivatable(el, null, () => openNoteMenu(plugin, leaf, follows, el));
 	return el;
@@ -125,10 +125,10 @@ function isPassing({ status }: HeaderState): boolean {
 function fillHeader(el: HTMLElement, state: HeaderState): void {
 	const { status, here, locked } = state;
 	el.empty();
-	el.toggleClass("obsync-hidden", !showsHeader(state));
-	if (locked) setIcon(el.createSpan({ cls: "obsync-note-lock" }), "lock");
+	el.toggleClass("mdsync-hidden", !showsHeader(state));
+	if (locked) setIcon(el.createSpan({ cls: "mdsync-note-lock" }), "lock");
 	if (status) {
-		const icon = el.createSpan({ cls: `obsync-note-state is-${status.state}` });
+		const icon = el.createSpan({ cls: `mdsync-note-state is-${status.state}` });
 		setIcon(icon, STATE_ICONS[status.state]);
 	}
 	if (here.length > 0) renderAvatarStack(el, here);

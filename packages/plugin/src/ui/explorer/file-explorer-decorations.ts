@@ -12,10 +12,10 @@ import { renderPresenceMarks } from "./file-explorer-badges";
 import type { PresenceMarks } from "./file-explorer-marks";
 
 type ChangeIndicatorClass =
-	| "obsync-changed-added"
-	| "obsync-changed-modified"
-	| "obsync-changed-deleted"
-	| "obsync-changed-conflict";
+	| "mdsync-changed-added"
+	| "mdsync-changed-modified"
+	| "mdsync-changed-deleted"
+	| "mdsync-changed-conflict";
 
 export interface BaseMarks {
 	change?: ChangeIndicatorClass;
@@ -33,15 +33,15 @@ export interface AppliedDecoration {
 }
 
 const CHANGE_CLASSES: ReadonlyArray<ChangeIndicatorClass> = [
-	"obsync-changed-added",
-	"obsync-changed-modified",
-	"obsync-changed-deleted",
-	"obsync-changed-conflict",
+	"mdsync-changed-added",
+	"mdsync-changed-modified",
+	"mdsync-changed-deleted",
+	"mdsync-changed-conflict",
 ];
 const CHANGE_CLASS_BY_ACTION: Record<ChangeAction, ChangeIndicatorClass> = {
-	add: "obsync-changed-added",
-	modify: "obsync-changed-modified",
-	delete: "obsync-changed-deleted",
+	add: "mdsync-changed-added",
+	modify: "mdsync-changed-modified",
+	delete: "mdsync-changed-deleted",
 };
 
 export function computeBase(
@@ -96,8 +96,8 @@ export function renderDecoration(
 	plugin: PluginHost,
 ): void {
 	if (decoration.change) target.addClass(decoration.change);
-	if (decoration.ignored) target.addClass("obsync-explorer-ignored");
-	if (decoration.skipped) target.addClass("obsync-explorer-skipped");
+	if (decoration.ignored) target.addClass("mdsync-explorer-ignored");
+	if (decoration.skipped) target.addClass("mdsync-explorer-skipped");
 	if (
 		decoration.skipped ||
 		decoration.linkRoot ||
@@ -105,7 +105,7 @@ export function renderDecoration(
 		decoration.share ||
 		decoration.unseen
 	) {
-		target.addClass("obsync-has-path-badge");
+		target.addClass("mdsync-has-path-badge");
 	}
 	if (decoration.skipped) renderSkipBadge(target, decoration.skipped);
 	if (decoration.linkRoot) renderLinkBadge(target, decoration.linkRoot);
@@ -114,10 +114,10 @@ export function renderDecoration(
 
 export function clearDecoration(target: HTMLElement): void {
 	for (const cls of CHANGE_CLASSES) target.removeClass(cls);
-	target.removeClass("obsync-explorer-ignored");
-	target.removeClass("obsync-explorer-skipped");
-	target.removeClass("obsync-has-path-badge");
-	for (const badge of target.querySelectorAll(".obsync-path-badge")) {
+	target.removeClass("mdsync-explorer-ignored");
+	target.removeClass("mdsync-explorer-skipped");
+	target.removeClass("mdsync-has-path-badge");
+	for (const badge of target.querySelectorAll(".mdsync-path-badge")) {
 		badge.remove();
 	}
 }
@@ -125,7 +125,7 @@ export function clearDecoration(target: HTMLElement): void {
 function classifyStatus(
 	status: EChangeType | "conflict",
 ): ChangeIndicatorClass | null {
-	if (status === "conflict") return "obsync-changed-conflict";
+	if (status === "conflict") return "mdsync-changed-conflict";
 	const action = changeActionOf(status);
 	return action ? CHANGE_CLASS_BY_ACTION[action] : null;
 }
@@ -173,7 +173,7 @@ function sameList(
 
 function renderSkipBadge(target: HTMLElement, reason: string): void {
 	const badge = target.createSpan({
-		cls: "obsync-path-badge obsync-skip-badge",
+		cls: "mdsync-path-badge mdsync-skip-badge",
 		attr: { role: "img", "aria-label": reason },
 	});
 	setIcon(badge, "cloud-off");
@@ -181,7 +181,7 @@ function renderSkipBadge(target: HTMLElement, reason: string): void {
 
 function renderLinkBadge(target: HTMLElement, linkRoot: string): void {
 	const badge = target.createSpan({
-		cls: "obsync-path-badge obsync-link-badge",
+		cls: "mdsync-path-badge mdsync-link-badge",
 		attr: {
 			role: "img",
 			"aria-label": `Linked path: ${linkRoot}\nExcluded from sync`,

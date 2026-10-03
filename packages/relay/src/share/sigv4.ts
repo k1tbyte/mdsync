@@ -1,6 +1,6 @@
 /** Minimal SigV4 presigner on WebCrypto: the AWS SDK is too heavy for a Worker bundle. */
 
-import { toHex } from "@obsync/protocol";
+import { toHex } from "@mdsync/protocol";
 
 const ALGORITHM = "AWS4-HMAC-SHA256";
 const SERVICE = "s3";

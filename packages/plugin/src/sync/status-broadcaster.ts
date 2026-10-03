@@ -57,7 +57,7 @@ export class StatusBroadcaster<T> {
 			try {
 				listener(snapshot);
 			} catch (err) {
-				console.error("[obsync] listener failed", err);
+				console.error("[mdsync] listener failed", err);
 			}
 		}
 	}

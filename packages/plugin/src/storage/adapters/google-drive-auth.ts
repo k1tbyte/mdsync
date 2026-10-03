@@ -1,4 +1,4 @@
-import { toHex } from "@obsync/protocol";
+import { toHex } from "@mdsync/protocol";
 import type { ObsidianProtocolData } from "obsidian";
 import { randomBytes } from "@/crypto";
 import { relayBase } from "@/shared";
@@ -24,7 +24,7 @@ export function googleAuthUrl(
 const LOGIN_TTL_MS = 10 * 60 * 1000;
 
 /** The sign-in this device started; stored, since a phone may evict Obsidian while the browser is in front. */
-const PENDING_LOGIN_KEY = "obsync-google-login";
+const PENDING_LOGIN_KEY = "mdsync-google-login";
 
 interface PendingLogin {
 	nonce: string;
@@ -68,7 +68,7 @@ export async function handleGoogleDriveProtocol(
 	if (!params.error && !params.access_token && !params.refresh_token) {
 		return false;
 	}
-	// Any link can open obsidian://obsync-auth; a token from one would point this vault at another Drive.
+	// Any link can open obsidian://mdsync-auth; a token from one would point this vault at another Drive.
 	if (!takeLogin(params.nonce)) {
 		return {
 			ok: false,
@@ -102,7 +102,7 @@ export async function handleGoogleDriveProtocol(
 		return {
 			ok: false,
 			message:
-				"Google Drive returned no refresh token. Remove Obsync from your Google account permissions and connect again.",
+				"Google Drive returned no refresh token. Remove MDSync from your Google account permissions and connect again.",
 		};
 	}
 	return { ok: true, message: "Connected to Google Drive." };
@@ -151,7 +151,7 @@ export const GOOGLE_DRIVE_FIELDS: ReadonlyArray<SettingsFieldSpec> = [
 		name: "Auth server URL",
 		desc: "Your relay (packages/relay) with GDRIVE_CLIENT_ID and GDRIVE_CLIENT_SECRET set. It exchanges Google auth codes for tokens.",
 		kind: EFieldKind.Text,
-		placeholder: "https://obsync-relay...workers.dev",
+		placeholder: "https://mdsync-relay...workers.dev",
 	},
 	CONCURRENCY_FIELD,
 ];

@@ -31,7 +31,7 @@ export function renderInviteForm(
 		}),
 	);
 	new Setting(parent)
-		.setClass("obsync-invite-name")
+		.setClass("mdsync-invite-name")
 		.setName("Name")
 		.setDesc(
 			"Who the invite is for. Inviting the same name again replaces their link: the earlier one stops working, even for someone who already joined. The relay receives your storage credentials to sign this folder's requests.",

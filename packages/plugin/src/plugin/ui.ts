@@ -1,7 +1,7 @@
 import type { Plugin } from "obsidian";
 import { DIFF_VIEW_TYPE, SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
-import { ObsyncSettingTab } from "@/settings/tab";
+import { MdsyncSettingTab } from "@/settings/tab";
 import type { SyncController } from "@/sync/controller";
 import {
 	DiffView,
@@ -16,7 +16,7 @@ import {
 } from "@/ui";
 
 interface RegisteredPluginUi {
-	settingsTab: ObsyncSettingTab;
+	settingsTab: MdsyncSettingTab;
 	fileIndicators: IndicatorHandle;
 	openNoteMenu: (checking: boolean) => boolean;
 }
@@ -25,7 +25,7 @@ export function registerPluginUi(
 	plugin: Plugin & PluginHost,
 	controller: SyncController,
 ): RegisteredPluginUi {
-	const settingsTab = new ObsyncSettingTab(plugin.app, plugin);
+	const settingsTab = new MdsyncSettingTab(plugin.app, plugin);
 	plugin.addSettingTab(settingsTab);
 
 	plugin.registerView(

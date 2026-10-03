@@ -18,7 +18,7 @@ export async function open(device: Obsidian, path: string): Promise<void> {
 	await device.waitFor(
 		`${path} bound`,
 		() => {
-			const live = app.plugins.plugins.obsync.realtime.live;
+			const live = app.plugins.plugins.mdsync.realtime.live;
 			return [...live.bound.values()].map((binding) => binding.path);
 		},
 		(paths) => paths.length === 1 && paths[0] === path,

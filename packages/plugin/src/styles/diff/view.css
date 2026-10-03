@@ -1,16 +1,16 @@
-.obsync-diff-view {
+.mdsync-diff-view {
 	display: flex;
 	flex-direction: column;
 	height: 100%;
-	container: obsync-diff / inline-size;
+	container: mdsync-diff / inline-size;
 }
 
-.view-content.obsync-diff-view {
+.view-content.mdsync-diff-view {
 	padding: 0;
 	overflow: hidden;
 }
 
-.obsync-diff-header {
+.mdsync-diff-header {
 	display: flex;
 	gap: var(--size-4-2);
 	align-items: center;
@@ -19,32 +19,32 @@
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.obsync-diff-path {
+.mdsync-diff-path {
 	gap: var(--size-4-2);
 }
 
-.obsync-diff-path .obsync-file-name {
+.mdsync-diff-path .mdsync-file-name {
 	min-width: 3ch;
 	font-weight: 600;
 }
 
-.obsync-diff-file-actions,
-.obsync-compare-file-actions {
+.mdsync-diff-file-actions,
+.mdsync-compare-file-actions {
 	display: flex;
 	align-items: center;
 	gap: var(--size-4-2);
 }
 
-.obsync-diff-file-actions {
+.mdsync-diff-file-actions {
 	flex: 1 1 100%;
 	flex-wrap: wrap;
 }
 
-.obsync-compare-file-actions {
+.mdsync-compare-file-actions {
 	margin-left: auto;
 }
 
-.obsync-diff-body {
+.mdsync-diff-body {
 	display: flex;
 	flex-direction: column;
 	flex: 1 1 auto;
@@ -53,19 +53,19 @@
 	position: relative;
 }
 
-.obsync-diff-empty {
+.mdsync-diff-empty {
 	padding: var(--size-4-4);
 	color: var(--text-muted);
 	text-align: center;
 }
 
-.obsync-diff-binary {
+.mdsync-diff-binary {
 	padding: var(--size-4-4);
 	color: var(--text-muted);
 	text-align: center;
 }
 
-.obsync-diff-hint {
+.mdsync-diff-hint {
 	flex: 0 0 auto;
 	padding: var(--size-4-3);
 	color: var(--text-muted);

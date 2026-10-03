@@ -16,7 +16,7 @@ export function registerProtocolHandlers(
 	plugin.registerObsidianProtocolHandler(TRANSFER_ACTION, (params) => {
 		void plugin.transfer.handleProtocol(params);
 	});
-	plugin.registerObsidianProtocolHandler("obsync-auth", (params) => {
+	plugin.registerObsidianProtocolHandler("mdsync-auth", (params) => {
 		void authorizeStorage(plugin, params, onStorageAuthorized);
 	});
 	plugin.registerObsidianProtocolHandler(INVITE_ACTION, (params) => {

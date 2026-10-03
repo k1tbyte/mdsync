@@ -74,15 +74,15 @@ export class ComparePanel {
 	render(parent: HTMLElement, model: FileDiffModel): void {
 		this.model = model;
 		this.segments = buildSegments(model);
-		const root = parent.createDiv({ cls: "obsync-compare-panel" });
+		const root = parent.createDiv({ cls: "mdsync-compare-panel" });
 		this.rootEl = root;
 		this.renderToolbar(root);
 		const [first, second] = this.paneOrder();
-		const heads = root.createDiv({ cls: "obsync-compare-heads" });
-		const body = root.createDiv({ cls: "obsync-compare-body" });
+		const heads = root.createDiv({ cls: "mdsync-compare-heads" });
+		const body = root.createDiv({ cls: "mdsync-compare-body" });
 		const firstView = this.renderPane(heads, body, model, first);
-		heads.createDiv({ cls: "obsync-compare-divider-head" });
-		const dividerEl = body.createDiv({ cls: "obsync-compare-divider" });
+		heads.createDiv({ cls: "mdsync-compare-divider-head" });
+		const dividerEl = body.createDiv({ cls: "mdsync-compare-divider" });
 		const secondView = this.renderPane(heads, body, model, second);
 		const views: Record<CompareSide, EditorView> =
 			first === "left"
@@ -194,10 +194,10 @@ export class ComparePanel {
 		side: CompareSide,
 	): EditorView {
 		heads.createDiv({
-			cls: `obsync-compare-head is-${side}`,
+			cls: `mdsync-compare-head is-${side}`,
 			text: side === "left" ? model.leftLabel : model.rightLabel,
 		});
-		const host = body.createDiv({ cls: `obsync-compare-host is-${side}` });
+		const host = body.createDiv({ cls: `mdsync-compare-host is-${side}` });
 		const view = this.makeEditor(
 			host,
 			side === "left" ? model.leftText : model.rightText,
@@ -353,8 +353,8 @@ export class ComparePanel {
 	}
 
 	private renderToolbar(root: HTMLElement): void {
-		const toolbar = root.createDiv({ cls: "obsync-compare-toolbar" });
-		this.summaryEl = toolbar.createSpan({ cls: "obsync-compare-summary" });
+		const toolbar = root.createDiv({ cls: "mdsync-compare-toolbar" });
+		this.summaryEl = toolbar.createSpan({ cls: "mdsync-compare-summary" });
 		this.navButtons = [
 			appendIconButton(toolbar, "arrow-up", "Previous change", () =>
 				this.jump(-1),
@@ -372,9 +372,9 @@ export class ComparePanel {
 			this.scheduleLayout();
 		});
 		this.wrapping.mount(toolbar);
-		toolbar.createSpan({ cls: "obsync-compare-spacer" });
+		toolbar.createSpan({ cls: "mdsync-compare-spacer" });
 		const fileActions = toolbar.createDiv({
-			cls: "obsync-compare-file-actions",
+			cls: "mdsync-compare-file-actions",
 		});
 		this.fileActionsEl = fileActions;
 		this.discardButton = appendIconButton(
@@ -387,7 +387,7 @@ export class ComparePanel {
 			if (this.choices.size > 0) this.options.onApply(this.choices);
 		});
 		this.applyButton.addClass("mod-cta");
-		this.pendingEl = fileActions.createSpan({ cls: "obsync-pending" });
+		this.pendingEl = fileActions.createSpan({ cls: "mdsync-pending" });
 	}
 
 	private updateToolbar(): void {
@@ -428,7 +428,7 @@ export class ComparePanel {
 			const count = this.choices.count(kind);
 			if (count === 0) continue;
 			const item = el.createSpan({
-				cls: `obsync-pending-kind is-${kind}`,
+				cls: `mdsync-pending-kind is-${kind}`,
 				attr: { "aria-label": `${count} to ${kind}` },
 			});
 			setIcon(item, CHOICE_ICON[kind]);

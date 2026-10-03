@@ -1,5 +1,5 @@
 # Name
-### obsync
+### mdsync
 
 # Synopsis
 Simple plugin to synchronize files to S3.
@@ -9,7 +9,7 @@ Simple plugin to synchronize files to S3.
 # Example
 
 # Install:
-`npm install obsync`
+`npm install mdsync`
 
 # Test:
 `npm test`

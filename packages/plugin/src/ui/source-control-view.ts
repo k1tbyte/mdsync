@@ -28,7 +28,7 @@ const ESourceTab = {
 } as const;
 type ESourceTab = (typeof ESourceTab)[keyof typeof ESourceTab];
 
-const SOURCE_TAB_PANEL_ID = "obsync-source-tab-panel";
+const SOURCE_TAB_PANEL_ID = "mdsync-source-tab-panel";
 
 const SOURCE_TABS: ReadonlyArray<{
 	tab: ESourceTab;
@@ -119,7 +119,7 @@ export class SourceControlView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return "Obsync source control";
+		return "MDSync source control";
 	}
 
 	getIcon(): string {
@@ -158,7 +158,7 @@ export class SourceControlView extends ItemView {
 		);
 		this.root = this.contentEl;
 		this.root.empty();
-		this.root.addClass("obsync-source-control");
+		this.root.addClass("mdsync-source-control");
 		this.render(this.plugin.controller.getSnapshot(), true);
 		redrawOnPhoneChange(this, () =>
 			this.render(this.plugin.controller.getSnapshot(), true),
@@ -229,7 +229,7 @@ export class SourceControlView extends ItemView {
 			return;
 		}
 		const scrollTop =
-			root.querySelector<HTMLElement>(".obsync-source-tab-panel")?.scrollTop ??
+			root.querySelector<HTMLElement>(".mdsync-source-tab-panel")?.scrollTop ??
 			0;
 		root.empty();
 		this.renderTabBar(root);
@@ -242,30 +242,30 @@ export class SourceControlView extends ItemView {
 	}
 
 	private renderTabPanel(parent: HTMLElement): HTMLElement {
-		const panel = parent.createDiv({ cls: "obsync-source-tab-panel" });
+		const panel = parent.createDiv({ cls: "mdsync-source-tab-panel" });
 		panel.id = SOURCE_TAB_PANEL_ID;
 		panel.setAttr("role", "tabpanel");
-		panel.setAttr("aria-labelledby", `obsync-source-tab-${this.tab}`);
+		panel.setAttr("aria-labelledby", `mdsync-source-tab-${this.tab}`);
 		return panel;
 	}
 
 	private renderTabBar(parent: HTMLElement): void {
-		const row = parent.createDiv({ cls: "obsync-source-tabs-row" });
+		const row = parent.createDiv({ cls: "mdsync-source-tabs-row" });
 		if (Platform.isPhone) {
-			const back = row.createEl("button", { cls: "obsync-mobile-back" });
+			const back = row.createEl("button", { cls: "mdsync-mobile-back" });
 			back.type = "button";
 			back.setAttr("aria-label", "Close source control");
 			setIcon(back, "arrow-left");
 			back.addEventListener("click", () => this.leaf.detach());
 		}
 		const bar = row.createDiv({
-			cls: "obsync-settings-tabs obsync-source-tabs",
+			cls: "mdsync-settings-tabs mdsync-source-tabs",
 		});
 		bar.setAttr("role", "tablist");
 		bar.setAttr("aria-label", "Source control views");
 		const make = (tab: ESourceTab, label: string, icon: string): void => {
 			const btn = bar.createEl("button", {
-				cls: "obsync-settings-tab-button",
+				cls: "mdsync-settings-tab-button",
 			});
 			btn.type = "button";
 			btn.setAttr("role", "tab");
@@ -273,11 +273,11 @@ export class SourceControlView extends ItemView {
 			btn.setAttr("aria-selected", String(tab === this.tab));
 			btn.setAttr("aria-controls", SOURCE_TAB_PANEL_ID);
 			btn.setAttr("tabindex", tab === this.tab ? "0" : "-1");
-			btn.id = `obsync-source-tab-${tab}`;
-			btn.setAttr("data-obsync-tab", tab);
-			const iconEl = btn.createSpan({ cls: "obsync-source-tab-icon" });
+			btn.id = `mdsync-source-tab-${tab}`;
+			btn.setAttr("data-mdsync-tab", tab);
+			const iconEl = btn.createSpan({ cls: "mdsync-source-tab-icon" });
 			setIcon(iconEl, icon);
-			btn.createSpan({ cls: "obsync-source-tab-label", text: label });
+			btn.createSpan({ cls: "mdsync-source-tab-label", text: label });
 			if (tab === this.tab) btn.addClass("is-active");
 			btn.addEventListener("click", () => this.activateTab(tab));
 			btn.addEventListener("keydown", (event: KeyboardEvent) => {
@@ -309,7 +309,7 @@ export class SourceControlView extends ItemView {
 		this.render(this.plugin.controller.getSnapshot(), true);
 		if (!restoreFocus) return;
 		this.root
-			?.querySelector<HTMLButtonElement>(`[data-obsync-tab="${tab}"]`)
+			?.querySelector<HTMLButtonElement>(`[data-mdsync-tab="${tab}"]`)
 			?.focus();
 	}
 }

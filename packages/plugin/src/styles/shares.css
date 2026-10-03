@@ -1,78 +1,78 @@
-.obsync-share-modal {
+.mdsync-share-modal {
 	overflow: hidden;
 }
 
-.obsync-share-modal .modal-content {
+.mdsync-share-modal .modal-content {
 	flex: 1 1 auto;
 	min-height: 0;
 	overflow-y: auto;
 }
 
-.obsync-share-modal .modal-content > * {
+.mdsync-share-modal .modal-content > * {
 	flex-shrink: 0;
 }
 
-.obsync-share-modal .obsync-share-section.setting-item {
+.mdsync-share-modal .mdsync-share-section.setting-item {
 	margin: var(--size-4-5) 0 var(--size-4-1);
 	padding: 0;
 	border: 0;
 }
 
-.obsync-share-warning {
+.mdsync-share-warning {
 	margin: var(--size-4-3) 0 0;
 	padding: var(--size-4-2) var(--size-4-3);
-	border-inline-start: var(--obsync-bar-strong) solid var(--color-orange);
+	border-inline-start: var(--mdsync-bar-strong) solid var(--color-orange);
 	border-radius: var(--radius-s);
 	background: rgba(var(--color-orange-rgb), 0.12);
 	overflow-wrap: anywhere;
 }
 
-.modal.obsync-share-modal .setting-item.obsync-share-footer {
+.modal.mdsync-share-modal .setting-item.mdsync-share-footer {
 	flex: 0 0 auto;
 	margin-top: var(--size-4-3);
 	padding: var(--size-4-3) 0 0;
 	border-top: 1px solid var(--background-modifier-border);
 }
 
-.modal.obsync-share-modal .obsync-share-section + .setting-item {
+.modal.mdsync-share-modal .mdsync-share-section + .setting-item {
 	border-top: 0;
 }
 
-.obsync-share-modal .setting-item-description:empty {
+.mdsync-share-modal .setting-item-description:empty {
 	display: none;
 }
 
-.obsync-share-access .setting-item-info {
+.mdsync-share-access .setting-item-info {
 	min-width: 0;
 }
 
-.obsync-share-access .setting-item-name {
+.mdsync-share-access .setting-item-name {
 	overflow-wrap: anywhere;
 }
 
-.obsync-share-modal .obsync-share-section .setting-item-name {
+.mdsync-share-modal .mdsync-share-section .setting-item-name {
 	color: var(--text-muted);
 	font-size: var(--font-ui-small);
 	font-weight: var(--font-semibold);
 }
 
-.obsync-share-modal .setting-item.obsync-invite-name {
+.mdsync-share-modal .setting-item.mdsync-invite-name {
 	flex-direction: column;
 	align-items: stretch;
 	gap: var(--size-4-2);
 }
 
-.obsync-invite-name input {
+.mdsync-invite-name input {
 	flex: 1 1 auto;
 	min-width: 0;
 }
 
-.obsync-share-modal input[readonly] {
+.mdsync-share-modal input[readonly] {
 	text-overflow: ellipsis;
 }
 
-.is-phone .modal.obsync-share-modal {
-	.setting-item.obsync-share-footer:last-child {
+.is-phone .modal.mdsync-share-modal {
+	.setting-item.mdsync-share-footer:last-child {
 		padding: var(--size-4-3) var(--size-4-4);
 		padding-bottom: max(
 			var(--size-4-3),
@@ -80,33 +80,33 @@
 		);
 	}
 
-	.obsync-share-access .setting-item {
+	.mdsync-share-access .setting-item {
 		flex-direction: row;
 		align-items: center;
 	}
 
-	.obsync-share-access .setting-item-control {
+	.mdsync-share-access .setting-item-control {
 		flex: 0 0 auto;
 		width: auto;
 	}
 
-	.obsync-share-access .setting-item-control button:not(.clickable-icon) {
+	.mdsync-share-access .setting-item-control button:not(.clickable-icon) {
 		width: auto;
 	}
 
-	.obsync-invite-name button {
+	.mdsync-invite-name button {
 		flex: 0 0 auto;
 		width: auto;
 	}
 
-	.obsync-share-footer .setting-item-control button:not(.clickable-icon) {
+	.mdsync-share-footer .setting-item-control button:not(.clickable-icon) {
 		flex: 1 1 auto;
 		width: auto;
 	}
 
 	.clickable-icon {
-		min-width: var(--obsync-touch);
-		min-height: var(--obsync-touch);
+		min-width: var(--mdsync-touch);
+		min-height: var(--mdsync-touch);
 	}
 
 	&:has(input:focus) {
@@ -120,7 +120,7 @@
 }
 
 @media (max-height: 520px) {
-	.is-phone .modal.obsync-share-modal {
+	.is-phone .modal.mdsync-share-modal {
 		overflow-y: auto;
 
 		.modal-content {

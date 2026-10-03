@@ -2,7 +2,7 @@ import type { App } from "obsidian";
 
 import type { DeviceName, LogService, PassphraseManager } from "@/core";
 import type { Unseen } from "@/presence";
-import type { ObsyncSettings } from "@/settings/model";
+import type { MdsyncSettings } from "@/settings/model";
 import type { SettingsTransferController } from "@/settings/transfer-controller";
 import type { SpaceRecords } from "@/spaces";
 import type { SyncController } from "@/sync/controller";
@@ -16,7 +16,7 @@ import type { Realtime } from "./realtime";
  */
 export interface PluginHost {
 	readonly app: App;
-	settings: ObsyncSettings;
+	settings: MdsyncSettings;
 	readonly controller: SyncController;
 	readonly logs: LogService;
 	readonly passphrase: PassphraseManager;

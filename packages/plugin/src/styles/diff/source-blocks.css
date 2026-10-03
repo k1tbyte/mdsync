@@ -1,34 +1,34 @@
-.obsync-source {
+.mdsync-source {
 	display: block;
 	width: 100%;
-	background: rgba(var(--obsync-tone), 0.06);
+	background: rgba(var(--mdsync-tone), 0.06);
 	font-family: var(--font-monospace);
 	font-size: inherit;
 	font-weight: normal;
 	border-inline: 1px solid var(--background-modifier-border);
 }
 
-.obsync-source-lines {
-	box-shadow: inset var(--obsync-bar) 0 0 rgba(var(--obsync-tone), 0.6);
+.mdsync-source-lines {
+	box-shadow: inset var(--mdsync-bar) 0 0 rgba(var(--mdsync-tone), 0.6);
 }
 
-.obsync-source.is-opening {
-	border-top: 1px solid rgba(var(--obsync-tone), 0.4);
+.mdsync-source.is-opening {
+	border-top: 1px solid rgba(var(--mdsync-tone), 0.4);
 }
 
-.obsync-source.is-closing {
-	border-bottom: 1px solid rgba(var(--obsync-tone), 0.4);
+.mdsync-source.is-closing {
+	border-bottom: 1px solid rgba(var(--mdsync-tone), 0.4);
 }
 
-.obsync-source-head {
+.mdsync-source-head {
 	display: flex;
 	align-items: center;
 	gap: var(--size-4-2);
 	padding: var(--size-2-1) var(--size-4-2);
-	color: rgb(var(--obsync-tone));
+	color: rgb(var(--mdsync-tone));
 	background: color-mix(
 		in srgb,
-		rgb(var(--obsync-tone)) 10%,
+		rgb(var(--mdsync-tone)) 10%,
 		var(--background-secondary)
 	);
 	font-family: var(--font-interface);
@@ -37,43 +37,43 @@
 }
 
 body.is-phone
-	.obsync-diff-view
-	.obsync-compare-panel.is-combined
-	.obsync-source-head,
+	.mdsync-diff-view
+	.mdsync-compare-panel.is-combined
+	.mdsync-source-head,
 body.is-phone
-	.obsync-diff-view
-	.obsync-merge-panel.is-combined
-	.obsync-source-head {
+	.mdsync-diff-view
+	.mdsync-merge-panel.is-combined
+	.mdsync-source-head {
 	position: sticky;
-	left: calc(var(--obsync-gutter-width, 0px) + 1px);
+	left: calc(var(--mdsync-gutter-width, 0px) + 1px);
 	z-index: 1;
 	box-sizing: border-box;
-	width: calc(var(--obsync-pane-width, 100%) - 2px);
+	width: calc(var(--mdsync-pane-width, 100%) - 2px);
 }
 
-.obsync-source.is-chosen > .obsync-source-head:first-of-type {
-	box-shadow: inset var(--obsync-bar-strong) 0 0 var(--interactive-accent);
+.mdsync-source.is-chosen > .mdsync-source-head:first-of-type {
+	box-shadow: inset var(--mdsync-bar-strong) 0 0 var(--interactive-accent);
 }
 
-.obsync-source-head.is-trailer {
+.mdsync-source-head.is-trailer {
 	border-top: 1px solid var(--background-modifier-border);
 	color: var(--text-muted);
 	background: var(--background-secondary);
 }
 
-.obsync-source-label {
+.mdsync-source-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.obsync-source-actions {
+.mdsync-source-actions {
 	display: flex;
 	gap: var(--size-2-1);
 	margin-left: auto;
 }
 
-.obsync-counters {
+.mdsync-counters {
 	display: inline-flex;
 	gap: var(--size-4-2);
 	font-family: var(--font-monospace);
@@ -82,15 +82,15 @@ body.is-phone
 	letter-spacing: normal;
 }
 
-.obsync-counters .is-added {
+.mdsync-counters .is-added {
 	color: var(--color-green);
 }
 
-.obsync-counters .is-removed {
+.mdsync-counters .is-removed {
 	color: var(--color-red);
 }
 
-.obsync-source-lines.is-empty {
+.mdsync-source-lines.is-empty {
 	padding: var(--size-4-2) var(--size-4-3);
 	color: var(--text-faint);
 	font-family: var(--font-interface);

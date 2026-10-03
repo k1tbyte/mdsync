@@ -1,9 +1,9 @@
 # Testing
 
-- vitest covers core logic (diff, hunks, concurrency, ignore, etc.). Run with `pnpm test`, or `pnpm --filter obsync test:watch` while iterating.
+- vitest covers core logic (diff, hunks, concurrency, ignore, etc.). Run with `pnpm test`, or `pnpm --filter mdsync test:watch` while iterating.
 - ALL domain logic (diffs, merging, concurrency, hunks matching, baseline cache) must have complete unit-test coverage.
 - Tests mirror `src/`: `tests/<area>/<module>.test.ts`, helpers in `tests/helpers/`.
-- Live sessions run against the relay's own hub logic and SQLite store in-process (`tests/helpers/live-hub.ts`, via the `obsync-relay` devDependency), with switches for lost frames and reconnects. `tests/live/chaos.test.ts` runs three devices through seeded edits, drops and half-open sockets and demands one text with every edit in it.
+- Live sessions run against the relay's own hub logic and SQLite store in-process (`tests/helpers/live-hub.ts`, via the `mdsync-relay` devDependency), with switches for lost frames and reconnects. `tests/live/chaos.test.ts` runs three devices through seeded edits, drops and half-open sockets and demands one text with every edit in it.
 
 ## Driving a real Obsidian
 
@@ -11,9 +11,9 @@
 be exercised without a human clicking. Obsidian must be started with the port
 open (`node tools/obsidian.mjs launch`) - a normally launched instance exposes
 nothing. Then `shot`, `click`, `text`, `cmd <command-id>` and `eval` drive it;
-`eval` runs in the renderer, where `app` and `app.plugins.plugins.obsync` are
+`eval` runs in the renderer, where `app` and `app.plugins.plugins.mdsync` are
 reachable. After copying a new build in, reload with
-`app.plugins.disablePlugin('obsync')` then `enablePlugin` - `styles.css` is
+`app.plugins.disablePlugin('mdsync')` then `enablePlugin` - `styles.css` is
 re-injected only on reload.
 
 ## End to end

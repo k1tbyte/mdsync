@@ -233,7 +233,7 @@ describe("fetchRemoteManifest", () => {
 			await encryptJson(key, { ...manifest("s1", null), version: 999 }),
 		);
 		await expect(fetchRemoteManifest(storage, key, "")).rejects.toThrow(
-			/requires a newer Obsync/,
+			/requires a newer MDSync/,
 		);
 	});
 

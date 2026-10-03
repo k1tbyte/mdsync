@@ -59,7 +59,7 @@ export async function testRelay(
 		const res = await requestUrl({
 			url: `${relayBase(relay.relayUrl)}/status`,
 			method: "GET",
-			headers: { "X-Obsync-Admin": relay.relaySecret },
+			headers: { "X-Mdsync-Admin": relay.relaySecret },
 			throw: false,
 		});
 		return res.status === 200

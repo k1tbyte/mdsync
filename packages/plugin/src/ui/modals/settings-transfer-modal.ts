@@ -1,6 +1,6 @@
 import { type App, type ButtonComponent, Modal, Setting } from "obsidian";
 
-import { activeStorage, type ObsyncSettings } from "@/settings/model";
+import { activeStorage, type MdsyncSettings } from "@/settings/model";
 import type { TransferSection } from "@/settings/transfer";
 import { describeStorageTarget } from "@/storage";
 import { onEnter } from "@/ui/common";
@@ -26,13 +26,13 @@ class SettingsTransferImportModal extends Modal {
 
 	onOpen(): void {
 		const { contentEl, titleEl } = this;
-		titleEl.setText("Import Obsync setup");
+		titleEl.setText("Import MDSync setup");
 		contentEl.createEl("p", {
-			text: "Paste an Obsync setup link or transfer token encrypted with your passphrase.",
+			text: "Paste an MDSync setup link or transfer token encrypted with your passphrase.",
 		});
 
 		const textarea = contentEl.createEl("textarea", {
-			cls: "obsync-transfer-url",
+			cls: "mdsync-transfer-url",
 		});
 		textarea.rows = 6;
 		textarea.addEventListener("input", () => {
@@ -83,7 +83,7 @@ class SettingsTransferConfirmModal extends Modal {
 
 	constructor(
 		app: App,
-		private readonly settings: ObsyncSettings,
+		private readonly settings: MdsyncSettings,
 		private readonly sections: readonly TransferSection[],
 		resolveValue: (confirmed: boolean) => void,
 	) {
@@ -93,7 +93,7 @@ class SettingsTransferConfirmModal extends Modal {
 
 	onOpen(): void {
 		const { contentEl, titleEl } = this;
-		titleEl.setText("Import Obsync setup");
+		titleEl.setText("Import MDSync setup");
 		contentEl.createEl("p", {
 			text: `Replaces on this device: ${this.sections.map((section) => SECTION_NAMES[section]).join("; ")}. A setting the other device left at its default is reset to the default here.`,
 		});
@@ -164,7 +164,7 @@ export function askSettingsTransferInput(app: App): Promise<string | null> {
 
 export function confirmSettingsTransferImport(
 	app: App,
-	settings: ObsyncSettings,
+	settings: MdsyncSettings,
 	sections: readonly TransferSection[],
 ): Promise<boolean> {
 	return openPromiseModal<boolean>(

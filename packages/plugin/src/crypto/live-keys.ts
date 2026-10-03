@@ -10,8 +10,8 @@ export interface LiveKeys {
 	docIds: CryptoKey;
 }
 
-const FRAMES_INFO = "obsync/live/frames/v1";
-const DOC_IDS_INFO = "obsync/live/doc-ids/v1";
+const FRAMES_INFO = "mdsync/live/frames/v1";
+const DOC_IDS_INFO = "mdsync/live/doc-ids/v1";
 
 export async function deriveLiveKeys(dataKey: Uint8Array): Promise<LiveKeys> {
 	const subtle = window.crypto.subtle;

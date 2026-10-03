@@ -39,7 +39,7 @@ describe("ScopePolicy getCategory", () => {
 		expect(
 			scope.getCategory(".obsidian/plugins/obsidian-git/data.json"),
 		).toBeNull();
-		expect(scope.getCategory(".obsidian/plugins/obsync/data.json")).toBeNull();
+		expect(scope.getCategory(".obsidian/plugins/mdsync/data.json")).toBeNull();
 	});
 
 	it("identifies snippets", () => {

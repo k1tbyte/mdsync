@@ -1,5 +1,5 @@
-.workspace-leaf-content[data-type="obsync-source-control"]
-	.view-content.obsync-source-control {
+.workspace-leaf-content[data-type="mdsync-source-control"]
+	.view-content.mdsync-source-control {
 	display: flex;
 	flex-direction: column;
 	padding: var(--size-4-3);
@@ -9,7 +9,7 @@
 	container-type: inline-size;
 }
 
-.obsync-source-tabs-row {
+.mdsync-source-tabs-row {
 	position: sticky;
 	top: 0;
 	z-index: 5;
@@ -19,7 +19,7 @@
 	margin-bottom: var(--size-4-2);
 }
 
-.obsync-source-tabs {
+.mdsync-source-tabs {
 	display: flex;
 	flex: 1 1 auto;
 	gap: var(--size-2-1);
@@ -30,17 +30,17 @@
 	background: var(--background-primary);
 }
 
-.obsync-mobile-back {
+.mdsync-mobile-back {
 	display: inline-flex;
-	flex: 0 0 var(--obsync-touch);
+	flex: 0 0 var(--mdsync-touch);
 	align-items: center;
 	justify-content: center;
-	width: var(--obsync-touch);
-	height: var(--obsync-touch);
+	width: var(--mdsync-touch);
+	height: var(--mdsync-touch);
 	padding: 0;
 }
 
-.obsync-source-tabs .obsync-settings-tab-button {
+.mdsync-source-tabs .mdsync-settings-tab-button {
 	display: flex;
 	flex: 1 1 0;
 	align-items: center;
@@ -56,33 +56,33 @@
 	font-size: var(--font-ui-smaller);
 }
 
-.obsync-source-tabs .obsync-settings-tab-button:focus-visible {
+.mdsync-source-tabs .mdsync-settings-tab-button:focus-visible {
 	outline: 2px solid var(--interactive-accent);
 	outline-offset: 1px;
 }
 
-.obsync-source-tabs .obsync-settings-tab-button:hover {
+.mdsync-source-tabs .mdsync-settings-tab-button:hover {
 	background: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
 
-.obsync-source-tabs .obsync-settings-tab-button.is-active {
+.mdsync-source-tabs .mdsync-settings-tab-button.is-active {
 	flex-grow: 1.65;
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);
 }
 
-.obsync-source-tab-icon {
+.mdsync-source-tab-icon {
 	display: inline-flex;
 	flex: 0 0 auto;
 }
 
-.obsync-source-tab-icon svg {
-	width: var(--obsync-icon);
-	height: var(--obsync-icon);
+.mdsync-source-tab-icon svg {
+	width: var(--mdsync-icon);
+	height: var(--mdsync-icon);
 }
 
-.obsync-source-tab-label {
+.mdsync-source-tab-label {
 	display: none;
 	min-width: 0;
 	overflow: hidden;
@@ -90,13 +90,13 @@
 	white-space: nowrap;
 }
 
-.obsync-source-tabs
-	.obsync-settings-tab-button.is-active
-	.obsync-source-tab-label {
+.mdsync-source-tabs
+	.mdsync-settings-tab-button.is-active
+	.mdsync-source-tab-label {
 	display: inline;
 }
 
-.obsync-source-tab-panel {
+.mdsync-source-tab-panel {
 	display: flex;
 	flex: 1 1 auto;
 	flex-direction: column;
@@ -105,6 +105,6 @@
 	overflow: auto;
 }
 
-:where(.obsync-source-tab-panel > *) {
+:where(.mdsync-source-tab-panel > *) {
 	flex-shrink: 0;
 }

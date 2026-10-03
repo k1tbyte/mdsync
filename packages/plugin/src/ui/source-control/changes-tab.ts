@@ -111,7 +111,7 @@ export class ChangesTab {
 		const diff = result?.diff;
 		if (!diff) {
 			root.createDiv({
-				cls: "obsync-status-line is-empty",
+				cls: "mdsync-status-line is-empty",
 				text: "Run compare to see changes.",
 			});
 			return;
@@ -157,7 +157,7 @@ export class ChangesTab {
 		}
 		if (shown === 0 && !hasSyncError(snapshot)) {
 			root.createDiv({
-				cls: "obsync-status-line is-empty",
+				cls: "mdsync-status-line is-empty",
 				text: this.filter.trim()
 					? "No changed files match the filter."
 					: "No changes.",
@@ -175,7 +175,7 @@ export class ChangesTab {
 	private renderFilter(parent: HTMLElement): void {
 		const input = parent.createEl("input", {
 			type: "search",
-			cls: "obsync-history-search",
+			cls: "mdsync-history-search",
 		});
 		input.placeholder = "Filter by path…";
 		input.value = this.filter;
@@ -187,7 +187,7 @@ export class ChangesTab {
 			this.rerender();
 			// The re-render replaced this node; carry focus and caret to the new one.
 			const next = this.scroller?.querySelector<HTMLInputElement>(
-				".obsync-history-search",
+				".mdsync-history-search",
 			);
 			if (!next) return;
 			next.focus();
@@ -216,7 +216,7 @@ export class ChangesTab {
 			fillStatusLine(this.statusLineEl, snapshot, this.plugin, this.actions);
 		}
 		if (this.refreshButtonEl) this.refreshButtonEl.disabled = snapshot.busy;
-		this.cancelButtonEl?.toggleClass("obsync-hidden", !snapshot.cancellable);
+		this.cancelButtonEl?.toggleClass("mdsync-hidden", !snapshot.cancellable);
 		this.setBulkButtonState(snapshot);
 	}
 
@@ -225,10 +225,10 @@ export class ChangesTab {
 		snapshot: SyncStatusSnapshot,
 	): void {
 		const bar = parent.createDiv({
-			cls: "obsync-toolbar obsync-main-toolbar",
+			cls: "mdsync-toolbar mdsync-main-toolbar",
 		});
 		const refresh = bar.createEl("button", {
-			cls: "obsync-toolbar-icon",
+			cls: "mdsync-toolbar-icon",
 		});
 		setIcon(refresh, "refresh-cw");
 		refresh.setAttr("aria-label", "Refresh changes");
@@ -245,14 +245,14 @@ export class ChangesTab {
 			.setButtonText("Cancel")
 			.onClick(() => this.plugin.controller.cancel()).buttonEl;
 		cancel.setAttr("aria-label", "Stop the running sync");
-		cancel.toggleClass("obsync-hidden", !snapshot.cancellable);
+		cancel.toggleClass("mdsync-hidden", !snapshot.cancellable);
 		this.cancelButtonEl = cancel;
 
 		const pushAll = actionButton(bar, "cta").buttonEl;
-		pushAll.addClass("obsync-bulk-action");
+		pushAll.addClass("mdsync-bulk-action");
 		pushAll.createSpan({ text: "Push" });
 		pushAll.createSpan({
-			cls: "obsync-toolbar-count",
+			cls: "mdsync-toolbar-count",
 			text: formatActionCount(snapshot.pendingLocal),
 		});
 		pushAll.setAttr("aria-label", `Push all ${snapshot.pendingLocal} changes`);
@@ -265,10 +265,10 @@ export class ChangesTab {
 		});
 
 		const pullAll = actionButton(bar, "cta").buttonEl;
-		pullAll.addClass("obsync-bulk-action");
+		pullAll.addClass("mdsync-bulk-action");
 		pullAll.createSpan({ text: "Pull" });
 		pullAll.createSpan({
-			cls: "obsync-toolbar-count",
+			cls: "mdsync-toolbar-count",
 			text: formatActionCount(snapshot.pendingRemote),
 		});
 		pullAll.setAttr("aria-label", `Pull all ${snapshot.pendingRemote} changes`);
@@ -281,7 +281,7 @@ export class ChangesTab {
 		this.setBulkButtonState(snapshot);
 
 		const layoutToggle = bar.createEl("button", {
-			cls: "obsync-toolbar-icon",
+			cls: "mdsync-toolbar-icon",
 		});
 		const layoutLabel =
 			this.layout === "tree" ? "Show flat list" : "Show folder tree";
@@ -299,7 +299,7 @@ export class ChangesTab {
 		parent: HTMLElement,
 		snapshot: SyncStatusSnapshot,
 	): void {
-		this.statusLineEl = parent.createDiv({ cls: "obsync-status-line" });
+		this.statusLineEl = parent.createDiv({ cls: "mdsync-status-line" });
 		fillStatusLine(this.statusLineEl, snapshot, this.plugin, this.actions);
 	}
 
@@ -314,7 +314,7 @@ export class ChangesTab {
 				if (generation !== this.openGeneration) return;
 				this.activePath = path;
 				this.scroller
-					?.querySelectorAll(".obsync-file-row.is-active")
+					?.querySelectorAll(".mdsync-file-row.is-active")
 					.forEach((row) => {
 						row.removeClass("is-active");
 						row.removeAttribute("aria-current");
@@ -339,9 +339,9 @@ export class ChangesTab {
 
 	private findRenderedFileRow(path: string): HTMLElement | null {
 		const rows =
-			this.scroller?.querySelectorAll<HTMLElement>(".obsync-file-row") ?? [];
+			this.scroller?.querySelectorAll<HTMLElement>(".mdsync-file-row") ?? [];
 		for (const row of rows) {
-			if (row.dataset.obsyncPath === path) return row;
+			if (row.dataset.mdsyncPath === path) return row;
 		}
 		return null;
 	}

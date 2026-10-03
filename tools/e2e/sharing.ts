@@ -114,10 +114,10 @@ export async function shareFolder(
 	s3: S3,
 	folder: string,
 ): Promise<string> {
-	await clickMenuItem(owner, folder, "Obsync: Share folder");
+	await clickMenuItem(owner, folder, "MDSync: Share folder");
 	const id = (await owner.waitFor(
 		"the share's record",
-		() => app.plugins.plugins.obsync.settings.spaces[0]?.id,
+		() => app.plugins.plugins.mdsync.settings.spaces[0]?.id,
 		(value: string | undefined) => value !== undefined,
 	)) as string;
 	await poll(
@@ -136,7 +136,7 @@ export async function invite(
 	person: string,
 	readOnly = false,
 ): Promise<SentInvite> {
-	await clickMenuItem(owner, folder, "Obsync: Manage sharing");
+	await clickMenuItem(owner, folder, "MDSync: Manage sharing");
 	await fill(owner, "Name", person);
 	if (readOnly) await toggle(owner, "Read-only");
 	await press(owner, "Create invite");
@@ -169,8 +169,8 @@ async function openInvite(
 ): Promise<void> {
 	await friend.evaluate((url) => {
 		const params = Object.fromEntries(new URL(url).searchParams);
-		app.workspace.protocolHandler.handlers.get("obsync-share")({
-			action: "obsync-share",
+		app.workspace.protocolHandler.handlers.get("mdsync-share")({
+			action: "mdsync-share",
 			...params,
 		});
 	}, link);
@@ -197,7 +197,7 @@ export async function closeFromSettings(
 	await device.waitFor(
 		"the record closed",
 		() =>
-			app.plugins.plugins.obsync.settings.spaces.every(
+			app.plugins.plugins.mdsync.settings.spaces.every(
 				(record: { closed?: true }) => record.closed,
 			),
 		Boolean,
@@ -212,7 +212,7 @@ export function vaultHash(
 ): Promise<string | null> {
 	return device.evaluate(
 		(target) =>
-			app.plugins.plugins.obsync.controller.runtimeState.resultOf({
+			app.plugins.plugins.mdsync.controller.runtimeState.resultOf({
 				id: "vault",
 				root: "",
 			})?.remote?.files[target]?.hash ?? null,
@@ -223,7 +223,7 @@ export function vaultHash(
 /** Each failed share of the last refresh, as [root, message]. */
 export function spaceErrors(device: Obsidian): Promise<string[][]> {
 	return device.evaluate(() =>
-		app.plugins.plugins.obsync.controller
+		app.plugins.plugins.mdsync.controller
 			.getSnapshot()
 			.spaceErrors.map((each: { root: string; message: string }) => [
 				each.root,

@@ -19,7 +19,7 @@ interface MaintenanceAction {
 const MAINTENANCE_ACTIONS: ReadonlyArray<MaintenanceAction> = [
 	{
 		name: "Reset local state",
-		desc: "Clear the local sync baseline, adopted remote vault, and file hash cache on this device. Obsync settings stay unchanged.",
+		desc: "Clear the local sync baseline, adopted remote vault, and file hash cache on this device. MDSync settings stay unchanged.",
 		buttonText: "Reset local",
 		warning: true,
 		run: resetLocalState,
@@ -39,7 +39,7 @@ const MAINTENANCE_ACTIONS: ReadonlyArray<MaintenanceAction> = [
 	},
 	{
 		name: "Reset remote storage",
-		desc: "Delete the remote Obsync manifest, file contents, version history and pins on the configured backend.",
+		desc: "Delete the remote MDSync manifest, file contents, version history and pins on the configured backend.",
 		buttonText: "Reset remote",
 		warning: true,
 		run: resetRemoteStorage,

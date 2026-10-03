@@ -1,17 +1,17 @@
 /* The strip between two panes: connectors on a canvas, an action popup floating above. */
-.obsync-merge-divider,
-.obsync-compare-divider {
+.mdsync-merge-divider,
+.mdsync-compare-divider {
 	position: relative;
 	background: var(--background-secondary);
 }
 
-.obsync-divider-actions {
+.mdsync-divider-actions {
 	position: absolute;
 	inset: 0;
 	pointer-events: none;
 }
 
-.obsync-divider-canvas {
+.mdsync-divider-canvas {
 	position: absolute;
 	inset: 0;
 	width: 100%;
@@ -19,16 +19,16 @@
 	pointer-events: auto;
 }
 
-.obsync-divider-canvas.has-target {
+.mdsync-divider-canvas.has-target {
 	cursor: pointer;
 }
 
 /* The selected connector shows focus. */
-.obsync-divider-canvas:focus {
+.mdsync-divider-canvas:focus {
 	outline: none;
 }
 
-.obsync-divider-action {
+.mdsync-divider-action {
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -41,7 +41,7 @@
 }
 
 /* Opened by clicking a connector; wider than the strip, so the strip must not clip it. */
-.obsync-divider-action.is-popup {
+.mdsync-divider-action.is-popup {
 	left: 50%;
 	right: auto;
 	transform: translateX(-50%);

@@ -35,7 +35,7 @@ export function addPushMenuItem(
 	const target = isFolder ? "folder" : "file";
 	menu.addItem((item) =>
 		item
-			.setTitle(`Obsync: Push ${target} to remote`)
+			.setTitle(`MDSync: Push ${target} to remote`)
 			.setIcon("upload")
 			.onClick(() => void pushScope(plugin, path, isFolder)),
 	);

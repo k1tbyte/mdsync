@@ -6,7 +6,7 @@ import {
 	MAX_DOC_SUBS,
 	MAX_FRAME_BYTES,
 	UNAUTHORIZED_CLOSE_CODE,
-} from "@obsync/protocol";
+} from "@mdsync/protocol";
 import { describe, expect, it, vi } from "vitest";
 
 import { HubCore, RELAY_TAG } from "../../src/hub/core";
@@ -15,7 +15,7 @@ import { grant, hub, peer, send, types } from "../helpers/hub";
 import { memorySql } from "../helpers/memory-sql";
 
 const VAULT = "vault-channel";
-const SHARE = "obsync-share-s1";
+const SHARE = "mdsync-share-s1";
 const DOC = "d".repeat(32);
 
 describe("hub", () => {

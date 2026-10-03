@@ -1,21 +1,21 @@
-.obsync-toolbar {
+.mdsync-toolbar {
 	display: flex;
 	gap: var(--size-4-2);
 	flex-wrap: wrap;
 	align-items: center;
 }
 
-.obsync-toolbar button:disabled {
+.mdsync-toolbar button:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
 }
 
-.obsync-main-toolbar {
+.mdsync-main-toolbar {
 	flex-wrap: nowrap;
 	gap: var(--size-2-2);
 }
 
-.obsync-main-toolbar .obsync-bulk-action {
+.mdsync-main-toolbar .mdsync-bulk-action {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -24,7 +24,7 @@
 	padding-inline: var(--size-4-2);
 }
 
-.obsync-toolbar-icon {
+.mdsync-toolbar-icon {
 	display: inline-flex;
 	flex: 0 0 var(--input-height);
 	align-items: center;
@@ -33,12 +33,12 @@
 	padding: 0;
 }
 
-.obsync-toolbar-icon svg {
+.mdsync-toolbar-icon svg {
 	width: 15px;
 	height: 15px;
 }
 
-.obsync-toolbar-count {
+.mdsync-toolbar-count {
 	padding: 1px var(--size-2-2);
 	border-radius: var(--radius-s);
 	background: rgba(var(--mono-rgb-100), 0.1);
@@ -47,32 +47,32 @@
 	line-height: 1.2;
 }
 
-.obsync-toolbar button.mod-cta .obsync-toolbar-count {
+.mdsync-toolbar button.mod-cta .mdsync-toolbar-count {
 	background: rgba(0, 0, 0, 0.2);
 }
 
-.obsync-status-line {
+.mdsync-status-line {
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 }
 
-.obsync-status-line.is-error {
+.mdsync-status-line.is-error {
 	color: var(--color-red);
 }
 
-.obsync-status-line.is-empty {
+.mdsync-status-line.is-empty {
 	padding: var(--size-4-4) var(--size-4-2);
 	text-align: center;
 }
 
-.obsync-status-conflicts {
+.mdsync-status-conflicts {
 	color: var(--color-red);
 	font-weight: var(--font-semibold);
 }
 
 /* Clickable pill after the compared timestamp; a text button here reads as
  * part of the sentence and crams against it. */
-.obsync-ignored-badge {
+.mdsync-ignored-badge {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--size-4-1);
@@ -89,21 +89,21 @@
 	box-shadow: none;
 }
 
-.obsync-ignored-badge:focus-visible {
+.mdsync-ignored-badge:focus-visible {
 	outline: 2px solid var(--interactive-accent);
 	outline-offset: 1px;
 }
 
-.obsync-ignored-badge:hover {
+.mdsync-ignored-badge:hover {
 	background: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
 
-.obsync-ignored-badge.is-cloud-off {
+.mdsync-ignored-badge.is-cloud-off {
 	color: var(--color-red);
 }
 
-.obsync-ignored-badge svg {
+.mdsync-ignored-badge svg {
 	width: 0.85rem;
 	height: 0.85rem;
 }

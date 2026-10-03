@@ -46,7 +46,7 @@ function renderSourceBlock(
 	onResize: () => void,
 ): HTMLElement {
 	const wrap = parent.createEl("section", {
-		cls: `obsync-source is-${block.tone}`,
+		cls: `mdsync-source is-${block.tone}`,
 	});
 	wrap.dataset.change = block.key;
 	wrap.toggleClass("is-opening", block.opens === true);
@@ -63,7 +63,7 @@ function renderBody(
 	block: SourceBlock,
 	onResize: () => void,
 ): void {
-	const lines = wrap.createDiv({ cls: "obsync-source-lines" });
+	const lines = wrap.createDiv({ cls: "mdsync-source-lines" });
 	if (block.lines.length === 0) {
 		lines.addClass("is-empty");
 		lines.setText(block.emptyText);
@@ -106,11 +106,11 @@ function renderLines(
 }
 
 function renderLabel(parent: HTMLElement, label: BlockLabel): HTMLElement {
-	const head = parent.createDiv({ cls: "obsync-source-head" });
-	head.createSpan({ cls: "obsync-source-label", text: label.text });
+	const head = parent.createDiv({ cls: "mdsync-source-head" });
+	head.createSpan({ cls: "mdsync-source-label", text: label.text });
 	if (label.counters) renderCounters(head, label.counters);
 	if (!label.actions || label.actions.length === 0) return head;
-	const actions = head.createDiv({ cls: "obsync-source-actions" });
+	const actions = head.createDiv({ cls: "mdsync-source-actions" });
 	for (const action of label.actions) renderRailButton(actions, action);
 	return head;
 }
@@ -119,7 +119,7 @@ export function renderCounters(
 	parent: HTMLElement,
 	counters: LineCounters,
 ): HTMLElement {
-	const wrap = parent.createSpan({ cls: "obsync-counters" });
+	const wrap = parent.createSpan({ cls: "mdsync-counters" });
 	if (counters.added > 0) {
 		wrap.createSpan({ cls: "is-added", text: `+${counters.added}` });
 	}

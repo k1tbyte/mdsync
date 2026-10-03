@@ -74,8 +74,8 @@ const calls = () =>
 		leafId,
 	);
 const root = () =>
-	page.locator(`[data-type="obsync-diff"]`).filter({
-		has: page.locator(".obsync-diff-path", {
+	page.locator(`[data-type="mdsync-diff"]`).filter({
+		has: page.locator(".mdsync-diff-path", {
 			hasText: "Diff UI verification.md",
 		}),
 	});
@@ -98,15 +98,15 @@ async function scrollEnd(panelKind, end = "bottom") {
 		await settle();
 	}
 }
-const COMPARE_STRIP = ".obsync-compare-divider";
+const COMPARE_STRIP = ".mdsync-compare-divider";
 const STRIPS = [
 	COMPARE_STRIP,
-	".obsync-merge-divider.is-local",
-	".obsync-merge-divider.is-remote",
+	".mdsync-merge-divider.is-local",
+	".mdsync-merge-divider.is-remote",
 ];
-const strip = (which) => root().locator(`${which} .obsync-divider-canvas`);
+const strip = (which) => root().locator(`${which} .mdsync-divider-canvas`);
 const popup = (which) =>
-	root().locator(`${which} .obsync-divider-action.is-popup`);
+	root().locator(`${which} .mdsync-divider-action.is-popup`);
 
 /** How many changes on screen the strip offers actions for. */
 async function changesOnScreen(which = COMPARE_STRIP) {
@@ -142,7 +142,7 @@ async function assertPopupInside() {
 			await settle();
 			const inside = await popup(which).evaluate((el) => {
 				const bounds = el
-					.closest(".obsync-merge-divider, .obsync-compare-divider")
+					.closest(".mdsync-merge-divider, .mdsync-compare-divider")
 					.getBoundingClientRect();
 				const rect = el.getBoundingClientRect();
 				return (
@@ -158,7 +158,7 @@ async function assertPopupInside() {
 try {
 	leafId = await page.evaluate(async () => {
 		const leaf = app.workspace.getLeaf("tab");
-		await leaf.setViewState({ type: "obsync-diff", state: {}, active: true });
+		await leaf.setViewState({ type: "mdsync-diff", state: {}, active: true });
 		await leaf.loadIfDeferred();
 		leaf.view.unsubStatus?.();
 		leaf.view.unsubStatus = null;
@@ -191,26 +191,26 @@ try {
 	}
 	assert.deepEqual(
 		await root()
-			.locator(".obsync-pending-kind")
+			.locator(".mdsync-pending-kind")
 			.evaluateAll((items) =>
 				items.map((item) => [item.className, item.textContent]),
 			),
 		[
-			["obsync-pending-kind is-push", "1"],
-			["obsync-pending-kind is-revert", "1"],
+			["mdsync-pending-kind is-push", "1"],
+			["mdsync-pending-kind is-revert", "1"],
 		],
 		"Apply is joined by one coloured count per chosen kind",
 	);
 	assert.equal(
 		await root()
-			.locator(".obsync-compare-toolbar .mod-cta + .obsync-pending")
+			.locator(".mdsync-compare-toolbar .mod-cta + .mdsync-pending")
 			.count(),
 		1,
 		"The counts follow the Apply button",
 	);
 	assert.equal(
 		(
-			await root().locator(".obsync-compare-toolbar .mod-cta").textContent()
+			await root().locator(".mdsync-compare-toolbar .mod-cta").textContent()
 		).trim(),
 		"",
 		"Apply is an icon alone",
@@ -226,27 +226,27 @@ try {
 	await shot("two-way-wide");
 	await resize(390);
 	assert.equal(
-		await root().locator(".obsync-compare-panel.is-combined").count(),
+		await root().locator(".mdsync-compare-panel.is-combined").count(),
 		1,
 	);
-	assert.equal(await root().locator(".obsync-source .is-active").count(), 2);
+	assert.equal(await root().locator(".mdsync-source .is-active").count(), 2);
 	assert.equal(
 		await root()
-			.locator(".obsync-source-head.is-trailer", { hasText: "Local" })
+			.locator(".mdsync-source-head.is-trailer", { hasText: "Local" })
 			.locator(".is-active")
 			.count(),
 		2,
 		"Combined push/revert sit on the Local row, not the Baseline one",
 	);
-	const gap = root().locator(".obsync-gap").first();
+	const gap = root().locator(".mdsync-gap").first();
 	await gap.click();
 	assert.equal(
-		await root().locator(".obsync-gap.is-fold").first().isVisible(),
+		await root().locator(".mdsync-gap.is-fold").first().isVisible(),
 		true,
 	);
 	await scrollEnd("comparePanel");
-	await root().locator(".obsync-gap.is-fold").last().click();
-	assert.equal(await root().locator(".obsync-gap.is-fold").count(), 0);
+	await root().locator(".mdsync-gap.is-fold").last().click();
+	assert.equal(await root().locator(".mdsync-gap.is-fold").count(), 0);
 	await shot("two-way-narrow");
 	await resize(1500);
 	for (const index of [0, 1]) {
@@ -275,7 +275,7 @@ try {
 		{ id: leafId, nextModel: model(local, remote, "remote") },
 	);
 	assert.equal(
-		await root().locator(".obsync-compare-panel").count(),
+		await root().locator(".mdsync-compare-panel").count(),
 		1,
 		"Structural refresh leaves one panel",
 	);
@@ -321,14 +321,14 @@ try {
 			{ id: leafId, present },
 		);
 		assert.equal(
-			await root().locator(".obsync-diff-hint").count(),
+			await root().locator(".mdsync-diff-hint").count(),
 			present ? 0 : 1,
 		);
-		assert.equal(await root().locator(".obsync-compare-panel").count(), 1);
+		assert.equal(await root().locator(".mdsync-compare-panel").count(), 1);
 		if (!present) {
 			assert(
 				await root()
-					.locator(".obsync-diff-hint")
+					.locator(".mdsync-diff-hint")
 					.evaluate(
 						(el) =>
 							el.getBoundingClientRect().bottom <=
@@ -345,24 +345,24 @@ try {
 	const info = root().getByRole("button", { name: "How to merge changes" });
 	await info.hover();
 	assert.equal(
-		await root().locator(".obsync-merge-help-text").isVisible(),
+		await root().locator(".mdsync-merge-help-text").isVisible(),
 		true,
 	);
 	await page.mouse.move(10, 10);
 	await info.focus();
 	assert.equal(
-		await root().locator(".obsync-merge-help-text").isVisible(),
+		await root().locator(".mdsync-merge-help-text").isVisible(),
 		true,
 	);
 	await page.evaluate(() => document.activeElement.blur());
 	assert.equal(
-		await root().locator(".obsync-merge-help-text").isVisible(),
+		await root().locator(".mdsync-merge-help-text").isVisible(),
 		false,
 	);
-	assert.equal(await root().locator(".obsync-merge-toolbar-hint").count(), 0);
+	assert.equal(await root().locator(".mdsync-merge-toolbar-hint").count(), 0);
 	assert.equal(
 		await root()
-			.locator(".obsync-diff-view")
+			.locator(".mdsync-diff-view")
 			.evaluate((el) => getComputedStyle(el).paddingBottom),
 		"0px",
 	);
@@ -371,10 +371,10 @@ try {
 	await assertPopupInside();
 	await shot("three-way-bottom");
 	await scrollEnd("mergePanel", "top");
-	const localStrip = ".obsync-merge-divider.is-local";
+	const localStrip = ".mdsync-merge-divider.is-local";
 	const accept = await openChange(0, localStrip);
 	assert.equal(await accept.getAttribute("data-change"), "0");
-	await shot("three-way-popup", root().locator(".obsync-merge-body"));
+	await shot("three-way-popup", root().locator(".mdsync-merge-body"));
 	await accept.locator('[aria-label="Accept change"]').click();
 	const snapshot = () =>
 		page.evaluate((id) => {
@@ -402,7 +402,7 @@ try {
 			touchPoints: [],
 		});
 		assert.equal(
-			await root().locator(".obsync-merge-help-text").isVisible(),
+			await root().locator(".mdsync-merge-help-text").isVisible(),
 			true,
 		);
 	} finally {
@@ -416,7 +416,7 @@ try {
 	assert.equal(
 		await root()
 			.locator(
-				'.obsync-source[data-change="0-local"] .is-trailer .obsync-counters',
+				'.mdsync-source[data-change="0-local"] .is-trailer .mdsync-counters',
 			)
 			.textContent(),
 		"+2−1",
@@ -431,15 +431,15 @@ try {
 		"merge previews preserve result, undo and counters across widths; help works on hover and focus",
 	);
 	await scrollEnd("mergePanel");
-	await root().locator(".obsync-gap").first().click();
+	await root().locator(".mdsync-gap").first().click();
 	await page.evaluate((id) => {
 		app.workspace.getLeafById(id).view.mergePanel.resultView.dispatch({
 			changes: { from: 0, insert: "New introduction\n" },
 		});
 	}, leafId);
 	await scrollEnd("mergePanel");
-	await root().locator(".obsync-gap.is-fold").last().click();
-	assert.equal(await root().locator(".obsync-gap.is-fold").count(), 0);
+	await root().locator(".mdsync-gap.is-fold").last().click();
+	assert.equal(await root().locator(".mdsync-gap.is-fold").count(), 0);
 	await page.evaluate((id) => {
 		const panel = app.workspace.getLeafById(id).view.mergePanel;
 		for (const change of panel.currentChanges()) {
@@ -503,7 +503,7 @@ try {
 		"navigation follows long source panes when Result has no scrollbar",
 	);
 	await seed(model(shortBase, longLocal));
-	const foldButton = root().locator(".obsync-change-layer .obsync-rail-btn");
+	const foldButton = root().locator(".mdsync-change-layer .mdsync-rail-btn");
 	assert.equal(
 		await foldButton.count(),
 		1,
@@ -511,7 +511,7 @@ try {
 	);
 	await foldButton.click();
 	await settle();
-	const foldedRows = root().locator(".obsync-compare-host .obsync-gap");
+	const foldedRows = root().locator(".mdsync-compare-host .mdsync-gap");
 	assert((await foldedRows.count()) > 0, "A folded change is one row per pane");
 	assert.equal(await foldButton.count(), 0);
 	await shot("two-way-folded");
@@ -523,11 +523,11 @@ try {
 	const clearsActions = await root().evaluate((el) => {
 		const button = el
 			.querySelector(
-				".obsync-compare-host.is-right .obsync-change-layer .obsync-rail-btn",
+				".mdsync-compare-host.is-right .mdsync-change-layer .mdsync-rail-btn",
 			)
 			?.getBoundingClientRect();
 		const actions = el
-			.querySelector(".obsync-source-actions")
+			.querySelector(".mdsync-source-actions")
 			?.getBoundingClientRect();
 		return (
 			Boolean(button && actions) &&
@@ -548,13 +548,13 @@ try {
 	);
 	await root()
 		.locator(
-			".obsync-compare-host.is-left .obsync-change-layer .obsync-rail-btn",
+			".mdsync-compare-host.is-left .mdsync-change-layer .mdsync-rail-btn",
 		)
 		.click();
 	await settle();
 	await resize(390);
 	const unfoldDeletion = root().locator(
-		".obsync-compare-host.is-right .obsync-gap",
+		".mdsync-compare-host.is-right .mdsync-gap",
 		{
 			hasText: "Changed lines 1-40",
 		},
@@ -568,7 +568,7 @@ try {
 	await settle();
 	assert.equal(
 		await root()
-			.locator(".obsync-compare-host .obsync-gap", { hasText: "Changed lines" })
+			.locator(".mdsync-compare-host .mdsync-gap", { hasText: "Changed lines" })
 			.count(),
 		0,
 	);
@@ -586,11 +586,11 @@ try {
 	await nextChange().click();
 	await settle();
 	assert(
-		(await root().locator(".obsync-change-ring").count()) > 0,
+		(await root().locator(".mdsync-change-ring").count()) > 0,
 		"A jump rings the change it lands on",
 	);
 	const colours = await root()
-		.locator(".obsync-compare-summary .obsync-counters > span")
+		.locator(".mdsync-compare-summary .mdsync-counters > span")
 		.evaluateAll((spans) => spans.map((span) => getComputedStyle(span).color));
 	assert.equal(
 		new Set(colours).size,
@@ -599,7 +599,7 @@ try {
 	);
 	await page.waitForTimeout(1600);
 	assert.equal(
-		await root().locator(".obsync-change-ring").count(),
+		await root().locator(".mdsync-change-ring").count(),
 		0,
 		"The ring fades away",
 	);

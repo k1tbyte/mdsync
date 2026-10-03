@@ -1,4 +1,4 @@
-import { shareChannel } from "@obsync/protocol";
+import { shareChannel } from "@mdsync/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { fingerprint } from "../../src/secret";
 import { handleShareRequest } from "../../src/share/broker";

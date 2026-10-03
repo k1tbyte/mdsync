@@ -37,7 +37,7 @@ await runSharing(
 			await friend.waitFor(
 				"the owner in the note",
 				() =>
-					app.plugins.plugins.obsync.realtime.people
+					app.plugins.plugins.mdsync.realtime.people
 						.inNote("Shared/Team/plan.md")
 						.map((person: { name: string }) => person.name),
 				(names) => names.length > 0,
@@ -57,9 +57,9 @@ await runSharing(
 					const note = rows["Shared/Team/plan.md"].selfEl;
 					const root = rows["Shared/Team"].selfEl;
 					return [
-						note.querySelector(".obsync-people-badge .obsync-avatar")
+						note.querySelector(".mdsync-people-badge .mdsync-avatar")
 							?.textContent,
-						root.querySelector(".obsync-share-badge.is-joined")?.textContent,
+						root.querySelector(".mdsync-share-badge.is-joined")?.textContent,
 					];
 				},
 				([face, count]) => face === "O" && count === "1",
@@ -79,7 +79,7 @@ await runSharing(
 						app.workspace.getLeavesOfType("file-explorer")[0].view.fileItems;
 					rows["Shared/Team"].setCollapsed(true, false);
 					return rows["Shared/Team"].selfEl.querySelector(
-						".obsync-people-badge .obsync-avatar",
+						".mdsync-people-badge .mdsync-avatar",
 					)?.textContent;
 				},
 				(face) => face === "O",
@@ -99,7 +99,7 @@ await runSharing(
 						app.workspace
 							.getLeavesOfType("file-explorer")[0]
 							.view.fileItems.Team.selfEl.querySelector(
-								".obsync-share-badge.is-owned",
+								".mdsync-share-badge.is-owned",
 							),
 					),
 				(marked) => marked,
@@ -114,26 +114,26 @@ await runSharing(
 				() => {
 					const header = app.workspace
 						.getLeavesOfType("markdown")[0]
-						.view.containerEl.querySelector(".obsync-note-presence");
+						.view.containerEl.querySelector(".mdsync-note-presence");
 					return [
-						header?.querySelector(".obsync-note-state")?.className,
-						[...(header?.querySelectorAll(".obsync-avatar") ?? [])].map(
+						header?.querySelector(".mdsync-note-state")?.className,
+						[...(header?.querySelectorAll(".mdsync-avatar") ?? [])].map(
 							(face) => face.textContent,
 						),
 					];
 				},
 				([state, faces]) =>
-					state === "obsync-note-state is-live" && faces.length > 0,
+					state === "mdsync-note-state is-live" && faces.length > 0,
 			),
-			["obsync-note-state is-live", ["F"]],
+			["mdsync-note-state is-live", ["F"]],
 		);
-		await clickMenuItem(owner, "Team", "Obsync: Manage sharing");
+		await clickMenuItem(owner, "Team", "MDSync: Manage sharing");
 		check(
 			"the owner's share window lists the friend here, in the note",
 			await owner.waitFor(
 				"the friend in the share window",
 				() =>
-					[...document.querySelectorAll(".obsync-share-modal .setting-item")]
+					[...document.querySelectorAll(".mdsync-share-modal .setting-item")]
 						.map((row) => row.textContent ?? "")
 						.find((text) => text.includes("In plan.md")),
 				// Present people show first; their access follows from the broker.
@@ -141,7 +141,7 @@ await runSharing(
 			),
 			"FFriendCan edit - In plan.mdRevoke",
 		);
-		await owner.shot("share-window", ".obsync-share-modal");
+		await owner.shot("share-window", ".mdsync-share-modal");
 		await closeModals(owner);
 		check(
 			"both join the share's room, not their vault's",
@@ -170,7 +170,7 @@ await runSharing(
 			await friend.waitFor(
 				"remote cursor",
 				() =>
-					app.plugins.plugins.obsync.realtime.live
+					app.plugins.plugins.mdsync.realtime.live
 						.roomOf("Shared/Team/plan.md")
 						?.awareness.getStates().size,
 				(size) => size === 2,
@@ -199,7 +199,7 @@ await runSharing(
 		// y-codemirror moves a cursor only while its window has focus, which typing here never gives.
 		await friend.evaluate(() => {
 			const end = { type: null, tname: "body", item: null, assoc: 0 };
-			app.plugins.plugins.obsync.realtime.live
+			app.plugins.plugins.mdsync.realtime.live
 				.roomOf("Shared/Team/plan.md")
 				.awareness.setLocalStateField("cursor", { anchor: end, head: end });
 		});
@@ -207,7 +207,7 @@ await runSharing(
 			"the friend's cursor at the end",
 			() =>
 				[
-					...app.plugins.plugins.obsync.realtime.live
+					...app.plugins.plugins.mdsync.realtime.live
 						.roomOf("Team/plan.md")
 						.awareness.getStates()
 						.values(),
@@ -224,7 +224,7 @@ await runSharing(
 				() =>
 					app.workspace
 						.getLeavesOfType("markdown")[0]
-						.view.containerEl.querySelector(".obsync-scroll-mark")
+						.view.containerEl.querySelector(".mdsync-scroll-mark")
 						?.getAttribute("aria-label"),
 				(name) => name === "Friend",
 			),
@@ -235,7 +235,7 @@ await runSharing(
 			await owner.evaluate(() =>
 				app.workspace
 					.getLeavesOfType("markdown")[0]
-					.view.containerEl.querySelector(".obsync-note-presence")
+					.view.containerEl.querySelector(".mdsync-note-presence")
 					.click(),
 			);
 			await owner.shot("header-menu", ".menu");
@@ -251,7 +251,7 @@ await runSharing(
 				const { editor, containerEl } =
 					app.workspace.getLeavesOfType("markdown")[0].view;
 				editor.setCursor(editor.offsetToPos(0));
-				containerEl.querySelector(".obsync-note-presence").click();
+				containerEl.querySelector(".mdsync-note-presence").click();
 				const item = [...document.querySelectorAll(".menu .menu-item")].find(
 					(each) => each.textContent?.includes("follow cursor"),
 				) as HTMLElement | undefined;
@@ -263,7 +263,7 @@ await runSharing(
 		);
 		await follows(owner, friend);
 		await friend.evaluate(() =>
-			app.commands.executeCommandById("obsync:toggle-live-authors"),
+			app.commands.executeCommandById("mdsync:toggle-live-authors"),
 		);
 		const tinted = await friend.waitFor(
 			"the owner's text tinted",
@@ -298,7 +298,7 @@ await runSharing(
 			await owner.waitFor(
 				"the friend gone from the note",
 				() =>
-					app.plugins.plugins.obsync.realtime.people.inNote("Team/plan.md")
+					app.plugins.plugins.mdsync.realtime.people.inNote("Team/plan.md")
 						.length,
 				(count) => count === 0,
 			),
@@ -317,7 +317,7 @@ await runSharing(
 						app.workspace.getLeavesOfType("file-explorer")[0].view.fileItems;
 					if (rows.Team.collapsed) rows.Team.setCollapsed(false, false);
 					return rows["Team/notes.md"].selfEl
-						.querySelector(".obsync-unseen-dot")
+						.querySelector(".mdsync-unseen-dot")
 						?.getAttribute("aria-label");
 				},
 				(label) => label !== undefined,
@@ -337,7 +337,7 @@ await runSharing(
 					app.workspace
 						.getLeavesOfType("file-explorer")[0]
 						.view.fileItems["Team/notes.md"].selfEl.querySelector(
-							".obsync-unseen-dot",
+							".mdsync-unseen-dot",
 						) === null,
 				(gone) => gone,
 			),
@@ -348,7 +348,7 @@ await runSharing(
 
 function roomSpace(device: Obsidian, path: string): Promise<string | null> {
 	return device.evaluate(
-		(target) => app.plugins.plugins.obsync.realtime.live.spaceOf(target),
+		(target) => app.plugins.plugins.mdsync.realtime.live.spaceOf(target),
 		path,
 	);
 }
@@ -372,7 +372,7 @@ async function follows(owner: Obsidian, friend: Obsidian): Promise<void> {
 					const last = editor.offsetToPos(editor.getValue().length);
 					editor.setCursor(last);
 					const head = { type: null, tname: "body", item: null, assoc: 0 };
-					app.plugins.plugins.obsync.realtime.live
+					app.plugins.plugins.mdsync.realtime.live
 						.roomOf("Shared/Team/plan.md")
 						.awareness.setLocalStateField("cursor", { anchor: head, head });
 				} else {
@@ -388,9 +388,9 @@ async function follows(owner: Obsidian, friend: Obsidian): Promise<void> {
 	const states = () =>
 		owner.evaluate(() => {
 			const { containerEl } = app.workspace.getLeavesOfType("markdown")[0].view;
-			containerEl.querySelector(".obsync-note-presence").click();
+			containerEl.querySelector(".mdsync-note-presence").click();
 			const found = [
-				...document.querySelectorAll(".menu .obsync-person-state"),
+				...document.querySelectorAll(".menu .mdsync-person-state"),
 			];
 			document.body.dispatchEvent(
 				new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),

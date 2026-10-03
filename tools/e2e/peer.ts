@@ -9,7 +9,7 @@ import {
 	encodeClient,
 	HUB_PATH,
 	type ServerFrame,
-} from "@obsync/protocol";
+} from "@mdsync/protocol";
 
 const WAIT_MS = 10_000;
 const QUIET_MS = 500;

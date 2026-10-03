@@ -1,30 +1,30 @@
-body.is-phone .obsync-source-control button,
-body.is-phone .obsync-diff-view button {
-	min-height: var(--obsync-touch);
+body.is-phone .mdsync-source-control button,
+body.is-phone .mdsync-diff-view button {
+	min-height: var(--mdsync-touch);
 	padding-inline: var(--size-4-3);
 }
 
-body.is-phone .obsync-source-control .obsync-icon-btn,
-body.is-phone .obsync-diff-view .obsync-icon-btn {
-	min-width: var(--obsync-touch);
+body.is-phone .mdsync-source-control .mdsync-icon-btn,
+body.is-phone .mdsync-diff-view .mdsync-icon-btn {
+	min-width: var(--mdsync-touch);
 }
 
 body.is-tablet
-	:is(.obsync-source-control, .obsync-diff-view)
+	:is(.mdsync-source-control, .mdsync-diff-view)
 	:is(
-		.obsync-toolbar-icon,
-		.obsync-section-icon-action,
-		.obsync-rail-btn,
-		.obsync-icon-btn:has(> svg:only-child)
+		.mdsync-toolbar-icon,
+		.mdsync-section-icon-action,
+		.mdsync-rail-btn,
+		.mdsync-icon-btn:has(> svg:only-child)
 	) {
 	padding-inline: 0;
 }
 
-body.is-phone .obsync-people-badge {
-	--obsync-avatar: var(--obsync-icon-lg);
+body.is-phone .mdsync-people-badge {
+	--mdsync-avatar: var(--mdsync-icon-lg);
 }
 
-body.is-phone .obsync-unseen-dot::before {
+body.is-phone .mdsync-unseen-dot::before {
 	width: var(--size-4-2);
 	height: var(--size-4-2);
 }

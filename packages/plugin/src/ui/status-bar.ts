@@ -11,26 +11,26 @@ export function registerStatusBar(
 	controller: SyncController,
 ): void {
 	const root = plugin.addStatusBarItem();
-	root.addClass("obsync-status-bar");
-	makeActivatable(root, "Open Obsync source control", () => {
+	root.addClass("mdsync-status-bar");
+	makeActivatable(root, "Open MDSync source control", () => {
 		void openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
 	});
 
 	const spinner = root.createSpan({
-		cls: "obsync-status-spinner obsync-hidden",
+		cls: "mdsync-status-spinner mdsync-hidden",
 	});
 	const text = root.createSpan();
 
 	const render = (snapshot: SyncStatusSnapshot): void => {
 		const offline = !navigator.onLine;
-		spinner.toggleClass("obsync-hidden", !snapshot.busy || offline);
+		spinner.toggleClass("mdsync-hidden", !snapshot.busy || offline);
 		root.toggleClass("is-error", hasError(snapshot) && !offline);
 		root.toggleClass("is-offline", offline);
-		text.setText(offline ? "Obsync: offline" : formatStatus(snapshot));
+		text.setText(offline ? "MDSync: offline" : formatStatus(snapshot));
 		root.setAttr(
 			"aria-label",
 			offline
-				? "No network connection. Obsync will sync once it is back."
+				? "No network connection. MDSync will sync once it is back."
 				: buildTooltip(snapshot),
 		);
 	};
@@ -45,23 +45,23 @@ export function registerStatusBar(
 }
 
 function formatStatus(snapshot: SyncStatusSnapshot): string {
-	if (hasError(snapshot)) return `Obsync: error`;
-	if (snapshot.busy) return `Obsync: syncing…`;
+	if (hasError(snapshot)) return `MDSync: error`;
+	if (snapshot.busy) return `MDSync: syncing…`;
 	const parts: string[] = [];
 	if (snapshot.pendingLocal > 0) parts.push(`↑${snapshot.pendingLocal}`);
 	if (snapshot.pendingRemote > 0) parts.push(`↓${snapshot.pendingRemote}`);
 	if (snapshot.conflicts > 0) parts.push(`⚠${snapshot.conflicts}`);
-	if (parts.length === 0) return "Obsync: clean";
-	return `Obsync: ${parts.join(" ")}`;
+	if (parts.length === 0) return "MDSync: clean";
+	return `MDSync: ${parts.join(" ")}`;
 }
 
 function buildTooltip(snapshot: SyncStatusSnapshot): string {
-	if (snapshot.error) return `Obsync error: ${snapshot.error}`;
+	if (snapshot.error) return `MDSync error: ${snapshot.error}`;
 	if (hasError(snapshot)) {
 		const failed = snapshot.spaceErrors.map(
 			({ root, message }) => `"${root}": ${message}`,
 		);
-		return `Obsync error in ${failed.join("; ")}`;
+		return `MDSync error in ${failed.join("; ")}`;
 	}
 	const last = snapshot.lastCompareAt
 		? `Last compared ${formatRelativeTime(snapshot.lastCompareAt)}`

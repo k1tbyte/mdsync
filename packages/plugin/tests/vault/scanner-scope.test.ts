@@ -41,9 +41,9 @@ describe("scope: vault paths", () => {
 	});
 
 	it("never syncs its own plugin data", () => {
-		const own = `${CONFIG}/plugins/obsync/data.json`;
+		const own = `${CONFIG}/plugins/mdsync/data.json`;
 		expect(scope.includes(own)).toBe(false);
-		expect(scope.canDescend(`${CONFIG}/plugins/obsync`)).toBe(false);
+		expect(scope.canDescend(`${CONFIG}/plugins/mdsync`)).toBe(false);
 	});
 
 	it("keeps the ignore file itself even when a pattern would drop it", async () => {

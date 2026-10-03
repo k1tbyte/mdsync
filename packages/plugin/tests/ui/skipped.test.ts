@@ -14,7 +14,7 @@ describe("files the sync leaves out", () => {
 			size: 100 * MIB + 1,
 		};
 		expect(skippedText(big, 100 * MIB)).toBe(
-			"Not synced: 100.0 MB, over the 100.0 MB limit. Raise Max file size in Obsync settings to sync it.",
+			"Not synced: 100.0 MB, over the 100.0 MB limit. Raise Max file size in MDSync settings to sync it.",
 		);
 		expect(
 			skippedText({ path: "B.md", reason: "case-clash", other: "b.md" }, MIB),

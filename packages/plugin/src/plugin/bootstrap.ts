@@ -6,7 +6,7 @@ import {
 	PassphraseManager,
 	StatePersister,
 } from "@/core";
-import { isStorageConfigured, type ObsyncSettings } from "@/settings/model";
+import { isStorageConfigured, type MdsyncSettings } from "@/settings/model";
 import { reportWarning } from "@/shared";
 import { SpaceRecords } from "@/spaces";
 import { SyncController } from "@/sync/controller";
@@ -27,7 +27,7 @@ export interface PluginRuntime {
 
 interface BootstrapPluginRuntimeOptions {
 	app: App;
-	settings: ObsyncSettings;
+	settings: MdsyncSettings;
 	/** Also for a published space record: other devices learn of shares from the vault. */
 	onPushComplete?: (space: Space) => void;
 	onSpaceRefreshed?: (space: Space) => void;
@@ -126,7 +126,7 @@ export async function bootstrapPluginRuntime(
 	};
 }
 
-/** For an onload that has to abandon what it built, see `ObsyncPlugin.onload`. */
+/** For an onload that has to abandon what it built, see `MdsyncPlugin.onload`. */
 export function disposePluginRuntime(runtime: PluginRuntime): void {
 	runtime.statePersister.dispose();
 	runtime.controller.dispose();

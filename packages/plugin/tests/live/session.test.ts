@@ -3,7 +3,7 @@ import {
 	ERefusal,
 	MAX_DOC_SUBS,
 	MAX_FRAME_BYTES,
-} from "@obsync/protocol";
+} from "@mdsync/protocol";
 import { TestConnection } from "@tests/helpers/live-hub";
 import {
 	converge,

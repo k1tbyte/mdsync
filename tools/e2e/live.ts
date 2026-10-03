@@ -107,7 +107,7 @@ async function scenario(
 		await desktop.waitFor(
 			"remote cursor",
 			() =>
-				app.plugins.plugins.obsync.realtime.live
+				app.plugins.plugins.mdsync.realtime.live
 					.roomOf("note.md")
 					?.awareness.getStates().size,
 			(size) => size === 2,
@@ -221,7 +221,7 @@ async function rebuild(laptop: Obsidian, desktop: Obsidian): Promise<void> {
 	let outcome = "";
 	for (let left = REBUILD_ATTEMPTS; left > 0 && outcome !== "moved"; left--) {
 		outcome = await laptop.evaluate(() =>
-			app.plugins.plugins.obsync.realtime.live.rotate("note.md"),
+			app.plugins.plugins.mdsync.realtime.live.rotate("note.md"),
 		);
 		if (outcome !== "moved") await sleep(300);
 	}
@@ -234,7 +234,7 @@ async function rebuild(laptop: Obsidian, desktop: Obsidian): Promise<void> {
 				device.waitFor(
 					"successor bound",
 					() =>
-						app.plugins.plugins.obsync.realtime.live.roomOf("note.md")
+						app.plugins.plugins.mdsync.realtime.live.roomOf("note.md")
 							?.generation,
 					(generation) => generation === 1,
 				),
@@ -323,7 +323,7 @@ async function renameLive(laptop: Obsidian, desktop: Obsidian): Promise<void> {
 			device.waitFor(
 				"room renamed",
 				() =>
-					app.plugins.plugins.obsync.realtime.live.roomOf("renamed.md")?.docId,
+					app.plugins.plugins.mdsync.realtime.live.roomOf("renamed.md")?.docId,
 				Boolean,
 			),
 		),
@@ -374,7 +374,7 @@ interface Synced {
 
 function sync(device: Obsidian): Promise<Synced> {
 	return device.evaluate(async () => {
-		const { controller } = app.plugins.plugins.obsync;
+		const { controller } = app.plugins.plugins.mdsync;
 		await controller.refreshAndAutoSync();
 		const snapshot = controller.getSnapshot();
 		return {
@@ -389,12 +389,12 @@ function sync(device: Obsidian): Promise<Synced> {
 async function unlock(device: Obsidian): Promise<void> {
 	await device.waitFor(
 		"hub connected",
-		() => app.plugins.plugins.obsync.realtime?.hub.isConnected(),
+		() => app.plugins.plugins.mdsync.realtime?.hub.isConnected(),
 		Boolean,
 	);
 	await device.evaluate(
 		(passphrase) =>
-			app.plugins.plugins.obsync.passphrase.replacePassphrase(passphrase),
+			app.plugins.plugins.mdsync.passphrase.replacePassphrase(passphrase),
 		PASSPHRASE,
 	);
 }

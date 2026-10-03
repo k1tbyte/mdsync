@@ -76,7 +76,7 @@ function parseLinkToken(token: string): {
 } {
 	const parts = token.split(".");
 	if (parts.length !== LINK_PARTS) {
-		throw new Error("Invalid Obsync link");
+		throw new Error("Invalid MDSync link");
 	}
 	const [versionText, encodingText, saltText, ciphertextText] = parts as [
 		string,
@@ -86,15 +86,15 @@ function parseLinkToken(token: string): {
 	];
 	const version = Number.parseInt(versionText, 10);
 	if (version !== LINK_VERSION) {
-		throw new Error("Unsupported Obsync link");
+		throw new Error("Unsupported MDSync link");
 	}
 	const encoding = LINK_ENCODINGS[encodingText];
 	if (!encoding) {
-		throw new Error("Unsupported Obsync link encoding");
+		throw new Error("Unsupported MDSync link encoding");
 	}
 	const salt = base64UrlToBytes(saltText);
 	if (salt.length !== LINK_SALT_BYTES) {
-		throw new Error("Invalid Obsync link");
+		throw new Error("Invalid MDSync link");
 	}
 	return {
 		encoding,

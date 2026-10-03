@@ -6,7 +6,7 @@ export function appendIconButton(
 	label: string,
 	onClick: (event: MouseEvent) => void,
 ): HTMLButtonElement {
-	const button = parent.createEl("button", { cls: "obsync-icon-btn" });
+	const button = parent.createEl("button", { cls: "mdsync-icon-btn" });
 	button.type = "button";
 	button.setAttr("aria-label", label);
 	setIcon(button, icon);
@@ -21,9 +21,9 @@ export function appendLabeledButton(
 	label: string,
 	onClick: (event: MouseEvent) => void,
 ): HTMLButtonElement {
-	const button = parent.createEl("button", { cls: "obsync-labeled-btn" });
+	const button = parent.createEl("button", { cls: "mdsync-labeled-btn" });
 	button.type = "button";
-	const iconEl = button.createSpan({ cls: "obsync-labeled-btn-icon" });
+	const iconEl = button.createSpan({ cls: "mdsync-labeled-btn-icon" });
 	setIcon(iconEl, icon);
 	button.createSpan({ text: label });
 	button.addEventListener("click", onClick);

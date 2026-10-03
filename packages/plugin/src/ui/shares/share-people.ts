@@ -1,4 +1,4 @@
-import { OWNER } from "@obsync/protocol";
+import { OWNER } from "@mdsync/protocol";
 
 import type { RelayStatus } from "@/hub/status";
 import type { Person } from "@/presence";

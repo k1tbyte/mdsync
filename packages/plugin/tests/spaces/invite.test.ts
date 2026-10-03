@@ -25,7 +25,7 @@ describe("share invites", () => {
 		const password = invitePassword();
 		const link = await inviteLink(INVITE, password);
 
-		expect(link.startsWith("obsidian://obsync-share?d=")).toBe(true);
+		expect(link.startsWith("obsidian://mdsync-share?d=")).toBe(true);
 		const record = acceptInvite(
 			await readInvite(link, password),
 			"Shared/Team",
@@ -73,7 +73,7 @@ describe("share invites", () => {
 		async (id) => {
 			const link = await inviteLink({ ...INVITE, id }, "right");
 			await expect(readInvite(link, "right")).rejects.toThrow(
-				"not an Obsync invite",
+				"not an MDSync invite",
 			);
 			expect(isSpaceRecord({ ...acceptInvite(INVITE, "x", "phone"), id })).toBe(
 				false,
@@ -87,7 +87,7 @@ describe("share invites", () => {
 
 		const settings = await sealLink(new TextEncoder().encode("{}"), "right");
 		await expect(readInvite(settings, "right")).rejects.toThrow(
-			"not an Obsync invite",
+			"not an MDSync invite",
 		);
 	});
 

@@ -8,7 +8,7 @@ import {
 	KEEPALIVE_PING,
 	KEEPALIVE_PONG,
 	KEEPALIVE_STALE_MS,
-} from "@obsync/protocol";
+} from "@mdsync/protocol";
 
 import { HubCore } from "./core";
 import type { DocSub, Grant, HubPeer } from "./peer";
@@ -17,7 +17,7 @@ import { SqlDocStore } from "./store";
 import { type HubEnv, unauthorizedSocket } from "./stub";
 
 /** Carries the worker's admission to the hub; only the worker can reach the hub. */
-export const HUB_ADMISSION_HEADER = "X-Obsync-Admission";
+export const HUB_ADMISSION_HEADER = "X-Mdsync-Admission";
 const STALE_CLOSE_CODE = 1001;
 
 export interface Admission {
@@ -54,7 +54,7 @@ export class Hub extends DurableObject<HubEnv> {
 		const header = request.headers.get(HUB_ADMISSION_HEADER);
 		const upgrade = request.headers.get("Upgrade")?.toLowerCase();
 		if (!header || upgrade !== "websocket") {
-			return new Response("Obsync relay hub. Connect via WebSocket.", {
+			return new Response("MDSync relay hub. Connect via WebSocket.", {
 				status: 426,
 			});
 		}

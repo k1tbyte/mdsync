@@ -44,15 +44,15 @@ export function confirmRestore(
 				: `Bring back "${options.target}"?`,
 		);
 		modal.contentEl.createEl("p", {
-			cls: "obsync-restore-summary",
+			cls: "mdsync-restore-summary",
 			text: exists
 				? `Replaces what is in the vault with the version from ${options.version.label} (${formatBytes(options.version.size ?? 0)}). Nothing is pushed until you say so.`
 				: `Writes the version from ${options.version.label} (${formatBytes(options.version.size ?? 0)}) back into the vault. Nothing is pushed until you say so.`,
 		});
-		const body = modal.contentEl.createDiv({ cls: "obsync-restore-diff" });
-		body.createDiv({ cls: "obsync-status-line", text: "Loading changes…" });
+		const body = modal.contentEl.createDiv({ cls: "mdsync-restore-diff" });
+		body.createDiv({ cls: "mdsync-status-line", text: "Loading changes…" });
 
-		const buttons = modal.contentEl.createDiv({ cls: "obsync-modal-buttons" });
+		const buttons = modal.contentEl.createDiv({ cls: "mdsync-modal-buttons" });
 		const cancel = new ButtonComponent(buttons)
 			.setButtonText("Cancel")
 			.onClick(() => finish(false));
@@ -72,7 +72,7 @@ export function confirmRestore(
 			.catch((err: unknown) => {
 				body.empty();
 				body.createDiv({
-					cls: "obsync-history-error",
+					cls: "mdsync-history-error",
 					text: `Could not preview the change, so the restore is blocked: ${errorMessage(err)}`,
 				});
 			});
@@ -109,7 +109,7 @@ export function confirmBulkRestore(
 				: `Bring back ${entries.length} deleted files?`,
 		);
 		modal.contentEl.createEl("p", {
-			cls: "obsync-restore-summary",
+			cls: "mdsync-restore-summary",
 			text: "Writes each version below back into the vault. Nothing is pushed until you say so. Use a row's Preview to inspect a file first.",
 		});
 		// A file recreated since its deletion is overwritten, as a single restore warns.
@@ -121,7 +121,7 @@ export function confirmBulkRestore(
 				`${present.length} of them are in the vault again: their current content is replaced.`,
 			);
 		}
-		const list = modal.contentEl.createDiv({ cls: "obsync-bulk-restore-list" });
+		const list = modal.contentEl.createDiv({ cls: "mdsync-bulk-restore-list" });
 		for (const entry of entries) {
 			const replaces = present.includes(entry)
 				? ", replaces the current file"
@@ -130,7 +130,7 @@ export function confirmBulkRestore(
 				text: `${entry.path} - ${entry.label} (${formatBytes(entry.size)})${replaces}`,
 			});
 		}
-		const buttons = modal.contentEl.createDiv({ cls: "obsync-modal-buttons" });
+		const buttons = modal.contentEl.createDiv({ cls: "mdsync-modal-buttons" });
 		const cancel = new ButtonComponent(buttons)
 			.setButtonText("Cancel")
 			.onClick(() => finish(false));
@@ -147,14 +147,14 @@ function renderPreview(body: HTMLElement, model: FileDiffModel | null): void {
 	body.empty();
 	if (!model) {
 		body.createDiv({
-			cls: "obsync-status-line",
+			cls: "mdsync-status-line",
 			text: "This version is no longer available.",
 		});
 		return;
 	}
 	if (model.isBinary) {
 		body.createDiv({
-			cls: "obsync-status-line",
+			cls: "mdsync-status-line",
 			text: `Binary file. ${formatBytes(model.rightSize)} replaces ${formatBytes(model.leftSize)}.`,
 		});
 		return;
@@ -162,7 +162,7 @@ function renderPreview(body: HTMLElement, model: FileDiffModel | null): void {
 	const hunks = model.hunks.hunks;
 	if (hunks.length === 0) {
 		body.createDiv({
-			cls: "obsync-status-line",
+			cls: "mdsync-status-line",
 			// leftPresent is the working copy: absent means this creates the file.
 			text: model.leftPresent
 				? "This version is identical to the file on disk."

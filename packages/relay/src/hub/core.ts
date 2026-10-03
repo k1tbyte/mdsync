@@ -8,7 +8,7 @@ import {
 	ERefusal,
 	MAX_FRAME_BYTES,
 	UNAUTHORIZED_CLOSE_CODE,
-} from "@obsync/protocol";
+} from "@mdsync/protocol";
 import { type DocStore, Documents, type FrameContext, leaveDocs } from "./docs";
 import {
 	broadcast,

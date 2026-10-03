@@ -40,7 +40,7 @@ export const DEFAULT_SETTINGS_SYNC: SettingsSyncCategories = {
 	themes: false,
 };
 
-export interface ObsyncSettings {
+export interface MdsyncSettings {
 	storageConfigs: Record<string, StorageAdapterConfig>;
 	activeStorageKind: EStorageBackend;
 	settingsSync: SettingsSyncCategories;
@@ -96,7 +96,7 @@ export interface ObsyncSettings {
 
 const DEFAULT_STORAGE = defaultS3Config();
 
-export const DEFAULT_SETTINGS: ObsyncSettings = {
+export const DEFAULT_SETTINGS: MdsyncSettings = {
 	storageConfigs: { [DEFAULT_STORAGE.kind]: DEFAULT_STORAGE },
 	activeStorageKind: DEFAULT_STORAGE.kind,
 	settingsSync: DEFAULT_SETTINGS_SYNC,
@@ -135,18 +135,18 @@ export const DEFAULT_SETTINGS: ObsyncSettings = {
 	uiLayout: "tree",
 };
 
-export function activeStorage(settings: ObsyncSettings): StorageAdapterConfig {
+export function activeStorage(settings: MdsyncSettings): StorageAdapterConfig {
 	return (
 		settings.storageConfigs[settings.activeStorageKind] ?? defaultS3Config()
 	);
 }
 
-export function isStorageConfigured(settings: ObsyncSettings): boolean {
+export function isStorageConfigured(settings: MdsyncSettings): boolean {
 	return isAdapterConfigured(activeStorage(settings));
 }
 
 /** No vault storage, only shares joined by invite: those sync, the vault stays on this device. */
-export function isGuest(settings: ObsyncSettings): boolean {
+export function isGuest(settings: MdsyncSettings): boolean {
 	return (
 		!isStorageConfigured(settings) &&
 		settings.spaces.some(
@@ -155,18 +155,18 @@ export function isGuest(settings: ObsyncSettings): boolean {
 	);
 }
 
-export function canSync(settings: ObsyncSettings): boolean {
+export function canSync(settings: MdsyncSettings): boolean {
 	return isStorageConfigured(settings) || isGuest(settings);
 }
 
 /** A share pins its location for good, so only a complete S3 setup may own one. */
-export function ownerStorage(settings: ObsyncSettings): S3StorageConfig | null {
+export function ownerStorage(settings: MdsyncSettings): S3StorageConfig | null {
 	const storage = activeStorage(settings);
 	if (storage.kind !== EStorageBackend.S3) return null;
 	return isStorageConfigured(settings) ? storage : null;
 }
 
-export type RelayConfig = Pick<ObsyncSettings, "relayUrl" | "relaySecret">;
+export type RelayConfig = Pick<MdsyncSettings, "relayUrl" | "relaySecret">;
 
 /** Both or nothing: the URL alone opens no room and signs nothing. */
 export function isRelayConfigured(relay: RelayConfig): boolean {
@@ -198,7 +198,7 @@ export const NUMERIC_BOUNDS = {
 		min: FILE_HISTORY_MIN_SNAPSHOTS,
 		max: FILE_HISTORY_MAX_SNAPSHOTS,
 	},
-} as const satisfies Partial<Record<keyof ObsyncSettings, Bounds>>;
+} as const satisfies Partial<Record<keyof MdsyncSettings, Bounds>>;
 
 const CONCURRENCY_BOUNDS: Bounds = {
 	min: CONCURRENCY_FIELD.min,
@@ -228,11 +228,11 @@ function stringValues(value: unknown): Record<string, string> {
 	);
 }
 
-type StoredSettings = Partial<ObsyncSettings>;
+type StoredSettings = Partial<MdsyncSettings>;
 
 export function mergeSettings(
 	stored: StoredSettings | null | undefined,
-): ObsyncSettings {
+): MdsyncSettings {
 	const storageConfigs: Record<string, StorageAdapterConfig> = {
 		...(stored?.storageConfigs ?? {}),
 	};
@@ -257,7 +257,7 @@ export function mergeSettings(
 			? requested
 			: (Object.keys(storageConfigs)[0] as EStorageBackend);
 
-	const merged: ObsyncSettings = {
+	const merged: MdsyncSettings = {
 		...DEFAULT_SETTINGS,
 		...(stored ?? {}),
 		storageConfigs,

@@ -3,14 +3,14 @@
  * password that travels another way.
  */
 
-import { isShareId } from "@obsync/protocol";
+import { isShareId } from "@mdsync/protocol";
 
 import { randomBytes } from "@/crypto";
 import { LINK_PARAM, openLink, sealLink } from "@/crypto/sealed-link";
 
 import type { ShareAccess, SpaceRecord } from "./record";
 
-export const INVITE_ACTION = "obsync-share";
+export const INVITE_ACTION = "mdsync-share";
 
 export interface Invite {
 	id: string;
@@ -53,7 +53,7 @@ export async function readInvite(
 	const payload: unknown = JSON.parse(
 		decoder.decode(await openLink(link, password)),
 	);
-	if (!isInvite(payload)) throw new Error("This link is not an Obsync invite.");
+	if (!isInvite(payload)) throw new Error("This link is not an MDSync invite.");
 	return payload;
 }
 

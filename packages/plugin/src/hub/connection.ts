@@ -3,9 +3,9 @@
  * credentials change; listeners outlive the rebuilds.
  */
 
-import { type ClientFrame, EFrame, type ServerFrame } from "@obsync/protocol";
+import { type ClientFrame, EFrame, type ServerFrame } from "@mdsync/protocol";
 
-import type { ObsyncSettings } from "@/settings/model";
+import type { MdsyncSettings } from "@/settings/model";
 import { pauseOf } from "@/spaces";
 import { VAULT_SPACE } from "@/sync/space";
 
@@ -44,7 +44,7 @@ export interface SpaceHub {
 }
 
 export interface HubConnectionOptions {
-	settings(): ObsyncSettings;
+	settings(): MdsyncSettings;
 	deviceId(): string;
 }
 

@@ -22,7 +22,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Test
-        run: pnpm --filter obsync-relay run test
+        run: pnpm --filter mdsync-relay run test
 
       # The KV namespace and Durable Object are created by wrangler on the first
       # deploy; only the secrets below come from the repository.
@@ -37,11 +37,11 @@ jobs:
           GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
         run: |
           if [ -z "$RELAY_SECRET" ]; then
-            echo "::error::Add a RELAY_SECRET repository secret (Obsync settings -> Connection -> Relay server -> Generate)."
+            echo "::error::Add a RELAY_SECRET repository secret (MDSync settings -> Connection -> Relay server -> Generate)."
             exit 1
           fi
           secrets="$RUNNER_TEMP/relay-secrets.json"
           jq -n 'env | {RELAY_SECRET, GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET} | with_entries(select(.value != null and .value != ""))' > "$secrets"
           pnpm exec wrangler deploy --secrets-file "$secrets" | tee "$RUNNER_TEMP/deploy.log"
           url=$(grep -oE 'https://[^ ]+\.workers\.dev' "$RUNNER_TEMP/deploy.log" | head -1)
-          echo "Relay URL: \`$url\` - paste it into Obsync settings -> Connection -> Relay server." >> "$GITHUB_STEP_SUMMARY"
+          echo "Relay URL: \`$url\` - paste it into MDSync settings -> Connection -> Relay server." >> "$GITHUB_STEP_SUMMARY"

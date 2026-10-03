@@ -27,7 +27,7 @@ export function renderRailButton(
 	parent: HTMLElement,
 	action: RailAction,
 ): HTMLButtonElement {
-	const button = parent.createEl("button", { cls: "obsync-rail-btn" });
+	const button = parent.createEl("button", { cls: "mdsync-rail-btn" });
 	button.type = "button";
 	button.setAttr("aria-label", action.label);
 	if (action.active !== undefined) {
@@ -37,7 +37,7 @@ export function renderRailButton(
 	setIcon(button, action.icon);
 	if (action.shortLabel) {
 		button.addClass("has-label");
-		button.createSpan({ cls: "obsync-rail-label", text: action.shortLabel });
+		button.createSpan({ cls: "mdsync-rail-label", text: action.shortLabel });
 	}
 	// Inside CodeMirror a mousedown would move the caret and steal focus.
 	button.addEventListener("mousedown", (event) => event.preventDefault());

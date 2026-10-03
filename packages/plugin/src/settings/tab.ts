@@ -31,8 +31,8 @@ import {
 } from "./fields";
 import { renderLogsView } from "./logs-view";
 import {
+	type MdsyncSettings,
 	NUMERIC_BOUNDS,
-	type ObsyncSettings,
 	type SettingsSyncCategories,
 } from "./model";
 import {
@@ -85,7 +85,7 @@ const SETTINGS_SYNC_ROWS: ReadonlyArray<SettingsSyncRow> = [
 	{
 		key: "pluginConfigs",
 		name: "Plugins and their settings",
-		desc: "Plugin files and settings (Obsync and device-local plugins excluded).",
+		desc: "Plugin files and settings (MDSync and device-local plugins excluded).",
 	},
 	{
 		key: "snippets",
@@ -187,7 +187,7 @@ const INTERFACE_FIELDS: ReadonlyArray<SettingsField> = [
 	},
 ];
 
-export class ObsyncSettingTab extends PluginSettingTab {
+export class MdsyncSettingTab extends PluginSettingTab {
 	private readonly plugin: Plugin & PluginHost;
 	private activeTab: ESettingsViewTab = ESettingsViewTab.Connection;
 	private sectionUnsubs: Array<() => void> = [];
@@ -238,16 +238,16 @@ export class ObsyncSettingTab extends PluginSettingTab {
 
 	private renderTabBar(parent: HTMLElement): void {
 		const bar = parent.createDiv({
-			cls: "obsync-settings-tabs obsync-settings-nav",
+			cls: "mdsync-settings-tabs mdsync-settings-nav",
 		});
 		bar.setAttr("role", "tablist");
-		bar.setAttr("aria-label", "Obsync settings sections");
+		bar.setAttr("aria-label", "MDSync settings sections");
 		for (const tab of SETTINGS_TABS) this.renderTabButton(bar, tab);
 	}
 
 	private renderTabButton(parent: HTMLElement, tab: ESettingsViewTab): void {
 		const button = parent.createEl("button", {
-			cls: "obsync-settings-tab-button",
+			cls: "mdsync-settings-tab-button",
 			text: SETTINGS_TAB_LABELS[tab],
 		});
 		button.type = "button";
@@ -340,7 +340,7 @@ export class ObsyncSettingTab extends PluginSettingTab {
 				kind: EFieldKind.Toggle,
 				name: row.name,
 				desc: row.desc,
-				get: (s: ObsyncSettings) => s.settingsSync[row.key],
+				get: (s: MdsyncSettings) => s.settingsSync[row.key],
 				set: (v: boolean) => ({
 					settingsSync: { ...this.plugin.settings.settingsSync, [row.key]: v },
 				}),
@@ -364,7 +364,7 @@ export class ObsyncSettingTab extends PluginSettingTab {
 			title: `Clear ${row.name} on remote?`,
 			body: [
 				`Removes every ${row.name} file from the remote storage. Local files stay on every device, and devices with this category enabled re-upload theirs on their next push.`,
-				"Disable the category on every device first if it should stay gone. Update Obsync on your other devices before clearing: older versions refuse the cleared remote.",
+				"Disable the category on every device first if it should stay gone. Update MDSync on your other devices before clearing: older versions refuse the cleared remote.",
 			],
 			confirmLabel: "Clear on remote",
 			confirmClass: "mod-warning",

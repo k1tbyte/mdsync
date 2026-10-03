@@ -6,8 +6,8 @@ import {
 	saveCachedPassphrase,
 } from "@/crypto/passphrase-cache";
 
-const keyPath = ".obsidian/plugins/obsync/device.key";
-const cachePath = ".obsidian/plugins/obsync/passphrase.enc";
+const keyPath = ".obsidian/plugins/mdsync/device.key";
+const cachePath = ".obsidian/plugins/mdsync/passphrase.enc";
 const binding = "s3|example|region|bucket|prefix";
 afterEach(() => vi.restoreAllMocks());
 

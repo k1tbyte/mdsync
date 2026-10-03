@@ -3,7 +3,7 @@
  * relay secret.
  */
 
-import { shareChannel } from "@obsync/protocol";
+import { shareChannel } from "@mdsync/protocol";
 import { hubStub } from "../hub/stub";
 import { isAdmin } from "../secret";
 import {

@@ -1,44 +1,44 @@
 /* Change views: the merge and compare panels share one tone palette. */
-.obsync-merge-panel,
-.obsync-compare-panel,
-.obsync-hunk-preview {
-	--obsync-tone-conflict: var(--color-red-rgb, 233, 49, 71);
-	--obsync-tone-local: var(--color-blue-rgb, 55, 136, 216);
-	--obsync-tone-remote: var(--color-green-rgb, 44, 153, 115);
-	--obsync-tone-shared: var(--color-purple-rgb, 157, 105, 220);
-	--obsync-tone-base: var(--mono-rgb-100, 0, 0, 0);
-	--obsync-tone-added: var(--color-green-rgb, 44, 153, 115);
-	--obsync-tone-removed: var(--color-red-rgb, 233, 49, 71);
-	--obsync-tone: var(--obsync-tone-base);
+.mdsync-merge-panel,
+.mdsync-compare-panel,
+.mdsync-hunk-preview {
+	--mdsync-tone-conflict: var(--color-red-rgb, 233, 49, 71);
+	--mdsync-tone-local: var(--color-blue-rgb, 55, 136, 216);
+	--mdsync-tone-remote: var(--color-green-rgb, 44, 153, 115);
+	--mdsync-tone-shared: var(--color-purple-rgb, 157, 105, 220);
+	--mdsync-tone-base: var(--mono-rgb-100, 0, 0, 0);
+	--mdsync-tone-added: var(--color-green-rgb, 44, 153, 115);
+	--mdsync-tone-removed: var(--color-red-rgb, 233, 49, 71);
+	--mdsync-tone: var(--mdsync-tone-base);
 }
 
-:where(.obsync-merge-panel, .obsync-compare-panel, .obsync-hunk-preview)
+:where(.mdsync-merge-panel, .mdsync-compare-panel, .mdsync-hunk-preview)
 	.is-local {
-	--obsync-tone: var(--obsync-tone-local);
+	--mdsync-tone: var(--mdsync-tone-local);
 }
-:where(.obsync-merge-panel, .obsync-compare-panel, .obsync-hunk-preview)
+:where(.mdsync-merge-panel, .mdsync-compare-panel, .mdsync-hunk-preview)
 	.is-remote {
-	--obsync-tone: var(--obsync-tone-remote);
+	--mdsync-tone: var(--mdsync-tone-remote);
 }
-:where(.obsync-merge-panel, .obsync-compare-panel, .obsync-hunk-preview)
+:where(.mdsync-merge-panel, .mdsync-compare-panel, .mdsync-hunk-preview)
 	.is-shared {
-	--obsync-tone: var(--obsync-tone-shared);
+	--mdsync-tone: var(--mdsync-tone-shared);
 }
-:where(.obsync-merge-panel, .obsync-compare-panel, .obsync-hunk-preview)
+:where(.mdsync-merge-panel, .mdsync-compare-panel, .mdsync-hunk-preview)
 	.is-conflict {
-	--obsync-tone: var(--obsync-tone-conflict);
+	--mdsync-tone: var(--mdsync-tone-conflict);
 }
-:where(.obsync-merge-panel, .obsync-compare-panel, .obsync-hunk-preview)
+:where(.mdsync-merge-panel, .mdsync-compare-panel, .mdsync-hunk-preview)
 	.is-added {
-	--obsync-tone: var(--obsync-tone-added);
+	--mdsync-tone: var(--mdsync-tone-added);
 }
-:where(.obsync-merge-panel, .obsync-compare-panel, .obsync-hunk-preview)
+:where(.mdsync-merge-panel, .mdsync-compare-panel, .mdsync-hunk-preview)
 	.is-removed {
-	--obsync-tone: var(--obsync-tone-removed);
+	--mdsync-tone: var(--mdsync-tone-removed);
 }
 
-.obsync-merge-panel,
-.obsync-compare-panel {
+.mdsync-merge-panel,
+.mdsync-compare-panel {
 	display: flex;
 	flex-direction: column;
 	flex: 1 1 auto;

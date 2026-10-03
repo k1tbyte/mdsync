@@ -30,7 +30,7 @@ class RemoteResetModal extends Modal {
 		const { contentEl, titleEl } = this;
 		titleEl.setText("Reset remote storage");
 		contentEl.createEl("p", {
-			text: "This deletes the remote Obsync manifest, file contents, version history and pins on the configured backend. Local vault files are not deleted.",
+			text: "This deletes the remote MDSync manifest, file contents, version history and pins on the configured backend. Local vault files are not deleted.",
 		});
 		contentEl.createEl("p", { text: this.target.description });
 		contentEl.createEl("p", { text: `Type ${CONFIRMATION_TEXT} to continue.` });

@@ -69,9 +69,9 @@ class HunkDrawer extends Modal {
 	}
 
 	onOpen(): void {
-		this.containerEl.addClass("obsync-hunk-drawer-container");
-		this.modalEl.addClass("obsync-hunk-drawer");
-		this.contentEl.addClass("obsync-hunk-drawer-content");
+		this.containerEl.addClass("mdsync-hunk-drawer-container");
+		this.modalEl.addClass("mdsync-hunk-drawer");
+		this.contentEl.addClass("mdsync-hunk-drawer-content");
 		this.contentEl.empty();
 		this.contentEl.appendChild(buildPopup(this.target, dismissPopup));
 	}

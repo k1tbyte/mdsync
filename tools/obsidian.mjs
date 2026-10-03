@@ -6,11 +6,11 @@
  *   node tools/obsidian.mjs launch            start Obsidian with the port open
  *   node tools/obsidian.mjs shot out.png      screenshot the whole window
  *   node tools/obsidian.mjs shot out.png .sel screenshot one element
- *   node tools/obsidian.mjs cmd obsync:compare        run a command by id
+ *   node tools/obsidian.mjs cmd mdsync:compare        run a command by id
  *   node tools/obsidian.mjs click "button:has-text('Deleted')"
- *   node tools/obsidian.mjs text ".obsync-history-list"
+ *   node tools/obsidian.mjs text ".mdsync-history-list"
  *   node tools/obsidian.mjs eval "app.vault.getName()"
- *   node tools/obsidian.mjs commands obsync     list command ids matching a term
+ *   node tools/obsidian.mjs commands mdsync     list command ids matching a term
  */
 import { spawn } from "node:child_process";
 import { chromium } from "playwright-core";

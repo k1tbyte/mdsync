@@ -1,4 +1,4 @@
-import { SIGN_BATCH_MAX } from "@obsync/protocol";
+import { SIGN_BATCH_MAX } from "@mdsync/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ShareSignedUrls } from "@/storage/adapters/share-signed-urls";
 

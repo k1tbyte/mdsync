@@ -1,15 +1,15 @@
 @container (min-width: 420px) {
-	.obsync-source-tab-label {
+	.mdsync-source-tab-label {
 		display: inline;
 	}
 
-	.obsync-source-tabs .obsync-settings-tab-button.is-active {
+	.mdsync-source-tabs .mdsync-settings-tab-button.is-active {
 		flex-grow: 1;
 	}
 }
 
 @container (max-width: 285px) {
-	.obsync-main-toolbar {
+	.mdsync-main-toolbar {
 		flex-wrap: wrap;
 	}
 }

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { AgreedTexts } from "@/live/cold/agreed-texts";
 
-const DIR = ".obsidian/plugins/obsync/live";
+const DIR = ".obsidian/plugins/mdsync/live";
 
 function store(adapter: InMemoryAdapter): AgreedTexts {
 	return new AgreedTexts(adapter as unknown as DataAdapter, ".obsidian");

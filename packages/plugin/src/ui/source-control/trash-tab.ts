@@ -49,22 +49,22 @@ export class TrashTab {
 	}
 
 	render(parent: HTMLElement): void {
-		const pane = parent.createDiv({ cls: "obsync-history-pane" });
+		const pane = parent.createDiv({ cls: "mdsync-history-pane" });
 		if (!this.plugin.settings.fileHistoryEnabled) {
 			pane.createDiv({
-				cls: "obsync-status-line",
+				cls: "mdsync-status-line",
 				text: "File version history is disabled, so deleted files are not recoverable. Enable it in settings.",
 			});
 			return;
 		}
-		const head = pane.createDiv({ cls: "obsync-history-versions-head" });
-		const bar = head.createDiv({ cls: "obsync-history-head-actions" });
+		const head = pane.createDiv({ cls: "mdsync-history-versions-head" });
+		const bar = head.createDiv({ cls: "mdsync-history-head-actions" });
 		appendLabeledButton(bar, "refresh-cw", "Refresh deleted", () => {
 			this.clear();
 			this.onRerender();
 		});
 		this.renderBulkActions(bar);
-		this.renderBody(pane.createDiv({ cls: "obsync-history-list" }));
+		this.renderBody(pane.createDiv({ cls: "mdsync-history-list" }));
 	}
 
 	private renderBulkActions(head: HTMLElement): void {
@@ -101,26 +101,26 @@ export class TrashTab {
 	private renderBody(body: HTMLElement): void {
 		if (this.error) {
 			body.createDiv({
-				cls: "obsync-history-error",
+				cls: "mdsync-history-error",
 				text: `Could not list deleted files: ${this.error}`,
 			});
 			return;
 		}
 		if (this.deleted === null) {
-			body.createDiv({ cls: "obsync-status-line", text: "Loading…" });
+			body.createDiv({ cls: "mdsync-status-line", text: "Loading…" });
 			this.load();
 			return;
 		}
 		const incomplete = this.deleted.lagging || this.deleted.truncated;
 		if (this.deleted.lagging) {
 			body.createDiv({
-				cls: "obsync-status-line",
+				cls: "mdsync-status-line",
 				text: "History has not caught up with the latest push yet, so recent deletions are missing. Push again to update it.",
 			});
 		}
 		if (this.deleted.truncated) {
 			body.createDiv({
-				cls: "obsync-status-line",
+				cls: "mdsync-status-line",
 				text: "History has a gap, so deletions older than it are missing unless a pinned snapshot still covers them.",
 			});
 		}
@@ -136,7 +136,7 @@ export class TrashTab {
 			// The warnings above already say why the list is short; do not contradict them.
 			if (!incomplete) {
 				body.createDiv({
-					cls: "obsync-status-line is-empty",
+					cls: "mdsync-status-line is-empty",
 					text: `Nothing deleted in the last ${this.plugin.settings.fileHistoryMaxSnapshots} snapshots. Older deletions are dropped from history unless their snapshot is pinned.`,
 				});
 			}
@@ -179,14 +179,14 @@ export class TrashTab {
 	}
 
 	private renderRow(body: HTMLElement, row: TrashRow): void {
-		const item = body.createDiv({ cls: "obsync-history-row" });
-		const head = item.createDiv({ cls: "obsync-history-row-head" });
+		const item = body.createDiv({ cls: "mdsync-history-row" });
+		const head = item.createDiv({ cls: "mdsync-history-row-head" });
 		const selection = head.createEl("label", {
-			cls: "obsync-file-selection",
+			cls: "mdsync-file-selection",
 		});
 		const checkbox = selection.createEl("input", {
 			type: "checkbox",
-			cls: "obsync-file-checkbox",
+			cls: "mdsync-file-checkbox",
 		});
 		checkbox.checked = this.selected.has(row.path);
 		checkbox.setAttr("aria-label", `Select ${row.path}`);
@@ -196,26 +196,26 @@ export class TrashTab {
 			this.updateBulkButton();
 		});
 		const title = head.createDiv({
-			cls: "obsync-history-row-title",
+			cls: "mdsync-history-row-title",
 			text: row.title,
 		});
 		if (row.pinned) {
 			title.createSpan({
-				cls: "obsync-history-pinned-badge",
+				cls: "mdsync-history-pinned-badge",
 				text: " (pinned)",
 			});
 		}
-		item.createDiv({ cls: "obsync-history-row-meta", text: row.meta });
+		item.createDiv({ cls: "mdsync-history-row-meta", text: row.meta });
 		if (row.restored) {
 			item.createDiv({
-				cls: "obsync-history-row-meta is-restored",
+				cls: "mdsync-history-row-meta is-restored",
 				text: "Restored here, not pushed yet",
 			});
 		} else if (row.retention) {
-			item.createDiv({ cls: "obsync-history-row-meta", text: row.retention });
+			item.createDiv({ cls: "mdsync-history-row-meta", text: row.retention });
 		}
 
-		const actions = item.createDiv({ cls: "obsync-history-row-actions" });
+		const actions = item.createDiv({ cls: "mdsync-history-row-actions" });
 		// Every row repeats these three labels, so name the file in each.
 		const preview = this.action(actions, "Preview", `Preview ${row.path}`);
 		preview.addEventListener("click", () => {

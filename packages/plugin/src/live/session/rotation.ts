@@ -1,4 +1,4 @@
-import { EFrame } from "@obsync/protocol";
+import { EFrame } from "@mdsync/protocol";
 
 import type { LiveKeys } from "@/crypto/live-keys";
 import { seal } from "@/crypto/seal";

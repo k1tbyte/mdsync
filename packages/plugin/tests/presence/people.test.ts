@@ -1,4 +1,4 @@
-import { OWNER } from "@obsync/protocol";
+import { OWNER } from "@mdsync/protocol";
 import {
 	keys,
 	SHARE_ID,

@@ -115,11 +115,11 @@ export class ChangesSection {
 		this.rowCount = rows.length;
 		if (rows.length === 0) return;
 
-		const sectionEl = parent.createDiv({ cls: "obsync-section" });
-		const header = sectionEl.createDiv({ cls: "obsync-section-header" });
-		const disclosure = header.createSpan({ cls: "obsync-section-disclosure" });
-		header.createSpan({ cls: "obsync-section-title", text: this.title });
-		this.countsEl = header.createSpan({ cls: "obsync-section-count" });
+		const sectionEl = parent.createDiv({ cls: "mdsync-section" });
+		const header = sectionEl.createDiv({ cls: "mdsync-section-header" });
+		const disclosure = header.createSpan({ cls: "mdsync-section-disclosure" });
+		header.createSpan({ cls: "mdsync-section-title", text: this.title });
+		this.countsEl = header.createSpan({ cls: "mdsync-section-count" });
 		const showCollapsed = (): void => {
 			sectionEl.toggleClass("is-collapsed", this.collapsed);
 			header.setAttr("aria-expanded", String(!this.collapsed));
@@ -134,9 +134,9 @@ export class ChangesSection {
 			this.deps.refreshLists();
 		});
 
-		const body = sectionEl.createDiv({ cls: "obsync-section-body" });
+		const body = sectionEl.createDiv({ cls: "mdsync-section-body" });
 		this.renderActions(body, rows, busy);
-		this.layoutList(body.createDiv({ cls: "obsync-file-list" }), rows);
+		this.layoutList(body.createDiv({ cls: "mdsync-file-list" }), rows);
 		this.updateUi(busy);
 	}
 
@@ -146,7 +146,7 @@ export class ChangesSection {
 		busy: boolean,
 	): void {
 		const bar = parent.createDiv({
-			cls: "obsync-toolbar obsync-section-actions",
+			cls: "mdsync-toolbar mdsync-section-actions",
 		});
 		const { actions } = this.deps;
 		this.selectionButtons = SELECTION_ACTIONS[this.id].map(
@@ -176,12 +176,12 @@ export class ChangesSection {
 		if (this.selectionButtons.length === 0) return;
 
 		const selectionControls = bar.createDiv({
-			cls: "obsync-selection-controls",
+			cls: "mdsync-selection-controls",
 		});
 		selectionControls.setAttr("role", "group");
 		selectionControls.setAttr("aria-label", "Selection");
 		const selectAll = selectionControls.createEl("button", {
-			cls: "obsync-section-icon-action",
+			cls: "mdsync-section-icon-action",
 		});
 		setIcon(selectAll, "list-checks");
 		selectAll.setAttr("aria-label", "Select all");
@@ -190,7 +190,7 @@ export class ChangesSection {
 			this.deps.rerender();
 		});
 		const selectNone = selectionControls.createEl("button", {
-			cls: "obsync-section-icon-action",
+			cls: "mdsync-section-icon-action",
 		});
 		setIcon(selectNone, "x");
 		selectNone.setAttr("aria-label", "Clear selection");

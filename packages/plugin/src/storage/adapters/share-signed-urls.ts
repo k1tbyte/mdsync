@@ -1,4 +1,4 @@
-import { SIGN_BATCH_MAX } from "@obsync/protocol";
+import { SIGN_BATCH_MAX } from "@mdsync/protocol";
 
 /** The relay signs for 120 s; a URL older than this is not worth the risk. */
 const SIGNED_URL_TTL_MS = 60_000;

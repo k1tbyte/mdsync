@@ -1,8 +1,8 @@
-.obsync-ribbon-icon {
+.mdsync-ribbon-icon {
 	position: relative;
 }
 
-.obsync-ribbon-icon.is-pending::after {
+.mdsync-ribbon-icon.is-pending::after {
 	content: "";
 	position: absolute;
 	top: 4px;
@@ -13,11 +13,11 @@
 	background-color: var(--interactive-accent);
 }
 
-.obsync-ribbon-icon.is-conflict::after {
+.mdsync-ribbon-icon.is-conflict::after {
 	background-color: var(--color-red);
 }
 
-.obsync-ribbon-icon.is-relay-connected::before {
+.mdsync-ribbon-icon.is-relay-connected::before {
 	content: "";
 	position: absolute;
 	bottom: 2px;

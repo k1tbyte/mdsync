@@ -16,11 +16,11 @@ export function registerRibbon(
 	plugin.register(() => {
 		host.app = null;
 	});
-	const icon = plugin.addRibbonIcon("refresh-cw", "Obsync", () => {
+	const icon = plugin.addRibbonIcon("refresh-cw", "MDSync", () => {
 		if (host.app)
 			void openSourceControlView(host.app, SOURCE_CONTROL_VIEW_TYPE);
 	});
-	icon.addClass("obsync-ribbon-icon");
+	icon.addClass("mdsync-ribbon-icon");
 
 	const apply = (snapshot: SyncStatusSnapshot): void => {
 		const pending = snapshot.pendingLocal + snapshot.pendingRemote;
@@ -48,8 +48,8 @@ export function registerRibbon(
 
 function buildLabel(snapshot: SyncStatusSnapshot): string {
 	if (snapshot.conflicts > 0)
-		return `Obsync — ${snapshot.conflicts} conflict(s)`;
+		return `MDSync — ${snapshot.conflicts} conflict(s)`;
 	const pending = snapshot.pendingLocal + snapshot.pendingRemote;
-	if (pending === 0) return "Obsync — no changes";
-	return `Obsync — ${snapshot.pendingLocal} to push, ${snapshot.pendingRemote} to pull`;
+	if (pending === 0) return "MDSync — no changes";
+	return `MDSync — ${snapshot.pendingLocal} to push, ${snapshot.pendingRemote} to pull`;
 }

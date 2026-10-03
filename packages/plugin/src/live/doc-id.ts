@@ -1,4 +1,4 @@
-import { toHex } from "@obsync/protocol";
+import { toHex } from "@mdsync/protocol";
 
 import type { LiveKeys } from "@/crypto/live-keys";
 

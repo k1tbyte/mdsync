@@ -9,7 +9,7 @@ import {
 	EFrame,
 	KEEPALIVE_PING,
 	shareChannel,
-} from "@obsync/protocol";
+} from "@mdsync/protocol";
 
 import { check, runScenario } from "./harness";
 import { connectPeer, type Peer } from "./peer";
@@ -156,7 +156,7 @@ async function endShare(url: string): Promise<[string, string]> {
 
 	const ended = await fetch(`${url}/share/shares/${shareId}`, {
 		method: "DELETE",
-		headers: { "X-Obsync-Admin": SECRET },
+		headers: { "X-Mdsync-Admin": SECRET },
 	});
 	check("share ended", ended.status, 200);
 	check("its channel is cut", (await owner.next(EFrame.Revoked)).slot, 0);
@@ -259,10 +259,10 @@ async function scenario(url: string): Promise<void> {
 	);
 
 	const shareId = `e2e${Date.now()}`;
-	const share = `obsync-share-${shareId}`;
+	const share = `mdsync-share-${shareId}`;
 	const issued = await fetch(`${url}/share/tokens`, {
 		method: "POST",
-		headers: { "X-Obsync-Admin": SECRET, "Content-Type": "application/json" },
+		headers: { "X-Mdsync-Admin": SECRET, "Content-Type": "application/json" },
 		body: JSON.stringify({ shareId, participantId: "p1" }),
 	});
 	const { token } = (await issued.json()) as { token: string };
@@ -303,7 +303,7 @@ async function scenario(url: string): Promise<void> {
 
 	await fetch(`${url}/share/tokens/p1?shareId=${shareId}`, {
 		method: "DELETE",
-		headers: { "X-Obsync-Admin": SECRET },
+		headers: { "X-Mdsync-Admin": SECRET },
 	});
 	check("revocation reported", (await guest.next(EFrame.Revoked)).slot, 0);
 	check(

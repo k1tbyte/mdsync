@@ -19,8 +19,8 @@ export function updatePaneViewportWidth(view: EditorView): void {
 	const gutterWidth = gutters?.getBoundingClientRect().width ?? 0;
 	const width = Math.max(0, view.scrollDOM.clientWidth - gutterWidth);
 	for (const [name, size] of [
-		["--obsync-pane-width", width],
-		["--obsync-gutter-width", gutterWidth],
+		["--mdsync-pane-width", width],
+		["--mdsync-gutter-width", gutterWidth],
 	] as const) {
 		const value = `${size}px`;
 		if (view.dom.style.getPropertyValue(name) !== value) {

@@ -1,5 +1,5 @@
 {
-	"name": "obsync",
+	"name": "mdsync",
 	"version": "1.0.0",
 	"description": "Encrypted vault sync for Obsidian over your own storage.",
 	"main": "main.js",
@@ -14,7 +14,7 @@
 	},
 	"dependencies": {
 		"@codemirror/merge": "^6.12.2",
-		"@obsync/protocol": "workspace:*",
+		"@mdsync/protocol": "workspace:*",
 		"diff": "^9.0.0",
 		"ignore": "^7.0.6",
 		"lz-string": "^1.5.0",
@@ -30,7 +30,7 @@
 		"@types/node": "^22.20.1",
 		"@types/qrcode": "^1.5.6",
 		"esbuild": "^0.25.12",
-		"obsync-relay": "workspace:*",
+		"mdsync-relay": "workspace:*",
 		"vitest": "^4.1.11"
 	},
 	"peerDependencies": {

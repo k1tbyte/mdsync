@@ -10,7 +10,7 @@ function file(path: string): FileRow {
 	return {
 		path,
 		statusLetter: "M",
-		statusClass: "obsync-status-mod",
+		statusClass: "mdsync-status-mod",
 		isConflict: false,
 	};
 }

@@ -32,7 +32,7 @@ export function openPromptModal(
 		}
 		const input = modal.contentEl.createEl("input", {
 			type: "text",
-			cls: "obsync-prompt-input",
+			cls: "mdsync-prompt-input",
 		});
 		input.setAttr("aria-label", options.label);
 		input.value = options.initialValue;
@@ -41,7 +41,7 @@ export function openPromptModal(
 			finish(value || (options.allowEmpty ? "" : null));
 		};
 		onEnter(input, submit);
-		const buttons = modal.contentEl.createDiv({ cls: "obsync-modal-buttons" });
+		const buttons = modal.contentEl.createDiv({ cls: "mdsync-modal-buttons" });
 		new ButtonComponent(buttons)
 			.setButtonText("Cancel")
 			.onClick(() => finish(null));

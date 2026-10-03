@@ -78,7 +78,7 @@ async function setUpVault(
 ): Promise<void> {
 	await friend.evaluate(
 		async (settings) => {
-			const plugin = app.plugins.plugins.obsync;
+			const plugin = app.plugins.plugins.mdsync;
 			Object.assign(plugin.settings, settings);
 			await plugin.saveSettings();
 		},

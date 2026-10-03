@@ -41,7 +41,7 @@ const SIGN_OPS: Record<S3Method, string> = {
 	DELETE: "delete",
 	HEAD: "head",
 };
-const ADMIN_HEADER = "X-Obsync-Admin";
+const ADMIN_HEADER = "X-Mdsync-Admin";
 /** Refusals that say something about the share, not the network: never retried. */
 const PARTICIPANT_REFUSALS: Record<string, string> = {
 	unauthorized: "This shared folder's invite is no longer valid.",

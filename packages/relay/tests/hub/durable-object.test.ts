@@ -5,7 +5,7 @@ import {
 	encodeClient,
 	KEEPALIVE_STALE_MS,
 	type ServerFrame,
-} from "@obsync/protocol";
+} from "@mdsync/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Hub } from "../../src/hub/durable-object";

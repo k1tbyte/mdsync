@@ -7,8 +7,8 @@ import { renderAvatar } from "./avatars";
 
 export function infoTitle(text: string, state?: string): DocumentFragment {
 	const title = createFragment();
-	title.createSpan({ cls: "obsync-menu-info", text });
-	if (state) title.createSpan({ cls: "obsync-person-state", text: state });
+	title.createSpan({ cls: "mdsync-menu-info", text });
+	if (state) title.createSpan({ cls: "mdsync-person-state", text: state });
 	return title;
 }
 
@@ -16,7 +16,7 @@ export function personTitle(person: Person, state: string): DocumentFragment {
 	const title = createFragment();
 	renderAvatar(title, person);
 	title.createSpan({ text: withDevices(person.name, person.devices) });
-	title.createSpan({ cls: "obsync-person-state", text: state });
+	title.createSpan({ cls: "mdsync-person-state", text: state });
 	return title;
 }
 

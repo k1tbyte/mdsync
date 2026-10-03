@@ -16,7 +16,7 @@ export class RowPager {
 
 	render(parent: HTMLElement, count: number, changed: () => void): void {
 		if (count <= PAGE_SIZE) return;
-		const controls = parent.createDiv({ cls: "obsync-history-row-actions" });
+		const controls = parent.createDiv({ cls: "mdsync-history-row-actions" });
 		for (const [label, delta] of [
 			["Previous page", -1],
 			["Next page", 1],
@@ -32,7 +32,7 @@ export class RowPager {
 				});
 		}
 		controls.createSpan({
-			cls: "obsync-history-row-meta",
+			cls: "mdsync-history-row-meta",
 			text: `${this.page * PAGE_SIZE + 1}-${Math.min((this.page + 1) * PAGE_SIZE, count)} of ${count}`,
 		});
 	}

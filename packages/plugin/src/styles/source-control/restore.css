@@ -1,27 +1,27 @@
-.obsync-prompt-input {
+.mdsync-prompt-input {
 	width: 100%;
 	margin-bottom: var(--size-4-2);
 }
 
-.obsync-history-row-head {
+.mdsync-history-row-head {
 	display: flex;
 	align-items: center;
 	gap: var(--size-4-2);
 	min-width: 0;
 }
 
-.obsync-history-row-head .obsync-history-row-title {
+.mdsync-history-row-head .mdsync-history-row-title {
 	flex: 1 1 auto;
 	white-space: normal;
 	overflow-wrap: anywhere;
 }
 
-.obsync-restore-summary {
+.mdsync-restore-summary {
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 }
 
-.obsync-restore-diff {
+.mdsync-restore-diff {
 	display: flex;
 	flex-direction: column;
 	gap: var(--size-4-2);
@@ -30,7 +30,7 @@
 	margin-bottom: var(--size-4-3);
 }
 
-.obsync-bulk-restore-list {
+.mdsync-bulk-restore-list {
 	display: flex;
 	flex-direction: column;
 	gap: var(--size-2-1);

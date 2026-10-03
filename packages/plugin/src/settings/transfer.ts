@@ -10,12 +10,12 @@ import {
 	activeStorage,
 	DEFAULT_SETTINGS,
 	DEFAULT_SETTINGS_SYNC,
+	type MdsyncSettings,
 	mergeSettings,
-	type ObsyncSettings,
 	type SettingsSyncCategories,
 } from "./model";
 
-export const TRANSFER_ACTION = "obsync";
+export const TRANSFER_ACTION = "mdsync";
 const SETTINGS_TRANSFER_MAX_QR_BYTES = 1024;
 const MAX_SYNC_MASK = 0b111111;
 const SYNC_MASK_KEY = "y";
@@ -73,10 +73,10 @@ const SECTIONS = [
 	{ id: "l", flag: "includeRealtime" },
 ] as const;
 
-export interface ObsyncTransferSettings
+export interface MdsyncTransferSettings
 	extends Partial<
 		Pick<
-			ObsyncSettings,
+			MdsyncSettings,
 			TransferFieldKey | "activeStorageKind" | "settingsSync"
 		>
 	> {
@@ -138,7 +138,7 @@ export function hasSettingsTransferSelection(
 }
 
 export async function createSettingsTransferUrl(
-	settings: ObsyncSettings,
+	settings: MdsyncSettings,
 	passphrase: string,
 	options?: Partial<SettingsTransferExportOptions>,
 ): Promise<string> {
@@ -154,7 +154,7 @@ export async function createSettingsTransferUrl(
 }
 
 export async function createSettingsTransferPackage(
-	settings: ObsyncSettings,
+	settings: MdsyncSettings,
 	passphrase: string,
 	options?: Partial<SettingsTransferExportOptions>,
 ): Promise<SettingsTransferPackage> {
@@ -170,11 +170,11 @@ export async function createSettingsTransferPackage(
 export async function readSettingsTransfer(
 	input: string,
 	passphrase: string,
-): Promise<ObsyncTransferSettings> {
+): Promise<MdsyncTransferSettings> {
 	const plaintext = await openLink(input, passphrase);
 	const payload = JSON.parse(decoder.decode(plaintext)) as unknown;
 	if (!isTransferPayload(payload)) {
-		throw new Error("Invalid Obsync settings transfer payload");
+		throw new Error("Invalid MDSync settings transfer payload");
 	}
 	return expandTransferPayload(payload);
 }
@@ -183,7 +183,7 @@ export type TransferSection = "storage" | "scope" | "automation" | "realtime";
 
 /** Every field of these is replaced: one the other device left at its default is reset here. */
 export function importedSections(
-	imported: ObsyncTransferSettings,
+	imported: MdsyncTransferSettings,
 ): TransferSection[] {
 	const sections: TransferSection[] = [];
 	if (imported.storageConfigs) sections.push("storage");
@@ -194,9 +194,9 @@ export function importedSections(
 }
 
 export function mergeTransferredSettings(
-	current: ObsyncSettings,
-	imported: ObsyncTransferSettings,
-): ObsyncSettings {
+	current: MdsyncSettings,
+	imported: MdsyncTransferSettings,
+): MdsyncSettings {
 	const storageConfigs = imported.storageConfigs
 		? {
 				...current.storageConfigs,
@@ -212,7 +212,7 @@ export function mergeTransferredSettings(
 }
 
 function createTransferPayload(
-	settings: ObsyncSettings,
+	settings: MdsyncSettings,
 	options: SettingsTransferExportOptions,
 ): SettingsTransferPayload {
 	const payload: SettingsTransferPayload = {};
@@ -233,8 +233,8 @@ function createTransferPayload(
 
 function expandTransferPayload(
 	payload: SettingsTransferPayload,
-): ObsyncTransferSettings {
-	const result: ObsyncTransferSettings = {};
+): MdsyncTransferSettings {
+	const result: MdsyncTransferSettings = {};
 	if (payload.s) {
 		result.activeStorageKind = payload.s.a;
 		result.storageConfigs = expandStorageConfigs(payload.s.c);
@@ -254,7 +254,7 @@ function expandTransferPayload(
 }
 
 function createSectionPayload(
-	settings: ObsyncSettings,
+	settings: MdsyncSettings,
 	sectionId: keyof TransferFieldsMap,
 ): SectionPayload {
 	const out: SectionPayload = {};
@@ -270,7 +270,7 @@ function createSectionPayload(
 }
 
 function applySectionDefaults(
-	result: ObsyncTransferSettings,
+	result: MdsyncTransferSettings,
 	section: SectionPayload,
 	sectionId: keyof TransferFieldsMap,
 ): void {
@@ -374,7 +374,7 @@ function isValidSyncMask(value: unknown): boolean {
 }
 
 function createStoragePayload(
-	settings: ObsyncSettings,
+	settings: MdsyncSettings,
 	mode: ESettingsTransferStorageMode,
 ): TransferStoragePayload {
 	// activeStorage() falls back to a default config if the active slot is missing; export follows the resolved config.

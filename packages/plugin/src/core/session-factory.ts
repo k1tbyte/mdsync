@@ -5,7 +5,7 @@ import {
 	activeStorage,
 	isGuest,
 	isStorageConfigured,
-	type ObsyncSettings,
+	type MdsyncSettings,
 } from "@/settings/model";
 import { reportWarning } from "@/shared";
 import type { SpaceRecords } from "@/spaces";
@@ -35,7 +35,7 @@ import type { StatePersister } from "./state-persister";
 
 export interface SessionFactoryDeps {
 	app: App;
-	settings: ObsyncSettings;
+	settings: MdsyncSettings;
 	spaces: Pick<SpaceRecords, "get">;
 	passphrase: PassphraseManager;
 	state: StatePersister;

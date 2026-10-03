@@ -20,7 +20,7 @@ export interface LineMarks {
 }
 
 const NO_MARKS: LineMarks = { removed: [], added: [] };
-const CODE_MARK = Decoration.mark({ class: "obsync-code-mark" });
+const CODE_MARK = Decoration.mark({ class: "mdsync-code-mark" });
 
 /**
  * One line of a source block or preview, in the DOM the CodeMirror panes imitate so widget and editor lines
@@ -31,18 +31,18 @@ export function renderCodeLine(
 	line: CodeLine,
 	tone?: string,
 ): HTMLElement {
-	const row = parent.createDiv({ cls: "obsync-code-line" });
+	const row = parent.createDiv({ cls: "mdsync-code-line" });
 	if (tone) row.addClass(`is-${tone}`);
 	row.createSpan({
-		cls: "obsync-code-number",
+		cls: "mdsync-code-number",
 		text: line.number === undefined ? "" : String(line.number),
 	});
-	const text = row.createSpan({ cls: "obsync-code-text" });
+	const text = row.createSpan({ cls: "mdsync-code-text" });
 	let cursor = 0;
 	for (const mark of line.marks ?? []) {
 		if (mark.from > cursor) text.appendText(line.text.slice(cursor, mark.from));
 		text.createSpan({
-			cls: "obsync-code-mark",
+			cls: "mdsync-code-mark",
 			text: line.text.slice(mark.from, mark.to),
 		});
 		cursor = mark.to;

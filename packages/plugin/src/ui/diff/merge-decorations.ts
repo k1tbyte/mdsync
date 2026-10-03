@@ -353,7 +353,7 @@ function addLine(
 ): void {
 	ranges.push(
 		Decoration.line({
-			class: `obsync-merge-line is-${tone}${pending ? " is-pending" : ""}`,
+			class: `mdsync-merge-line is-${tone}${pending ? " is-pending" : ""}`,
 		}).range(at),
 	);
 }
@@ -368,7 +368,7 @@ function addMarker(
 	const after = at === line.from ? "" : " is-after";
 	ranges.push(
 		Decoration.line({
-			class: `obsync-merge-mark is-${tone}${after}`,
+			class: `mdsync-merge-mark is-${tone}${after}`,
 		}).range(line.from),
 	);
 }

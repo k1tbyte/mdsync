@@ -1,9 +1,9 @@
-.obsync-transfer-url {
+.mdsync-transfer-url {
 	width: 100%;
 	font-family: var(--font-monospace);
 }
 
-.obsync-transfer-qr {
+.mdsync-transfer-qr {
 	display: block;
 	width: min(100%, 20rem);
 	height: auto;

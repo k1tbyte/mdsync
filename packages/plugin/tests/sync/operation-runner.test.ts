@@ -84,7 +84,7 @@ describe("OperationRunner.runOperation", () => {
 		const detail =
 			'S3 HEAD to "objects/example" failed: Request Failed. IOException Stream closed';
 		const message =
-			"S3 request failed on this device. Check the connection and try again. See Obsync logs for details.";
+			"S3 request failed on this device. Check the connection and try again. See MDSync logs for details.";
 		const result = await runner.runOperation(
 			VAULT_SPACE,
 			ESyncLogOperation.Push,

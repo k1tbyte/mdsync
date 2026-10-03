@@ -60,10 +60,10 @@ export class HistoryTab {
 	}
 
 	render(parent: HTMLElement): void {
-		const pane = parent.createDiv({ cls: "obsync-history-pane" });
+		const pane = parent.createDiv({ cls: "mdsync-history-pane" });
 		if (!this.plugin.settings.fileHistoryEnabled) {
 			pane.createDiv({
-				cls: "obsync-status-line",
+				cls: "mdsync-status-line",
 				text: "File version history is disabled. Enable it in settings.",
 			});
 			return;
@@ -79,7 +79,7 @@ export class HistoryTab {
 	/** History needs a file, but a deleted one has no path to open - offer that route. */
 	private renderNoFile(pane: HTMLElement): void {
 		pane.createDiv({
-			cls: "obsync-status-line is-empty",
+			cls: "mdsync-status-line is-empty",
 			text: "Open a file to view its history.",
 		});
 		const link = pane.createEl("button", { text: "Browse deleted files" });
@@ -87,8 +87,8 @@ export class HistoryTab {
 	}
 
 	private renderHistoryVersions(parent: HTMLElement, path: string): void {
-		const header = parent.createDiv({ cls: "obsync-history-versions-head" });
-		const bar = header.createDiv({ cls: "obsync-history-head-actions" });
+		const header = parent.createDiv({ cls: "mdsync-history-versions-head" });
+		const bar = header.createDiv({ cls: "mdsync-history-head-actions" });
 		this.renderBackButton(bar, path);
 		appendLabeledButton(bar, "refresh-cw", "Refresh history", () => {
 			this.clearVersions();
@@ -96,7 +96,7 @@ export class HistoryTab {
 		});
 
 		const body = parent.createDiv({
-			cls: "obsync-history-list obsync-timeline-list",
+			cls: "mdsync-history-list mdsync-timeline-list",
 		});
 		if (this.loadedPath !== path) {
 			this.clearVersions();
@@ -104,19 +104,19 @@ export class HistoryTab {
 		}
 		if (this.error) {
 			body.createDiv({
-				cls: "obsync-history-error",
+				cls: "mdsync-history-error",
 				text: `Could not load history: ${this.error}`,
 			});
 			return;
 		}
 		if (this.historyVersions === null) {
-			body.createDiv({ cls: "obsync-status-line", text: "Loading…" });
+			body.createDiv({ cls: "mdsync-status-line", text: "Loading…" });
 			this.load(path);
 			return;
 		}
 		if (this.historyVersions.length === 0) {
 			body.createDiv({
-				cls: "obsync-status-line is-empty",
+				cls: "mdsync-status-line is-empty",
 				text: "No stored history for this file yet.",
 			});
 			return;
@@ -125,7 +125,7 @@ export class HistoryTab {
 			currentDevice: this.plugin.controller.currentDevice(),
 		});
 		for (const group of groupRows(rows)) {
-			body.createDiv({ cls: "obsync-timeline-day", text: group.label });
+			body.createDiv({ cls: "mdsync-timeline-day", text: group.label });
 			for (const row of group.rows) this.renderRow(body, path, row);
 		}
 	}
@@ -155,29 +155,29 @@ export class HistoryTab {
 
 	/** Same card as the timeline, plus the size this version weighed. */
 	private renderRow(body: HTMLElement, path: string, row: HistoryRow): void {
-		const card = body.createDiv({ cls: "obsync-timeline-card" });
-		const head = card.createDiv({ cls: "obsync-timeline-head" });
+		const card = body.createDiv({ cls: "mdsync-timeline-card" });
+		const head = card.createDiv({ cls: "mdsync-timeline-head" });
 		makeActivatable(head, `${row.title} · ${row.tooltip}`, () =>
 			attempt(
 				this.openDiff(path, { ...row.version }),
 				"Could not open the diff",
 			),
 		);
-		const copy = head.createDiv({ cls: "obsync-timeline-copy" });
-		const title = copy.createDiv({ cls: "obsync-timeline-title" });
-		title.createSpan({ cls: "obsync-history-row-title", text: row.title });
+		const copy = head.createDiv({ cls: "mdsync-timeline-copy" });
+		const title = copy.createDiv({ cls: "mdsync-timeline-title" });
+		title.createSpan({ cls: "mdsync-history-row-title", text: row.title });
 		if (row.isLatest)
-			title.createSpan({ cls: "obsync-timeline-current", text: "Latest" });
+			title.createSpan({ cls: "mdsync-timeline-current", text: "Latest" });
 		if (row.pinned) {
 			const pin = title.createSpan({
-				cls: "obsync-timeline-icon obsync-history-pinned-badge",
+				cls: "mdsync-timeline-icon mdsync-history-pinned-badge",
 			});
 			setIcon(pin, "pin");
 			pin.setAttr("aria-label", "Pinned snapshot");
 		}
-		copy.createDiv({ cls: "obsync-history-row-meta", text: row.meta });
+		copy.createDiv({ cls: "mdsync-history-row-meta", text: row.meta });
 		renderSize(head, row.size, row.sizeDelta);
-		const actions = head.createDiv({ cls: "obsync-timeline-actions" });
+		const actions = head.createDiv({ cls: "mdsync-timeline-actions" });
 		appendIconButton(actions, "ellipsis", "Version actions", (event) => {
 			event.stopPropagation();
 			this.showRowMenu(event, path, row);

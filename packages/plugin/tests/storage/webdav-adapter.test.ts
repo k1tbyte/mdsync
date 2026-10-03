@@ -26,7 +26,7 @@ vi.mock("obsidian", async (importOriginal) => ({
 	},
 }));
 
-const adapter = (basePath = "obsync/") =>
+const adapter = (basePath = "mdsync/") =>
 	createWebDAVAdapter({
 		kind: EStorageBackend.WebDAV,
 		baseUrl: "https://dav.example/dav/",
@@ -36,7 +36,7 @@ const adapter = (basePath = "obsync/") =>
 		concurrency: 4,
 	});
 
-const ROOT = "/dav/obsync/";
+const ROOT = "/dav/mdsync/";
 const collection = (path: string) =>
 	`<d:response><d:href>${ROOT}${path}</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>`;
 const file = (path: string, etag?: string, modified?: string) =>
@@ -93,8 +93,8 @@ describe("WebDAV listings", () => {
 
 		expect(await adapter().list("")).toEqual(["root", "spaces/a"]);
 		expect(requests.map((request) => request.url)).toEqual([
-			"https://dav.example/dav/obsync/",
-			"https://dav.example/dav/obsync/spaces/",
+			"https://dav.example/dav/mdsync/",
+			"https://dav.example/dav/mdsync/spaces/",
 		]);
 	});
 

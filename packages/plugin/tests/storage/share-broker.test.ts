@@ -399,7 +399,7 @@ describe("the owner's view of a share's participants", () => {
 		expect(requests[0]).toMatchObject({
 			url: "https://relay.example/share/tokens?shareId=s1",
 			method: "GET",
-			headers: { "X-Obsync-Admin": "secret" },
+			headers: { "X-Mdsync-Admin": "secret" },
 			body: undefined,
 		});
 	});

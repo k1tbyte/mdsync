@@ -43,14 +43,14 @@ describe("push notices", () => {
 
 		expect(await actions.pushPaths(["note.md"])).toBe(false);
 		expect(controller.getSnapshot()).toMatchObject({ error, pendingLocal: 1 });
-		expect(notices).toEqual([`Obsync error: Push failed - ${error}`]);
+		expect(notices).toEqual([`MDSync error: Push failed - ${error}`]);
 
 		expect(await actions.pushPaths(["note.md"])).toBe(true);
 		expect(controller.getSnapshot()).toMatchObject({
 			error: null,
 			pendingLocal: 0,
 		});
-		expect(notices[notices.length - 1]).toBe("Obsync: Pushed 1 file(s).");
+		expect(notices[notices.length - 1]).toBe("MDSync: Pushed 1 file(s).");
 	});
 });
 
@@ -67,13 +67,13 @@ describe("runWithNotice", () => {
 		"announces a completed action: %j",
 		async (result) => {
 			expect(await runWithNotice(async () => result, "Done")).toBe(true);
-			expect(notices).toEqual(["Obsync: Done"]);
+			expect(notices).toEqual(["MDSync: Done"]);
 		},
 	);
 
 	it("announces a completed action that returns no result", async () => {
 		expect(await runWithNotice(async () => {}, "Done")).toBe(true);
-		expect(notices).toEqual(["Obsync: Done"]);
+		expect(notices).toEqual(["MDSync: Done"]);
 	});
 
 	it("still reports a rejected action", async () => {
@@ -86,7 +86,7 @@ describe("runWithNotice", () => {
 				"Push failed",
 			),
 		).toBe(false);
-		expect(notices).toEqual(["Obsync error: Push failed - offline"]);
+		expect(notices).toEqual(["MDSync error: Push failed - offline"]);
 	});
 });
 

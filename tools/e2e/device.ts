@@ -18,7 +18,7 @@ export const CLEAN = { error: null, conflicts: 0, pendingLocal: 0, remote: 0 };
 export async function loaded(device: Obsidian): Promise<void> {
 	await device.waitFor(
 		"plugin loaded",
-		() => app.plugins.plugins.obsync.spaces !== undefined,
+		() => app.plugins.plugins.mdsync.spaces !== undefined,
 		Boolean,
 	);
 }
@@ -30,7 +30,7 @@ export async function unlock(
 ): Promise<void> {
 	await loaded(device);
 	await device.evaluate(
-		(value) => app.plugins.plugins.obsync.passphrase.replacePassphrase(value),
+		(value) => app.plugins.plugins.mdsync.passphrase.replacePassphrase(value),
 		passphrase,
 	);
 }
@@ -38,7 +38,7 @@ export async function unlock(
 /** A full sync, then a fresh compare to report what is left. */
 export function sync(device: Obsidian): Promise<typeof CLEAN> {
 	return device.evaluate(async () => {
-		const { controller } = app.plugins.plugins.obsync;
+		const { controller } = app.plugins.plugins.mdsync;
 		await controller.refreshAndAutoSync();
 		await controller.refresh();
 		const { error, conflicts, pendingLocal, pendingRemote } =
@@ -212,7 +212,7 @@ export async function openSettings(
 ): Promise<void> {
 	await device.evaluate(() => {
 		app.setting.open();
-		app.setting.openTabById("obsync");
+		app.setting.openTabById("mdsync");
 	});
 	await press(device, tab);
 }

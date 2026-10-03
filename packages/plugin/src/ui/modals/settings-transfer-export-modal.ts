@@ -121,7 +121,7 @@ class SettingsTransferExportModal extends Modal {
 
 	onOpen(): void {
 		const { titleEl } = this;
-		titleEl.setText("Export Obsync setup");
+		titleEl.setText("Export MDSync setup");
 		this.render();
 	}
 
@@ -138,7 +138,7 @@ class SettingsTransferExportModal extends Modal {
 		contentEl.empty();
 
 		contentEl.createEl("p", {
-			text: "Generate an encrypted setup link for another device. The same Obsync passphrase is required to import it.",
+			text: "Generate an encrypted setup link for another device. The same MDSync passphrase is required to import it.",
 		});
 		contentEl.createEl("p", {
 			text: "Local-only display preferences and passphrase cache settings are never transferred.",
@@ -171,7 +171,7 @@ class SettingsTransferExportModal extends Modal {
 
 			if (this.exportPackage.qrEligible) {
 				const canvas = contentEl.createEl("canvas");
-				canvas.addClass("obsync-transfer-qr");
+				canvas.addClass("mdsync-transfer-qr");
 				void QRCode.toCanvas(canvas, this.exportPackage.url, {
 					errorCorrectionLevel: QR_ERROR_CORRECTION,
 					margin: 1,
@@ -180,18 +180,18 @@ class SettingsTransferExportModal extends Modal {
 					canvas.remove();
 					contentEl.createEl("p", {
 						text: "QR code unavailable on this platform. Use the link below.",
-						cls: "obsync-transfer-qr-fallback",
+						cls: "mdsync-transfer-qr-fallback",
 					});
 				});
 			} else {
 				contentEl.createEl("p", {
 					text: "This export is too large for a reliable QR code. Use the encrypted link below.",
-					cls: "obsync-transfer-qr-fallback",
+					cls: "mdsync-transfer-qr-fallback",
 				});
 			}
 
 			const textarea = contentEl.createEl("textarea", {
-				cls: "obsync-transfer-url",
+				cls: "mdsync-transfer-url",
 			});
 			textarea.value = this.exportPackage.url;
 			textarea.rows = 4;
@@ -199,7 +199,7 @@ class SettingsTransferExportModal extends Modal {
 		}
 
 		const footer = new Setting(contentEl);
-		footer.settingEl.addClass("obsync-button-row");
+		footer.settingEl.addClass("mdsync-button-row");
 		footer
 			.addButton((button) =>
 				button
@@ -246,7 +246,7 @@ class SettingsTransferExportModal extends Modal {
 			}
 			this.exportPackage = exportPackage;
 			this.note = exportPackage.qrEligible
-				? "QR code ready. Import it on the other device with the same Obsync passphrase."
+				? "QR code ready. Import it on the other device with the same MDSync passphrase."
 				: "Link ready. The QR code was skipped because this export is too large to scan reliably.";
 		} catch (err) {
 			this.exportPackage = null;

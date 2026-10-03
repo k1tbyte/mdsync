@@ -39,7 +39,7 @@ export function renderDiffHeader(
 	parent.empty();
 	let pathParent = parent;
 	if (state.showBack) {
-		pathParent = parent.createDiv({ cls: "obsync-diff-title" });
+		pathParent = parent.createDiv({ cls: "mdsync-diff-title" });
 		appendIconButton(
 			pathParent,
 			"arrow-left",
@@ -47,9 +47,9 @@ export function renderDiffHeader(
 			actions.goBack,
 		);
 	}
-	renderPath(pathParent, state.path).addClass("obsync-diff-path");
+	renderPath(pathParent, state.path).addClass("mdsync-diff-path");
 	const actionParent = state.showBack
-		? parent.createDiv({ cls: "obsync-diff-file-actions" })
+		? parent.createDiv({ cls: "mdsync-diff-file-actions" })
 		: parent;
 	const trailing = state.showBack ? pathParent : actionParent;
 

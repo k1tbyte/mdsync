@@ -42,7 +42,7 @@ export function renderLogsView(
 	new Setting(parent)
 		.setName("Diagnostics")
 		.setDesc(
-			"Stored locally inside the Obsync plugin folder and excluded from sync.",
+			"Stored locally inside the MDSync plugin folder and excluded from sync.",
 		)
 		.addButton((button) =>
 			button.setButtonText("Refresh").onClick(() => {
@@ -65,7 +65,7 @@ export function renderLogsView(
 		return;
 	}
 
-	const list = parent.createDiv({ cls: "obsync-log-list" });
+	const list = parent.createDiv({ cls: "mdsync-log-list" });
 	for (const entry of entries) {
 		renderLogEntry(list, entry);
 	}
@@ -73,17 +73,17 @@ export function renderLogsView(
 
 function renderLogEntry(parent: HTMLElement, entry: SyncLogEntry): void {
 	const item = parent.createDiv({
-		cls: `obsync-log-entry ${LOG_LEVEL_CLASSES[entry.level]}`,
+		cls: `mdsync-log-entry ${LOG_LEVEL_CLASSES[entry.level]}`,
 	});
-	const meta = item.createDiv({ cls: "obsync-log-meta" });
+	const meta = item.createDiv({ cls: "mdsync-log-meta" });
 	meta.setText(
 		`${formatTimestamp(entry.timestamp)} • ${OPERATION_LABELS[entry.operation]} • ${LOG_LEVEL_LABELS[entry.level]}`,
 	);
-	item.createDiv({ cls: "obsync-log-message", text: entry.message });
+	item.createDiv({ cls: "mdsync-log-message", text: entry.message });
 	if (entry.details.length === 0) {
 		return;
 	}
-	const details = item.createEl("details", { cls: "obsync-log-details" });
+	const details = item.createEl("details", { cls: "mdsync-log-details" });
 	details.createEl("summary", { text: `Details (${entry.details.length})` });
 	const list = details.createEl("ul");
 	for (const detail of entry.details) {

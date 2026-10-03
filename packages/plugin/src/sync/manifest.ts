@@ -51,7 +51,7 @@ export async function fetchRemoteManifest(
 	const raw = await decryptJson<Manifest>(key, read.body);
 	if (raw.version > MANIFEST_VERSION) {
 		throw new Error(
-			`Remote manifest version ${raw.version} requires a newer Obsync version.`,
+			`Remote manifest version ${raw.version} requires a newer MDSync version.`,
 		);
 	}
 	const manifest = manifestToVault(raw, root);

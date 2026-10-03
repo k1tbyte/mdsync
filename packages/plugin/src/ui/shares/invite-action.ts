@@ -31,7 +31,7 @@ export interface CreatedInvite {
 	password: string;
 }
 
-/** Opens an `obsidian://obsync-share` link, or asks for one when `link` is empty. */
+/** Opens an `obsidian://mdsync-share` link, or asks for one when `link` is empty. */
 export async function openInvite(plugin: PluginHost, link = ""): Promise<void> {
 	if (!plugin.settings.useSharedFolders && !(await turnOnShares(plugin)))
 		return;

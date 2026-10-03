@@ -56,7 +56,7 @@ async function rotate(
 	s3: S3,
 ): Promise<void> {
 	await owner.evaluate(async () => {
-		const plugin = app.plugins.plugins.obsync;
+		const plugin = app.plugins.plugins.mdsync;
 		Object.assign(plugin.settings.storageConfigs.s3, {
 			accessKeyId: "owner-2",
 			secretAccessKey: "owner-2",
@@ -88,7 +88,7 @@ async function readOnly(owner: Obsidian, friend: Obsidian): Promise<void> {
 				return [
 					view.editor.cm.state.readOnly,
 					view.editor.cm.contentDOM.contentEditable,
-					Boolean(view.containerEl.querySelector(".obsync-note-lock")),
+					Boolean(view.containerEl.querySelector(".mdsync-note-lock")),
 				];
 			},
 			([readOnly, editable, lock]) =>
@@ -188,7 +188,7 @@ async function pushes(device: Obsidian, label: string): Promise<void> {
 /** Opens the share's window from the settings (unless open) and reads who has access once loaded, as [name, access]. */
 async function people(owner: Obsidian): Promise<string[][]> {
 	const open = await owner.evaluate(
-		() => activeDocument.querySelector(".obsync-share-access") !== null,
+		() => activeDocument.querySelector(".mdsync-share-access") !== null,
 	);
 	if (!open) {
 		await openSettings(owner, "Sync");
@@ -196,10 +196,10 @@ async function people(owner: Obsidian): Promise<string[][]> {
 	}
 	return poll("the people", () =>
 		owner.evaluate(() => {
-			const list = activeDocument.querySelector(".obsync-share-access");
+			const list = activeDocument.querySelector(".mdsync-share-access");
 			if (!list || list.textContent?.includes("Loading…")) return undefined;
 			return [...list.querySelectorAll(".setting-item")].map((row) => [
-				row.querySelector(".setting-item-name span:not(.obsync-avatar)")
+				row.querySelector(".setting-item-name span:not(.mdsync-avatar)")
 					?.textContent ?? "",
 				// The role, without where they are now.
 				row

@@ -27,15 +27,15 @@ export function renderFolderRow(
 ): HTMLElement {
 	const folderPath = visual.folderPath as string;
 	const collapsed = visual.collapsed === true;
-	const folder = parent.createDiv({ cls: "obsync-tree-folder" });
+	const folder = parent.createDiv({ cls: "mdsync-tree-folder" });
 	setDepth(folder, visual.depth);
 	if (collapsed) folder.addClass("is-collapsed");
-	const toggle = folder.createSpan({ cls: "obsync-tree-folder-toggle" });
+	const toggle = folder.createSpan({ cls: "mdsync-tree-folder-toggle" });
 	setIcon(toggle, collapsed ? "chevron-right" : "chevron-down");
-	const icon = folder.createSpan({ cls: "obsync-tree-folder-icon" });
+	const icon = folder.createSpan({ cls: "mdsync-tree-folder-icon" });
 	setIcon(icon, collapsed ? "folder" : "folder-open");
 	folder.createSpan({
-		cls: "obsync-tree-folder-name",
+		cls: "mdsync-tree-folder-name",
 		text: visual.name,
 	});
 	folder.setAttr("aria-expanded", String(!collapsed));
@@ -56,7 +56,7 @@ export function renderFileRow(
 	depth: number,
 	ctx: RowContext,
 ): HTMLElement {
-	const item = parent.createDiv({ cls: "obsync-file-row" });
+	const item = parent.createDiv({ cls: "mdsync-file-row" });
 	setDepth(item, depth);
 	if (row.isConflict) item.addClass("is-conflict");
 	if (ctx.isOpening(row.path)) {
@@ -67,7 +67,7 @@ export function renderFileRow(
 		item.addClass("is-active");
 		item.setAttr("aria-current", "true");
 	}
-	item.setAttr("data-obsync-path", row.path);
+	item.setAttr("data-mdsync-path", row.path);
 	onLongPress(item, (event) => showFileMenu(event, row, ctx));
 	makeActivatable(item, `Open diff for ${row.path}`, () =>
 		ctx.openFileDiff(item, row.path),
@@ -78,12 +78,12 @@ export function renderFileRow(
 
 	const copy = renderPath(item, row.path, ctx.layout === "flat");
 	if (row.from !== undefined) {
-		copy.createSpan({ cls: "obsync-file-parent", text: `from ${row.from}` });
+		copy.createSpan({ cls: "mdsync-file-parent", text: `from ${row.from}` });
 	}
 
 	if (row.size !== undefined) renderSize(item, row.size, row.sizeDelta);
 	item.createSpan({
-		cls: `obsync-file-status ${row.statusClass}`,
+		cls: `mdsync-file-status ${row.statusClass}`,
 		text: row.statusLetter,
 	});
 	if (row.isConflict) renderConflictRowControls(parent, item, row, ctx);
@@ -101,7 +101,7 @@ function renderConflictRowControls(
 	row: FileRow,
 	ctx: RowContext,
 ): void {
-	const controls = item.createDiv({ cls: "obsync-conflict-controls" });
+	const controls = item.createDiv({ cls: "mdsync-conflict-controls" });
 	const expanded = ctx.previews.isExpanded(row.path);
 	const menuButton = appendIconButton(
 		controls,
@@ -112,7 +112,7 @@ function renderConflictRowControls(
 			showFileMenu(event, row, ctx);
 		},
 	);
-	menuButton.addClass("obsync-conflict-menu-button");
+	menuButton.addClass("mdsync-conflict-menu-button");
 	menuButton.setAttr("aria-expanded", String(expanded));
 
 	if (expanded) {
@@ -145,12 +145,12 @@ function renderCheckbox(
 	ctx: RowContext,
 ): void {
 	const selection = item.createEl("label", {
-		cls: "obsync-file-selection",
+		cls: "mdsync-file-selection",
 	});
 	selection.addEventListener("click", (event) => event.stopPropagation());
 	const checkbox = selection.createEl("input", {
 		type: "checkbox",
-		cls: "obsync-file-checkbox",
+		cls: "mdsync-file-checkbox",
 	});
 	checkbox.setAttr("aria-label", `Select ${path}`);
 	checkbox.checked = ctx.isSelected(path);
@@ -160,5 +160,5 @@ function renderCheckbox(
 }
 
 function setDepth(el: HTMLElement, depth: number): void {
-	if (depth > 0) el.style.setProperty("--obsync-depth", String(depth));
+	if (depth > 0) el.style.setProperty("--mdsync-depth", String(depth));
 }

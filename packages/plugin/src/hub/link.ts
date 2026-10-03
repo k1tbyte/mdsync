@@ -17,7 +17,7 @@ import {
 	KEEPALIVE_SILENCE_MS,
 	type ServerFrame,
 	UNAUTHORIZED_CLOSE_CODE,
-} from "@obsync/protocol";
+} from "@mdsync/protocol";
 import { requestUrl } from "obsidian";
 
 import type { LinkState } from "./status";

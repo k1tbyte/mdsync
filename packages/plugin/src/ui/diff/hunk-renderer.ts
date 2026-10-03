@@ -7,15 +7,15 @@ export function renderHunkPreview(
 	parent: HTMLElement,
 	hunk: SyncHunk,
 ): HTMLElement {
-	const card = parent.createDiv({ cls: "obsync-hunk-preview" });
-	const head = card.createDiv({ cls: "obsync-source-head" });
+	const card = parent.createDiv({ cls: "mdsync-hunk-preview" });
+	const head = card.createDiv({ cls: "mdsync-source-head" });
 	const last = hunk.newStart + Math.max(hunk.newLines, 1) - 1;
 	head.createSpan({
-		cls: "obsync-source-label",
+		cls: "mdsync-source-label",
 		text: `Lines ${hunk.newStart}-${last}`,
 	});
 	renderCounters(head, { added: hunk.added, removed: hunk.removed });
-	const lines = card.createDiv({ cls: "obsync-hunk-preview-lines" });
+	const lines = card.createDiv({ cls: "mdsync-hunk-preview-lines" });
 	let left = Math.max(1, hunk.oldStart);
 	let right = Math.max(1, hunk.newStart);
 	for (const line of hunk.lines) {

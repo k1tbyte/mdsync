@@ -2,7 +2,7 @@ import { InMemoryAdapter } from "@tests/helpers/in-memory-adapter";
 import type { App } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import { PassphraseManager } from "@/core/passphrase-manager";
-import { mergeSettings, type ObsyncSettings } from "@/settings/model";
+import { type MdsyncSettings, mergeSettings } from "@/settings/model";
 import { createSettingsTransferUrl } from "@/settings/transfer";
 import { SettingsTransferController } from "@/settings/transfer-controller";
 import { defaultS3Config } from "@/storage";
@@ -36,7 +36,7 @@ describe("settings transfer passphrase cache", () => {
 			const token = await createSettingsTransferUrl(source, "test-passphrase");
 			const settings = mergeSettings({ cachePassphrase });
 			const vault = new InMemoryAdapter();
-			if (brokenKey) vault.putText(".obsidian/plugins/obsync/device.key", "");
+			if (brokenKey) vault.putText(".obsidian/plugins/mdsync/device.key", "");
 			const adapter = vault.asDataAdapter();
 			const manager = new PassphraseManager(
 				async () => "test-passphrase",
@@ -44,7 +44,7 @@ describe("settings transfer passphrase cache", () => {
 				".obsidian",
 				settings,
 			);
-			let saved: ObsyncSettings = settings;
+			let saved: MdsyncSettings = settings;
 			const transfer = new SettingsTransferController({
 				app: {} as App,
 				settings,

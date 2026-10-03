@@ -1,4 +1,4 @@
-import { MAX_SLOTS } from "@obsync/protocol";
+import { MAX_SLOTS } from "@mdsync/protocol";
 import type { App } from "obsidian";
 
 import { PLUGIN_ID } from "@/constants";

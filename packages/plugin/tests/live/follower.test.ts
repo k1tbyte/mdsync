@@ -1,4 +1,4 @@
-import { EFrame } from "@obsync/protocol";
+import { EFrame } from "@mdsync/protocol";
 import {
 	FLUSHED_MS,
 	sleep,

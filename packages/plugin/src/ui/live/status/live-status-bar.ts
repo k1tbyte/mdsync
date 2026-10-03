@@ -17,7 +17,7 @@ import { openWhereMenu } from "./where-menu";
 export function registerLiveStatusBar(plugin: Plugin & PluginHost): void {
 	const { people } = plugin.realtime;
 	const root = plugin.addStatusBarItem();
-	root.addClass("obsync-live-status", "mod-clickable");
+	root.addClass("mdsync-live-status", "mod-clickable");
 	let frame: number | null = null;
 	/** What the bar shows: presence emits on every announcement, most change nothing here. */
 	let shown: string | null = null;
@@ -32,10 +32,10 @@ export function registerLiveStatusBar(plugin: Plugin & PluginHost): void {
 		if (key === shown) return;
 		shown = key;
 		root.empty();
-		root.toggleClass("obsync-hidden", spaces.length === 0);
+		root.toggleClass("mdsync-hidden", spaces.length === 0);
 		if (spaces.length === 0) return;
 		root.createSpan({
-			cls: `obsync-live-dot ${statuses.every(isConnected) ? "is-live" : "is-offline"}`,
+			cls: `mdsync-live-dot ${statuses.every(isConnected) ? "is-live" : "is-offline"}`,
 		});
 		root.createSpan({ text: relaySummary(statuses, unreadable) });
 		if (here.length > 0) renderAvatarStack(root, here);

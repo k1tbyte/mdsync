@@ -312,7 +312,7 @@ describe("S3 adapter over requestUrl", () => {
 			message:
 				'S3 PUT to "k" failed: Request Failed. IOException Stream closed',
 			userMessage:
-				"S3 request failed on this device. Check the connection and try again. See Obsync logs for details.",
+				"S3 request failed on this device. Check the connection and try again. See MDSync logs for details.",
 		});
 		expect(requests.length).toBe(4);
 	}, 10_000);

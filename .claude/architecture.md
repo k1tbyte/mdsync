@@ -23,9 +23,9 @@
 ## PluginHost over the plugin class
 
 Feature modules take `PluginHost` (`plugin/host.ts`), never
-`import ObsyncPlugin from "@/main"` - that import direction is what turned
+`import MdsyncPlugin from "@/main"` - that import direction is what turned
 `main.ts` into a proxy dump. A module that also registers something with
-Obsidian takes `Plugin & PluginHost`; `ObsyncPlugin` satisfies both.
+Obsidian takes `Plugin & PluginHost`; `MdsyncPlugin` satisfies both.
 
 ## Styles
 
@@ -38,8 +38,8 @@ config that builds `main.js`. The generated file is gitignored; edit the slices.
   (the cross-cutting touch-target pass) is loaded last.
 - Spacing uses Obsidian's 4px grid (`--size-4-*`, `--size-2-*`) directly. Do not
   add a parallel scale. `tokens.css` holds only what Obsidian has no variable
-  for: `--obsync-icon`, `--obsync-touch`, `--obsync-bar`, the pill radius.
-- `--obsync-bar` is a tone-coloured change bar, `--obsync-bar-strong` the
+  for: `--mdsync-icon`, `--mdsync-touch`, `--mdsync-bar`, the pill radius.
+- `--mdsync-bar` is a tone-coloured change bar, `--mdsync-bar-strong` the
   heavier accent bar for a chosen side. Keep that distinction.
 - Raw px is for hairlines (1px borders, outlines) and the few off-grid values
   with no token. Row metrics (`min-height` on rows) are a contract with

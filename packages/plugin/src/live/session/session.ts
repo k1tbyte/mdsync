@@ -8,7 +8,7 @@ import {
 	ERefusal,
 	MAX_FRAME_BYTES,
 	type ServerFrame,
-} from "@obsync/protocol";
+} from "@mdsync/protocol";
 import * as Y from "yjs";
 import { type SealedFor, seal, unseal } from "@/crypto/seal";
 import type { SpaceFrame, SpaceListener } from "@/hub";

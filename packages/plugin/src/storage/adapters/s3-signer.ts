@@ -1,4 +1,4 @@
-import { toHex } from "@obsync/protocol";
+import { toHex } from "@mdsync/protocol";
 
 import { sha256Hex } from "@/crypto";
 import type { S3StorageConfig } from "@/storage/config";

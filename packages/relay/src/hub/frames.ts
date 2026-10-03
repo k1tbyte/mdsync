@@ -8,7 +8,7 @@ import {
 	type Refusal,
 	type ServerFrame,
 	withSlot,
-} from "@obsync/protocol";
+} from "@mdsync/protocol";
 
 import { follows, type Grant, type HubPeer, slotOf } from "./peer";
 

@@ -237,9 +237,9 @@ async function fileSync(laptop: Obsidian, desktop: Obsidian): Promise<void> {
 /** Excalidraw takes a save's own write for the next one: what the file sync writes must still show. */
 async function coldWrite(laptop: Obsidian, desktop: Obsidian): Promise<void> {
 	await laptop.evaluate(async () => {
-		const obsync = app.plugins.plugins.obsync;
-		obsync.settings.liveEditing = false;
-		await obsync.realtime.live.refresh();
+		const mdsync = app.plugins.plugins.mdsync;
+		mdsync.settings.liveEditing = false;
+		await mdsync.realtime.live.refresh();
 		// Plain JSON, so the file can be searched for a shape.
 		app.plugins.plugins["obsidian-excalidraw-plugin"].settings.compress = false;
 	});
@@ -391,7 +391,7 @@ interface Synced {
 
 function sync(device: Obsidian): Promise<Synced> {
 	return device.evaluate(async () => {
-		const { controller } = app.plugins.plugins.obsync;
+		const { controller } = app.plugins.plugins.mdsync;
 		await controller.refreshAndAutoSync();
 		await controller.refresh();
 		const { error, conflicts, pendingLocal, pendingRemote } =
@@ -416,7 +416,7 @@ async function openDrawing(
 		await device.waitFor(
 			"drawing bound",
 			() =>
-				[...app.plugins.plugins.obsync.realtime.live.bound.values()].map(
+				[...app.plugins.plugins.mdsync.realtime.live.bound.values()].map(
 					(binding: { path: string }) => binding.path,
 				),
 			(paths) => paths.length === 1 && paths[0] === path,
@@ -431,18 +431,18 @@ async function openDrawing(
 async function unlock(device: Obsidian): Promise<void> {
 	await device.waitFor(
 		"hub connected",
-		() => app.plugins.plugins.obsync.realtime?.hub.isConnected(),
+		() => app.plugins.plugins.mdsync.realtime?.hub.isConnected(),
 		Boolean,
 	);
 	await device.evaluate(
 		(passphrase) =>
-			app.plugins.plugins.obsync.passphrase.replacePassphrase(passphrase),
+			app.plugins.plugins.mdsync.passphrase.replacePassphrase(passphrase),
 		PASSPHRASE,
 	);
 }
 
 async function bindState(path: string): Promise<string> {
-	const live = app.plugins.plugins.obsync.realtime.live;
+	const live = app.plugins.plugins.mdsync.realtime.live;
 	const view = app.workspace.getLeavesOfType("excalidraw")[0]?.view;
 	return JSON.stringify({
 		file: view?.file?.path,
@@ -452,6 +452,6 @@ async function bindState(path: string): Promise<string> {
 		synced: live.rooms.get(path)?.session.synced,
 		joining: live.joining(path),
 		space: Boolean(await live.deps.liveSpace(path)),
-		hub: app.plugins.plugins.obsync.realtime.hub.isConnected(),
+		hub: app.plugins.plugins.mdsync.realtime.hub.isConnected(),
 	});
 }

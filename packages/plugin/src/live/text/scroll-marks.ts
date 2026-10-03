@@ -29,7 +29,7 @@ export class ScrollMarks {
 		private readonly view: EditorView,
 		private readonly session: LiveSession<TextModel>,
 	) {
-		this.track = view.dom.createDiv({ cls: "obsync-scroll-marks" });
+		this.track = view.dom.createDiv({ cls: "mdsync-scroll-marks" });
 		session.awareness.on("change", this.onAwareness);
 		this.measure();
 	}
@@ -82,10 +82,10 @@ export class ScrollMarks {
 		this.track.empty();
 		marks.forEach(({ cursor, top }, index) => {
 			const tick = this.track.createDiv({
-				cls: "obsync-scroll-mark",
+				cls: "mdsync-scroll-mark",
 				attr: { "aria-label": cursor.name, "data-tooltip-position": "left" },
 			});
-			tick.setCssProps({ "--obsync-person": personColor(cursor.key) });
+			tick.setCssProps({ "--mdsync-person": personColor(cursor.key) });
 			tick.setCssStyles({ top });
 			tick.addEventListener("click", () => this.reveal(index));
 		});

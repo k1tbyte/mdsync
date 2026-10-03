@@ -20,7 +20,7 @@ export async function inflateBytes(
 	format: CompressionFormat = FORMAT,
 ): Promise<Uint8Array> {
 	if (typeof DecompressionStream !== "function") {
-		throw new Error("This device cannot decompress Obsync links");
+		throw new Error("This device cannot decompress MDSync links");
 	}
 	const stream = new Blob([bytes as unknown as BlobPart])
 		.stream()

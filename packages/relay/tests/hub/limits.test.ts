@@ -1,4 +1,4 @@
-import { CHANNEL_DOC, type ClientFrame, EFrame } from "@obsync/protocol";
+import { CHANNEL_DOC, type ClientFrame, EFrame } from "@mdsync/protocol";
 import { describe, expect, it } from "vitest";
 
 import { FrameLimits } from "../../src/hub/limits";

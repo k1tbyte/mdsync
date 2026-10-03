@@ -1,11 +1,11 @@
-import { OWNER } from "@obsync/protocol";
+import { OWNER } from "@mdsync/protocol";
 
 import type { PassphraseManager } from "@/core";
 import type { LiveKeys } from "@/crypto/live-keys";
 import {
 	activeStorage,
 	isStorageConfigured,
-	type ObsyncSettings,
+	type MdsyncSettings,
 } from "@/settings/model";
 import { reportWarning } from "@/shared";
 import type { SpaceRecords } from "@/spaces";
@@ -20,7 +20,7 @@ const VAULT_UNLOCK_RETRY_MS = 30_000;
 export interface SpaceAccessHost {
 	passphrase: PassphraseManager;
 	controller: SyncController;
-	settings: () => ObsyncSettings;
+	settings: () => MdsyncSettings;
 	spaces: Pick<SpaceRecords, "get">;
 }
 
@@ -83,7 +83,7 @@ function createVaultKeys(
 ): () => Promise<LiveKeys | null> {
 	let unlocking: Promise<LiveKeys | null> | null = null;
 	let failedAt = Number.NEGATIVE_INFINITY;
-	const unlock = async (settings: ObsyncSettings) => {
+	const unlock = async (settings: MdsyncSettings) => {
 		try {
 			await host.passphrase.resolveKey(
 				createStorageAdapter(activeStorage(settings)),

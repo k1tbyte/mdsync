@@ -10,7 +10,7 @@ import {
 import {
 	activeStorage,
 	isStorageConfigured,
-	type ObsyncSettings,
+	type MdsyncSettings,
 } from "@/settings/model";
 import { reportWarning } from "@/shared";
 import {
@@ -47,7 +47,7 @@ export class PassphraseManager {
 		private readonly ask: () => Promise<string | null>,
 		private readonly adapter: DataAdapter,
 		private readonly configDir: string,
-		private readonly settings: ObsyncSettings,
+		private readonly settings: MdsyncSettings,
 	) {}
 
 	has(): boolean {

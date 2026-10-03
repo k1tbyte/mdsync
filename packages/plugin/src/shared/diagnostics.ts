@@ -17,7 +17,7 @@ export function reportWarning(
 	detail?: unknown,
 	details: readonly string[] = [],
 ): void {
-	console.warn(`[obsync] ${message}`, detail);
+	console.warn(`[mdsync] ${message}`, detail);
 	const full =
 		detail === undefined ? details : [...details, errorMessage(detail)];
 	sink?.(message, full);

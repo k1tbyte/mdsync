@@ -25,7 +25,7 @@ const PLAN = "Team/plan.md";
 const TODO = "Team/todo.md";
 const NOTES = "notes.md";
 const MOVED = "Projects/Team";
-const SHARE_ITEM = "Obsync: Share folder";
+const SHARE_ITEM = "MDSync: Share folder";
 
 // biome-ignore lint/suspicious/noExplicitAny: the renderer's app is untyped here.
 declare const app: any;
@@ -83,7 +83,7 @@ async function scenario(
 	await clickMenuItem(laptop, "Team", SHARE_ITEM);
 	const id = await laptop.waitFor(
 		"the share's record",
-		() => app.plugins.plugins.obsync.settings.spaces[0]?.id,
+		() => app.plugins.plugins.mdsync.settings.spaces[0]?.id,
 		(value: string | undefined) => value !== undefined,
 	);
 	// Sharing opens the share's window for the first invite.
@@ -108,7 +108,7 @@ async function scenario(
 	check(
 		"the desktop knows the share",
 		await desktop.evaluate(() =>
-			app.plugins.plugins.obsync.settings.spaces.map(
+			app.plugins.plugins.mdsync.settings.spaces.map(
 				(space: { id: string; root: string }) => [space.id, space.root],
 			),
 		),
@@ -173,7 +173,7 @@ async function scenario(
 	check(
 		"the desktop names the folder instead of deleting it for everyone",
 		await desktop.evaluate(() =>
-			app.plugins.plugins.obsync.controller
+			app.plugins.plugins.mdsync.controller
 				.getSnapshot()
 				.spaceErrors.map((each: { root: string }) => each.root),
 		),
@@ -195,7 +195,7 @@ async function moveFolder(laptop: Obsidian, desktop: Obsidian): Promise<void> {
 	}, MOVED);
 	await laptop.waitFor(
 		"the moved root saved",
-		() => app.plugins.plugins.obsync.settings.spaces[0]?.root,
+		() => app.plugins.plugins.mdsync.settings.spaces[0]?.root,
 		(root: string) => root === MOVED,
 	);
 	check("the laptop syncs the move", await sync(laptop), CLEAN);
@@ -207,7 +207,7 @@ async function moveFolder(laptop: Obsidian, desktop: Obsidian): Promise<void> {
 			([moved, old]) => [
 				app.vault.getFileByPath(moved) !== null,
 				app.vault.getFolderByPath(old),
-				app.plugins.plugins.obsync.settings.localRoots,
+				app.plugins.plugins.mdsync.settings.localRoots,
 			],
 			[plan, "Team"],
 		),
@@ -228,7 +228,7 @@ async function moveFolder(laptop: Obsidian, desktop: Obsidian): Promise<void> {
 function vaultEntry(device: Obsidian, path: string): Promise<string | null> {
 	return device.evaluate(
 		(target) =>
-			app.plugins.plugins.obsync.controller.runtimeState.resultOf({
+			app.plugins.plugins.mdsync.controller.runtimeState.resultOf({
 				id: "vault",
 				root: "",
 			})?.remote?.files[target]?.hash ?? null,
@@ -247,7 +247,7 @@ async function pauseHere(
 	await press(device, action);
 	await device.waitFor(
 		`${action} saved`,
-		() => app.plugins.plugins.obsync.settings.pausedSpaces.length,
+		() => app.plugins.plugins.mdsync.settings.pausedSpaces.length,
 		(count: number) => count === paused,
 	);
 	await closeModals(device);

@@ -55,7 +55,7 @@ describe("consent redirect", () => {
 			new RegExp(`^\\d+\\.${NONCE}\\.[0-9a-f]{64}$`),
 		);
 		// Signature proves worker minted it; cookie ties it to one browser.
-		expect(response.headers.get("Set-Cookie")).toContain("obsync_oauth_state=");
+		expect(response.headers.get("Set-Cookie")).toContain("mdsync_oauth_state=");
 		expect(response.headers.get("Set-Cookie")).toContain("HttpOnly");
 	});
 
@@ -72,10 +72,10 @@ describe("consent redirect", () => {
 		const forged = await callback("?error=access_denied");
 
 		expect(denied.headers.get("Location")).toBe(
-			`obsidian://obsync-auth?error=access_denied&nonce=${NONCE}`,
+			`obsidian://mdsync-auth?error=access_denied&nonce=${NONCE}`,
 		);
 		expect(forged.headers.get("Location")).toBe(
-			"obsidian://obsync-auth?error=access_denied",
+			"obsidian://mdsync-auth?error=access_denied",
 		);
 	});
 });
@@ -138,7 +138,7 @@ describe("state verification", () => {
 		const old = `${Number(issued) - 11 * 60 * 1000}.${nonce}.${signature}`;
 		const response = await callback(
 			`?code=abc&state=${old}`,
-			`obsync_oauth_state=${old}`,
+			`mdsync_oauth_state=${old}`,
 		);
 		expect(response.status).toBe(400);
 	});

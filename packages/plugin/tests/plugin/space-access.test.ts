@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PassphraseManager } from "@/core";
 import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
 import { createSpaceAccess } from "@/plugin/space-access";
-import { DEFAULT_SETTINGS, type ObsyncSettings } from "@/settings/model";
+import { DEFAULT_SETTINGS, type MdsyncSettings } from "@/settings/model";
 import { VAULT_SPACE } from "@/sync/space";
 
 vi.mock("@/storage", async (importOriginal) => ({
@@ -19,7 +19,7 @@ let unlocked: boolean;
 let resolveKey: ReturnType<typeof vi.fn>;
 let access: ReturnType<typeof createSpaceAccess>;
 
-function settings(): ObsyncSettings {
+function settings(): MdsyncSettings {
 	return {
 		...DEFAULT_SETTINGS,
 		realtimeSync: true,
@@ -37,7 +37,7 @@ function settings(): ObsyncSettings {
 				concurrency: 4,
 			},
 		},
-	} as ObsyncSettings;
+	} as MdsyncSettings;
 }
 
 beforeEach(async () => {

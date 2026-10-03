@@ -13,7 +13,7 @@ import {
 	MAX_SLOTS,
 	OWNER,
 	shareChannel,
-} from "@obsync/protocol";
+} from "@mdsync/protocol";
 import { fingerprint, relaySecret, secretsEqual } from "../secret";
 import { EShareRole, type ShareEnv, shareGrantOf } from "../share/kv";
 import { type Admission, HUB_ADMISSION_HEADER } from "./durable-object";

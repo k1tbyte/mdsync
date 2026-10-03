@@ -223,7 +223,7 @@ function contextualRequestError(
 	if (/stream closed|unknown\s*host(?:exception)?/i.test(error.message)) {
 		return new StorageRequestError(
 			message,
-			"S3 request failed on this device. Check the connection and try again. See Obsync logs for details.",
+			"S3 request failed on this device. Check the connection and try again. See MDSync logs for details.",
 		);
 	}
 	if (error instanceof StorageHttpError) {

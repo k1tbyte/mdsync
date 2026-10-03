@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { sealLink } from "@/crypto/sealed-link";
-import { DEFAULT_SETTINGS, type ObsyncSettings } from "@/settings/model";
+import { DEFAULT_SETTINGS, type MdsyncSettings } from "@/settings/model";
 import {
 	createSettingsTransferPackage,
 	createSettingsTransferUrl,
@@ -238,7 +238,7 @@ describe("settings transfer", () => {
 
 	it("decodes a token sealed by an earlier build", async () => {
 		const token =
-			"obsidian://obsync?d=5.z.2NGpNeUMm25-DoUTDjXIcg.ASuGCIgIosGkXftPMujrtlSrZ9EMJGhcDQzkbV2Cj_bDxs_GRceYeGuHS2DfsK5Nrq3VovsDO7RPArTZFoUu1fu2_ZwFeoggWtWULJHu63pX2FQ77_sKNACFZi2XP4Zd7teymj2--5meFpr7fY2BOLqSEkGlIrMSOxlBd9oYp-x-psWKryrrfwGXLO1muJMv841Iu32RDkQyj5MXqQYSFa8Mz9JVqzVXY44IseSc8wVqnEuPITT95DnhFsjQQaE154I5OxF2H7fWHmzzcFEkX-BaNsbttuPiX225bZDdc9Z8COQNr8tMNT2zn_mlmX0";
+			"obsidian://mdsync?d=5.z.CLfDYXveJd0erXrKJCJm0w.ATSiipZcVVCAhNCNr17h-5d2ixvOyyGYUBmuQR6rwBXxUKZdiFcy6I7qZW84h4-MrKLXO5tb4WWXqBTv1MnrKTkhHlNA2HHOJxvYzZHSASofunkhRnzHNHCFvGxo0B0Aua0OTdRrhqycgAwQw6DCRXtuIYoXos2DRE0oYd2qT4duhztGWU-dX6n62al2oWlwBCQMuOrIuwOtNGwRF-qG-a2cbN4APMKp3sdKYwHGO-aGLTttKNkX7lhoXF7G5IdVjFNYCmsn6BBQtvKvZIEo8Ba6OxDif2506D9BGbdI9RLNtopyfhlbC7OT-TaXABw";
 		const imported = await readSettingsTransfer(token, PASSPHRASE);
 		expect(imported.activeStorageKind).toBe(EStorageBackend.WebDAV);
 		expect(imported.settingsSync).toEqual({
@@ -314,14 +314,14 @@ describe("settings transfer", () => {
 		const short = [version, encoding, "AAAA", ciphertext].join(".");
 
 		await expect(readSettingsTransfer(short, PASSPHRASE)).rejects.toThrow(
-			/Invalid Obsync link/,
+			/Invalid MDSync link/,
 		);
 	});
 
 	it("rejects unsupported transfer tokens", async () => {
-		const v4Token = "obsidian://obsync?d=4.p.AAAA.BBBB";
+		const v4Token = "obsidian://mdsync?d=4.p.AAAA.BBBB";
 		await expect(readSettingsTransfer(v4Token, PASSPHRASE)).rejects.toThrow(
-			/Unsupported Obsync link/,
+			/Unsupported MDSync link/,
 		);
 	});
 
@@ -338,7 +338,7 @@ describe("settings transfer", () => {
 			PASSPHRASE,
 		);
 		await expect(readSettingsTransfer(token, PASSPHRASE)).rejects.toThrow(
-			/Invalid Obsync settings transfer payload/,
+			/Invalid MDSync settings transfer payload/,
 		);
 	});
 
@@ -349,7 +349,7 @@ describe("settings transfer", () => {
 			PASSPHRASE,
 		);
 		await expect(readSettingsTransfer(token, PASSPHRASE)).rejects.toThrow(
-			/Invalid Obsync settings transfer payload/,
+			/Invalid MDSync settings transfer payload/,
 		);
 	});
 
@@ -392,7 +392,7 @@ describe("settings transfer", () => {
 	});
 });
 
-function buildSettings(overrides: Partial<ObsyncSettings>): ObsyncSettings {
+function buildSettings(overrides: Partial<MdsyncSettings>): MdsyncSettings {
 	return {
 		...DEFAULT_SETTINGS,
 		storageConfigs: {

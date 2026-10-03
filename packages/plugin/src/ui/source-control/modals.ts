@@ -43,9 +43,9 @@ export function showFileList(
 	const modal = new Modal(app);
 	modal.titleEl.setText(`${title} (${files.length})`);
 	modal.contentEl.createEl("p", { text: intro });
-	const list = modal.contentEl.createEl("ul", { cls: "obsync-ignored-list" });
+	const list = modal.contentEl.createEl("ul", { cls: "mdsync-ignored-list" });
 	for (const { path, detail } of files) {
-		const item = list.createEl("li", { cls: "obsync-file-name", text: path });
+		const item = list.createEl("li", { cls: "mdsync-file-name", text: path });
 		if (detail) {
 			item.createDiv({ cls: "setting-item-description", text: detail });
 		}

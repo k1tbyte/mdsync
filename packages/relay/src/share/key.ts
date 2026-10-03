@@ -3,7 +3,7 @@
  * not sanitised, so a bypass fails closed.
  */
 
-import { isShareId, sharePrefix } from "@obsync/protocol";
+import { isShareId, sharePrefix } from "@mdsync/protocol";
 
 export { isShareId };
 

@@ -3,7 +3,7 @@ import {
 	decodeServer,
 	encodeClient,
 	type ServerFrame,
-} from "@obsync/protocol";
+} from "@mdsync/protocol";
 
 import { HubCore } from "../../src/hub/core";
 import type { DocSub, Grant, HubPeer } from "../../src/hub/peer";

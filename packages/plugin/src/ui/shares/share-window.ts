@@ -22,7 +22,7 @@ export function addShareMenuItem(
 	if (shared) {
 		menu.addItem((item) =>
 			item
-				.setTitle("Obsync: Manage sharing")
+				.setTitle("MDSync: Manage sharing")
 				.setIcon("users")
 				.onClick(() => openShareWindow(plugin, shared)),
 		);
@@ -34,8 +34,8 @@ export function addShareMenuItem(
 		item
 			.setTitle(
 				sharable
-					? "Obsync: Share folder"
-					: "Obsync: Share folder (needs S3 storage)",
+					? "MDSync: Share folder"
+					: "MDSync: Share folder (needs S3 storage)",
 			)
 			.setIcon("folder-symlink")
 			.setDisabled(!sharable)

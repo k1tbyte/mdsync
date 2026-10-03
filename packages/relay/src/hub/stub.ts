@@ -1,4 +1,4 @@
-import { UNAUTHORIZED_CLOSE_CODE } from "@obsync/protocol";
+import { UNAUTHORIZED_CLOSE_CODE } from "@mdsync/protocol";
 
 import type { Hub } from "./durable-object";
 

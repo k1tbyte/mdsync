@@ -192,7 +192,7 @@ export async function rotatePassphrase(
 function assertStrong(passphrase: string): void {
 	const weak = weakPassphrase(passphrase);
 	if (weak)
-		throw new Error(`${weak} Replace it in Obsync's security settings.`);
+		throw new Error(`${weak} Replace it in MDSync's security settings.`);
 }
 
 async function wrapRawKey(

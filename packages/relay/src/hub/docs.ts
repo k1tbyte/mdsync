@@ -10,7 +10,7 @@ import {
 	MAX_DOC_ID_LENGTH,
 	MAX_DOC_SUBS,
 	MAX_MOVE_NOTE_BYTES,
-} from "@obsync/protocol";
+} from "@mdsync/protocol";
 
 import {
 	broadcast,

@@ -5,14 +5,14 @@ import {
 	MAX_SLOTS,
 	type ServerFrame,
 	shareChannel,
-} from "@obsync/protocol";
+} from "@mdsync/protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { hubRoutes } from "@/hub/channels";
 import { HubConnection } from "@/hub/connection";
 import type { HubLinkOptions } from "@/hub/link";
 import type { LinkState } from "@/hub/status";
-import { DEFAULT_SETTINGS, type ObsyncSettings } from "@/settings/model";
+import { DEFAULT_SETTINGS, type MdsyncSettings } from "@/settings/model";
 import type { SpaceRecord } from "@/spaces/record";
 
 const { links, FakeLink } = vi.hoisted(() => {
@@ -69,7 +69,7 @@ function joined(id: string, relayUrl: string): SpaceRecord {
 	};
 }
 
-function settingsWith(spaces: SpaceRecord[]): ObsyncSettings {
+function settingsWith(spaces: SpaceRecord[]): MdsyncSettings {
 	return {
 		...DEFAULT_SETTINGS,
 		realtimeSync: true,
@@ -90,7 +90,7 @@ function settingsWith(spaces: SpaceRecord[]): ObsyncSettings {
 			},
 		},
 		spaces,
-	} as ObsyncSettings;
+	} as MdsyncSettings;
 }
 
 describe("hubRoutes", () => {
@@ -174,7 +174,7 @@ describe("hubRoutes", () => {
 });
 
 describe("HubConnection", () => {
-	let settings: ObsyncSettings;
+	let settings: MdsyncSettings;
 	const connection = () =>
 		new HubConnection({ settings: () => settings, deviceId: () => "laptop" });
 

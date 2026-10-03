@@ -22,7 +22,7 @@ vi.mock("obsidian", async (importOriginal) => ({
 const adapter = () =>
 	createGoogleDriveAdapter({
 		kind: EStorageBackend.GoogleDrive,
-		folderName: "obsync",
+		folderName: "mdsync",
 		authServerUrl: "https://auth.example",
 		accessToken: "t",
 		refreshToken: "",
@@ -131,7 +131,7 @@ describe("Google Drive token refresh", () => {
 		replies = [{ access_token: "n", expires_in: 3600 }, FOLDER, { files: [] }];
 		const drive = createGoogleDriveAdapter({
 			kind: EStorageBackend.GoogleDrive,
-			folderName: "obsync",
+			folderName: "mdsync",
 			authServerUrl: "https://auth.example/",
 			accessToken: "old",
 			refreshToken: "r",

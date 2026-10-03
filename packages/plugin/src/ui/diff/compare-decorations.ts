@@ -78,7 +78,7 @@ export function buildSegments(model: FileDiffModel): CompareSegment[] {
 	return segments;
 }
 
-/** Connector/region colour per direction; resolves `--obsync-tone-<tone>`. */
+/** Connector/region colour per direction; resolves `--mdsync-tone-<tone>`. */
 export function directionTone(direction: EDiffDirection): string {
 	switch (direction) {
 		case EDiffDirection.Local:
@@ -185,7 +185,7 @@ function visibleSideLines(
 				const last = n === to - 1 ? " is-last" : "";
 				ranges.push(
 					Decoration.line({
-						class: `obsync-diff-line is-${tone}${chosen ? " is-chosen" : ""}${last}`,
+						class: `mdsync-diff-line is-${tone}${chosen ? " is-chosen" : ""}${last}`,
 					}).range(line.from),
 				);
 				addCodeMarks(ranges, line, marks(n - from));
@@ -207,7 +207,7 @@ function addMark(
 	const after = at === line.from ? "" : " is-after";
 	ranges.push(
 		Decoration.line({
-			class: `obsync-diff-mark is-${tone}${after}${chosen ? " is-chosen" : ""}`,
+			class: `mdsync-diff-mark is-${tone}${after}${chosen ? " is-chosen" : ""}`,
 		}).range(line.from),
 	);
 }

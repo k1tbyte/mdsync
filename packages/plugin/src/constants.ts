@@ -1,4 +1,4 @@
-export const PLUGIN_ID = "obsync";
+export const PLUGIN_ID = "mdsync";
 
 export const IGNORE_FILE_NAME = "syncignore.md";
 
@@ -16,6 +16,6 @@ export const FILE_HISTORY_MIN_SNAPSHOTS = 1;
 
 export const FILE_HISTORY_MAX_SNAPSHOTS = 1000;
 
-export const SOURCE_CONTROL_VIEW_TYPE = "obsync-source-control";
+export const SOURCE_CONTROL_VIEW_TYPE = "mdsync-source-control";
 
-export const DIFF_VIEW_TYPE = "obsync-diff";
+export const DIFF_VIEW_TYPE = "mdsync-diff";

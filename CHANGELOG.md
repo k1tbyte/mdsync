@@ -9,7 +9,7 @@ First release.
 
 ### Features
 
-- **Encrypted sync over storage you own.** S3-compatible services, WebDAV or Google Drive. File contents and the file list are encrypted on your device with a key derived from your passphrase, and there is no Obsync server in between.
+- **Encrypted sync over storage you own.** S3-compatible services, WebDAV or Google Drive. File contents and the file list are encrypted on your device with a key derived from your passphrase, and there is no MDSync server in between.
 - **Source control view.** Local changes, remote changes and conflicts in one panel, with a diff for every file. Push or pull what you pick, revert a single local change or accept a single remote one.
 - **Conflict resolution.** Changes that do not overlap are merged up front. The rest open in a three-way merge editor, or you keep one side.
 - **Change marks in the editor.** The gutter shows what changed since the last sync. Click a mark to see the old text or revert that change.

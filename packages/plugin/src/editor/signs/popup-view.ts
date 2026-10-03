@@ -34,19 +34,19 @@ export function buildPopup(
 		? presentSyncChange(syncChange)
 		: presentChunk(chunk, baseline, view.state.doc);
 	const title = hunkTitle(removedLines.length, addedLines.length);
-	const popup = createDiv({ cls: "obsync-hunk-popup" });
+	const popup = createDiv({ cls: "mdsync-hunk-popup" });
 	popup.setAttribute("role", "dialog");
 	popup.setAttribute("aria-label", title);
 
-	const header = popup.createDiv({ cls: "obsync-hunk-popup-header" });
-	header.createSpan({ cls: "obsync-hunk-popup-title", text: title });
-	const controls = header.createDiv({ cls: "obsync-hunk-popup-controls" });
+	const header = popup.createDiv({ cls: "mdsync-hunk-popup-header" });
+	header.createSpan({ cls: "mdsync-hunk-popup-title", text: title });
+	const controls = header.createDiv({ cls: "mdsync-hunk-popup-controls" });
 	const wrapButton = appendLabeledButton(controls, "wrap-text", "Wrap", () =>
 		setWrapped(!wrapped),
 	);
 	appendIconButton(controls, "x", "Close", dismiss);
 
-	const body = popup.createDiv({ cls: "obsync-hunk-popup-body" });
+	const body = popup.createDiv({ cls: "mdsync-hunk-popup-body" });
 	let wrapped = Platform.isPhone;
 	const setWrapped = (next: boolean): void => {
 		wrapped = next;
@@ -57,7 +57,7 @@ export function buildPopup(
 	renderLines(body, removedLines, "removed", "-");
 	renderLines(body, addedLines, "added", "+");
 
-	const footer = popup.createDiv({ cls: "obsync-hunk-popup-footer" });
+	const footer = popup.createDiv({ cls: "mdsync-hunk-popup-footer" });
 	const { doc } = view.state;
 	const whileUnchanged = (action: () => void) => () => {
 		if (view.state.doc !== doc) {
@@ -94,14 +94,14 @@ function renderLines(
 ): void {
 	for (const line of lines.slice(0, MAX_LINES)) {
 		const row = parent.createDiv({
-			cls: `obsync-hunk-popup-line-${kind}`,
+			cls: `mdsync-hunk-popup-line-${kind}`,
 		});
-		row.createSpan({ cls: "obsync-hunk-popup-prefix", text: prefix });
-		row.createSpan({ cls: "obsync-hunk-popup-text", text: line });
+		row.createSpan({ cls: "mdsync-hunk-popup-prefix", text: prefix });
+		row.createSpan({ cls: "mdsync-hunk-popup-text", text: line });
 	}
 	if (lines.length > MAX_LINES) {
 		parent.createDiv({
-			cls: "obsync-hunk-popup-truncated",
+			cls: "mdsync-hunk-popup-truncated",
 			text: `… ${lines.length - MAX_LINES} more line(s)`,
 		});
 	}

@@ -73,7 +73,7 @@ export async function call(
 	init: RequestInit & { admin?: boolean; token?: string } = {},
 ): Promise<Response> {
 	const headers = new Headers(init.headers);
-	if (init.admin) headers.set("X-Obsync-Admin", ADMIN);
+	if (init.admin) headers.set("X-Mdsync-Admin", ADMIN);
 	if (init.token) headers.set("Authorization", `Bearer ${init.token}`);
 	if (init.body) headers.set("Content-Type", "application/json");
 	const url = new URL(`https://broker.example.com${path}`);

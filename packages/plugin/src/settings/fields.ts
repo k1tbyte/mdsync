@@ -4,10 +4,10 @@ import type { PluginHost } from "@/plugin/host";
 import { EFieldKind } from "@/storage";
 
 import type { ConnectionTestResult } from "./connection-test";
-import type { ObsyncSettings } from "./model";
+import type { MdsyncSettings } from "./model";
 
-export const SUB_SETTING_CLASS = "obsync-sub-setting";
-const ERROR_DESC_CLASS = "obsync-settings-error";
+export const SUB_SETTING_CLASS = "mdsync-sub-setting";
+const ERROR_DESC_CLASS = "mdsync-settings-error";
 /** A relay URL typed letter by letter must not open a socket, or send a grant, per prefix. */
 export const TYPING_SETTLE_MS = 800;
 const WHOLE_NUMBER = /^\s*\d+\s*$/;
@@ -20,7 +20,7 @@ export interface FieldContext {
 interface FieldBase {
 	name: string;
 	desc?: string;
-	when?: (settings: ObsyncSettings) => boolean;
+	when?: (settings: MdsyncSettings) => boolean;
 	sub?: boolean;
 	/** For scope-affecting settings. */
 	refreshScope?: boolean;
@@ -30,22 +30,22 @@ interface FieldBase {
 
 export interface ToggleField extends FieldBase {
 	kind: typeof EFieldKind.Toggle;
-	get: (settings: ObsyncSettings) => boolean;
-	set: (value: boolean, plugin: PluginHost) => Partial<ObsyncSettings>;
+	get: (settings: MdsyncSettings) => boolean;
+	set: (value: boolean, plugin: PluginHost) => Partial<MdsyncSettings>;
 }
 
 export interface TextField extends FieldBase {
 	kind: typeof EFieldKind.Text | typeof EFieldKind.Password;
 	placeholder?: string;
-	get: (settings: ObsyncSettings) => string;
-	set: (value: string, plugin: PluginHost) => Partial<ObsyncSettings>;
+	get: (settings: MdsyncSettings) => string;
+	set: (value: string, plugin: PluginHost) => Partial<MdsyncSettings>;
 }
 
 export interface NumberField extends FieldBase {
 	kind: typeof EFieldKind.Number;
-	get: (settings: ObsyncSettings) => string;
+	get: (settings: MdsyncSettings) => string;
 	parse: (raw: string) => number;
-	set: (value: number, plugin: PluginHost) => Partial<ObsyncSettings>;
+	set: (value: number, plugin: PluginHost) => Partial<MdsyncSettings>;
 }
 
 export interface SliderField extends FieldBase {
@@ -53,8 +53,8 @@ export interface SliderField extends FieldBase {
 	min: number;
 	max: number;
 	step?: number;
-	get: (settings: ObsyncSettings) => number;
-	set: (value: number, plugin: PluginHost) => Partial<ObsyncSettings>;
+	get: (settings: MdsyncSettings) => number;
+	set: (value: number, plugin: PluginHost) => Partial<MdsyncSettings>;
 }
 
 export type SettingsField = ToggleField | TextField | NumberField | SliderField;
@@ -80,11 +80,11 @@ export function renderField(
 	if (field.desc) setting.setDesc(field.desc);
 	if (field.sub) setting.settingEl.addClass(SUB_SETTING_CLASS);
 
-	const apply = (patch: Partial<ObsyncSettings>): void => {
+	const apply = (patch: Partial<MdsyncSettings>): void => {
 		applyPatch(ctx, patch, field);
 	};
 	const applyTyped = debounce(apply, TYPING_SETTLE_MS, true);
-	const type = (patch: Partial<ObsyncSettings>): void => {
+	const type = (patch: Partial<MdsyncSettings>): void => {
 		Object.assign(ctx.plugin.settings, patch);
 		applyTyped(patch);
 	};
@@ -147,7 +147,7 @@ export function renderCheckRow(
 
 function applyPatch(
 	ctx: FieldContext,
-	patch: Partial<ObsyncSettings>,
+	patch: Partial<MdsyncSettings>,
 	field: SettingsField,
 ): void {
 	Object.assign(ctx.plugin.settings, patch);

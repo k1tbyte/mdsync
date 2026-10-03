@@ -1,4 +1,4 @@
-import { sharePrefix } from "@obsync/protocol";
+import { sharePrefix } from "@mdsync/protocol";
 
 import { randomBytes, randomId } from "@/crypto";
 import {

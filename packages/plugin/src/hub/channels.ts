@@ -3,14 +3,14 @@
  * owned shares, each owner's relay for joined shares. One socket per relay.
  */
 
-import { deriveChannelGrant, MAX_SLOTS, shareChannel } from "@obsync/protocol";
+import { deriveChannelGrant, MAX_SLOTS, shareChannel } from "@mdsync/protocol";
 
 import { sha256Hex } from "@/crypto";
 import {
 	activeStorage,
 	isRelayConfigured,
 	isStorageConfigured,
-	type ObsyncSettings,
+	type MdsyncSettings,
 } from "@/settings/model";
 import { relayBase } from "@/shared";
 import { pauseOf } from "@/spaces";
@@ -37,7 +37,7 @@ interface Slot {
 	channel(): Promise<HubChannel>;
 }
 
-export function hubRoutes(settings: ObsyncSettings): HubRoute[] {
+export function hubRoutes(settings: MdsyncSettings): HubRoute[] {
 	if (!settings.realtimeSync) return [];
 	const routes = new Map<string, { slots: Slot[]; full: string[] }>();
 	const add = (url: string, slot: Slot) => {
@@ -82,7 +82,7 @@ export function hubRoutes(settings: ObsyncSettings): HubRoute[] {
 }
 
 /** A paused share is not synced here, so nothing signals it either. */
-function openRecords(settings: ObsyncSettings): SpaceRecord[] {
+function openRecords(settings: MdsyncSettings): SpaceRecord[] {
 	return settings.spaces.filter(
 		(record) => !record.closed && pauseOf(record, settings) === null,
 	);

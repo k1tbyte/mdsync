@@ -1,4 +1,4 @@
-name = "obsync-relay"
+name = "mdsync-relay"
 main = "src/index.ts"
 compatibility_date = "2026-09-14"
 

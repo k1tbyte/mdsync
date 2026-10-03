@@ -2,7 +2,7 @@ import type { LogService } from "@/core";
 import { ESyncLogOperation } from "@/logs/store";
 import {
 	isRelayConfigured,
-	type ObsyncSettings,
+	type MdsyncSettings,
 	ownerStorage,
 } from "@/settings/model";
 import { errorMessage } from "@/shared";
@@ -18,7 +18,7 @@ const RESEND_MS = 60 * 60_000;
  * the share compared fine, so dead credentials never overwrite good ones.
  */
 export function createShareRegistration(host: {
-	settings: ObsyncSettings;
+	settings: MdsyncSettings;
 	spaces: SpaceRecords;
 	logs: Pick<LogService, "warn">;
 }): (space: Space) => Promise<void> {

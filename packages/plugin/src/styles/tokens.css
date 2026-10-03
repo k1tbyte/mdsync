@@ -1,31 +1,31 @@
 /*
- * Obsync's own design tokens: only values Obsidian has no variable for.
+ * MDSync's own design tokens: only values Obsidian has no variable for.
  * Spacing uses Obsidian's 4px grid directly; a parallel scale would duplicate a source of truth we do not own.
  */
 
 body {
 	/* Inline icon in a row, toolbar or button. */
-	--obsync-icon: 14px;
+	--mdsync-icon: 14px;
 	/* Phone icon: legible at arm's length. */
-	--obsync-icon-lg: 18px;
+	--mdsync-icon-lg: 18px;
 	/* Minimum touch target on phones. */
-	--obsync-touch: 44px;
+	--mdsync-touch: 44px;
 
 	/* Change bar down the side of a line or block, in a tone colour. */
-	--obsync-bar: 2px;
+	--mdsync-bar: 2px;
 	/* The same bar for a chosen side, in the accent colour: heavier on purpose. */
-	--obsync-bar-strong: 3px;
+	--mdsync-bar-strong: 3px;
 
-	--obsync-radius-pill: 999px;
+	--mdsync-radius-pill: 999px;
 
 	/* A person's ring with their initial: header, status bar, menus. */
-	--obsync-avatar: 18px;
+	--mdsync-avatar: 18px;
 }
 
 /*
  * Set from TypeScript, listed so a reader knows the contract exists:
- *   --obsync-depth       tree indent level        source-control/change-rows.ts
- *   --obsync-row-height  measured windowed pitch  source-control/virtual-list.ts
- *   --obsync-pane-width  measured pane width      diff/geometry.ts
+ *   --mdsync-depth       tree indent level        source-control/change-rows.ts
+ *   --mdsync-row-height  measured windowed pitch  source-control/virtual-list.ts
+ *   --mdsync-pane-width  measured pane width      diff/geometry.ts
  * Changing the row metrics they feed means changing that TypeScript too.
  */

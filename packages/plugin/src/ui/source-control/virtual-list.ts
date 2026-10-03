@@ -115,7 +115,7 @@ export function mountVirtualList(
 			resize.disconnect();
 			container.removeClass("is-virtual");
 			container.style.removeProperty("height");
-			container.style.removeProperty("--obsync-row-height");
+			container.style.removeProperty("--mdsync-row-height");
 		},
 	};
 }
@@ -146,7 +146,7 @@ function applyPitch(
 ): void {
 	if (!measured) return;
 	const gap = rowGap(container);
-	container.style.setProperty("--obsync-row-height", `${pitch - gap}px`);
+	container.style.setProperty("--mdsync-row-height", `${pitch - gap}px`);
 }
 
 /** The gap the flow layout would have put between rows, kept in the pitch. */

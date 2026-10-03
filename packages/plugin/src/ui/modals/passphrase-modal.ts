@@ -17,7 +17,7 @@ class PassphraseModal extends Modal {
 
 	onOpen(): void {
 		const { contentEl, titleEl } = this;
-		titleEl.setText("Obsync passphrase");
+		titleEl.setText("MDSync passphrase");
 		contentEl.createEl("p", {
 			text: "Enter the encryption passphrase for this vault. It is never sent to the remote storage.",
 		});

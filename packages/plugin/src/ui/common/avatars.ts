@@ -10,10 +10,10 @@ export function renderAvatar(
 	person: Pick<Person, "key" | "name" | "idle">,
 ): HTMLElement {
 	const avatar = parent.createSpan({
-		cls: "obsync-avatar",
+		cls: "mdsync-avatar",
 		text: initialOf(person.name),
 	});
-	avatar.setCssProps({ "--obsync-person": personColor(person.key) });
+	avatar.setCssProps({ "--mdsync-person": personColor(person.key) });
 	avatar.toggleClass("is-idle", person.idle);
 	return avatar;
 }
@@ -22,11 +22,11 @@ export function renderAvatarStack(
 	parent: HTMLElement,
 	people: readonly Person[],
 ): HTMLElement {
-	const stack = parent.createSpan({ cls: "obsync-avatars" });
+	const stack = parent.createSpan({ cls: "mdsync-avatars" });
 	for (const person of people.slice(0, STACK_MAX)) renderAvatar(stack, person);
 	if (people.length > STACK_MAX) {
 		stack.createSpan({
-			cls: "obsync-avatar is-more",
+			cls: "mdsync-avatar is-more",
 			text: `+${people.length - STACK_MAX}`,
 		});
 	}

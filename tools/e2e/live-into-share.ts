@@ -16,7 +16,7 @@ const CDP_PORTS = [9223, 9224];
 const SECRET = "e2e-secret";
 const PASSPHRASE = "e2e-passphrase";
 const PLAN = "Team/plan.md";
-const SHARE_ITEM = "Obsync: Share folder";
+const SHARE_ITEM = "MDSync: Share folder";
 
 // biome-ignore lint/suspicious/noExplicitAny: the renderer's app is untyped here.
 declare const app: any;
@@ -84,7 +84,7 @@ async function scenario(laptop: Obsidian, desktop: Obsidian): Promise<void> {
 		[laptop, desktop].map((device) =>
 			device.waitFor(
 				"the note in the share's room",
-				() => app.plugins.plugins.obsync.realtime.live.spaceOf("Team/plan.md"),
+				() => app.plugins.plugins.mdsync.realtime.live.spaceOf("Team/plan.md"),
 				(space: string | null) => space !== null && space !== "vault",
 			),
 		),

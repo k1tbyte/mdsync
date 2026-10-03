@@ -27,11 +27,11 @@ const ESignKind = {
 type ESignKind = (typeof ESignKind)[keyof typeof ESignKind];
 
 const KIND_CLASS: Record<ESignKind, string> = {
-	[ESignKind.Add]: "obsync-sign-add",
-	[ESignKind.Change]: "obsync-sign-change",
-	[ESignKind.Delete]: "obsync-sign-delete",
-	[ESignKind.TopDelete]: "obsync-sign-topdelete",
-	[ESignKind.ChangeDelete]: "obsync-sign-changedelete",
+	[ESignKind.Add]: "mdsync-sign-add",
+	[ESignKind.Change]: "mdsync-sign-change",
+	[ESignKind.Delete]: "mdsync-sign-delete",
+	[ESignKind.TopDelete]: "mdsync-sign-topdelete",
+	[ESignKind.ChangeDelete]: "mdsync-sign-changedelete",
 };
 
 class SignMarker extends GutterMarker {
@@ -44,7 +44,7 @@ class SignMarker extends GutterMarker {
 	}
 
 	override toDOM(): HTMLElement {
-		return createDiv({ cls: `obsync-sign ${KIND_CLASS[this.kind]}` });
+		return createDiv({ cls: `mdsync-sign ${KIND_CLASS[this.kind]}` });
 	}
 }
 
@@ -83,7 +83,7 @@ export const signsField = StateField.define<RangeSet<GutterMarker>>({
 
 export function buildSignsGutter(provider: SignsProvider) {
 	return gutter({
-		class: "obsync-sign-gutter",
+		class: "mdsync-sign-gutter",
 		markers: (view: EditorView) => view.state.field(signsField),
 		domEventHandlers: {
 			mousedown: (view, block, event) => {

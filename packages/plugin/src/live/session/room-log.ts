@@ -1,4 +1,4 @@
-import type { EFrame, ServerFrame } from "@obsync/protocol";
+import type { EFrame, ServerFrame } from "@mdsync/protocol";
 
 export type StateFrame = Extract<ServerFrame, { type: typeof EFrame.State }>;
 

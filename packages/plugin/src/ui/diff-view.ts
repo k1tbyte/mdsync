@@ -91,7 +91,7 @@ export class DiffView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		if (!this.path) return "Obsync diff";
+		if (!this.path) return "MDSync diff";
 		return this.historyHash ? `History: ${this.path}` : `Diff: ${this.path}`;
 	}
 
@@ -154,9 +154,9 @@ export class DiffView extends ItemView {
 
 	async onOpen(): Promise<void> {
 		this.contentEl.empty();
-		this.contentEl.addClass("obsync-diff-view");
-		this.headerEl = this.contentEl.createDiv({ cls: "obsync-diff-header" });
-		this.bodyEl = this.contentEl.createDiv({ cls: "obsync-diff-body" });
+		this.contentEl.addClass("mdsync-diff-view");
+		this.headerEl = this.contentEl.createDiv({ cls: "mdsync-diff-header" });
+		this.bodyEl = this.contentEl.createDiv({ cls: "mdsync-diff-body" });
 		const handleStatus = debounce(
 			() => {
 				if (this.path && !this.mergePanel.isEditing) void this.refreshModel();
@@ -261,7 +261,7 @@ export class DiffView extends ItemView {
 		if (!this.bodyEl) return;
 		this.destroyViews();
 		this.bodyEl.empty();
-		this.bodyEl.createDiv({ cls: "obsync-diff-empty", text });
+		this.bodyEl.createDiv({ cls: "mdsync-diff-empty", text });
 	}
 
 	private redrawForPlatform(): void {
@@ -354,7 +354,7 @@ export class DiffView extends ItemView {
 		body.empty();
 		this.destroyViews();
 		if (!model) {
-			body.createDiv({ cls: "obsync-diff-empty", text: "No diff data." });
+			body.createDiv({ cls: "mdsync-diff-empty", text: "No diff data." });
 			return;
 		}
 		if (model.isBinary) {
@@ -385,7 +385,7 @@ export class DiffView extends ItemView {
 	private renderTextDiff(parent: HTMLElement, model: FileDiffModel): void {
 		if (model.hunks.hunks.length === 0) {
 			parent.createDiv({
-				cls: "obsync-diff-empty",
+				cls: "mdsync-diff-empty",
 				text:
 					model.movedFrom === undefined
 						? "No textual differences."
@@ -407,7 +407,7 @@ export class DiffView extends ItemView {
 		this.comparePanel.render(parent, model);
 		if (!actionable) {
 			parent.createDiv({
-				cls: "obsync-diff-hint",
+				cls: "mdsync-diff-hint",
 				text: this.hunkHintText(model),
 			});
 		}

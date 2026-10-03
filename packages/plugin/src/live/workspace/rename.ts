@@ -3,7 +3,7 @@
  * a sealed note of that path, so every device renames its file and follows.
  */
 
-import { EFrame } from "@obsync/protocol";
+import { EFrame } from "@mdsync/protocol";
 import { seal, unseal } from "@/crypto/seal";
 import type { SpaceHub } from "@/hub";
 import { hasLiveExtension } from "@/live/doc-types";

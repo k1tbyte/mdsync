@@ -20,7 +20,7 @@ export class ChangeOverlay {
 		private readonly side: CompareSide,
 		private readonly fold: (key: number) => void,
 	) {
-		this.layer = host.createDiv({ cls: "obsync-change-layer" });
+		this.layer = host.createDiv({ cls: "mdsync-change-layer" });
 	}
 
 	/** Rings a change until its fade ends; the next layout places it. */
@@ -29,7 +29,7 @@ export class ChangeOverlay {
 		this.ring = null;
 		// A hidden pane never runs the fade, so its ring would wait there for the next layout switch.
 		if (this.host.clientHeight === 0) return;
-		const el = this.layer.createDiv({ cls: "obsync-change-ring" });
+		const el = this.layer.createDiv({ cls: "mdsync-change-ring" });
 		el.addEventListener("animationend", () => {
 			el.remove();
 			if (this.ring?.el === el) this.ring = null;
@@ -97,7 +97,7 @@ export class ChangeOverlay {
 	/** A combined source block has one row of actions; the button steps below it rather than cover it. */
 	private clearActions(key: number, y: number, hostTop: number): number {
 		const row = this.view.contentDOM.querySelector(
-			`.obsync-source[data-change="${key}"] > .obsync-source-head:has(.obsync-source-actions)`,
+			`.mdsync-source[data-change="${key}"] > .mdsync-source-head:has(.mdsync-source-actions)`,
 		);
 		if (!row) return y;
 		const { top, bottom } = row.getBoundingClientRect();

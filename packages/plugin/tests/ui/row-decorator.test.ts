@@ -200,7 +200,7 @@ describe("the base layer", () => {
 		expect(paintedPaths()).toEqual([CHANGED]);
 		expect(clearedPaths()).toEqual([CHANGED]);
 		const [, decoration] = vi.mocked(renderDecoration).mock.calls[0] ?? [];
-		expect(decoration).toMatchObject({ change: "obsync-changed-deleted" });
+		expect(decoration).toMatchObject({ change: "mdsync-changed-deleted" });
 
 		settle();
 		setStatuses(new Map());

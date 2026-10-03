@@ -20,7 +20,7 @@ async function callback(params: Record<string, string>) {
 	const config = defaultGoogleDriveConfig();
 	const save = vi.fn(async () => {});
 	const outcome = await handleGoogleDriveProtocol(
-		{ action: "obsync-auth", ...params },
+		{ action: "mdsync-auth", ...params },
 		config,
 		save,
 	);

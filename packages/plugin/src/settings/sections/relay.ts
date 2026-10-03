@@ -29,7 +29,7 @@ export function renderRelaySection(
 	renderField(parent, ctx, {
 		kind: EFieldKind.Text,
 		name: "Relay URL",
-		placeholder: "https://obsync-relay.<account>.workers.dev",
+		placeholder: "https://mdsync-relay.<account>.workers.dev",
 		get: (s) => s.relayUrl,
 		set: (v) => ({ relayUrl: relayBase(v) }),
 	});

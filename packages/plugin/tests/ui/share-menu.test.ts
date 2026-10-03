@@ -60,32 +60,32 @@ function entriesFor(
 describe("the share folder entry", () => {
 	it("is there to use once S3 storage is set up", () => {
 		expect(entriesFor(S3)).toEqual([
-			{ title: "Obsync: Share folder", disabled: false },
+			{ title: "MDSync: Share folder", disabled: false },
 		]);
 	});
 
 	it("stays, disabled and saying why, without S3 storage", () => {
 		expect(entriesFor(null)).toEqual([
-			{ title: "Obsync: Share folder (needs S3 storage)", disabled: true },
+			{ title: "MDSync: Share folder (needs S3 storage)", disabled: true },
 		]);
 	});
 
 	it("opens the window of a folder already shared", () => {
 		expect(entriesFor(null, [record("a", "Team")])).toEqual([
-			{ title: "Obsync: Manage sharing", disabled: false },
+			{ title: "MDSync: Manage sharing", disabled: false },
 		]);
 	});
 
 	it("opens the window of the share a subfolder is in", () => {
 		expect(entriesFor(S3, [record("a", "Team")], "Team/Plans")).toEqual([
-			{ title: "Obsync: Manage sharing", disabled: false },
+			{ title: "MDSync: Manage sharing", disabled: false },
 		]);
 	});
 
 	it("offers sharing again once the share is closed", () => {
 		const closed: SpaceRecord = { ...record("a", "Team"), closed: true };
 		expect(entriesFor(S3, [closed])).toEqual([
-			{ title: "Obsync: Share folder", disabled: false },
+			{ title: "MDSync: Share folder", disabled: false },
 		]);
 	});
 

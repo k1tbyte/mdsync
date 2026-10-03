@@ -1,4 +1,4 @@
-import type { Refusal } from "@obsync/protocol";
+import type { Refusal } from "@mdsync/protocol";
 
 import type { LiveKeys } from "@/crypto/live-keys";
 import type { SpaceHub } from "@/hub";

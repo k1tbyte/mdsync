@@ -11,9 +11,9 @@ export const STATUS_LETTERS: Record<ChangeAction, string> = {
 };
 
 export const STATUS_CLASSES: Record<ChangeAction, string> = {
-	add: "obsync-status-add",
-	modify: "obsync-status-modify",
-	delete: "obsync-status-delete",
+	add: "mdsync-status-add",
+	modify: "mdsync-status-modify",
+	delete: "mdsync-status-delete",
 };
 
 export function rowFromChange(
@@ -58,7 +58,7 @@ export function foldMoves(
 			from: move.from,
 			sizeDelta: undefined,
 			statusLetter: "R",
-			statusClass: "obsync-status-move",
+			statusClass: "mdsync-status-move",
 		});
 	}
 	return rows;
@@ -69,7 +69,7 @@ export function rowFromConflict(conflict: Conflict, size?: number): FileRow {
 		path: conflict.path,
 		size,
 		statusLetter: "C",
-		statusClass: "obsync-status-conflict",
+		statusClass: "mdsync-status-conflict",
 		isConflict: true,
 	};
 }

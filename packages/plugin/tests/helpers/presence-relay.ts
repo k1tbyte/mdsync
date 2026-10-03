@@ -1,4 +1,4 @@
-import { EFrame, OWNER, type ServerFrame } from "@obsync/protocol";
+import { EFrame, OWNER, type ServerFrame } from "@mdsync/protocol";
 
 import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
 import type { SpaceFrame, SpaceListener } from "@/hub/connection";

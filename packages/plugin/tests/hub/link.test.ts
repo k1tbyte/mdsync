@@ -2,7 +2,7 @@ import {
 	KEEPALIVE_INTERVAL_MS,
 	KEEPALIVE_SILENCE_MS,
 	UNAUTHORIZED_CLOSE_CODE,
-} from "@obsync/protocol";
+} from "@mdsync/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HubLink, type HubLinkOptions } from "@/hub/link";

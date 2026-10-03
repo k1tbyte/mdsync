@@ -1,6 +1,6 @@
 /** Each device announces its open file to the space holding it and "elsewhere" to the rest. */
 
-import { CHANNEL_DOC, EFrame } from "@obsync/protocol";
+import { CHANNEL_DOC, EFrame } from "@mdsync/protocol";
 
 import type { LiveKeys } from "@/crypto/live-keys";
 import type { HubConnection, SpaceHub } from "@/hub";
