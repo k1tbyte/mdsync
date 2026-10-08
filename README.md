@@ -251,16 +251,20 @@ From the share's window you can see who is in it, revoke a person, pause the sha
 
 ### Share links
 
-Publish one note as a link, from its menu in the file explorer (**MDSync: Share link**) or with **Share this note as a link**. It needs the relay. The reader needs nothing installed: the link opens a page served by your relay.
+Publish one note as a link anyone can open in a browser with nothing installed, from its menu in the file explorer (**MDSync: Share link**) or with **Share this note as a link**. It needs the relay, which serves the page.
 
-- **Expires** after 5 or 15 minutes, an hour, a day, 7 days (default) or 30 days, or never. **Pick a date…** sets an exact date and time, from 1 minute to 365 days ahead. **Views** limits how many times it opens (1, 5, 25, unlimited). Once either runs out the relay erases the note.
-- An optional **passphrase** is asked before the note opens. Send it by a different route than the link. The reader can let their browser remember it until the link expires, and can copy the note as Markdown.
-- The note is drawn as Obsidian's reading view draws it (callouts, tasks, code, tables, math; a Mermaid diagram your vault has not allowed shows as its source), then encrypted on your device before it leaves. The key is in the part of the link after `#`, which browsers never send, so the relay holds only ciphertext.
-- The page has an outline of the note's headings, shows how many views and how long the link has left, and can widen the text. Headings fold with a click, and their `#` copies a link to that place in the note. Code blocks have a copy button.
-- Left out: properties, comments, links to other notes (their text stays), embedded notes, and files other than images. Images from your vault are embedded and shrunk to fit; turn that off with **Include images**. The window tells you what was left out before you create the link.
-- **Manage share links** (command, or **Settings → MDSync → Sync → Share links**) shows how many views are left, copies the link again, **Update**s it to the note as it is now (same link, views already used stay used) or stops it at once.
-- A shared note shows a globe in the file tree and in its header; a dot means it changed since it was shared. Click either to update it, or run **Update share links of this note**.
-- Opening the link in the same tab again costs no extra view.
+<details open>
+<summary>Demo</summary>
+
+![A note shared as a link with a passphrase, read in a browser, then stopped](docs/demos/links.webp)
+
+</details>
+
+- **Expires** (5 minutes to 30 days, an exact date, or never), **Views** and an optional **passphrase** limit who can read it and for how long. Once the time or the views run out, the relay erases the note.
+- The note is drawn as Obsidian's reading view draws it, then encrypted on your device. The key is in the part of the link after `#`, which browsers never send, so the relay holds only ciphertext.
+- The page has an outline, folding headings, copyable code, wide text and **Copy as Markdown**.
+- Left out: properties, comments, links to other notes (their text stays) and embedded notes. Vault images are embedded and shrunk; **Include images** turns that off. The window lists what was left out before you create the link.
+- **Manage share links** shows the views left, copies the link, **Update**s it to the note as it is now (same link) or stops it at once. A globe in the file tree and in the note's header marks a shared note; a dot means it changed since.
 
 A link is a copy: later edits do not reach it until you update it. Anyone who has the link (and the passphrase) can read the note and pass it on. The links, with their keys, are kept in the plugin's `data.json`.
 
