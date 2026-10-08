@@ -9,6 +9,7 @@ import {
 } from "@/core";
 import { registerReadOnlyLock } from "@/editor/read-only";
 import { registerEditorSigns, type SignsHandle } from "@/editor/signs";
+import { SharedLinks } from "@/links";
 import type { Unseen } from "@/presence";
 import {
 	canSync,
@@ -45,6 +46,7 @@ import {
 	type IgnoreStateHandle,
 	registerIgnoreState,
 } from "./plugin/ignore-state";
+import { registerLinkPaths } from "./plugin/links";
 import { registerProtocolHandlers } from "./plugin/protocols";
 import { createRealtime, type Realtime } from "./plugin/realtime";
 import { registerShareRenames } from "./plugin/share-moves";
@@ -79,6 +81,10 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 	ignoreState!: IgnoreStateHandle;
 	spaces!: SpaceRecords;
 	unseen!: Unseen;
+	readonly sharedLinks = new SharedLinks(
+		() => this.settings,
+		() => this.saveSettings(),
+	);
 	private settingsTab?: MdsyncSettingTab;
 	private statePersister!: StatePersister;
 	private scopeRefreshTimer: number | null = null;
@@ -157,6 +163,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		registerScheduler(this, this.controller);
 		registerWorkspaceMenus(this);
 		registerShareRenames(this);
+		registerLinkPaths(this);
 		registerIgnoreFileRefresh(this);
 		registerStatePersistenceFlush(this, this.statePersister);
 

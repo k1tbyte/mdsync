@@ -2,6 +2,12 @@ export {
 	defaultGoogleDriveConfig,
 	googleLoginUrl,
 } from "./adapters/google-drive-auth";
+export {
+	createLink,
+	linkStatus,
+	replaceLink,
+	revokeLink,
+} from "./adapters/link-broker";
 export { defaultS3Config } from "./adapters/s3";
 export {
 	type BrokerAccess,

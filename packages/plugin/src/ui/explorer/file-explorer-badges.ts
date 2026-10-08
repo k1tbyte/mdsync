@@ -2,9 +2,12 @@ import { Notice, Platform, setIcon } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
 import { describePeople, lastEditLabel, renderAvatarStack } from "@/ui/common";
+import { openManageLinks } from "@/ui/links";
 import { openShareWindow } from "@/ui/shares/share-window";
+
 import type {
 	PresenceMarks,
+	PublishedMark,
 	ShareKind,
 	ShareMark,
 	UnseenMark,
@@ -24,6 +27,7 @@ const SHARE_TOOLTIPS: Record<ShareKind, string> = {
 };
 const SHARE_ROOT_ATTR = "data-share-root";
 const SHARE_BADGE = ".mdsync-share-badge";
+const PUBLISHED_BADGE = ".mdsync-published-badge";
 const TAP_BADGES =
 	".mdsync-people-badge, .mdsync-unseen-dot, .mdsync-skip-badge";
 const TIP_MS = 4000;
@@ -51,12 +55,10 @@ export function renderPresenceMarks(
 		renderAvatarStack(badge, marks.people);
 	}
 	if (marks.share) renderShareBadge(target, marks.share);
+	if (marks.published) renderPublishedBadge(target, marks.published);
 }
 
-/**
- * A share badge opens the share's window instead of folding the folder; a phone has no hover, so a tap
- * shows the tooltip.
- */
+/** Action badges open management; other badges show a tooltip on phones. */
 export function badgeActivation(
 	plugin: PluginHost,
 ): (event: MouseEvent | KeyboardEvent) => void {
@@ -65,16 +67,21 @@ export function badgeActivation(
 		if ("key" in event && event.key !== "Enter" && event.key !== " ") return;
 		if (!(event.target instanceof Element)) return;
 		const share = event.target.closest(SHARE_BADGE);
+		const published = event.target.closest(PUBLISHED_BADGE);
 		const mark =
-			!share && event.type === "click" && Platform.isMobile
+			!share && !published && event.type === "click" && Platform.isMobile
 				? event.target.closest(TAP_BADGES)
 				: null;
-		if (!share && !mark) return;
+		if (!share && !published && !mark) return;
 		event.preventDefault();
 		event.stopPropagation();
 		if (mark) {
 			tip?.hide();
 			tip = new Notice(mark.getAttribute("aria-label") ?? "", TIP_MS);
+			return;
+		}
+		if (published) {
+			openManageLinks(plugin, published.getAttribute("data-path") ?? "");
 			return;
 		}
 		const record = plugin.spaces.shareAt(
@@ -90,6 +97,23 @@ function unseenTooltip(
 ): string {
 	if (file) return lastEditLabel(plugin, file) ?? "Changed by someone else";
 	return `${count} changed by others since you opened them`;
+}
+
+function renderPublishedBadge(
+	target: HTMLElement,
+	published: PublishedMark,
+): void {
+	const badge = target.createSpan({
+		cls: "mdsync-path-badge mdsync-published-badge",
+		attr: {
+			"data-path": published.path,
+			role: "button",
+			tabindex: "0",
+			"aria-label": published.text,
+		},
+	});
+	if (published.stale) badge.addClass("is-stale");
+	setIcon(badge.createSpan({ cls: "mdsync-published-icon" }), "globe");
 }
 
 function renderShareBadge(target: HTMLElement, share: ShareMark): void {

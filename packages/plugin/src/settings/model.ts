@@ -6,8 +6,10 @@ import {
 	FILE_HISTORY_MAX_SNAPSHOTS,
 	FILE_HISTORY_MIN_SNAPSHOTS,
 } from "@/constants";
+import { type LinkRecord, parseLinkRecord } from "@/links/record";
 import { isSpaceRecord, type SpaceRecord } from "@/spaces/record";
 import {
+	type BrokerAdmin,
 	CONCURRENCY_FIELD,
 	defaultS3Config,
 	EStorageBackend,
@@ -81,6 +83,8 @@ export interface MdsyncSettings {
 	localRoots: Record<string, string>;
 	/** The vault storage (identity) the records were traded with: another vault's never reach this one. */
 	spacesVault: string | null;
+	/** Notes this device shared as links. Holds each link's key, so never published or transferred. */
+	links: LinkRecord[];
 	/** Self-hosted worker (packages/relay): realtime signals. */
 	relayUrl: string;
 	/** The worker's RELAY_SECRET; relay room tokens derive from it. */
@@ -124,6 +128,7 @@ export const DEFAULT_SETTINGS: MdsyncSettings = {
 	shareEditsWait: true,
 	localRoots: {},
 	spacesVault: null,
+	links: [],
 	relayUrl: "",
 	relaySecret: "",
 	cachePassphrase: true,
@@ -171,6 +176,14 @@ export type RelayConfig = Pick<MdsyncSettings, "relayUrl" | "relaySecret">;
 /** Both or nothing: the URL alone opens no room and signs nothing. */
 export function isRelayConfigured(relay: RelayConfig): boolean {
 	return Boolean(relay.relayUrl && relay.relaySecret);
+}
+
+/** The owner's side of the relay: shares and links both speak to it with the secret. */
+export function relayAdmin({
+	relayUrl,
+	relaySecret,
+}: RelayConfig): BrokerAdmin {
+	return { relayUrl, secret: relaySecret };
 }
 
 /** Dropped settings. Several held secrets - share keys among them - so they are deleted, not kept. */
@@ -275,6 +288,9 @@ export function mergeSettings(
 			? stored.pausedSpaces.filter((id) => typeof id === "string")
 			: [],
 		localRoots: stringValues(stored?.localRoots),
+		links: Array.isArray(stored?.links)
+			? stored.links.flatMap((link) => parseLinkRecord(link) ?? [])
+			: [],
 		spacesVault:
 			typeof stored?.spacesVault === "string" ? stored.spacesVault : null,
 	};

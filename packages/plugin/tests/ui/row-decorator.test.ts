@@ -1,4 +1,4 @@
-import { ALEX, host, SAM } from "@tests/helpers/explorer-host";
+import { ALEX, host, LINK, SAM } from "@tests/helpers/explorer-host";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Person } from "@/presence/people";
@@ -98,6 +98,26 @@ function settle(): void {
 beforeEach(settle);
 
 describe("the tree's decoration layers", () => {
+	it.each([false, true])(
+		"keeps published badges with indicators %s",
+		async (on) => {
+			const { apply, plugin } = setup([]);
+			await plugin.sharedLinks.add(LINK);
+
+			apply(true, on);
+
+			expect(paintedPaths()).toContain(LINK.path);
+			expect(
+				vi
+					.mocked(renderDecoration)
+					.mock.calls.find(
+						([target]) =>
+							(target as unknown as { path: string }).path === LINK.path,
+					)?.[1],
+			).toMatchObject({ published: { count: 1, stale: false } });
+		},
+	);
+
 	it("keeps the share badges alone when indicators are off", () => {
 		const { apply, plugin } = setup([ALEX], ["Team/a.md"]);
 

@@ -1,6 +1,8 @@
+import { type LinkRecord, SharedLinks } from "@/links";
 import type { PluginHost } from "@/plugin/host";
 import type { Person } from "@/presence/people";
 import { Unseen } from "@/presence/unseen";
+import { DEFAULT_SETTINGS } from "@/settings/model";
 import type { Space } from "@/sync/space";
 
 export const ALEX: Person = {
@@ -25,6 +27,20 @@ export const LAPTOP: Person = {
 	idle: false,
 };
 
+export const LINK: LinkRecord = {
+	id: "link",
+	url: "https://example.com/link",
+	path: "notes/published.md",
+	showTitle: true,
+	detached: false,
+	createdAt: 0,
+	publishedAt: 0,
+	expires: null,
+	maxViews: null,
+	salt: null,
+	images: false,
+};
+
 const RECORDS = [
 	{ id: "own", access: { kind: "owner" } },
 	{ id: "in", access: { kind: "participant", readOnly: false } },
@@ -34,9 +50,20 @@ export function host(
 	spaces: Space[],
 	people: Person[],
 	unseen: string[] = [],
+	links: LinkRecord[] = [],
 ): PluginHost {
+	const settings = { ...DEFAULT_SETTINGS, links };
 	return {
-		app: { vault: { getFileByPath: (path: string) => ({ path }) } },
+		settings,
+		sharedLinks: new SharedLinks(
+			() => settings,
+			async () => {},
+		),
+		app: {
+			vault: {
+				getFileByPath: (path: string) => ({ path, stat: { mtime: 0 } }),
+			},
+		},
 		controller: {
 			lastEdit: () => ({ key: "p1", name: "Alex", at: Date.now() }),
 		},

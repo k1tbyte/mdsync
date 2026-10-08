@@ -1,7 +1,7 @@
 import { Modal, Setting } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
-import { isRelayConfigured } from "@/settings/model";
+import { isRelayConfigured, relayAdmin } from "@/settings/model";
 import { errorMessage } from "@/shared";
 import type { PauseKind } from "@/spaces";
 import type { SpaceRecord } from "@/spaces/record";
@@ -25,7 +25,6 @@ import { renderInviteForm } from "./invite-section";
 import {
 	closeLabel,
 	closeShare,
-	relayAdmin,
 	revokeAccess,
 	strandedInvites,
 } from "./share-action";

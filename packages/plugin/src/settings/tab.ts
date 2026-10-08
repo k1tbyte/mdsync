@@ -4,10 +4,8 @@ import {
 	type Plugin,
 	PluginSettingTab,
 	Setting,
-	TFile,
 } from "obsidian";
 
-import { IGNORE_FILE_NAME } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
 import { EFieldKind } from "@/storage";
 import { defaultDeviceName } from "@/sync/device";
@@ -17,7 +15,6 @@ import {
 	notifyError,
 	notifyInfo,
 	openConfirmModal,
-	openInEditor,
 	reportError,
 	showSettingsTransferExport,
 } from "@/ui";
@@ -30,14 +27,12 @@ import {
 	TYPING_SETTLE_MS,
 } from "./fields";
 import { renderLogsView } from "./logs-view";
-import {
-	type MdsyncSettings,
-	NUMERIC_BOUNDS,
-	type SettingsSyncCategories,
-} from "./model";
+import type { MdsyncSettings, SettingsSyncCategories } from "./model";
 import {
 	renderAutomationSection,
 	renderBackendSection,
+	renderExclusionsSection,
+	renderLinksSection,
 	renderMaintenanceSection,
 	renderRelaySection,
 	renderSecuritySection,
@@ -116,34 +111,6 @@ function countRemoteCategories(
 	return counts;
 }
 
-const SCOPE_CHANGED = "Sync scope settings changed.";
-const BYTES_PER_MB = 1024 * 1024;
-const MIN_MAX_FILE_MB = 1;
-
-const EXCLUSION_FIELDS: ReadonlyArray<SettingsField> = [
-	{
-		kind: EFieldKind.Toggle,
-		name: "Ignore symlinks",
-		desc: "Skip symbolic links, Windows junctions and directory links. They point outside the vault and exist only on this device.",
-		get: (s) => s.ignoreSymlinks,
-		set: (v) => ({ ignoreSymlinks: v }),
-		refreshScope: true,
-	},
-	{
-		kind: EFieldKind.Number,
-		name: "Max file size (MB)",
-		desc: "Files larger than this are skipped.",
-		get: (s) => String(Math.round(s.maxFileBytes / BYTES_PER_MB)),
-		parse: (raw) =>
-			Math.min(
-				NUMERIC_BOUNDS.maxFileBytes.max / BYTES_PER_MB,
-				Math.max(MIN_MAX_FILE_MB, Number.parseInt(raw, 10)),
-			),
-		set: (mb) => ({ maxFileBytes: mb * BYTES_PER_MB }),
-		refreshScope: true,
-	},
-];
-
 const INTERFACE_FIELDS: ReadonlyArray<SettingsField> = [
 	{
 		kind: EFieldKind.Toggle,
@@ -205,6 +172,8 @@ export class MdsyncSettingTab extends PluginSettingTab {
 	display(): void {
 		this.unsubscribeSections();
 		const { containerEl } = this;
+		const scrollTop = containerEl.scrollTop;
+		containerEl.addClass("mdsync-settings");
 		containerEl.empty();
 		this.renderTabBar(containerEl);
 
@@ -225,6 +194,7 @@ export class MdsyncSettingTab extends PluginSettingTab {
 				renderLogsView(containerEl, this.plugin, () => this.display());
 				break;
 		}
+		containerEl.scrollTop = scrollTop;
 	}
 
 	private fieldContext(): FieldContext {
@@ -259,6 +229,7 @@ export class MdsyncSettingTab extends PluginSettingTab {
 		button.addEventListener("click", () => {
 			if (tab === this.activeTab) return;
 			this.activeTab = tab;
+			this.containerEl.scrollTop = 0;
 			this.display();
 		});
 	}
@@ -277,8 +248,9 @@ export class MdsyncSettingTab extends PluginSettingTab {
 		);
 		if (automationUnsub) this.sectionUnsubs.push(automationUnsub);
 		renderSharesSection(parent, this.fieldContext());
+		renderLinksSection(parent, this.plugin);
 		this.renderSettingsSyncSection(parent);
-		this.renderIgnoreSection(parent);
+		renderExclusionsSection(parent, this.fieldContext());
 	}
 
 	private renderTransferSection(parent: HTMLElement): void {
@@ -381,35 +353,6 @@ export class MdsyncSettingTab extends PluginSettingTab {
 		this.display();
 	}
 
-	private renderIgnoreSection(parent: HTMLElement): void {
-		new Setting(parent).setName("Device-local exclusions").setHeading();
-		new Setting(parent).setDesc(
-			"Applied only on this device, in addition to the shared syncignore.md note in the vault root.",
-		);
-
-		renderFields(parent, this.fieldContext(), EXCLUSION_FIELDS);
-
-		new Setting(parent)
-			.setName("Patterns")
-			.setDesc("Gitignore-style, one per line.")
-			.addTextArea((t) => {
-				t.inputEl.rows = 6;
-				t.inputEl.cols = 40;
-				t.setValue(this.plugin.settings.ignorePatterns).onChange((v) => {
-					this.plugin.settings.ignorePatterns = v;
-					void this.plugin
-						.saveSettings()
-						.then(() => this.plugin.ignoreState.refresh())
-						.then(() => this.plugin.scheduleScopeRefresh(SCOPE_CHANGED));
-				});
-			})
-			.addButton((button) =>
-				button
-					.setButtonText("Open syncignore.md")
-					.onClick(() => void this.handleOpenSharedIgnore()),
-			);
-	}
-
 	private renderUiSection(parent: HTMLElement): void {
 		new Setting(parent).setName("Interface").setHeading();
 		renderFields(parent, this.fieldContext(), INTERFACE_FIELDS);
@@ -454,28 +397,5 @@ export class MdsyncSettingTab extends PluginSettingTab {
 		} catch (err) {
 			reportError(err);
 		}
-	}
-
-	private async handleOpenSharedIgnore(): Promise<void> {
-		try {
-			await this.openSharedIgnore();
-		} catch (err) {
-			reportError(err);
-		}
-	}
-
-	private async openSharedIgnore(): Promise<void> {
-		const existing = this.app.vault.getAbstractFileByPath(IGNORE_FILE_NAME);
-		if (existing instanceof TFile) {
-			await openInEditor(this.app, IGNORE_FILE_NAME);
-			return;
-		}
-		if (existing) {
-			notifyError(`${IGNORE_FILE_NAME} already exists and is not a file.`);
-			return;
-		}
-		await this.app.vault.create(IGNORE_FILE_NAME, "");
-		notifyInfo(`${IGNORE_FILE_NAME} created.`);
-		await openInEditor(this.app, IGNORE_FILE_NAME);
 	}
 }

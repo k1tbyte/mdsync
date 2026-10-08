@@ -48,7 +48,11 @@ export class SettingsTransferController {
 			importedSections(imported),
 		);
 		if (!confirmed) return false;
-		await this.apply(merged, passphrase);
+		// Merged again: a link published while asking must not be lost.
+		await this.apply(
+			mergeTransferredSettings(this.deps.settings, imported),
+			passphrase,
+		);
 		return true;
 	}
 

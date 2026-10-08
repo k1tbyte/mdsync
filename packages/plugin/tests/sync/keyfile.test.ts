@@ -102,7 +102,7 @@ describe("passphrase strength", () => {
 
 	it("opens the key with a passphrase typed in another Unicode form", async () => {
 		const storage = new FakeStorage();
-		const composed = "пароль на йоту длиннее";
+		const composed = "mot de passe déjà plus long";
 		const { contentKey } = await resolveContentKey(storage, composed);
 		const blob = await encryptBytes(contentKey, new Uint8Array([1]));
 

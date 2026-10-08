@@ -21,6 +21,9 @@ re-injected only on reload.
 `tests/e2e/` runs scenarios against real processes and tears them down:
 
 - `pnpm exec jiti tests/e2e/optimization-ui.ts` - a real Obsidian renders synthetic 20,000-file Timeline and Trash lists in 100-row pages; page navigation and full-list selection are checked. Build first. Uses ports 8832 and 9233.
+- `pnpm e2e:settings` - an isolated Obsidian checks passphrase and toggle scroll retention, device-only ignore rules, and phone layouts at 320, 390 and 600 px. Uses port 9235; `E2E_SHOTS=1` saves screenshots.
+- `pnpm e2e:links` - share links under `wrangler dev` and headless Chrome: the Link Durable Object (chunks, erase, expiry, a restart), the routes, the viewer page (passphrase, one view, reload costs none, a hostile note runs nothing, outline on desktop and phone, heading folds, heading anchors, wide text, code copy). Port 8799.
+- `pnpm e2e:links-obsidian` - builds, then shares a note from a real Obsidian through the file menu and opens the link in Chrome: properties, comments and embedded notes absent, math as MathML, callout, task and image kept, outline from the real render, passphrase, view count, update and stop. Ports 8799 and 9246; `E2E_SHOTS=1` saves `link-viewer.png`.
 - `pnpm e2e:hub` - the relay hub under `wrangler dev`, driven by scripted peers;
   ending a share cuts its channel for good (across a restart too); its last run
   sets `HUB_STALE_MS` low to watch the stale-socket sweep.

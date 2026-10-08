@@ -66,7 +66,7 @@ export function write(
 	);
 }
 
-/** Right-clicks `folder` in the file explorer and picks the item titled `title`. */
+/** Right-clicks a folder or file in the file explorer and picks the item titled `title`. */
 export function clickMenuItem(
 	device: Obsidian,
 	folder: string,
@@ -94,7 +94,7 @@ export function clickMenuItem(
 			app.workspace.trigger(
 				"file-menu",
 				menu,
-				app.vault.getFolderByPath(path),
+				app.vault.getFolderByPath(path) ?? app.vault.getFileByPath(path),
 				"file-explorer",
 			);
 			const found = items.find((item) => item.title === wanted);

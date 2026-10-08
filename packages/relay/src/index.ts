@@ -5,13 +5,17 @@ import {
 } from "./google-oauth";
 import { handleHubRequest } from "./hub/access";
 import { Hub } from "./hub/durable-object";
+import { Link } from "./link/durable-object";
+import { handleLinkRequest } from "./link/routes";
+import { handleShellRequest, type ShellEnv } from "./link/shell";
+import type { LinkEnv } from "./link/stub";
 import { ADMIN_HEADER, isAdmin } from "./secret";
 import { handleShareRequest } from "./share/broker";
 import type { ShareEnv } from "./share/kv";
 
-export interface Env extends ShareEnv, GoogleOAuthEnv {}
+export interface Env extends ShareEnv, GoogleOAuthEnv, LinkEnv, ShellEnv {}
 
-export { Hub };
+export { Hub, Link };
 
 const CORS_PREFLIGHT_HEADERS = {
 	"Access-Control-Allow-Origin": "*",
@@ -20,7 +24,7 @@ const CORS_PREFLIGHT_HEADERS = {
 } as const;
 
 const NOT_FOUND =
-	"Not found. Use /hub for realtime sync, /share/* for shared folders, or /auth for Google Drive.";
+	"Not found. Use /hub for realtime sync, /share/* for shared folders, /link/* for share links, or /auth for Google Drive.";
 
 export default {
 	async fetch(
@@ -37,6 +41,12 @@ export default {
 
 		const shareResponse = await handleShareRequest(request, env, url);
 		if (shareResponse) return shareResponse;
+
+		const shellResponse = await handleShellRequest(request, env, url);
+		if (shellResponse) return shellResponse;
+
+		const linkResponse = await handleLinkRequest(request, env, url);
+		if (linkResponse) return linkResponse;
 
 		const hubResponse = await handleHubRequest(request, env, url);
 		if (hubResponse) return hubResponse;

@@ -1,7 +1,7 @@
 import { type ButtonComponent, Setting } from "obsidian";
 
 import { errorMessage } from "@/shared";
-import { alertLine, onEnter, runWithNotice, serial } from "@/ui/common";
+import { alertLine, copyable, onEnter, serial } from "@/ui/common";
 import type { CreatedInvite } from "./invite-action";
 
 export function renderInviteForm(
@@ -59,26 +59,4 @@ function showInvite(el: HTMLElement, invite: CreatedInvite): void {
 	copyable(el, "Link", invite.link);
 	copyable(el, "Password", invite.password);
 	el.scrollIntoView({ block: "nearest" });
-}
-
-function copyable(el: HTMLElement, name: string, value: string): void {
-	new Setting(el)
-		.setName(name)
-		.addText((text) => {
-			text.setValue(value);
-			text.inputEl.readOnly = true;
-		})
-		.addExtraButton((button) =>
-			button
-				.setIcon("copy")
-				.setTooltip(`Copy ${name.toLowerCase()}`)
-				.onClick(
-					() =>
-						void runWithNotice(
-							() => navigator.clipboard.writeText(value),
-							`${name} copied.`,
-							`Could not copy the ${name.toLowerCase()}`,
-						),
-				),
-		);
 }

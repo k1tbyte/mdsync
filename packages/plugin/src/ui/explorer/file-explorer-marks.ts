@@ -1,3 +1,4 @@
+import { noteLinks, noteLinksText } from "@/links";
 import type { PluginHost } from "@/plugin/host";
 import { isAtNote, mergePeople, type Person } from "@/presence";
 import { type Space, spaceOf, VAULT_SPACE } from "@/sync/space";
@@ -17,8 +18,16 @@ export interface UnseenMark {
 	file?: string;
 }
 
+export interface PublishedMark {
+	path: string;
+	count: number;
+	stale: boolean;
+	text: string;
+}
+
 export interface PresenceMarks {
 	share?: ShareMark;
+	published?: PublishedMark;
 	people?: Person[];
 	unseen?: UnseenMark;
 }
@@ -36,6 +45,20 @@ export function shareMarks(
 				root: space.root,
 				kind: shareKind(plugin, space),
 				here: inNotes.length,
+			},
+		});
+	}
+	const paths = new Set(plugin.sharedLinks.all().map(({ path }) => path));
+	for (const path of paths) {
+		const links = noteLinks(plugin, path);
+		if (!links) continue;
+		out.set(path, {
+			...out.get(path),
+			published: {
+				path,
+				count: links.records.length,
+				stale: links.stale,
+				text: noteLinksText(links),
 			},
 		});
 	}

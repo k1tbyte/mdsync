@@ -1,6 +1,7 @@
 import type { App } from "obsidian";
 
 import type { DeviceName, LogService, PassphraseManager } from "@/core";
+import type { SharedLinks } from "@/links";
 import type { Unseen } from "@/presence";
 import type { MdsyncSettings } from "@/settings/model";
 import type { SettingsTransferController } from "@/settings/transfer-controller";
@@ -26,6 +27,7 @@ export interface PluginHost {
 	readonly ignoreState: IgnoreStateHandle;
 	readonly spaces: SpaceRecords;
 	readonly unseen: Unseen;
+	readonly sharedLinks: SharedLinks;
 
 	saveSettings(): Promise<void>;
 	scheduleScopeRefresh(reason?: string): void;

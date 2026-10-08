@@ -32,6 +32,10 @@ export function normalizePath(path: string): string {
 
 export function setIcon(_el: unknown, _icon: string): void {}
 
+export function loadMathJax(): Promise<void> {
+	return Promise.resolve();
+}
+
 class Stub {}
 
 export class Notice extends Stub {}

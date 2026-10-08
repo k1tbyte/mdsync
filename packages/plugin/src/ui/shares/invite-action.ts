@@ -2,7 +2,7 @@ import { TFile, TFolder } from "obsidian";
 
 import { randomId } from "@/crypto";
 import type { PluginHost } from "@/plugin/host";
-import { ownerStorage } from "@/settings/model";
+import { ownerStorage, relayAdmin } from "@/settings/model";
 import { normalizePath, stripTrailingSlash } from "@/shared";
 import {
 	acceptInvite,
@@ -24,7 +24,6 @@ import {
 import { scopedPaths } from "@/ui/actions/push-action";
 import { notifyInfo, runWithNotice } from "@/ui/common";
 import { AcceptInviteModal, openConfirmModal } from "@/ui/modals";
-import { relayAdmin } from "./share-action";
 
 export interface CreatedInvite {
 	link: string;

@@ -3,6 +3,17 @@
 This file is the source of truth for release notes: the section of a version becomes the notes of its GitHub release.
 The newest section must match `version` in `manifest.json`. Headings are `## [x.y.z] - YYYY-MM-DD`, then `### Important`, `### Features`, `### Improvements` and `### Fixes` as needed. Write for users, in plain sentences, not commit titles.
 
+## [1.1.0] - 2026-10-08
+
+### Features
+
+- **Share links.** Publish one note as a link that opens in any browser, with an optional passphrase, a view limit and an expiry. The note is drawn as Obsidian draws it, with an outline, folding headings, links to a heading, copyable code and a button that copies the whole note as Markdown, encrypted on your device and kept on your own relay, which cannot read it. Properties, comments, links to other notes and embedded notes are left out; images are embedded. A globe in the file tree and the note header marks shared notes, with a dot once the note changed since; click it to update the link or stop it. A reader can let their browser remember the passphrase. Redeploy the relay to use it.
+
+### Improvements
+
+- The passphrase settings tell the passphrase saved on this device apart from the vault passphrase, and say what each button does.
+- The settings tab keeps its scroll position when it redraws.
+
 ## [1.0.0] - 2026-10-03
 
 First release.

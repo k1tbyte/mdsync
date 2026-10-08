@@ -1,15 +1,20 @@
 import { MarkdownView, type Plugin } from "obsidian";
+
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
+import { noteLinks, onRelay } from "@/links";
 import type { PluginHost } from "@/plugin/host";
 import { spaceOf } from "@/sync/space";
 import type { DiffResult } from "@/sync/types";
 import {
 	canRebuild,
 	deepCleanOrphanedObjects,
+	isLinkable,
 	notifyError,
 	notifyInfo,
 	openDiffView,
 	openInvite,
+	openManageLinks,
+	openShareLink,
 	openShareWindow,
 	openSourceControlDeleted,
 	openSourceControlHistory,
@@ -19,6 +24,7 @@ import {
 	resetRemoteStorage,
 	runWithNotice,
 	toggleAuthors,
+	updateSharedLinks,
 	verifyRemoteIntegrity,
 } from "@/ui";
 
@@ -154,6 +160,38 @@ export function registerCommands(
 			if (!checking) openShareWindow(plugin, record);
 			return true;
 		},
+	});
+
+	plugin.addCommand({
+		id: "share-note-link",
+		name: "Share this note as a link",
+		checkCallback: (checking) => {
+			const file = plugin.app.workspace.getActiveFile();
+			if (!isLinkable(plugin.app, file)) return false;
+			if (!checking) openShareLink(plugin, file);
+			return true;
+		},
+	});
+
+	plugin.addCommand({
+		id: "update-note-links",
+		name: "Update share links of this note",
+		checkCallback: (checking) => {
+			const file = plugin.app.workspace.getActiveFile();
+			if (!file) return false;
+			const records = noteLinks(plugin, file.path)?.records.filter((record) =>
+				onRelay(record, plugin.settings),
+			);
+			if (records === undefined || records.length === 0) return false;
+			if (!checking) void updateSharedLinks(plugin, records);
+			return true;
+		},
+	});
+
+	plugin.addCommand({
+		id: "manage-note-links",
+		name: "Manage share links",
+		callback: () => openManageLinks(plugin),
 	});
 
 	plugin.addCommand({

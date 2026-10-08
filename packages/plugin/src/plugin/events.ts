@@ -11,6 +11,7 @@ import { reportWarning } from "@/shared";
 import { carryHashes } from "@/sync/session-state";
 import {
 	addIgnoreMenuItem,
+	addLinkMenuItems,
 	addPushMenuItem,
 	addShareMenuItem,
 	openSourceControlDeleted,
@@ -27,6 +28,7 @@ export function registerWorkspaceMenus(plugin: Plugin & PluginHost): void {
 		plugin.app.workspace.on("file-menu", (menu, file) => {
 			addIgnoreItem(menu, plugin, file);
 			addPushMenuItem(menu, plugin, file.path, file instanceof TFolder);
+			addLinkMenuItems(menu, plugin, file);
 			if (file instanceof TFolder && !file.isRoot()) {
 				addShareMenuItem(menu, plugin, file.path);
 			}

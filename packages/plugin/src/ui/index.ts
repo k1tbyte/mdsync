@@ -20,6 +20,14 @@ export { DiffView } from "./diff-view";
 export { registerFileContextIndicators } from "./explorer/file-context-indicators";
 export { registerFileExplorerIndicators } from "./explorer/file-explorer-indicators";
 export type { IndicatorHandle } from "./explorer/indicator-handle";
+export {
+	addLinkMenuItems,
+	isLinkable,
+	openManageLinks,
+	openShareLink,
+	registerNoteLinkActions,
+	updateSharedLinks,
+} from "./links";
 export { createDeletedElsewhere } from "./live/deleted-elsewhere";
 export { rebuildLiveNote, toggleAuthors } from "./live/header/live-actions";
 export { canRebuild } from "./live/header/note-menu-items";

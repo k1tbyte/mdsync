@@ -24,6 +24,9 @@ jobs:
       - name: Test
         run: pnpm --filter mdsync-relay run test
 
+      - name: Build link viewer
+        run: pnpm --filter mdsync-viewer run build
+
       # The KV namespace and Durable Object are created by wrangler on the first
       # deploy; only the secrets below come from the repository.
       - name: Deploy

@@ -1,6 +1,6 @@
 /** The relay worker under `wrangler dev`, as a scenario resource. */
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,6 +33,13 @@ export async function startRelay(
 	// Storage left by an older build may hold tables of another shape.
 	if (!wiped) {
 		rmSync(join(RELAY_DIR, STATE_DIR), { recursive: true, force: true });
+		// wrangler refuses to start when the assets directory the worker names is missing.
+		const built = spawnSync("pnpm --filter mdsync-viewer run build", {
+			cwd: RELAY_DIR,
+			shell: true,
+			stdio: "ignore",
+		});
+		if (built.status !== 0) throw new Error("the link viewer did not build");
 		wiped = true;
 	}
 	const flags = Object.entries({ ...vars, RELAY_SECRET: secret })

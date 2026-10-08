@@ -9,6 +9,28 @@ export function toHex(bytes: ArrayBuffer | Uint8Array): string {
 		.join("");
 }
 
+/** Sealed notes run to megabytes; spreading one into `fromCharCode` would overflow the stack. */
+const BASE64_CHUNK = 0x8000;
+
+export function toBase64Url(bytes: Uint8Array): string {
+	let binary = "";
+	for (let at = 0; at < bytes.length; at += BASE64_CHUNK) {
+		binary += String.fromCharCode(...bytes.subarray(at, at + BASE64_CHUNK));
+	}
+	return btoa(binary)
+		.replace(/\+/g, "-")
+		.replace(/\//g, "_")
+		.replace(/=+$/, "");
+}
+
+/** Throws on anything that is not base64url. */
+export function fromBase64Url(text: string): Uint8Array<ArrayBuffer> {
+	if (!/^[A-Za-z0-9_-]*$/.test(text)) throw new Error("invalid base64url");
+	const padded = text.replace(/-/g, "+").replace(/_/g, "/");
+	const binary = atob(padded.padEnd(Math.ceil(padded.length / 4) * 4, "="));
+	return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
 export class Writer {
 	private readonly parts: Uint8Array[] = [];
 	private length = 0;
