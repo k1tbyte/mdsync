@@ -81,10 +81,9 @@ function sanitizeAnchors(root: HTMLElement): void {
 	for (const anchor of root.querySelectorAll("a")) {
 		const href = anchor.getAttribute("href") ?? "";
 		if (anchor.classList.contains("tag")) {
-			const tag = root.ownerDocument.createElement("span");
-			tag.className = "tag";
-			tag.textContent = anchor.textContent;
-			anchor.replaceWith(tag);
+			anchor.replaceWith(
+				createSpan({ cls: "tag", text: anchor.textContent ?? "" }),
+			);
 		} else if (
 			anchor.classList.contains("internal-link") ||
 			!LINK_HREF_ALLOWED.test(href)

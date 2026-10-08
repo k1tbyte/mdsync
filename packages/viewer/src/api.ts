@@ -20,7 +20,9 @@ export interface LinkApi {
 	open(id: string, gate: string): Promise<OpenOutcome>;
 }
 
-export function createApi(fetcher: typeof fetch = fetch): LinkApi {
+export function createApi(
+	fetcher: typeof fetch = (input, init) => window.fetch(input, init),
+): LinkApi {
 	return {
 		async meta(id) {
 			const response = await fetcher(`/link/${id}/meta`);

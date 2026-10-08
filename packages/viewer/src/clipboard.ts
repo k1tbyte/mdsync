@@ -24,7 +24,7 @@ export async function copyWithFeedback(
 		// A note that cannot be converted just fails to copy.
 	}
 	button.textContent = copied ? "Copied" : "Copy failed";
-	setTimeout(() => {
+	window.setTimeout(() => {
 		button.textContent = label;
 	}, RESULT_MS);
 }

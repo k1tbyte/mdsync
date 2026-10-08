@@ -1,3 +1,4 @@
+import { el } from "./dom";
 import { headingLevel, reveal } from "./sections";
 
 /** Fewer headings than this need no outline. */
@@ -15,10 +16,12 @@ export function createOutline(
 	const doc = first.ownerDocument;
 	const top = Math.min(...headings.map(headingLevel));
 	const items = headings.map((heading) => {
-		const item = doc.createElement("button");
-		item.type = "button";
-		item.className = "outline-item";
-		item.textContent = heading.textContent?.trim() ?? "";
+		const item = el(
+			doc,
+			"button",
+			{ type: "button", class: "outline-item" },
+			heading.textContent?.trim() ?? "",
+		);
 		item.style.setProperty("--depth", String(headingLevel(heading) - top));
 		item.addEventListener("click", () => {
 			reveal(heading);
@@ -26,10 +29,12 @@ export function createOutline(
 		});
 		return item;
 	});
-	const list = doc.createElement("nav");
-	list.className = "outline";
-	list.setAttribute("aria-label", "Outline");
-	list.append(...items);
+	const list = el(
+		doc,
+		"nav",
+		{ class: "outline", "aria-label": "Outline" },
+		...items,
+	);
 
 	let frame = 0;
 	const markCurrent = () => {
@@ -49,7 +54,7 @@ export function createOutline(
 		}
 	};
 	const schedule = () => {
-		if (frame === 0) frame = requestAnimationFrame(markCurrent);
+		if (frame === 0) frame = window.requestAnimationFrame(markCurrent);
 	};
 	doc.defaultView?.addEventListener("scroll", schedule, {
 		passive: true,

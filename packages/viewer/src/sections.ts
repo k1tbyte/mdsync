@@ -1,3 +1,5 @@
+import { el, isElement, isHeading } from "./dom";
+
 const FOLDED_CONTENT = ".heading-children, .callout-content";
 
 /**
@@ -5,26 +7,26 @@ const FOLDED_CONTENT = ".heading-children, .callout-content";
  * view does: the renderer emits the blocks flat. Footnotes stay outside every section.
  */
 export function foldSections(body: HTMLElement): HTMLHeadingElement[] {
-	const tree = body.ownerDocument.createDocumentFragment();
+	const doc = body.ownerDocument;
+	const tree = el(doc, "div");
 	const open: { level: number; children: HTMLElement }[] = [];
 	const headings: HTMLHeadingElement[] = [];
 	for (const node of Array.from(body.childNodes)) {
-		if (node instanceof Element && node.classList.contains("footnotes")) {
+		if (isElement(node) && node.classList.contains("footnotes")) {
 			open.length = 0;
 		}
-		if (!(node instanceof HTMLHeadingElement)) {
+		if (!isHeading(node)) {
 			(open.at(-1)?.children ?? tree).append(node);
 			continue;
 		}
 		const level = headingLevel(node);
 		while ((open.at(-1)?.level ?? 0) >= level) open.pop();
-		const children = body.ownerDocument.createElement("div");
-		children.className = "heading-children";
+		const children = el(doc, "div", { class: "heading-children" });
 		(open.at(-1)?.children ?? tree).append(section(node, children));
 		open.push({ level, children });
 		headings.push(node);
 	}
-	body.append(tree);
+	body.append(...tree.childNodes);
 	return headings;
 }
 
@@ -46,18 +48,18 @@ function section(
 	children: HTMLElement,
 ): HTMLElement {
 	const doc = heading.ownerDocument;
-	const section = doc.createElement("section");
-	section.className = "heading-section";
+	const section = el(doc, "section", { class: "heading-section" });
 	// The fold button sits outside the heading, so it takes the heading's line height from here.
 	section.style.setProperty(
 		"--heading-size",
 		`var(--h${headingLevel(heading)}-size)`,
 	);
-	const fold = doc.createElement("button");
-	fold.type = "button";
-	fold.className = "heading-fold";
-	fold.setAttribute("aria-label", "Fold section");
-	fold.setAttribute("aria-expanded", "true");
+	const fold = el(doc, "button", {
+		type: "button",
+		class: "heading-fold",
+		"aria-label": "Fold section",
+		"aria-expanded": "true",
+	});
 	const toggle = () =>
 		setFolded(section, !section.classList.contains("is-collapsed"));
 	fold.addEventListener("click", toggle);

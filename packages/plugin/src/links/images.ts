@@ -76,8 +76,10 @@ async function reencode(blob: Blob): Promise<Blob | null> {
 function readAsDataUrl(blob: Blob): Promise<string> {
 	return new Promise((resolve, reject) => {
 		const reader = new FileReader();
-		reader.onload = () => resolve(String(reader.result));
-		reader.onerror = () => reject(reader.error);
+		reader.onload = () =>
+			resolve(typeof reader.result === "string" ? reader.result : "");
+		reader.onerror = () =>
+			reject(reader.error ?? new Error("The image could not be read."));
 		reader.readAsDataURL(blob);
 	});
 }

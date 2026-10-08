@@ -8,8 +8,8 @@ import { fromBase64Url, toBase64Url } from "./bytes";
 const subtle = crypto.subtle;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
-/** Worker typings widen `encode` to `Uint8Array<ArrayBufferLike>`; the bytes are always a plain ArrayBuffer. */
-const utf8 = (text: string) => encoder.encode(text) as Uint8Array<ArrayBuffer>;
+/** Worker typings widen `encode` to `Uint8Array<ArrayBufferLike>`; a copy is always a plain ArrayBuffer. */
+const utf8 = (text: string) => new Uint8Array(encoder.encode(text));
 
 const LINK_ID_PATTERN = /^[A-Za-z0-9_-]{22}$/;
 export const LINK_KEY_BYTES = 16;

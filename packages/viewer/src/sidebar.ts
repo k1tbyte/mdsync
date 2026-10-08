@@ -1,4 +1,5 @@
 import { copyWithFeedback } from "./clipboard";
+import { el } from "./dom";
 import { expiryText } from "./expiry";
 
 const COPY_LABEL = "Copy as Markdown";
@@ -24,13 +25,11 @@ export function createSidebar(
 	signal: AbortSignal,
 ): HTMLElement {
 	const doc = reader.ownerDocument;
-	const sidebar = doc.createElement("aside");
-	sidebar.className = "sidebar";
+	const sidebar = el(doc, "aside", { class: "sidebar" });
 	const toggle = button(doc, "sidebar-toggle", "");
 	toggle.setAttribute("aria-label", "Menu");
 	toggle.setAttribute("aria-expanded", "false");
-	const panel = doc.createElement("div");
-	panel.className = "sidebar-panel";
+	const panel = el(doc, "div", { class: "sidebar-panel" });
 	panel.append(card(reader, facts, markdown, signal));
 	if (outline) panel.append(outline);
 	sidebar.append(toggle, panel);
@@ -69,12 +68,9 @@ function card(
 	signal: AbortSignal,
 ): HTMLElement {
 	const doc = reader.ownerDocument;
-	const card = doc.createElement("div");
-	card.className = "link-card";
+	const card = el(doc, "div", { class: "link-card" });
 	const fact = (cls: string, text: string) => {
-		const line = doc.createElement("p");
-		line.className = `link-fact ${cls}`;
-		line.textContent = text;
+		const line = el(doc, "p", { class: `link-fact ${cls}` }, text);
 		card.append(line);
 		return line;
 	};
@@ -83,10 +79,10 @@ function card(
 	if (expires !== null) {
 		const line = fact("link-expiry", expiryText(expires, Date.now()));
 		// "In 5 min" has to count down while the page stays open.
-		const timer = setInterval(() => {
+		const timer = window.setInterval(() => {
 			line.textContent = expiryText(expires, Date.now());
 		}, EXPIRY_REFRESH_MS);
-		signal.addEventListener("abort", () => clearInterval(timer));
+		signal.addEventListener("abort", () => window.clearInterval(timer));
 	}
 	const wide = button(doc, "wide-toggle", "Wide text");
 	const setWide = (on: boolean) => {
@@ -100,8 +96,9 @@ function card(
 		storeWide(on);
 	});
 	const copy = button(doc, "copy-markdown", COPY_LABEL);
-	copy.addEventListener("click", () =>
-		copyWithFeedback(copy, COPY_LABEL, markdown),
+	copy.addEventListener(
+		"click",
+		() => void copyWithFeedback(copy, COPY_LABEL, markdown),
 	);
 	card.append(copy, wide);
 	return card;
@@ -116,7 +113,7 @@ function viewsText(viewsLeft: number): string {
 
 function storedWide(): boolean {
 	try {
-		return localStorage.getItem(WIDE_KEY) === "1";
+		return window.localStorage.getItem(WIDE_KEY) === "1";
 	} catch {
 		return false;
 	}
@@ -124,17 +121,13 @@ function storedWide(): boolean {
 
 function storeWide(on: boolean): void {
 	try {
-		if (on) localStorage.setItem(WIDE_KEY, "1");
-		else localStorage.removeItem(WIDE_KEY);
+		if (on) window.localStorage.setItem(WIDE_KEY, "1");
+		else window.localStorage.removeItem(WIDE_KEY);
 	} catch {
 		// Storage blocked: the choice lasts for this page.
 	}
 }
 
 function button(doc: Document, cls: string, text: string): HTMLButtonElement {
-	const button = doc.createElement("button");
-	button.type = "button";
-	button.className = cls;
-	button.textContent = text;
-	return button;
+	return el(doc, "button", { type: "button", class: cls }, text);
 }

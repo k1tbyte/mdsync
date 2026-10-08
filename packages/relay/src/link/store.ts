@@ -221,7 +221,7 @@ export class LinkStore {
 			views: Number(row.views),
 			maxViews: nullable(row.max_views),
 			expires: nullable(row.expires),
-			gate: String(row.gate),
+			gate: typeof row.gate === "string" ? row.gate : "",
 			salt: typeof row.salt === "string" ? row.salt : null,
 			size: Number(row.size),
 		};

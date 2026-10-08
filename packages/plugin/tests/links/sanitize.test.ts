@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
 import { URL as NodeURL } from "node:url";
+import { installElementFactories } from "@tests/helpers/obsidian-dom";
 import { beforeEach, describe, expect, it } from "vitest";
 import { type SanitizeReport, sanitizeRendered } from "@/links/sanitize";
+
+installElementFactories();
 
 const fixture = readFileSync(
 	new NodeURL("./fixtures/rendered-note.html", import.meta.url),

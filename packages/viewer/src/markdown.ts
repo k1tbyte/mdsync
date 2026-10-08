@@ -22,8 +22,7 @@ service.remove((node) => node.localName === "svg");
 // The library pads a marker to four columns ("-   item", "[x]  item"); this is the usual one space.
 service.addRule("listItem", {
 	filter: "li",
-	replacement: (content, node, options) => {
-		const item = node as HTMLElement;
+	replacement: (content, item, options) => {
 		const list = item.parentElement;
 		const marker =
 			list?.localName === "ol"
@@ -44,8 +43,7 @@ service.addRule("listItem", {
 
 service.addRule("math", {
 	filter: (node) => node.localName === "math",
-	replacement: (_content, node) => {
-		const math = node as HTMLElement;
+	replacement: (_content, math) => {
 		const tex = math.getAttribute("data-tex") ?? math.textContent ?? "";
 		return math.getAttribute("display") === "block"
 			? `\n\n$$\n${tex}\n$$\n\n`
@@ -55,8 +53,7 @@ service.addRule("math", {
 
 service.addRule("callout", {
 	filter: (node) => node.classList.contains("callout"),
-	replacement: (_content, node) => {
-		const callout = node as HTMLElement;
+	replacement: (_content, callout) => {
 		const type = callout.getAttribute("data-callout") ?? "note";
 		const title =
 			callout.querySelector(".callout-title-inner")?.textContent?.trim() ?? "";

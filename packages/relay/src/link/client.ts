@@ -18,14 +18,15 @@ export function networkOf(address: string): string {
 		.toLowerCase()
 		.replace(
 			/(\d+)\.(\d+)\.(\d+)\.(\d+)$/,
-			(_tail, a, b, c, d) =>
+			(_tail: string, a: string, b: string, c: string, d: string) =>
 				`${(Number(a) * 256 + Number(b)).toString(16)}:${(Number(c) * 256 + Number(d)).toString(16)}`,
 		)
 		.split("::");
 	const front = head === "" ? [] : head.split(":");
 	const back = tail === undefined || tail === "" ? [] : tail.split(":");
 	const gap = Math.max(IPV6_GROUPS - front.length - back.length, 0);
-	const groups = [...front, ...Array(gap).fill("0"), ...back].map((group) =>
+	const zeros = Array.from({ length: gap }, () => "0");
+	const groups = [...front, ...zeros, ...back].map((group) =>
 		group.replace(/^0+(?=.)/, ""),
 	);
 	if (

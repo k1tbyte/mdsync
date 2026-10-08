@@ -85,9 +85,7 @@ export function mathToMathML(root: HTMLElement): void {
 			mml.setAttribute("data-tex", source);
 			node.replaceWith(mml);
 		} else {
-			const code = root.ownerDocument.createElement("code");
-			code.textContent = source;
-			node.replaceWith(code);
+			node.replaceWith(createEl("code", { text: source }));
 		}
 	}
 }

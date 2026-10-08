@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { installElementFactories } from "@tests/helpers/obsidian-dom";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mathToMathML, tagMathSources } from "@/links/math";
+
+installElementFactories();
 
 interface FakeMathJax {
 	tex2chtml: (source: string, options?: { display?: boolean }) => Element;

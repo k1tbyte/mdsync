@@ -32,7 +32,7 @@ export interface SessionDeps {
 	api: LinkApi;
 	cache: LinkCache;
 	keys: RememberedKeys;
-	show(state: ViewState): void;
+	show: (state: ViewState) => void;
 }
 
 /** How the keys came: typed for once, typed to be kept, or kept from an earlier visit. */

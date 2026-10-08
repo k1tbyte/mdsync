@@ -1,10 +1,12 @@
 import { LINK_HREF_ALLOWED, LINK_IMAGE_SRC_ALLOWED } from "@mdsync/protocol";
 import DOMPurify from "dompurify";
 
+import { isElement, isTag } from "./dom";
+
 const purify = DOMPurify(window);
 
 purify.addHook("afterSanitizeAttributes", (node) => {
-	if (node instanceof Element && node.localName === "a") {
+	if (isElement(node) && node.localName === "a") {
 		for (const attribute of ["href", "xlink:href"]) {
 			const href = node.getAttribute(attribute);
 			if (href !== null && !LINK_HREF_ALLOWED.test(href))
@@ -15,12 +17,12 @@ purify.addHook("afterSanitizeAttributes", (node) => {
 			}
 		}
 	}
-	if (node instanceof HTMLImageElement) {
+	if (isTag(node, "img")) {
 		node.removeAttribute("srcset");
 		if (!LINK_IMAGE_SRC_ALLOWED.test(node.getAttribute("src") ?? ""))
 			node.remove();
 	}
-	if (node instanceof HTMLInputElement) {
+	if (isTag(node, "input")) {
 		if (node.type !== "checkbox") node.remove();
 		else node.setAttribute("disabled", "");
 	}

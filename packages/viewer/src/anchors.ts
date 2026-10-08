@@ -1,6 +1,7 @@
 import { linkUrl, parseLinkLocation } from "@mdsync/protocol";
 
 import { copyText } from "./clipboard";
+import { el } from "./dom";
 import { reveal } from "./sections";
 
 /** How long an anchor button shows how the copy went. */
@@ -54,21 +55,31 @@ function anchorButton(
 	heading: HTMLHeadingElement,
 	anchor: string,
 ): HTMLButtonElement {
-	const button = heading.ownerDocument.createElement("button");
-	button.type = "button";
-	button.className = "heading-anchor";
-	button.setAttribute("aria-label", "Copy a link to this section");
-	button.addEventListener("click", async () => {
-		const url = addressOf(anchor);
-		if (!url) return;
-		history.replaceState(null, "", url);
-		heading.scrollIntoView({ block: "start", behavior: "smooth" });
-		button.dataset.state = (await copyText(url)) ? "copied" : "failed";
-		setTimeout(() => {
-			delete button.dataset.state;
-		}, RESULT_MS);
+	const button = el(heading.ownerDocument, "button", {
+		type: "button",
+		class: "heading-anchor",
+		"aria-label": "Copy a link to this section",
 	});
+	button.addEventListener(
+		"click",
+		() => void copyAddress(heading, button, anchor),
+	);
 	return button;
+}
+
+async function copyAddress(
+	heading: HTMLHeadingElement,
+	button: HTMLButtonElement,
+	anchor: string,
+): Promise<void> {
+	const url = addressOf(anchor);
+	if (!url) return;
+	history.replaceState(null, "", url);
+	heading.scrollIntoView({ block: "start", behavior: "smooth" });
+	button.dataset.state = (await copyText(url)) ? "copied" : "failed";
+	window.setTimeout(() => {
+		delete button.dataset.state;
+	}, RESULT_MS);
 }
 
 function withId(body: HTMLElement, id: string): Element | undefined {

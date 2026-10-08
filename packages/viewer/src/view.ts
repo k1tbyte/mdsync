@@ -1,5 +1,6 @@
 import { addAnchors, currentAnchor } from "./anchors";
 import { addCopyButtons } from "./code";
+import { el as create } from "./dom";
 import { markLoneImages } from "./images";
 import { noteMarkdown } from "./markdown";
 import { createOutline } from "./outline";
@@ -9,29 +10,21 @@ import type { ViewState } from "./session";
 import { createSidebar } from "./sidebar";
 
 export interface View {
-	show(state: ViewState): void;
+	show: (state: ViewState) => void;
 }
 
 export interface ViewHandlers {
-	onPassphrase(passphrase: string, remember: boolean): void;
+	onPassphrase: (passphrase: string, remember: boolean) => void;
 }
-
-type Child = Node | string;
 
 export function createView(root: HTMLElement, handlers: ViewHandlers): View {
 	const doc = root.ownerDocument;
 
-	function el<K extends keyof HTMLElementTagNameMap>(
+	const el = <K extends keyof HTMLElementTagNameMap>(
 		tag: K,
 		attrs: Record<string, string> = {},
-		...children: Child[]
-	): HTMLElementTagNameMap[K] {
-		const node = doc.createElement(tag);
-		for (const [name, value] of Object.entries(attrs))
-			node.setAttribute(name, value);
-		node.append(...children);
-		return node;
-	}
+		...children: (Node | string)[]
+	) => create(doc, tag, attrs, ...children);
 
 	const message = (title: string, text: string, ...extra: Node[]) =>
 		el(
@@ -92,7 +85,7 @@ export function createView(root: HTMLElement, handlers: ViewHandlers): View {
 		const outline = createOutline(headings, signal);
 		const jump = addAnchors(body, headings);
 		// Jumps once laid out, and again when the address names another anchor.
-		requestAnimationFrame(() => jump(currentAnchor()));
+		window.requestAnimationFrame(() => jump(currentAnchor()));
 		window.addEventListener("hashchange", () => jump(currentAnchor()), {
 			signal,
 		});
