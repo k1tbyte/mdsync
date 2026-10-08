@@ -22,7 +22,7 @@ import {
 } from "./s3-signer";
 import { createS3Store } from "./s3-store";
 import { ShareSignedUrls } from "./share-signed-urls";
-import { StorageHttpError } from "./util";
+import { errorCode, StorageHttpError } from "./util";
 
 export interface BrokerAccess {
 	relayUrl: string;
@@ -41,7 +41,7 @@ const SIGN_OPS: Record<S3Method, string> = {
 	DELETE: "delete",
 	HEAD: "head",
 };
-const ADMIN_HEADER = "X-Mdsync-Admin";
+export const ADMIN_HEADER = "X-Mdsync-Admin";
 /** Refusals that say something about the share, not the network: never retried. */
 const PARTICIPANT_REFUSALS: Record<string, string> = {
 	unauthorized: "This shared folder's invite is no longer valid.",
@@ -287,14 +287,4 @@ async function callBroker(
 	}
 	if (refusal) throw new StorageRequestError(message, refusal);
 	throw new StorageHttpError(res.status, message);
-}
-
-function errorCode(text: string): string | null {
-	try {
-		const parsed: unknown = JSON.parse(text);
-		const code = (parsed as { error?: unknown } | null)?.error;
-		return typeof code === "string" ? code : null;
-	} catch {
-		return null;
-	}
 }

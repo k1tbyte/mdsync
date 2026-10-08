@@ -115,15 +115,34 @@
 }
 
 /* Out of a line box: an inline icon sits on the text baseline, above centre. */
-.mdsync-share-icon {
+.mdsync-share-icon,
+.mdsync-published-icon {
 	display: flex;
 }
 
-.mdsync-share-badge {
+.mdsync-published-icon {
+	position: relative;
+}
+
+/* The badge's ::after is reserved for the mobile touch target. */
+.mdsync-published-badge.is-stale .mdsync-published-icon::after {
+	content: "";
+	position: absolute;
+	top: 0;
+	inset-inline-end: 0;
+	width: var(--size-2-2);
+	height: var(--size-2-2);
+	border-radius: 50%;
+	background: var(--interactive-accent);
+}
+
+.mdsync-share-badge,
+.mdsync-published-badge {
 	cursor: pointer;
 }
 
-.mdsync-share-badge:focus-visible {
+.mdsync-share-badge:focus-visible,
+.mdsync-published-badge:focus-visible {
 	outline: 2px solid var(--interactive-accent);
 	outline-offset: 1px;
 	border-radius: var(--radius-s);

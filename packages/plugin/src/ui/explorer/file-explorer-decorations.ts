@@ -1,4 +1,5 @@
 import { setIcon } from "obsidian";
+
 import type { PluginHost } from "@/plugin/host";
 import type { SyncController } from "@/sync/controller";
 import type { EChangeType } from "@/sync/types";
@@ -8,6 +9,7 @@ import {
 	skippedFiles,
 	skippedText,
 } from "@/ui/common";
+
 import { renderPresenceMarks } from "./file-explorer-badges";
 import type { PresenceMarks } from "./file-explorer-marks";
 
@@ -86,6 +88,7 @@ export function sameDecoration(
 			left.skipped === right.skipped &&
 			sameFlat(left.unseen, right.unseen) &&
 			sameFlat(left.share, right.share) &&
+			sameFlat(left.published, right.published) &&
 			sameList(left.people, right.people))
 	);
 }
@@ -103,6 +106,7 @@ export function renderDecoration(
 		decoration.linkRoot ||
 		decoration.people?.length ||
 		decoration.share ||
+		decoration.published ||
 		decoration.unseen
 	) {
 		target.addClass("mdsync-has-path-badge");

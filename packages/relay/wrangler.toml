@@ -11,8 +11,16 @@ binding = "SHARE_TOKENS"
 # the worker stays inside the Workers free tier.
 [durable_objects]
 bindings = [
-  { name = "HUB", class_name = "Hub" }
+  { name = "HUB", class_name = "Hub" },
+  { name = "LINK", class_name = "Link" }
 ]
+
+# The link viewer (packages/viewer, built to dist/). Only /s/<id> runs the worker first, to add the
+# security headers; the viewer's scripts and styles are served as plain assets.
+[assets]
+directory = "../viewer/dist"
+binding = "ASSETS"
+run_worker_first = ["/s/*"]
 
 [[migrations]]
 tag = "v1"
@@ -22,6 +30,11 @@ new_sqlite_classes = ["SyncRelay"]
 tag = "v2"
 new_sqlite_classes = ["Hub"]
 deleted_classes = ["SyncRelay"]
+
+# One object per share link: sealed note, view counter, passphrase gate.
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["Link"]
 
 # Secrets (never hardcode; the Deploy Relay workflow uploads them):
 # - RELAY_SECRET          admin auth for shared folders; hub channel grants derive from it

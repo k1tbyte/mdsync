@@ -73,3 +73,41 @@ body.is-phone .mdsync-settings-nav .mdsync-settings-tab-button {
 .mdsync-settings-error {
 	color: var(--text-error);
 }
+
+.mdsync-settings .mdsync-ignore-patterns {
+	flex-direction: column;
+	align-items: stretch;
+	gap: var(--size-4-2);
+}
+
+.mdsync-ignore-patterns .setting-item-info {
+	margin-inline-end: 0;
+}
+
+.mdsync-ignore-patterns .setting-item-control {
+	width: 100%;
+}
+
+.mdsync-ignore-patterns textarea {
+	width: 100%;
+	min-width: 0;
+	max-width: 100%;
+	resize: vertical;
+	font-family: var(--font-monospace);
+}
+
+body.is-phone .mdsync-settings button {
+	min-height: var(--mdsync-touch);
+}
+
+@media (max-width: 600px) {
+	.mdsync-settings .setting-item-control {
+		min-width: 0;
+		flex-wrap: wrap;
+	}
+
+	.mdsync-settings .setting-item-control > :is(input, select) {
+		min-width: 0;
+		max-width: 100%;
+	}
+}

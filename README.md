@@ -40,6 +40,7 @@ MDSync syncs your vault through an S3 bucket, a WebDAV server or Google Drive. T
 - [Live editing](#live-editing): notes and Excalidraw drawings edit together, keystroke by keystroke.
 - [Presence](#presence): who has which note open, and following someone through the vault.
 - [Shared folders](#shared-folders): share a folder with other people without handing them your storage keys.
+- [Share links](#share-links): publish one note as a link anyone can read, with an optional passphrase, a view limit and an expiry.
 
 **Setup and upkeep**
 
@@ -248,6 +249,21 @@ From the share's window you can see who is in it, revoke a person, pause the sha
 
 </details>
 
+### Share links
+
+Publish one note as a link, from its menu in the file explorer (**MDSync: Share link**) or with **Share this note as a link**. It needs the relay. The reader needs nothing installed: the link opens a page served by your relay.
+
+- **Expires** after 5 or 15 minutes, an hour, a day, 7 days (default) or 30 days, or never. **Pick a date…** sets an exact date and time, from 1 minute to 365 days ahead. **Views** limits how many times it opens (1, 5, 25, unlimited). Once either runs out the relay erases the note.
+- An optional **passphrase** is asked before the note opens. Send it by a different route than the link. The reader can let their browser remember it until the link expires.
+- The note is drawn as Obsidian's reading view draws it (callouts, tasks, code, tables, math; a Mermaid diagram your vault has not allowed shows as its source), then encrypted on your device before it leaves. The key is in the part of the link after `#`, which browsers never send, so the relay holds only ciphertext.
+- The page has an outline of the note's headings, shows how many views and how long the link has left, and can widen the text. Headings fold with a click, and their `#` copies a link to that place in the note. Code blocks have a copy button.
+- Left out: properties, comments, links to other notes (their text stays), embedded notes, and files other than images. Images from your vault are embedded and shrunk to fit; turn that off with **Include images**. The window tells you what was left out before you create the link.
+- **Manage share links** (command, or **Settings → MDSync → Sync → Share links**) shows how many views are left, copies the link again, **Update**s it to the note as it is now (same link, views already used stay used) or stops it at once.
+- A shared note shows a globe in the file tree and in its header; a dot means it changed since it was shared. Click either to update it, or run **Update share links of this note**.
+- Opening the link in the same tab again costs no extra view.
+
+A link is a copy: later edits do not reach it until you update it. Anyone who has the link (and the passphrase) can read the note and pass it on. The links, with their keys, are kept in the plugin's `data.json`.
+
 ## Device transfer
 
 **Settings → MDSync → Connection → Export setup** creates an encrypted link and QR code with your main sync settings, storage credentials included. It leaves out the cached passphrase and display preferences. The link is encrypted with your passphrase, so the new device needs the same passphrase and confirms the import before anything is applied.
@@ -275,6 +291,7 @@ From the share's window you can see who is in it, revoke a person, pause the sha
 - **Forget cached passphrase**.
 - **Manage sharing**: the sharing window of the open file's shared folder.
 - **Accept shared folder invite**.
+- **Share this note as a link** / **Update share links of this note** / **Manage share links**.
 - **Show relay status**: relay state per space and who is in shared notes.
 - **Show live menu of this note**.
 - **Toggle authors in live notes**.
@@ -295,6 +312,8 @@ Storage credentials, share keys and the relay secret are stored in the plugin's 
 
 **What the relay sees.** It never sees file contents, file names or keys: live edits and presence travel encrypted under each space's key. It does see a hash of your storage identity, a device id per connection, and when each sync and note switch happens. For a shared folder with participants, it keeps your S3 access key in its storage to sign requests for them, plus the names you invited people by. With Google Drive, it exchanges your sign-in for tokens and sees your Drive refresh token.
 
+**Share links.** Creating one sends a rendered copy of that note to your relay, encrypted on your device. The relay stores the ciphertext, a fingerprint of the passphrase check, the view limit and the expiry, and counts views. It never sees the key (it stays in the part of the link after `#`), the passphrase, or the text. The page a recipient opens is served by your relay and decrypts in their browser.
+
 <details>
 <summary>What MDSync writes to your storage</summary>
 
@@ -313,7 +332,7 @@ Storage credentials, share keys and the relay secret are stored in the plugin's 
 
 ## Self-hosting the relay
 
-The relay is `packages/relay`: one Cloudflare Worker that handles instant sync, live editing, invites to shared folders and the Google Drive sign-in. It fits in the Workers free tier.
+The relay is `packages/relay`: one Cloudflare Worker that handles instant sync, live editing, invites to shared folders, share links and the Google Drive sign-in. It fits in the Workers free tier.
 
 1. Fork this repository.
 2. In **Settings → MDSync → Connection → Relay server**, select **Generate**. The secret is copied to your clipboard.
@@ -343,7 +362,7 @@ pnpm typecheck
 pnpm test
 ```
 
-The plugin lives in `packages/plugin`, the relay in `packages/relay`.
+The plugin lives in `packages/plugin`, the relay in `packages/relay`, the page share links open in `packages/viewer` (built into the relay's static assets), and the format both share in `packages/protocol`.
 
 ## License
 

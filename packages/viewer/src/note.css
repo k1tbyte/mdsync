@@ -1,0 +1,456 @@
+/* The rendered note, by Obsidian's class names. Variables are set in viewer.css. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	line-height: var(--line-height-tight);
+}
+
+.markdown-rendered * {
+	scroll-margin-top: var(--jump-margin);
+}
+
+.markdown-rendered > :first-child,
+.markdown-rendered > .heading-section:first-child > :first-child {
+	margin-top: 0;
+}
+
+.markdown-rendered h1 {
+	font-size: var(--h1-size);
+}
+.markdown-rendered h2 {
+	font-size: var(--h2-size);
+}
+.markdown-rendered h3 {
+	font-size: var(--h3-size);
+}
+.markdown-rendered h4 {
+	font-size: var(--h4-size);
+}
+.markdown-rendered h5 {
+	font-size: var(--h5-size);
+}
+.markdown-rendered h6 {
+	font-size: var(--h6-size);
+}
+.markdown-rendered h5,
+.markdown-rendered h6 {
+	color: var(--text-muted);
+}
+
+/* Heading folds: a chevron in the margin, shown on hover as in Obsidian. */
+.heading-section {
+	--fold-width: 1.25rem;
+	position: relative;
+}
+
+.heading-fold {
+	position: absolute;
+	top: 0;
+	left: calc(-1 * var(--fold-width));
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--fold-width);
+	height: calc(var(--heading-size) * var(--line-height-tight));
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--text-faint);
+	cursor: pointer;
+	opacity: 0;
+}
+
+.heading-fold::before {
+	content: "";
+	width: 0.4rem;
+	height: 0.4rem;
+	border: solid currentColor;
+	border-width: 0 1.5px 1.5px 0;
+	transform: translateY(-25%) rotate(45deg);
+}
+
+.heading-section.is-collapsed > .heading-fold::before {
+	transform: rotate(-45deg);
+}
+
+.heading-section > :hover + .heading-fold,
+.heading-fold:hover,
+.heading-fold:focus-visible,
+.heading-section.is-collapsed > .heading-fold {
+	opacity: 1;
+}
+
+.heading-section.is-collapsed > .heading-children {
+	display: none;
+}
+
+.heading-section > :first-child {
+	cursor: pointer;
+}
+
+.heading-anchor {
+	margin-left: 0.4em;
+	padding: 0 0.3em;
+	border: 0;
+	border-radius: 4px;
+	background: none;
+	color: var(--text-faint);
+	font: inherit;
+	font-size: 0.7em;
+	font-weight: normal;
+	vertical-align: 0.1em;
+	cursor: pointer;
+	opacity: 0;
+}
+
+.heading-anchor::before {
+	content: "#";
+}
+
+.heading-anchor[data-state="copied"]::before {
+	content: "Link copied";
+}
+
+.heading-anchor[data-state="failed"]::before {
+	content: "Link is in the address bar";
+}
+
+.heading-anchor:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+:hover > .heading-anchor,
+.heading-anchor:focus-visible,
+.heading-anchor[data-state] {
+	opacity: 1;
+}
+
+@media (hover: none) {
+	.heading-fold,
+	.heading-anchor {
+		opacity: 0.6;
+	}
+}
+
+a {
+	color: var(--text-accent);
+}
+
+img,
+svg,
+video {
+	max-width: 100%;
+	height: auto;
+}
+
+hr {
+	border: 0;
+	border-top: 1px solid var(--background-modifier-border);
+	margin: 2rem 0;
+}
+
+blockquote {
+	margin: 1rem 0;
+	padding: 0.1rem 1rem;
+	border-left: 3px solid var(--interactive-accent);
+	color: var(--text-muted);
+}
+
+mark {
+	background: var(--text-highlight-bg);
+	color: inherit;
+	border-radius: 2px;
+}
+
+code,
+pre {
+	font-family: var(--font-monospace);
+	font-size: var(--code-size);
+}
+
+code {
+	padding: 0.1em 0.35em;
+	border-radius: 4px;
+	background: var(--code-background);
+}
+
+/* The code scrolls inside the block, so the copy button stays in its corner. */
+pre {
+	position: relative;
+	padding: 0.9rem 1rem;
+	border-radius: 8px;
+	background: var(--code-background);
+	color: var(--code-normal);
+	overflow-x: auto;
+}
+
+pre:has(> code) {
+	padding: 0;
+	overflow: visible;
+}
+
+pre > code {
+	display: block;
+	padding: 0.9rem 1rem;
+	border-radius: 0;
+	background: none;
+	font-size: inherit;
+	overflow-x: auto;
+}
+
+.copy-code-button {
+	position: absolute;
+	top: 0.4rem;
+	right: 0.4rem;
+	padding: 0.15rem 0.55rem;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	background: var(--background-primary);
+	color: var(--text-muted);
+	font: 0.75rem / 1.5 var(--font-text);
+	cursor: pointer;
+	opacity: 0;
+}
+
+pre:hover > .copy-code-button,
+.copy-code-button:focus-visible {
+	opacity: 1;
+}
+
+@media (hover: none) {
+	.copy-code-button {
+		opacity: 1;
+	}
+}
+
+table {
+	border-collapse: collapse;
+	display: block;
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+th,
+td {
+	padding: 0.4rem 0.8rem;
+	border: 1px solid var(--background-modifier-border);
+}
+
+th {
+	background: var(--background-secondary);
+}
+
+.contains-task-list {
+	padding-left: 0;
+	list-style: none;
+}
+
+/* Obsidian's checkbox: a rounded box, filled with the accent and ticked when done. */
+.markdown-rendered input[type="checkbox"] {
+	appearance: none;
+	position: relative;
+	width: 1.05em;
+	height: 1.05em;
+	margin: 0 0.5em 0 0;
+	border: 1.5px solid var(--text-faint);
+	border-radius: 4px;
+	background: none;
+	vertical-align: -0.15em;
+}
+
+.markdown-rendered input[type="checkbox"]:checked {
+	border-color: var(--interactive-accent);
+	background: var(--interactive-accent);
+}
+
+.markdown-rendered input[type="checkbox"]:checked::after {
+	content: "";
+	position: absolute;
+	top: 0.08em;
+	left: 0.3em;
+	width: 0.25em;
+	height: 0.5em;
+	border: solid #fff;
+	border-width: 0 2px 2px 0;
+	transform: rotate(45deg);
+}
+
+.task-list-item.is-checked {
+	color: var(--text-muted);
+	text-decoration: line-through;
+}
+
+.tag {
+	padding: 0.1em 0.5em;
+	border-radius: 1em;
+	background: var(--background-secondary);
+	color: var(--text-accent);
+	font-size: 0.9em;
+	text-decoration: none;
+}
+
+math {
+	font-size: 1.1em;
+}
+
+/* Scrolling sideways makes the box scroll up and down too: the padding holds limits that hang below the line. */
+math[display="block"] {
+	display: block math;
+	margin: 0.6rem 0;
+	padding-block: 0.4em;
+	overflow-x: auto;
+}
+
+.footnotes {
+	margin-top: 2rem;
+	color: var(--text-muted);
+	font-size: 0.9rem;
+}
+
+/* Callouts: one rgb triplet per type, as Obsidian does. */
+.callout {
+	--callout-color: var(--color-blue-rgb);
+	margin: 1rem 0;
+	border-radius: 6px;
+	background: rgba(var(--callout-color), 0.1);
+	overflow: hidden;
+}
+
+.callout[data-callout="abstract"],
+.callout[data-callout="summary"],
+.callout[data-callout="tldr"],
+.callout[data-callout="tip"],
+.callout[data-callout="hint"],
+.callout[data-callout="important"] {
+	--callout-color: var(--color-cyan-rgb);
+}
+
+.callout[data-callout="success"],
+.callout[data-callout="check"],
+.callout[data-callout="done"] {
+	--callout-color: var(--color-green-rgb);
+}
+
+.callout[data-callout="question"],
+.callout[data-callout="help"],
+.callout[data-callout="faq"],
+.callout[data-callout="warning"],
+.callout[data-callout="caution"],
+.callout[data-callout="attention"] {
+	--callout-color: var(--color-orange-rgb);
+}
+
+.callout[data-callout="failure"],
+.callout[data-callout="fail"],
+.callout[data-callout="missing"],
+.callout[data-callout="danger"],
+.callout[data-callout="error"],
+.callout[data-callout="bug"] {
+	--callout-color: var(--color-red-rgb);
+}
+
+.callout[data-callout="example"] {
+	--callout-color: var(--color-purple-rgb);
+}
+
+.callout[data-callout="quote"],
+.callout[data-callout="cite"] {
+	--callout-color: 158, 158, 158;
+}
+
+.callout-title {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.6rem 1rem;
+	color: rgb(var(--callout-color));
+	font-weight: 600;
+}
+
+.callout.is-collapsible .callout-title {
+	cursor: pointer;
+}
+
+.callout-icon svg,
+.callout-fold svg {
+	width: 1.1rem;
+	height: 1.1rem;
+	display: block;
+}
+
+.callout-fold svg {
+	transition: transform 0.1s;
+}
+
+.callout.is-collapsed .callout-fold svg {
+	transform: rotate(-90deg);
+}
+
+.callout-content {
+	padding: 0 1rem 0.75rem;
+}
+
+.callout-content > :first-child {
+	margin-top: 0;
+}
+.callout-content > :last-child {
+	margin-bottom: 0;
+}
+.callout.is-collapsed .callout-content {
+	display: none;
+}
+
+/* Prism tokens, by Obsidian's code colour variables. */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+	color: var(--code-comment);
+}
+.token.punctuation {
+	color: var(--code-punctuation);
+}
+.token.operator,
+.token.entity,
+.token.url {
+	color: var(--code-operator);
+}
+.token.atrule,
+.token.attr-value,
+.token.keyword {
+	color: var(--code-keyword);
+}
+.token.function,
+.token.class-name {
+	color: var(--code-function);
+}
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted {
+	color: var(--code-string);
+}
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol {
+	color: var(--code-value);
+}
+.token.regex,
+.token.important,
+.token.variable {
+	color: var(--code-important);
+}
+.token.property {
+	color: var(--code-property);
+}
+.token.tag,
+.token.deleted {
+	color: var(--code-tag);
+}

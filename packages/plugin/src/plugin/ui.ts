@@ -9,6 +9,7 @@ import {
 	registerFileContextIndicators,
 	registerFileExplorerIndicators,
 	registerLiveStatusBar,
+	registerNoteLinkActions,
 	registerNotePresence,
 	registerRibbon,
 	registerStatusBar,
@@ -39,6 +40,7 @@ export function registerPluginUi(
 		registerLiveStatusBar(plugin);
 	}
 	const openNoteMenu = registerNotePresence(plugin);
+	registerNoteLinkActions(plugin);
 	if (plugin.settings.showRibbonIcon) {
 		registerRibbon(plugin, controller, plugin.realtime.hub);
 	}

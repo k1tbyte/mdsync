@@ -1,14 +1,9 @@
 import type { PluginHost } from "@/plugin/host";
-import {
-	isRelayConfigured,
-	ownerStorage,
-	type RelayConfig,
-} from "@/settings/model";
+import { isRelayConfigured, ownerStorage, relayAdmin } from "@/settings/model";
 import { relayBase } from "@/shared";
 import { createShare, mountError, ownerNameOf } from "@/spaces";
 import type { SpaceRecord } from "@/spaces/record";
 import {
-	type BrokerAdmin,
 	endShare,
 	leaveShare,
 	type Participant,
@@ -18,13 +13,6 @@ import { carryVaultIgnores } from "@/ui/actions/ignore-action";
 import { pushScope } from "@/ui/actions/push-action";
 import { notifyError, notifyInfo, RELAY_TEXT } from "@/ui/common";
 import { openConfirmModal } from "@/ui/modals";
-
-export function relayAdmin({
-	relayUrl,
-	relaySecret,
-}: RelayConfig): BrokerAdmin {
-	return { relayUrl, secret: relaySecret };
-}
 
 export function closeLabel({ access }: SpaceRecord): string {
 	return access.kind === "owner" ? "Stop sharing" : "Leave";

@@ -94,6 +94,17 @@ export function assertOk(
 	);
 }
 
+/** The `error` code of a relay's JSON refusal; null for anything else. */
+export function errorCode(text: string): string | null {
+	try {
+		const parsed: unknown = JSON.parse(text);
+		const code = (parsed as { error?: unknown } | null)?.error;
+		return typeof code === "string" ? code : null;
+	} catch {
+		return null;
+	}
+}
+
 /** Header lookup that does not assume the platform's casing. */
 export function headerValue(
 	headers: Record<string, string> | undefined,

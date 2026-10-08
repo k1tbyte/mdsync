@@ -15,6 +15,9 @@ main.js
 # Bundled from src/styles/, same as main.js.
 packages/plugin/styles.css
 
+# The link viewer's build, served by the relay.
+packages/viewer/dist
+
 # Exclude sourcemaps
 *.map
 
@@ -31,3 +34,6 @@ temp
 # coverage output
 coverage
 artifacts
+
+# Local code index.
+.codegraph/

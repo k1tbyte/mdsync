@@ -52,15 +52,16 @@ export function renderSharesSection(
 		set: (v) => ({ pushSharesRightAway: v }),
 		rerender: true,
 	});
-	renderField(parent, ctx, {
-		kind: EFieldKind.Toggle,
-		name: "Push only added, moved and deleted files",
-		desc: "Edits wait for your push, so their gutter marks show what changed. Open notes still update live.",
-		when: (s) => s.pushSharesRightAway,
-		sub: true,
-		get: (s) => s.shareEditsWait,
-		set: (v) => ({ shareEditsWait: v }),
-	});
+	if (plugin.settings.pushSharesRightAway) {
+		renderField(parent, ctx, {
+			kind: EFieldKind.Toggle,
+			name: "Push only added, moved and deleted files",
+			desc: "Edits wait for your push, so their gutter marks show what changed. Open notes still update live.",
+			sub: true,
+			get: (s) => s.shareEditsWait,
+			set: (v) => ({ shareEditsWait: v }),
+		});
+	}
 	renderField(parent, ctx, {
 		kind: EFieldKind.Toggle,
 		name: "Pause shared folders added on other devices",

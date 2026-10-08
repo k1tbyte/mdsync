@@ -1,6 +1,8 @@
 import type { Plugin, TAbstractFile } from "obsidian";
+
 import type { PluginHost } from "@/plugin/host";
 import type { SyncController } from "@/sync/controller";
+
 import {
 	readFileExplorer,
 	readFileExplorerContainer,
@@ -82,6 +84,7 @@ export function registerFileExplorerIndicators(
 	);
 	plugin.register(plugin.realtime.people.subscribe(() => schedule()));
 	plugin.register(plugin.unseen.subscribe(() => schedule()));
+	plugin.register(plugin.sharedLinks.subscribe(() => schedule()));
 	// Capturing: the explorer would fold the folder before a bubbling handler ran.
 	const onBadge = badgeActivation(plugin);
 	for (const type of ["click", "keydown"] as const) {
@@ -96,6 +99,11 @@ export function registerFileExplorerIndicators(
 	plugin.registerEvent(plugin.app.vault.on("create", invalidateLinks));
 	plugin.registerEvent(plugin.app.vault.on("delete", invalidateLinks));
 	plugin.registerEvent(plugin.app.vault.on("rename", invalidateLinks));
+	plugin.registerEvent(
+		plugin.app.vault.on("modify", (file) => {
+			if (plugin.sharedLinks.of(file.path).length > 0) schedule();
+		}),
+	);
 
 	plugin.registerEvent(
 		plugin.app.workspace.on("layout-change", () => {

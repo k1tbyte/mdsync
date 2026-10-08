@@ -1,0 +1,13 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"target": "es2022",
+		"module": "es2022",
+		"lib": ["es2022", "DOM"],
+		"strict": true,
+		"noUncheckedIndexedAccess": true,
+		"isolatedModules": true,
+		"noEmit": true
+	},
+	"include": ["src/**/*", "tests/**/*"]
+}

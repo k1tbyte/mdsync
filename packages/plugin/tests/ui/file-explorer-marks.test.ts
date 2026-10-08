@@ -1,8 +1,8 @@
-import { ALEX, host, LAPTOP, SAM } from "@tests/helpers/explorer-host";
+import { ALEX, host, LAPTOP, LINK, SAM } from "@tests/helpers/explorer-host";
 import { describe, expect, it, vi } from "vitest";
 
 import { type Space, VAULT_SPACE } from "@/sync/space";
-import { presenceMarks } from "@/ui/explorer/file-explorer-marks";
+import { presenceMarks, shareMarks } from "@/ui/explorer/file-explorer-marks";
 
 describe("presence in the file explorer", () => {
 	const spaces: Space[] = [
@@ -52,6 +52,37 @@ describe("presence in the file explorer", () => {
 		});
 		expect(marks.get("Team/docs")?.unseen).toEqual({ count: 2 });
 		expect(lastEdit).not.toHaveBeenCalled();
+	});
+
+	it.each([false, true])("marks published notes with indicators %s", (on) => {
+		const plugin = host(spaces, [], [], [LINK, { ...LINK, id: "second" }]);
+		const marks = on ? presenceMarks(plugin, () => false) : shareMarks(plugin);
+
+		expect(marks.get(LINK.path)?.published).toEqual({
+			path: LINK.path,
+			count: 2,
+			stale: false,
+			text: "Shared by 2 links. Click to manage.",
+		});
+	});
+
+	it("marks a note modified after publication as stale", () => {
+		const plugin = host(spaces, [], [], [LINK]);
+		vi.spyOn(plugin.app.vault, "getFileByPath").mockReturnValue({
+			path: LINK.path,
+			stat: { mtime: LINK.publishedAt + 1 },
+		} as ReturnType<typeof plugin.app.vault.getFileByPath>);
+
+		const mark = shareMarks(plugin).get(LINK.path)?.published;
+
+		expect(mark?.stale).toBe(true);
+		expect(mark?.text).toContain("Changed since it was shared");
+	});
+
+	it("omits notes whose only link expired", () => {
+		const plugin = host(spaces, [], [], [{ ...LINK, expires: 1 }]);
+
+		expect(shareMarks(plugin).has(LINK.path)).toBe(false);
 	});
 
 	it("leaves the vault's own devices out of the tree", () => {

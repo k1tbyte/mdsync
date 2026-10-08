@@ -2,10 +2,12 @@ import { InMemoryAdapter } from "@tests/helpers/in-memory-adapter";
 import type { App } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import { PassphraseManager } from "@/core/passphrase-manager";
+import type { LinkRecord } from "@/links";
 import { type MdsyncSettings, mergeSettings } from "@/settings/model";
 import { createSettingsTransferUrl } from "@/settings/transfer";
 import { SettingsTransferController } from "@/settings/transfer-controller";
 import { defaultS3Config } from "@/storage";
+import { confirmSettingsTransferImport } from "@/ui";
 
 vi.mock("@/ui", () => ({
 	confirmSettingsTransferImport: vi.fn(async () => true),
@@ -72,4 +74,47 @@ describe("settings transfer passphrase cache", () => {
 			restarted.dispose();
 		},
 	);
+});
+
+describe("settings import", () => {
+	it("keeps a link published while the import was being confirmed", async () => {
+		const token = await createSettingsTransferUrl(mergeSettings({}), "pass");
+		const settings = mergeSettings({});
+		const adapter = new InMemoryAdapter().asDataAdapter();
+		const manager = new PassphraseManager(
+			async () => "pass",
+			adapter,
+			".obsidian",
+			settings,
+		);
+		const link: LinkRecord = {
+			id: "one",
+			url: "https://relay.example/s/one",
+			path: "note.md",
+			title: "Note",
+			createdAt: 1,
+			publishedAt: 1,
+			expires: null,
+			maxViews: null,
+			salt: null,
+			images: false,
+		};
+		vi.mocked(confirmSettingsTransferImport).mockImplementationOnce(
+			async () => {
+				settings.links = [link];
+				return true;
+			},
+		);
+		const transfer = new SettingsTransferController({
+			app: {} as App,
+			settings,
+			passphrase: manager,
+			saveSettings: async () => {},
+			onSettingsReplaced: () => {},
+		});
+
+		expect(await transfer.importFrom(token)).toBe(true);
+		expect(settings.links).toEqual([link]);
+		manager.dispose();
+	});
 });

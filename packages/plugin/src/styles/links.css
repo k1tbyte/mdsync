@@ -1,0 +1,48 @@
+/* Off-screen but attached: a detached note renders its callout icons empty. */
+.mdsync-link-render {
+	position: fixed;
+	inset-block-start: 0;
+	inset-inline-start: -10000px;
+	width: 800px;
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.mdsync-published-action.is-stale {
+	position: relative;
+}
+
+.mdsync-published-action.is-stale::after {
+	content: "";
+	position: absolute;
+	inset-block-start: var(--size-2-1);
+	inset-inline-end: var(--size-2-1);
+	width: var(--size-4-1);
+	height: var(--size-4-1);
+	border-radius: var(--radius-round);
+	background-color: var(--interactive-accent);
+}
+
+.mdsync-link-preview summary {
+	cursor: pointer;
+}
+
+.mdsync-link-preview iframe {
+	width: 100%;
+	height: 16rem;
+	margin-top: var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+}
+
+.mdsync-link-modal input[readonly] {
+	text-overflow: ellipsis;
+}
+
+.mdsync-link-modal .setting-item-description {
+	overflow-wrap: anywhere;
+}
+
+.is-phone .mdsync-link-modal .setting-item-control button:not(.clickable-icon) {
+	width: auto;
+}

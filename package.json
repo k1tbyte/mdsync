@@ -1,6 +1,6 @@
 {
 	"name": "mdsync-monorepo",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"description": "Monorepo for the MDSync Obsidian plugin and its companion services.",
 	"private": true,
 	"type": "module",
@@ -15,7 +15,10 @@
 		"version": "node version-bump.mjs",
 		"obsidian": "node tools/obsidian.mjs",
 		"e2e:hub": "jiti tests/e2e/hub.ts",
+		"e2e:links": "jiti tests/e2e/links.ts",
+		"e2e:links-obsidian": "pnpm build && jiti tests/e2e/links-obsidian.ts",
 		"e2e:realtime": "pnpm build && jiti tests/e2e/realtime.ts",
+		"e2e:settings": "pnpm build && jiti tests/e2e/settings.ts",
 		"e2e:live": "pnpm build && jiti tests/e2e/live.ts",
 		"e2e:live-share": "pnpm build && jiti tests/e2e/live-share.ts",
 		"e2e:live-into-share": "pnpm build && jiti tests/e2e/live-into-share.ts",
