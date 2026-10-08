@@ -81,6 +81,8 @@ export function mathToMathML(root: HTMLElement): void {
 		const display = node.hasAttribute(DISPLAY);
 		const mml = convert(mj, source, display, parser);
 		if (mml) {
+			// The viewer's Markdown copy writes the formula back as TeX.
+			mml.setAttribute("data-tex", source);
 			node.replaceWith(mml);
 		} else {
 			const code = root.ownerDocument.createElement("code");

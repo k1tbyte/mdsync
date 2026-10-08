@@ -1,7 +1,5 @@
-import { copyText } from "./clipboard";
+import { copyWithFeedback } from "./clipboard";
 
-/** How long a copy button shows how the copy went. */
-const RESULT_MS = 1500;
 const LABEL = "Copy";
 
 /** Obsidian's copy button on each code block: the snapshot's own left without its script. */
@@ -11,13 +9,9 @@ export function addCopyButtons(body: HTMLElement): void {
 		button.type = "button";
 		button.className = "copy-code-button";
 		button.textContent = LABEL;
-		button.addEventListener("click", async () => {
-			const copied = await copyText(code.textContent ?? "");
-			button.textContent = copied ? "Copied" : "Copy failed";
-			setTimeout(() => {
-				button.textContent = LABEL;
-			}, RESULT_MS);
-		});
+		button.addEventListener("click", () =>
+			copyWithFeedback(button, LABEL, () => code.textContent ?? ""),
+		);
 		code.after(button);
 	}
 }

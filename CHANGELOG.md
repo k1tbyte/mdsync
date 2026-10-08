@@ -7,7 +7,7 @@ The newest section must match `version` in `manifest.json`. Headings are `## [x.
 
 ### Features
 
-- **Share links.** Publish one note as a link that opens in any browser, with an optional passphrase, a view limit and an expiry. The note is drawn as Obsidian draws it, with an outline, folding headings, links to a heading and copyable code, encrypted on your device and kept on your own relay, which cannot read it. Properties, comments, links to other notes and embedded notes are left out; images are embedded. A globe in the file tree and the note header marks shared notes, with a dot once the note changed since; click it to update the link or stop it. A reader can let their browser remember the passphrase. Redeploy the relay to use it.
+- **Share links.** Publish one note as a link that opens in any browser, with an optional passphrase, a view limit and an expiry. The note is drawn as Obsidian draws it, with an outline, folding headings, links to a heading, copyable code and a button that copies the whole note as Markdown, encrypted on your device and kept on your own relay, which cannot read it. Properties, comments, links to other notes and embedded notes are left out; images are embedded. A globe in the file tree and the note header marks shared notes, with a dot once the note changed since; click it to update the link or stop it. A reader can let their browser remember the passphrase. Redeploy the relay to use it.
 
 ### Improvements
 

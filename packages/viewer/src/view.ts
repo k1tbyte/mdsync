@@ -1,5 +1,7 @@
 import { addAnchors, currentAnchor } from "./anchors";
 import { addCopyButtons } from "./code";
+import { markLoneImages } from "./images";
+import { noteMarkdown } from "./markdown";
 import { createOutline } from "./outline";
 import { sanitizeNote } from "./sanitize";
 import { foldSections } from "./sections";
@@ -85,6 +87,7 @@ export function createView(root: HTMLElement, handlers: ViewHandlers): View {
 		const named =
 			first?.tagName === "H1" && first.textContent?.trim() === title;
 		addCopyButtons(body);
+		markLoneImages(body);
 		const headings = foldSections(body);
 		const outline = createOutline(headings, signal);
 		const jump = addAnchors(body, headings);
@@ -107,7 +110,19 @@ export function createView(root: HTMLElement, handlers: ViewHandlers): View {
 			body,
 		);
 		const reader = el("div", { class: "reader" }, article);
-		reader.prepend(createSidebar(reader, outline, state, signal));
+		reader.prepend(
+			createSidebar(
+				reader,
+				outline,
+				state,
+				() =>
+					noteMarkdown(
+						title && !named ? title : "",
+						sanitizeNote(state.payload.html),
+					),
+				signal,
+			),
+		);
 		return reader;
 	}
 

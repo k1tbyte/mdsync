@@ -16,6 +16,20 @@
 	margin: 0;
 }
 
+.copy-markdown {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--text-normal);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.copy-markdown:hover {
+	color: var(--interactive-accent);
+}
+
 .wide-toggle {
 	display: flex;
 	align-items: center;
@@ -29,16 +43,16 @@
 	cursor: pointer;
 }
 
-/* A switch: the knob is a gradient layer that slides; the track is the background colour. */
+/* A switch: the knob is a gradient layer that slides; the track is the background colour. Sizes are multiples of 4px so they stay whole pixels at 125-200% display scaling, else the knob sits off-centre. */
 .wide-toggle::after {
 	content: "";
 	flex: none;
-	width: 2.1rem;
-	height: 1.2rem;
-	border-radius: 1rem;
+	width: 36px;
+	height: 20px;
+	border-radius: 10px;
 	background:
-		radial-gradient(circle closest-side, #fff 90%, transparent) no-repeat
-		0.15rem 50% / 0.9rem 0.9rem var(--background-modifier-border);
+		radial-gradient(circle closest-side, #fff 90%, transparent) no-repeat 4px
+		50% / 12px 12px var(--background-modifier-border);
 	transition:
 		background-position 0.15s,
 		background-color 0.15s;
@@ -46,7 +60,7 @@
 
 .wide-toggle[aria-pressed="true"]::after {
 	background-color: var(--interactive-accent);
-	background-position: calc(100% - 0.15rem) 50%;
+	background-position: calc(100% - 4px) 50%;
 }
 
 .outline {
@@ -151,9 +165,7 @@
 	}
 
 	/* The text already fills a narrow screen. */
-	.wide-toggle,
-	.link-card:not(:has(.link-fact)),
-	.sidebar:not(:has(.outline, .link-fact)) {
+	.wide-toggle {
 		display: none;
 	}
 }

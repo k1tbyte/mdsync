@@ -171,6 +171,26 @@ async function outlineAndFolds(page: Page): Promise<void> {
 		await page.evaluate(() => navigator.clipboard.readText()),
 		"const a = 1;",
 	);
+	await page.locator(".copy-markdown").click();
+	// Windows hands the clipboard back with CRLF.
+	const markdown = (
+		await page.evaluate(() => navigator.clipboard.readText())
+	).replaceAll("\r\n", "\n");
+	check(
+		"the note copies as Markdown",
+		[
+			markdown.startsWith("# Trip notes\n\n## Lisbon"),
+			markdown.includes("> [!tip]- Pack light"),
+			markdown.includes("```ts\nconst a = 1;\n```"),
+			markdown.includes("Copy"),
+		],
+		[true, true, true, false],
+	);
+	check(
+		"and the tab has an icon of its own",
+		await page.locator("link[rel=icon]").getAttribute("type"),
+		"image/svg+xml",
+	);
 	await anchors(page);
 	const viewport = page.viewportSize();
 	await page.setViewportSize({ width: 390, height: 800 });

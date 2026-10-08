@@ -75,6 +75,8 @@ describe("math", () => {
 		expect(maths[0]?.getAttribute("display")).toBe("inline");
 		expect(maths[1]?.getAttribute("display")).toBe("block");
 		expect(maths[1]?.namespaceURI).toBe("http://www.w3.org/1998/Math/MathML");
+		expect(maths.item(0).getAttribute("data-tex")).toBe("x");
+		expect(maths.item(1).getAttribute("data-tex")).toBe("y");
 		expect(root.querySelectorAll("mjx-container")).toHaveLength(1);
 		expect(root.querySelector("[data-mdsync-tex]")).toBeNull();
 	});

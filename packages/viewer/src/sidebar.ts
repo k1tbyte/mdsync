@@ -1,5 +1,7 @@
+import { copyWithFeedback } from "./clipboard";
 import { expiryText } from "./expiry";
 
+const COPY_LABEL = "Copy as Markdown";
 /** The reader's choice of full-width text, kept for every link this relay serves. */
 const WIDE_KEY = "mdsync-viewer-wide";
 const EXPIRY_REFRESH_MS = 30_000;
@@ -18,6 +20,7 @@ export function createSidebar(
 	reader: HTMLElement,
 	outline: HTMLElement | null,
 	facts: LinkFacts,
+	markdown: () => string,
 	signal: AbortSignal,
 ): HTMLElement {
 	const doc = reader.ownerDocument;
@@ -28,7 +31,7 @@ export function createSidebar(
 	toggle.setAttribute("aria-expanded", "false");
 	const panel = doc.createElement("div");
 	panel.className = "sidebar-panel";
-	panel.append(card(reader, facts, signal));
+	panel.append(card(reader, facts, markdown, signal));
 	if (outline) panel.append(outline);
 	sidebar.append(toggle, panel);
 
@@ -62,6 +65,7 @@ export function createSidebar(
 function card(
 	reader: HTMLElement,
 	facts: LinkFacts,
+	markdown: () => string,
 	signal: AbortSignal,
 ): HTMLElement {
 	const doc = reader.ownerDocument;
@@ -95,7 +99,11 @@ function card(
 		setWide(on);
 		storeWide(on);
 	});
-	card.append(wide);
+	const copy = button(doc, "copy-markdown", COPY_LABEL);
+	copy.addEventListener("click", () =>
+		copyWithFeedback(copy, COPY_LABEL, markdown),
+	);
+	card.append(copy, wide);
 	return card;
 }
 

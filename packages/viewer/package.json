@@ -12,9 +12,12 @@
 	"dependencies": {
 		"@mdsync/protocol": "workspace:*",
 		"dompurify": "^3.4.16",
-		"idb-keyval": "^6.3.0"
+		"idb-keyval": "^6.3.0",
+		"turndown": "^7.2.4",
+		"turndown-plugin-gfm": "^1.0.2"
 	},
 	"devDependencies": {
+		"@types/turndown": "^5.0.6",
 		"esbuild": "^0.25.12",
 		"fake-indexeddb": "^6.2.5",
 		"jsdom": "^30.1.2",

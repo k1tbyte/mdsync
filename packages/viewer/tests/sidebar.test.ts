@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createSidebar } from "../src/sidebar";
 
@@ -25,11 +25,13 @@ const mount = (
 	viewsLeft: number | null = null,
 	expires: number | null = null,
 	outline: HTMLElement | null = null,
+	markdown: () => string = () => "# Note\n",
 ) => {
 	sidebar = createSidebar(
 		reader,
 		outline,
 		{ viewsLeft, expires },
+		markdown,
 		controller.signal,
 	);
 	reader.append(sidebar);
@@ -58,6 +60,27 @@ describe("sidebar", () => {
 		);
 		expect(card?.querySelector(".link-fact")).toBeNull();
 		expect(card?.querySelector(".wide-toggle")?.textContent).toBe("Wide text");
+	});
+
+	it("copies the note as Markdown and says how it went", async () => {
+		const writeText = vi.fn(async (_text: string) => {});
+		vi.stubGlobal("navigator", { clipboard: { writeText } });
+		mount();
+		const copy = sidebar.querySelector(".copy-markdown") as HTMLButtonElement;
+		expect(copy.textContent).toBe("Copy as Markdown");
+		copy.click();
+		await vi.waitFor(() => expect(copy.textContent).toBe("Copied"));
+		expect(writeText).toHaveBeenCalledExactlyOnceWith("# Note\n");
+		vi.unstubAllGlobals();
+	});
+
+	it("says so when the note cannot be copied", async () => {
+		mount(null, null, null, () => {
+			throw new Error("not convertible");
+		});
+		const copy = sidebar.querySelector(".copy-markdown") as HTMLButtonElement;
+		copy.click();
+		await vi.waitFor(() => expect(copy.textContent).toBe("Copy failed"));
 	});
 
 	it.each([

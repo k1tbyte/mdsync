@@ -99,8 +99,17 @@ gone ("expired or reached its view limit"), error.
   H1 equal to its name shows the name once.
 - `sidebar.ts`: a column left of the note (a panel behind a menu button on a
   narrow screen) with a card (views left, expiry from `X-Mdsync-Expires`,
-  **Wide text** kept in `localStorage`) and `outline.ts`, the headings (3 or
-  more) marking the one being read.
+  **Copy as Markdown**, **Wide text** kept in `localStorage`) and `outline.ts`,
+  the headings (3 or more) marking the one being read. **Wide text** only
+  applies from 66rem up (below it the toggle is hidden); a paragraph holding
+  only an image (`images.ts`, `lone-image`) is centered while wide.
+- **Copy as Markdown** (`markdown.ts`, turndown + GFM) converts the sanitized
+  page, not the author's file, so nothing the snapshot dropped can come back.
+  Callouts become `> [!type]` blocks (fold kept), tasks `- [x]`, tables GFM;
+  a formula is written back as TeX from `data-tex` on its `<math>` (set by the
+  plugin's `math.ts`); vault images (`data:`) and drawings are left out.
+- The tab icon is an inline SVG data URI in `index.html`: the CSP allows images
+  from `data:` and `https:` only, so a file served by the relay would be blocked.
 - Footer text only, no analytics, no external requests of its own.
 
 ## Plugin (`packages/plugin/src/links/`)

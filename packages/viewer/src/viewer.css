@@ -127,6 +127,11 @@ body {
 	.reader.is-wide {
 		max-width: none;
 	}
+
+	/* A lone image would hug the left edge of a wide column. */
+	.reader.is-wide .lone-image {
+		text-align: center;
+	}
 }
 
 .loading {
