@@ -6,7 +6,7 @@ import {
 	FILE_HISTORY_MAX_SNAPSHOTS,
 	FILE_HISTORY_MIN_SNAPSHOTS,
 } from "@/constants";
-import { isLinkRecord, type LinkRecord } from "@/links/record";
+import { type LinkRecord, parseLinkRecord } from "@/links/record";
 import { isSpaceRecord, type SpaceRecord } from "@/spaces/record";
 import {
 	type BrokerAdmin,
@@ -289,7 +289,7 @@ export function mergeSettings(
 			: [],
 		localRoots: stringValues(stored?.localRoots),
 		links: Array.isArray(stored?.links)
-			? stored.links.filter(isLinkRecord)
+			? stored.links.flatMap((link) => parseLinkRecord(link) ?? [])
 			: [],
 		spacesVault:
 			typeof stored?.spacesVault === "string" ? stored.spacesVault : null,

@@ -8,11 +8,16 @@ import { sanitizeRendered } from "./sanitize";
 const IMAGES_TOTAL_MAX_CHARS = 4 * 1024 * 1024;
 const SETTLE_MAX_MS = 5000;
 const SETTLE_STEP_MS = 100;
+const STEADY_STEPS = 2;
 
 export interface Snapshot {
 	html: string;
 	/** Milliseconds, just before the note was read. */
 	takenAt: number;
+	/** Whether the vault's images were inlined. */
+	images: boolean;
+	/** False when something was still drawing after the wait; the page may show it unfinished. */
+	complete: boolean;
 	/** What the owner is told was left out of the link. */
 	left: { embeds: number; images: number; diagrams: number };
 }
@@ -27,13 +32,14 @@ export async function takeSnapshot(
 	markdown: string,
 	options: { images: boolean },
 ): Promise<Omit<Snapshot, "takenAt">> {
+	// Before the host exists: a MathJax that fails to load leaves nothing behind.
+	const untag = await tagMathSources(markdown);
 	const host = activeDocument.body.createDiv({ cls: "mdsync-link-render" });
 	const component = new Component();
 	component.load();
-	const untag = await tagMathSources(markdown);
 	try {
 		await MarkdownRenderer.render(app, markdown, host, file.path, component);
-		await settled(host);
+		const complete = await settled(host);
 		mathToMathML(host);
 		const report = sanitizeRendered(host);
 		const images = options.images
@@ -41,9 +47,11 @@ export async function takeSnapshot(
 			: dropAll(report.images);
 		return {
 			html: host.innerHTML,
+			images: options.images,
+			complete,
 			left: {
 				embeds: report.embedsDropped,
-				images,
+				images: images + report.imagesDropped,
 				diagrams: report.mermaidAsSource,
 			},
 		};
@@ -54,10 +62,11 @@ export async function takeSnapshot(
 	}
 }
 
-/** Renders asynchronously: math, embeds and images arrive after `render` resolves. */
-async function settled(host: HTMLElement): Promise<void> {
+/** Renders asynchronously: math, embeds and images arrive after `render` resolves. False when time ran out. */
+async function settled(host: HTMLElement): Promise<boolean> {
 	const deadline = Date.now() + SETTLE_MAX_MS;
 	let last = -1;
+	let steady = 0;
 	while (Date.now() < deadline) {
 		const loading =
 			host.querySelectorAll(
@@ -65,10 +74,13 @@ async function settled(host: HTMLElement): Promise<void> {
 			).length +
 			[...host.querySelectorAll("img")].filter((img) => !img.complete).length;
 		const size = host.innerHTML.length;
-		if (loading === 0 && size === last) return;
+		// One quiet step can sit between two slow renderers' updates.
+		steady = loading === 0 && size === last ? steady + 1 : 0;
+		if (steady >= STEADY_STEPS) return true;
 		last = size;
 		await sleep(SETTLE_STEP_MS);
 	}
+	return false;
 }
 
 /** Returns how many images could not be inlined. */
@@ -79,8 +91,16 @@ async function inline(
 ): Promise<number> {
 	let left = 0;
 	let room = IMAGES_TOTAL_MAX_CHARS;
+	// An image shown twice is read once; each copy still counts against the room.
+	const read = new Map<string, Promise<string | null>>();
 	for (const { img, link } of images) {
-		const uri = await inlineImage(app, sourcePath, link).catch(() => null);
+		if (!read.has(link)) {
+			read.set(
+				link,
+				inlineImage(app, sourcePath, link).catch(() => null),
+			);
+		}
+		const uri = await read.get(link);
 		if (uri && uri.length <= room) {
 			img.setAttribute("src", uri);
 			room -= uri.length;

@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-	type LinkOptions,
+	createLink,
 	linkStatus,
-	putLink,
+	type NewLink,
+	replaceLink,
 	revokeLink,
 } from "@/storage/adapters/link-broker";
 import { StorageHttpError } from "@/storage/adapters/util";
@@ -45,13 +46,14 @@ const admin = { relayUrl: "https://relay.example", secret: "secret" };
 const ID = "abcdefghijklmnopqrstuv";
 const URL = `https://relay.example/link/${ID}`;
 const sealed = new Uint8Array([1, 2, 3]);
-const options: LinkOptions = {
+const options: NewLink = {
 	maxViews: null,
-	expires: null,
-	protection: null,
+	ttl: null,
+	gate: "G".repeat(43),
+	salt: null,
 };
 const actions = {
-	put: () => putLink(admin, ID, sealed, options),
+	put: () => createLink(admin, ID, sealed, options),
 	status: () => linkStatus(admin, ID),
 	revoke: () => revokeLink(admin, ID),
 };
@@ -65,15 +67,19 @@ describe("the relay's share links", () => {
 	it("creates with limits, expiry, protection and only the sealed bytes", async () => {
 		const bytes = new Uint8Array([99, 1, 2, 3, 99]).subarray(1, 4);
 
-		await putLink(admin, ID, bytes, {
-			maxViews: 5,
-			expires: 2_000_000_000,
-			protection: { gate: "gate", salt: "salt" },
-		});
+		replies = [{ status: 200, text: '{"stored":true,"expires":2000000000}' }];
+		expect(
+			await createLink(admin, ID, bytes, {
+				maxViews: 5,
+				ttl: 3600,
+				gate: "gate",
+				salt: "salt",
+			}),
+		).toBe(2_000_000_000);
 
 		expect(requests).toHaveLength(1);
 		expect(requests[0]).toMatchObject({
-			url: `${URL}?maxViews=5&expires=2000000000`,
+			url: `${URL}?maxViews=5&ttl=3600`,
 			method: "PUT",
 			headers: {
 				"X-Mdsync-Admin": "secret",
@@ -87,8 +93,10 @@ describe("the relay's share links", () => {
 		expect(new Uint8Array(requests[0]?.body as ArrayBuffer)).toEqual(sealed);
 	});
 
-	it("omits the query and protection headers when options are null", async () => {
-		await actions.put();
+	it("accepts an explicit null expiry and omits limits and salt, but sends its gate", async () => {
+		replies = [{ status: 200, text: '{"expires":null}' }];
+		expect(await actions.put()).toBeNull();
+		expect(requests).toHaveLength(1);
 
 		expect(requests[0]).toMatchObject({
 			url: URL,
@@ -97,21 +105,24 @@ describe("the relay's share links", () => {
 		expect(requests[0]?.headers).toEqual({
 			"X-Mdsync-Admin": "secret",
 			"Content-Type": "application/octet-stream",
+			"X-Mdsync-Gate": options.gate,
 		});
 	});
 
-	it("updates a standing link with its new options", async () => {
-		await putLink(admin, ID, sealed, { ...options, maxViews: 10 }, true);
+	it("replaces a standing link using only its gate", async () => {
+		await replaceLink(admin, ID, sealed, options.gate);
 
 		expect(requests[0]).toMatchObject({
-			url: `${URL}?maxViews=10&update=1`,
+			url: `${URL}?update=1`,
+			headers: { "X-Mdsync-Gate": options.gate },
 			method: "PUT",
 		});
 		expect(new Uint8Array(requests[0]?.body as ArrayBuffer)).toEqual(sealed);
 	});
 
 	it("updates without limits using only the update query", async () => {
-		await putLink(admin, ID, sealed, options, true);
+		await replaceLink(admin, ID, sealed, options.gate);
+		expect(requests[0]?.headers).not.toHaveProperty("X-Mdsync-Salt");
 
 		expect(requests[0]?.url).toBe(`${URL}?update=1`);
 	});
@@ -155,11 +166,25 @@ describe("the relay's share links", () => {
 				await expect(refused).rejects.toBeInstanceOf(StorageRequestError);
 				await expect(refused).rejects.toMatchObject({
 					userMessage:
-						"This relay does not support share links yet. Redeploy it with the Deploy Relay workflow.",
+						"This relay is out of date for share links. Redeploy it with the Deploy Relay workflow.",
 				});
 			}
 		},
 	);
+
+	it("revokes a creation without an expires key and refuses the older relay", async () => {
+		replies = [{ status: 200, text: '{"stored":true}' }];
+		const refused = createLink(admin, ID, sealed, { ...options, ttl: 3600 });
+		await expect(refused).rejects.toBeInstanceOf(StorageRequestError);
+		await expect(refused).rejects.toMatchObject({
+			userMessage:
+				"This relay is out of date for share links. Redeploy it with the Deploy Relay workflow.",
+		});
+		expect(requests.map(({ method, url }) => ({ method, url }))).toEqual([
+			{ method: "PUT", url: `${URL}?ttl=3600` },
+			{ method: "DELETE", url: URL },
+		]);
+	});
 
 	it("revokes with an idempotent DELETE", async () => {
 		replies = [
@@ -202,11 +227,20 @@ describe("the relay's share links", () => {
 		});
 	});
 
+	it("explains a mismatched gate on replacement", async () => {
+		replies = [{ status: 403, text: '{"error":"gate"}' }];
+		await expect(
+			replaceLink(admin, ID, sealed, options.gate),
+		).rejects.toMatchObject({
+			userMessage: "That is not this link's passphrase.",
+		});
+	});
+
 	it("asks for a new link when an update has ended", async () => {
 		replies = [{ status: 404, text: '{"error":"gone"}' }];
 
 		await expect(
-			putLink(admin, ID, sealed, options, true),
+			replaceLink(admin, ID, sealed, options.gate),
 		).rejects.toMatchObject({
 			userMessage: "This link has ended. Create a new one.",
 		});
@@ -228,7 +262,8 @@ describe("the relay's share links", () => {
 	});
 
 	it("strips the relay URL's trailing slash", async () => {
-		await putLink(
+		replies = [{ status: 200, text: '{"expires":null}' }];
+		await createLink(
 			{ ...admin, relayUrl: `${admin.relayUrl}/` },
 			ID,
 			sealed,

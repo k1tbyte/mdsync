@@ -138,6 +138,7 @@ describe("sanitizeRendered on Obsidian output", () => {
 		expect(sanitizeRendered(root)).toEqual({
 			images: [],
 			embedsDropped: 0,
+			imagesDropped: 0,
 			mermaidAsSource: 0,
 		});
 		expect(root.outerHTML).toBe(html);
@@ -185,18 +186,19 @@ describe("sanitizeRendered edge cases", () => {
 
 	it("drops unsafe image sources outside embeds and keeps HTTPS and image data", () => {
 		const root = render(
-			'<img src="app://x/y.png"><img src="http://example.com/x.png"><img src="x.png"><img src="data:text/html,private"><img src="https://example.com/x.png"><img src="data:image/png;base64,aGVsbG8=">',
+			'<img src="app://x/y.png"><img src="http://example.com/x.png"><img src="x.png"><img src="data:text/html,private"><img src="HTTPS://example.com/x.png"><img src="DATA:IMAGE/png;base64,aGVsbG8=">',
 		);
 		expect(sanitizeRendered(root)).toEqual({
 			images: [],
 			embedsDropped: 0,
+			imagesDropped: 4,
 			mermaidAsSource: 0,
 		});
 		expect(
 			Array.from(root.querySelectorAll("img"), (img) =>
 				img.getAttribute("src"),
 			),
-		).toEqual(["https://example.com/x.png", "data:image/png;base64,aGVsbG8="]);
+		).toEqual(["HTTPS://example.com/x.png", "DATA:IMAGE/png;base64,aGVsbG8="]);
 	});
 
 	it("unwraps non-web links without changing allowed external links", () => {
@@ -221,6 +223,14 @@ describe("sanitizeRendered edge cases", () => {
 		expect(
 			root.querySelector('a[href="#section"]')?.getAttributeNames(),
 		).toEqual(["href"]);
+	});
+
+	it("keeps allowed link schemes regardless of case", () => {
+		const root = render(
+			'<a href="HTTPS://example.com">web</a><a href="MAILTO:me@example.com">mail</a>',
+		);
+		sanitizeRendered(root);
+		expect(root.querySelectorAll("a")).toHaveLength(2);
 	});
 
 	it("does not collect images from dropped note transclusions", () => {

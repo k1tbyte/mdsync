@@ -7,7 +7,7 @@ import { memorySql } from "../helpers/memory-sql";
 const OPEN: LinkSettings = {
 	maxViews: null,
 	expires: null,
-	gate: null,
+	gate: "ef".repeat(32),
 	salt: null,
 };
 const PROTECTED: LinkSettings = { ...OPEN, gate: "ab".repeat(32), salt: "s" };
@@ -40,7 +40,7 @@ function served(result: ReturnType<LinkStore["open"]>): Uint8Array {
 	return new Uint8Array(result.blob);
 }
 
-const open = (store: LinkStore, gate: string | null = null, client = ME) =>
+const open = (store: LinkStore, gate: string | null = OPEN.gate, client = ME) =>
 	store.open(gate, client);
 
 describe("storing and serving", () => {
@@ -117,10 +117,20 @@ describe("expiry", () => {
 });
 
 describe("passphrase gate", () => {
+	it("refuses a missing gate on an unprotected link without spending a view", () => {
+		const { store } = setup({ ...OPEN, maxViews: 1 });
+		expect(open(store, null)).toEqual({
+			ok: false,
+			reason: "gate",
+			retryAfter: null,
+		});
+		expect(store.status()).toMatchObject({ views: 0, protected: false });
+		expect(open(store).ok).toBe(true);
+	});
 	it("serves only the right gate", () => {
 		const { store } = setup(PROTECTED);
 		expect(open(store, WRONG)).toMatchObject({ ok: false, reason: "gate" });
-		expect(open(store)).toMatchObject({ ok: false, reason: "gate" });
+		expect(open(store, null)).toMatchObject({ ok: false, reason: "gate" });
 		expect(open(store, RIGHT).ok).toBe(true);
 	});
 
@@ -134,7 +144,10 @@ describe("passphrase gate", () => {
 	it("tells the viewer a passphrase is asked for, with its salt", () => {
 		const { store } = setup(PROTECTED);
 		expect(store.meta()).toEqual({ protected: true, salt: "s" });
-		expect(setup().store.meta()).toEqual({ protected: false, salt: null });
+		expect(store.status()?.protected).toBe(true);
+		const unprotected = setup().store;
+		expect(unprotected.meta()).toEqual({ protected: false, salt: null });
+		expect(unprotected.status()?.protected).toBe(false);
 	});
 
 	it("cools a client down after five wrong guesses, even for the right gate", () => {
@@ -214,23 +227,24 @@ describe("passphrase gate", () => {
 });
 
 describe("update", () => {
-	it("replaces the blob and keeps the counter", () => {
-		const { store } = setup({ ...OPEN, maxViews: 5 });
+	it("replaces the blob and keeps views, limits and expiry", () => {
+		const expires = T0 / 1000 + 60;
+		const { store } = setup({ ...OPEN, maxViews: 5, expires });
 		open(store);
 		open(store);
-		expect(store.put(blob(50, 9), { ...OPEN, maxViews: 5 }, "update")).toBe(
+		expect(store.put(blob(50, 9), { ...OPEN, maxViews: 1 }, "update")).toBe(
 			"stored",
 		);
-		expect(store.status()?.views).toBe(2);
+		expect(store.status()).toMatchObject({ views: 2, maxViews: 5, expires });
 		expect(served(open(store))).toEqual(new Uint8Array(blob(50, 9)));
 	});
 
-	it("leaves a link already past a lowered limit spent", () => {
+	it("ignores a lowered limit on update", () => {
 		const { store } = setup({ ...OPEN, maxViews: 5 });
 		open(store);
 		open(store);
 		store.put(blob(10, 3), { ...OPEN, maxViews: 2 }, "update");
-		expect(open(store)).toEqual({ ok: false, reason: "gone" });
+		expect(open(store)).toMatchObject({ ok: true, viewsLeft: 2 });
 	});
 
 	it("never brings back a link that is spent, expired or revoked", () => {
@@ -260,12 +274,21 @@ describe("update", () => {
 		expect(open(store, RIGHT).ok).toBe(true);
 	});
 
-	it("can add or drop the passphrase", () => {
-		const { store } = setup();
-		store.put(blob(10, 3), PROTECTED, "update");
-		expect(store.meta()?.protected).toBe(true);
-		store.put(blob(10, 3), OPEN, "update");
-		expect(store.meta()?.protected).toBe(false);
+	it("refuses a wrong update gate without changing the blob or settings", () => {
+		const { store } = setup(PROTECTED);
+		const before = store.status();
+		expect(store.put(blob(10, 3), OPEN, "update")).toBe("mismatch");
+		expect(store.status()).toEqual(before);
+		expect(store.meta()).toEqual({ protected: true, salt: "s" });
+		expect(served(open(store, RIGHT))).toEqual(new Uint8Array(blob(100, 1)));
+	});
+
+	it("keeps the salt when updating with the right gate", () => {
+		const { store } = setup(PROTECTED);
+		expect(store.put(blob(10, 3), { ...PROTECTED, salt: null }, "update")).toBe(
+			"stored",
+		);
+		expect(store.meta()).toEqual({ protected: true, salt: "s" });
 	});
 });
 

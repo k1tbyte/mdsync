@@ -26,7 +26,8 @@ const record: LinkRecord = {
 	id: "abcdefghijklmnopqrstuv",
 	url: "https://relay.example/s/abcdefghijklmnopqrstuv#key",
 	path: "note.md",
-	title: "Note",
+	showTitle: true,
+	detached: false,
 	createdAt: 1_760_000_000_000,
 	publishedAt: 1_760_000_000_000,
 	expires: null,
@@ -66,16 +67,24 @@ describe("resolveExpiry", () => {
 		["month", 2592000],
 	])("resolves %s relative to now in unix seconds", (key, seconds) => {
 		expect(resolveExpiry(key, "", NOW_MS + 999)).toEqual({
+			ok: true,
+			ttl: seconds,
 			expires: NOW_MS / MS_PER_S + seconds,
 		});
 	});
 
 	it("resolves never without a date", () => {
-		expect(resolveExpiry("never", "", NOW_MS)).toEqual({ expires: null });
+		expect(resolveExpiry("never", "", NOW_MS)).toEqual({
+			ok: true,
+			ttl: null,
+			expires: null,
+		});
 	});
 
 	it("ignores a picked date for presets", () => {
 		expect(resolveExpiry("day", "invalid", NOW_MS)).toEqual({
+			ok: true,
+			ttl: DAY_MS / MS_PER_S,
 			expires: (NOW_MS + DAY_MS) / MS_PER_S,
 		});
 	});
@@ -85,6 +94,8 @@ describe("resolveExpiry", () => {
 		(aheadMs) => {
 			expect(resolveExpiry("date", pickedAt(NOW_MS + aheadMs), NOW_MS)).toEqual(
 				{
+					ok: true,
+					ttl: aheadMs / MS_PER_S,
 					expires: (NOW_MS + aheadMs) / MS_PER_S,
 				},
 			);
@@ -94,8 +105,11 @@ describe("resolveExpiry", () => {
 	it.each([-MINUTE_MS, 0])(
 		"rejects a date %i milliseconds ahead",
 		(aheadMs) => {
-			expect(resolveExpiry("date", pickedAt(NOW_MS + aheadMs), NOW_MS)).toBe(
-				"Pick a date at least 1 minute ahead.",
+			expect(resolveExpiry("date", pickedAt(NOW_MS + aheadMs), NOW_MS)).toEqual(
+				{
+					ok: false,
+					reason: "Pick a date at least 1 minute ahead.",
+				},
 			);
 		},
 	);
@@ -103,7 +117,7 @@ describe("resolveExpiry", () => {
 	it("rejects a date less than one minute ahead even by one millisecond", () => {
 		expect(
 			resolveExpiry("date", pickedAt(NOW_MS + MINUTE_MS), NOW_MS + 1),
-		).toBe("Pick a date at least 1 minute ahead.");
+		).toEqual({ ok: false, reason: "Pick a date at least 1 minute ahead." });
 	});
 
 	it("rejects a date beyond the maximum even by one millisecond", () => {
@@ -113,20 +127,38 @@ describe("resolveExpiry", () => {
 				pickedAt(NOW_MS + LINK_MAX_TTL_S * MS_PER_S),
 				NOW_MS - 1,
 			),
-		).toBe("Pick a date no more than 365 days ahead.");
+		).toEqual({
+			ok: false,
+			reason: "Pick a date no more than 365 days ahead.",
+		});
 	});
 
 	it.each(["", "invalid"])(
 		"rejects an empty or invalid picked date: %s",
 		(picked) => {
-			expect(resolveExpiry("date", picked, NOW_MS)).toBe(
-				"Pick a date and time.",
-			);
+			expect(resolveExpiry("date", picked, NOW_MS)).toEqual({
+				ok: false,
+				reason: "Pick a date and time.",
+			});
 		},
 	);
 
+	it("floors the picked date span from the current clock", () => {
+		expect(
+			resolveExpiry("date", pickedAt(NOW_MS + DAY_MS), NOW_MS + 999),
+		).toEqual({
+			ok: true,
+			ttl: DAY_MS / MS_PER_S - 1,
+			expires: (NOW_MS + DAY_MS) / MS_PER_S - 1,
+		});
+		expect(EXPIRY_CHOICES.at(-1)).not.toHaveProperty("seconds");
+	});
+
 	it("rejects an unknown choice", () => {
-		expect(resolveExpiry("unknown", "", NOW_MS)).toBe("Choose an expiry.");
+		expect(resolveExpiry("unknown", "", NOW_MS)).toEqual({
+			ok: false,
+			reason: "Choose an expiry.",
+		});
 	});
 });
 

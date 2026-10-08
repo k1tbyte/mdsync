@@ -266,6 +266,7 @@ async function protectedNote(base: string, browser: Browser): Promise<void> {
 		"Wrong passphrase.",
 	);
 	check("without a view", await views(base, link), 0);
+	await page.locator(".remember input").check();
 	await submit(page, "correct horse");
 	await page.locator(".markdown-rendered").waitFor();
 	check(
@@ -292,13 +293,17 @@ async function protectedNote(base: string, browser: Browser): Promise<void> {
 	await context.close();
 
 	const other = await visit(browser, link.url, ".passphrase");
-	await other.page.locator(".remember input").uncheck();
+	check(
+		"remembering is off until ticked",
+		await other.page.locator(".remember input").isChecked(),
+		false,
+	);
 	await submit(other.page, "correct horse");
 	await other.page.locator(".markdown-rendered").waitFor();
 	await other.page.reload();
 	await other.page.locator(".passphrase").waitFor();
 	check(
-		"another browser asks, and asks again when told not to remember",
+		"another browser asks, and asks again as it was not told to remember",
 		await other.page.locator("h1").textContent(),
 		"This note is protected",
 	);

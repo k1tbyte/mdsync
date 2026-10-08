@@ -12,7 +12,8 @@ function link(id: string, path: string, extra?: Partial<LinkRecord>) {
 		id,
 		url: `https://relay.example/s/${id}#key`,
 		path,
-		title: "Note",
+		showTitle: true,
+		detached: false,
 		createdAt: PUBLISHED,
 		publishedAt: PUBLISHED,
 		expires: null,
@@ -33,6 +34,25 @@ function store(links: LinkRecord[]) {
 }
 
 describe("SharedLinks", () => {
+	it("detaches a note or folder and excludes its links from of", async () => {
+		const a = link("a", "d/x.md");
+		const b = link("b", "d/sub/y.md");
+		const other = link("c", "different/z.md");
+		const { shared, save, listener } = store([a, b, other]);
+		await shared.detach(a.path);
+		expect(shared.of(a.path)).toEqual([]);
+		expect(shared.all()).toEqual([{ ...a, detached: true }, b, other]);
+		await shared.detach("d");
+		expect(shared.of(b.path)).toEqual([]);
+		expect(shared.all()).toEqual([
+			{ ...a, detached: true },
+			{ ...b, detached: true },
+			other,
+		]);
+		await shared.detach("d");
+		expect(save).toHaveBeenCalledTimes(2);
+		expect(listener).toHaveBeenCalledTimes(2);
+	});
 	it("saves and tells subscribers on every change", async () => {
 		const { settings, save, listener, shared } = store([link("a", "x.md")]);
 

@@ -8,6 +8,9 @@ const MINUTE_S = 60;
 const HOUR_S = 60 * MINUTE_S;
 const DAY_S = 24 * HOUR_S;
 
+/** The expiry choice that reads an exact date from the owner instead of a span. */
+export const PICK_DATE = "date";
+
 export const EXPIRY_CHOICES = [
 	{ key: "five-minutes", label: "5 minutes", seconds: 5 * MINUTE_S },
 	{ key: "fifteen-minutes", label: "15 minutes", seconds: 15 * MINUTE_S },
@@ -16,7 +19,7 @@ export const EXPIRY_CHOICES = [
 	{ key: "week", label: "7 days", seconds: 7 * DAY_S },
 	{ key: "month", label: "30 days", seconds: 30 * DAY_S },
 	{ key: "never", label: "Never", seconds: null },
-	{ key: "date", label: "Pick a date…", seconds: "date" },
+	{ key: PICK_DATE, label: "Pick a date…" },
 ] as const;
 
 export const VIEW_CHOICES = [
@@ -29,31 +32,44 @@ export const VIEW_CHOICES = [
 export const DEFAULT_EXPIRY = "week";
 export const DEFAULT_VIEWS = "any";
 
+export type ExpiryResult =
+	| {
+			ok: true;
+			/** What the relay is sent; it counts the span on its own clock. */
+			ttl: number | null;
+			/** Where this device expects it to end, for the owner to read. */
+			expires: number | null;
+	  }
+	| { ok: false; reason: string };
+
 export function resolveExpiry(
 	key: string,
 	pickedDate: string,
 	nowMs: number,
-): { expires: number | null } | string {
+): ExpiryResult {
 	const choice = EXPIRY_CHOICES.find((choice) => choice.key === key);
-	if (!choice) return "Choose an expiry.";
-	if (choice.seconds !== "date") {
-		return {
-			expires:
-				choice.seconds === null
-					? null
-					: Math.floor(nowMs / MS_PER_S) + choice.seconds,
-		};
-	}
+	if (!choice) return { ok: false, reason: "Choose an expiry." };
+	const expiringIn = (ttl: number | null): ExpiryResult => ({
+		ok: true,
+		ttl,
+		expires: ttl === null ? null : Math.floor(nowMs / MS_PER_S) + ttl,
+	});
+	if (choice.key !== PICK_DATE) return expiringIn(choice.seconds);
 	const pickedMs = new Date(pickedDate).getTime();
-	if (!Number.isFinite(pickedMs)) return "Pick a date and time.";
+	if (!Number.isFinite(pickedMs)) {
+		return { ok: false, reason: "Pick a date and time." };
+	}
 	const aheadMs = pickedMs - nowMs;
 	if (aheadMs < MINUTE_S * MS_PER_S) {
-		return "Pick a date at least 1 minute ahead.";
+		return { ok: false, reason: "Pick a date at least 1 minute ahead." };
 	}
 	if (aheadMs > LINK_MAX_TTL_S * MS_PER_S) {
-		return `Pick a date no more than ${LINK_MAX_TTL_S / DAY_S} days ahead.`;
+		return {
+			ok: false,
+			reason: `Pick a date no more than ${LINK_MAX_TTL_S / DAY_S} days ahead.`,
+		};
 	}
-	return { expires: Math.floor(pickedMs / MS_PER_S) };
+	return expiringIn(Math.floor(aheadMs / MS_PER_S));
 }
 
 export function expiryLine(expires: number | null): string {

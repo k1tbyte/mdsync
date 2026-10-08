@@ -18,10 +18,11 @@ afterEach(() => {
 });
 
 describe("session cache", () => {
-	it("gives back what it stored", () => {
+	it.each([link.expires, null])("round-trips an expiry of %s", (expires) => {
 		const cache = sessionCache();
-		cache.put("id", link);
-		expect(cache.get("id")).toEqual(link);
+		const entry = { ...link, expires };
+		cache.put("id", entry);
+		expect(cache.get("id")).toEqual(entry);
 	});
 
 	it("works without a cache when the browser blocks storage", () => {

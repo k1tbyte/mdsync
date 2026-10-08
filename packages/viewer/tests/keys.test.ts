@@ -31,14 +31,12 @@ describe("browser keys", () => {
 		expect(await store.get("a")).toBeNull();
 	});
 
-	it("drops refused keys only while they are still the kept ones", async () => {
+	it("drops keys by id and tolerates repeated drops", async () => {
 		const store = browserKeys();
-		const old = await protectedKeys();
-		const newer = await protectedKeys();
-		await store.put("c", newer, null);
-		await store.drop("c", old);
-		expect((await store.get("c"))?.gate).toBe(newer.gate);
-		await store.drop("c", newer);
+		await store.put("c", await protectedKeys(), null);
+		await store.drop("c");
+		expect(await store.get("c")).toBeNull();
+		await store.drop("c");
 		expect(await store.get("c")).toBeNull();
 	});
 

@@ -12,7 +12,8 @@ const RECORD: LinkRecord = {
 	id: "one",
 	url: "https://relay.example/one",
 	path: "note.md",
-	title: "Note",
+	showTitle: true,
+	detached: false,
 	createdAt: 1,
 	publishedAt: 1,
 	expires: null,
@@ -55,8 +56,8 @@ function host() {
 		addAction,
 	});
 	const leaves = [{ view }];
-	const events = new Map<string, () => void>();
-	const on = (name: string, callback: () => void) => {
+	const events = new Map<string, (file?: { path: string }) => void>();
+	const on = (name: string, callback: (file?: { path: string }) => void) => {
 		events.set(name, callback);
 		return {};
 	};
@@ -70,8 +71,9 @@ function host() {
 		sharedLinks,
 		app: {
 			workspace: {
-				iterateAllLeaves: (visit: (leaf: object) => void) =>
+				iterateAllLeaves: vi.fn((visit: (leaf: object) => void) =>
 					leaves.forEach(visit),
+				),
 				on,
 				onLayoutReady: (ready: () => void) => ready(),
 			},
@@ -101,7 +103,7 @@ describe("a note's share link action", () => {
 		expect(action?.classes.has("mdsync-published-action")).toBe(true);
 		expect(action?.attrs.get("aria-label")).toContain("Click to manage.");
 		file.stat.mtime = 2;
-		events.get("modify")?.();
+		events.get("modify")?.(file);
 		expect(action?.classes.has("is-stale")).toBe(true);
 		expect(action?.attrs.get("aria-label")).toContain("click to update.");
 		await sharedLinks.published(RECORD.id, 2);
@@ -111,6 +113,14 @@ describe("a note's share link action", () => {
 		expect(openManageLinks).toHaveBeenCalledWith(plugin, file.path);
 		await sharedLinks.remove(RECORD.id);
 		expect(action?.parentElement).toBeNull();
+	});
+
+	it("does not refresh for an unshared note's modify", () => {
+		const { plugin, events } = host();
+		const visit = vi.mocked(plugin.app.workspace.iterateAllLeaves);
+		visit.mockClear();
+		events.get("modify")?.({ path: "private.md" });
+		expect(visit).not.toHaveBeenCalled();
 	});
 
 	it("replaces the action for another file and removes it for unshared notes", async () => {

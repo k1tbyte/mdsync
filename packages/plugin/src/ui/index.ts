@@ -26,7 +26,7 @@ export {
 	openManageLinks,
 	openShareLink,
 	registerNoteLinkActions,
-	updateSharedLink,
+	updateSharedLinks,
 } from "./links";
 export { createDeletedElsewhere } from "./live/deleted-elsewhere";
 export { rebuildLiveNote, toggleAuthors } from "./live/header/live-actions";

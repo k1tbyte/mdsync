@@ -41,7 +41,7 @@ export function createView(root: HTMLElement, handlers: ViewHandlers): View {
 		);
 
 	// A wrong passphrase draws the form again: the reader's choice must survive it.
-	let rememberChoice = true;
+	let rememberChoice = false;
 
 	function passphraseForm(problem?: string): HTMLElement {
 		const input = el("input", {

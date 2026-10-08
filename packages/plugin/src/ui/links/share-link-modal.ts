@@ -15,6 +15,7 @@ import {
 	type LinkRecord,
 	leftOutText,
 	linkError,
+	PICK_DATE,
 	previewLink,
 	publishLink,
 	resolveExpiry,
@@ -31,6 +32,9 @@ const MS_PER_S = 1000;
 const MINUTE_MS = 60 * MS_PER_S;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 const LOCAL_DATETIME_LENGTH = 16;
+
+const UNFINISHED =
+	"Part of the note was still drawing when this copy was taken: check the preview.";
 
 const INTRO =
 	"Anyone with the link can read a copy of this note as it is now. It is encrypted on this device and kept on your relay, which cannot read it. Links to other notes, embedded notes and files other than images are left out.";
@@ -54,7 +58,6 @@ export class ShareLinkModal extends Modal {
 	constructor(
 		private readonly plugin: PluginHost,
 		private readonly file: TFile,
-		private readonly onCreated?: () => void,
 	) {
 		super(plugin.app);
 	}
@@ -63,6 +66,11 @@ export class ShareLinkModal extends Modal {
 		this.modalEl.addClass("mdsync-link-modal");
 		this.titleEl.setText(`Share a link to "${this.file.basename}"`);
 		this.renderForm();
+	}
+
+	/** The passphrase is shown only in the result, so a link being made is waited for. */
+	close(): void {
+		if (!this.uploading) super.close();
 	}
 
 	onClose(): void {
@@ -136,8 +144,8 @@ export class ShareLinkModal extends Modal {
 			serial(async () => {
 				failure.setText("");
 				const expiry = resolveExpiry(this.expiry, this.pickedDate, Date.now());
-				if (typeof expiry === "string") {
-					failure.setText(expiry);
+				if (!expiry.ok) {
+					failure.setText(expiry.reason);
 					return;
 				}
 				if (this.passphrase && this.passphrase.length < MIN_PASSPHRASE) {
@@ -153,13 +161,8 @@ export class ShareLinkModal extends Modal {
 				this.uploading = true;
 				this.syncCreate();
 				try {
-					const record = await this.create(
-						passphrase,
-						snapshot,
-						expiry.expires,
-					);
-					this.onCreated?.();
-					if (!this.closed) this.renderResult(record, passphrase);
+					const record = await this.create(passphrase, snapshot, expiry.ttl);
+					this.renderResult(record, passphrase);
 				} catch (err) {
 					failure.setText(linkError(err).message);
 				} finally {
@@ -177,15 +180,13 @@ export class ShareLinkModal extends Modal {
 		let dateField: TextComponent;
 		const update = (): void => {
 			const nowMs = Date.now();
-			dateField.inputEl.toggle(this.expiry === "date");
+			dateField.inputEl.toggle(this.expiry === PICK_DATE);
 			dateField.inputEl.min = localDateTime(
 				Math.ceil((nowMs + MINUTE_MS) / MINUTE_MS) * MINUTE_MS,
 			);
 			dateField.inputEl.max = localDateTime(nowMs + LINK_MAX_TTL_S * MS_PER_S);
 			const expiry = resolveExpiry(this.expiry, this.pickedDate, nowMs);
-			setting.setDesc(
-				typeof expiry === "string" ? expiry : expiryLine(expiry.expires),
-			);
+			setting.setDesc(expiry.ok ? expiryLine(expiry.expires) : expiry.reason);
 		};
 		setting
 			.addDropdown((dropdown) =>
@@ -212,18 +213,17 @@ export class ShareLinkModal extends Modal {
 	private create(
 		passphrase: string,
 		snapshot: Snapshot,
-		expires: number | null,
+		ttl: number | null,
 	): Promise<LinkRecord> {
 		const views = VIEW_CHOICES.find(({ key }) => key === this.views);
 		return publishLink(
 			this.plugin,
 			this.file,
 			{
-				expires,
+				ttl,
 				maxViews: views?.views ?? null,
 				passphrase: passphrase || null,
-				images: this.images,
-				title: this.showName,
+				showTitle: this.showName,
 			},
 			snapshot,
 		);
@@ -244,7 +244,14 @@ export class ShareLinkModal extends Modal {
 			if (run !== this.previews || this.closed) return;
 			this.snapshot = snapshot;
 			const left = leftOutText(snapshot.left);
-			line.setText(left ? `Left out of the link: ${left}.` : "");
+			line.setText(
+				[
+					left ? `Left out of the link: ${left}.` : "",
+					snapshot.complete ? "" : UNFINISHED,
+				]
+					.filter(Boolean)
+					.join(" "),
+			);
 			const details = pane.createEl("details");
 			details.createEl("summary", { text: "Preview" });
 			renderPreviewFrame(details, snapshot.html);

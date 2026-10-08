@@ -7,6 +7,7 @@
 import {
 	LINK_MAX_SEALED_BYTES,
 	type LinkMeta,
+	type LinkPutMode,
 	type LinkStatus,
 } from "@mdsync/protocol";
 
@@ -24,8 +25,9 @@ export interface LinkSettings {
 	maxViews: number | null;
 	/** Unix seconds. */
 	expires: number | null;
-	/** Hash of the gate; null when the link has no passphrase. */
-	gate: string | null;
+	/** Hash of the gate every link has; opening or updating needs the gate itself. */
+	gate: string;
+	/** Set exactly when the link has a passphrase. */
 	salt: string | null;
 }
 
@@ -40,9 +42,7 @@ export type OpenResult =
 	| { ok: false; reason: "gate"; retryAfter: number | null }
 	| { ok: false; reason: "cooldown"; retryAfter: number };
 
-/** A creation never inherits a counter; only an update, which needs a link still standing, keeps one. */
-export type PutMode = "create" | "update";
-export type PutResult = "stored" | "exists" | "gone";
+export type PutResult = "stored" | "exists" | "gone" | "mismatch";
 
 interface Row extends LinkSettings {
 	views: number;
@@ -62,7 +62,11 @@ export class LinkStore {
 		private readonly onEnd: () => void = () => undefined,
 	) {}
 
-	put(blob: ArrayBuffer, settings: LinkSettings, mode: PutMode): PutResult {
+	/**
+	 * A creation takes `settings`; an update replaces the blob only, after the gate proves the same key and
+	 * passphrase, and keeps the limits and the counter.
+	 */
+	put(blob: ArrayBuffer, settings: LinkSettings, mode: LinkPutMode): PutResult {
 		if (blob.byteLength === 0 || blob.byteLength > LINK_MAX_SEALED_BYTES) {
 			throw new RangeError("Link blob has an unsupported size");
 		}
@@ -70,19 +74,15 @@ export class LinkStore {
 		const old = this.row();
 		const standing = old !== null && this.stands(old);
 		if (mode === "create" && standing) return "exists";
-		if (mode === "update" && !standing) {
-			this.live();
-			return "gone";
+		if (mode === "update") {
+			if (!old || !standing) {
+				this.live();
+				return "gone";
+			}
+			if (!sameHash(old.gate, settings.gate)) return "mismatch";
+		} else {
+			this.createTables();
 		}
-		this.sql.exec(
-			"CREATE TABLE IF NOT EXISTS link(id INTEGER PRIMARY KEY CHECK(id = 1), views INTEGER NOT NULL, max_views INTEGER, expires INTEGER, gate TEXT, salt TEXT, size INTEGER NOT NULL)",
-		);
-		this.sql.exec(
-			"CREATE TABLE IF NOT EXISTS chunks(seq INTEGER PRIMARY KEY, data BLOB NOT NULL)",
-		);
-		this.sql.exec(
-			"CREATE TABLE IF NOT EXISTS throttle(client TEXT PRIMARY KEY, fails INTEGER NOT NULL, locked_until INTEGER NOT NULL, seen INTEGER NOT NULL) WITHOUT ROWID",
-		);
 		this.sql.exec("DELETE FROM chunks");
 		this.sql.exec("DELETE FROM throttle");
 		for (let at = 0, seq = 0; at < blob.byteLength; at += CHUNK_BYTES) {
@@ -92,9 +92,12 @@ export class LinkStore {
 				blob.slice(at, at + CHUNK_BYTES),
 			);
 		}
+		if (mode === "update") {
+			this.sql.exec("UPDATE link SET size = ? WHERE id = 1", blob.byteLength);
+			return "stored";
+		}
 		this.sql.exec(
-			"INSERT OR REPLACE INTO link(id, views, max_views, expires, gate, salt, size) VALUES(1, ?, ?, ?, ?, ?, ?)",
-			standing && old ? old.views : 0,
+			"INSERT OR REPLACE INTO link(id, views, max_views, expires, gate, salt, size) VALUES(1, 0, ?, ?, ?, ?, ?)",
 			settings.maxViews,
 			settings.expires,
 			settings.gate,
@@ -121,7 +124,7 @@ export class LinkStore {
 				retryAfter: Math.ceil((throttle.lockedUntil - now) / 1000),
 			};
 		}
-		if (link.gate !== null && !(gate !== null && sameHash(link.gate, gate))) {
+		if (gate === null || !sameHash(link.gate, gate)) {
 			return this.refuse(client, throttle, now);
 		}
 		const blob = this.read(link.size);
@@ -145,7 +148,7 @@ export class LinkStore {
 				views: link.views,
 				maxViews: link.maxViews,
 				expires: link.expires,
-				protected: link.gate !== null,
+				protected: link.salt !== null,
 				size: link.size,
 			}
 		);
@@ -153,7 +156,7 @@ export class LinkStore {
 
 	meta(): LinkMeta | null {
 		const link = this.live();
-		return link && { protected: link.gate !== null, salt: link.salt };
+		return link && { protected: link.salt !== null, salt: link.salt };
 	}
 
 	/** Ends the link now, whatever its state. */
@@ -218,7 +221,7 @@ export class LinkStore {
 			views: Number(row.views),
 			maxViews: nullable(row.max_views),
 			expires: nullable(row.expires),
-			gate: typeof row.gate === "string" ? row.gate : null,
+			gate: String(row.gate),
 			salt: typeof row.salt === "string" ? row.salt : null,
 			size: Number(row.size),
 		};
@@ -235,6 +238,18 @@ export class LinkStore {
 			at += chunk.length;
 		}
 		return out.buffer;
+	}
+
+	private createTables(): void {
+		this.sql.exec(
+			"CREATE TABLE IF NOT EXISTS link(id INTEGER PRIMARY KEY CHECK(id = 1), views INTEGER NOT NULL, max_views INTEGER, expires INTEGER, gate TEXT NOT NULL, salt TEXT, size INTEGER NOT NULL)",
+		);
+		this.sql.exec(
+			"CREATE TABLE IF NOT EXISTS chunks(seq INTEGER PRIMARY KEY, data BLOB NOT NULL)",
+		);
+		this.sql.exec(
+			"CREATE TABLE IF NOT EXISTS throttle(client TEXT PRIMARY KEY, fails INTEGER NOT NULL, locked_until INTEGER NOT NULL, seen INTEGER NOT NULL) WITHOUT ROWID",
+		);
 	}
 
 	/** An id nobody created has no tables, and asking about it must not make any. */

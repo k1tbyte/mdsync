@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type LinkRecord, linkStatusOf, SharedLinks } from "@/links";
 import type { PluginHost } from "@/plugin/host";
-import { updateSharedLink } from "@/ui/links/link-actions";
+import { updateSharedLinks } from "@/ui/links/link-actions";
 import { ManageLinksModal } from "@/ui/links/manage-links-modal";
 
 vi.mock("@/links", async (original) => ({
@@ -11,7 +11,7 @@ vi.mock("@/links", async (original) => ({
 	linkStatusOf: vi.fn(async () => null),
 }));
 vi.mock("@/ui/links/link-actions", () => ({
-	updateSharedLink: vi.fn(async () => {}),
+	updateSharedLinks: vi.fn(async () => {}),
 }));
 vi.mock("@/ui/modals", () => ({ openConfirmModal: vi.fn() }));
 vi.mock("@/ui/common", async () => ({
@@ -87,7 +87,8 @@ const RECORD: LinkRecord = {
 	id: "one",
 	url: "https://relay.example/one",
 	path: "note.md",
-	title: "Note",
+	showTitle: true,
+	detached: false,
 	createdAt: 1,
 	publishedAt: 1,
 	expires: null,
@@ -103,7 +104,11 @@ const LIVE: LinkStatus = {
 	size: 1,
 };
 
-function host(mtime: number | null, records = [RECORD]) {
+function host(
+	mtime: number | null,
+	records = [RECORD],
+	path: string | null = RECORD.path,
+) {
 	const settings = {
 		links: records,
 		relayUrl: "https://relay.example",
@@ -121,7 +126,7 @@ function host(mtime: number | null, records = [RECORD]) {
 			vault: { getFileByPath: () => note, on: () => ({}), offref: () => {} },
 		},
 	} as unknown as PluginHost;
-	new ManageLinksModal(plugin, RECORD.path).onOpen();
+	new ManageLinksModal(plugin, path ?? undefined).onOpen();
 	return { plugin, sharedLinks, note };
 }
 
@@ -136,6 +141,26 @@ afterEach(() => {
 });
 
 describe("ManageLinksModal", () => {
+	it("names a detached row and hides Update while retaining Copy and Stop", async () => {
+		vi.mocked(linkStatusOf).mockResolvedValue(LIVE);
+		host(2, [{ ...RECORD, detached: true }], null);
+		await vi.waitFor(() => expect(rows[0]?.desc).toContain("never expires"));
+		expect(rows[0]?.name).toBe("note");
+		expect(rows[0]?.desc).toBe("The note was deleted. 0 views · never expires");
+		expect(rows[0]?.buttons.map(({ text }) => text)).toEqual([
+			"Copy link",
+			"Stop sharing",
+		]);
+	});
+	it("draws a record with a damaged address and still offers its removal", () => {
+		host(null, [{ ...RECORD, url: "not a URL" }, RECORD]);
+		expect(rows).toHaveLength(2);
+		expect(rows[0]?.desc).toContain("address is damaged");
+		expect(rows[0]?.buttons.map(({ text }) => text)).toEqual([
+			"Remove from the list",
+		]);
+	});
+
 	it("starts changed notes with the stale line and keeps the status copy", async () => {
 		host(2, [RECORD, { ...RECORD, id: "other", path: "other.md" }]);
 		expect(rows).toHaveLength(1);
@@ -151,10 +176,23 @@ describe("ManageLinksModal", () => {
 		expect(rows[0]?.desc).toBe("Checking…");
 	});
 
-	it("uses the shared update flow", async () => {
-		const { plugin } = host(2);
+	it("uses the shared update flow and reloads only that record's status", async () => {
+		vi.mocked(linkStatusOf).mockResolvedValue(LIVE);
+		const other = { ...RECORD, id: "other" };
+		const { plugin } = host(2, [RECORD, other]);
+		await vi.waitFor(() =>
+			expect(rows.every(({ desc }) => desc.includes("never expires"))).toBe(
+				true,
+			),
+		);
+		expect(linkStatusOf).toHaveBeenCalledTimes(2);
+		vi.mocked(linkStatusOf).mockClear();
+		vi.mocked(updateSharedLinks).mockImplementationOnce(async () => {
+			expect(linkStatusOf).not.toHaveBeenCalled();
+		});
 		await rows[0]?.buttons.find(({ text }) => text === "Update")?.click();
-		expect(updateSharedLink).toHaveBeenCalledWith(plugin, RECORD);
+		expect(updateSharedLinks).toHaveBeenCalledExactlyOnceWith(plugin, [RECORD]);
+		expect(linkStatusOf).toHaveBeenCalledExactlyOnceWith(plugin, RECORD);
 	});
 
 	it("turns a link that expires while open into a remove-only row", async () => {
@@ -179,10 +217,12 @@ describe("ManageLinksModal", () => {
 		await sharedLinks.move(RECORD.path, "moved.md");
 		expect(rows).toHaveLength(1);
 		await rows[0]?.buttons.find(({ text }) => text === "Update")?.click();
-		expect(updateSharedLink).toHaveBeenCalledWith(plugin, {
-			...RECORD,
-			path: "moved.md",
-		});
+		expect(updateSharedLinks).toHaveBeenCalledWith(plugin, [
+			{
+				...RECORD,
+				path: "moved.md",
+			},
+		]);
 	});
 
 	it("removes an ended link through SharedLinks", async () => {

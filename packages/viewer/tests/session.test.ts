@@ -9,7 +9,7 @@ import {
 	sealLinkPayload,
 	toBase64Url,
 } from "@mdsync/protocol";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { LinkApi, OpenOutcome } from "../src/api";
 import { type CachedLink, type LinkCache, sessionCache } from "../src/cache";
@@ -39,9 +39,9 @@ async function link(passphrase?: string) {
 
 function fakeApi(
 	meta: LinkMeta | null,
-	open: (gate: string | null) => OpenOutcome,
-): LinkApi & { opens: (string | null)[]; metas: number } {
-	const calls = { opens: [] as (string | null)[], metas: 0 };
+	open: (gate: string) => OpenOutcome,
+): LinkApi & { opens: string[]; metas: number } {
+	const calls = { opens: [] as string[], metas: 0 };
 	return {
 		get opens() {
 			return calls.opens;
@@ -77,10 +77,7 @@ function memoryKeys(): RememberedKeys & {
 		stored,
 		get: async (id) => stored.get(id)?.keys ?? null,
 		put: async (id, keys, expires) => void stored.set(id, { keys, expires }),
-		drop: async (id, stale) => {
-			if (stale && stored.get(id)?.keys.gate !== stale.gate) return;
-			stored.delete(id);
-		},
+		drop: async (id) => void stored.delete(id),
 	};
 }
 
@@ -104,6 +101,34 @@ function harness(deps: {
 }
 
 describe("an open link", () => {
+	it.each([
+		{ kind: "gate", retryAfter: null },
+		{ kind: "cooldown", retryAfter: 60 },
+	] as const)(
+		"shows a damaged address on $kind without keeping bytes or keys",
+		async (outcome) => {
+			const { id, meta, gate } = await link();
+			let views = 0;
+			const api = fakeApi(meta, (presented) => {
+				if (presented === gate) views++;
+				return outcome;
+			});
+			const { session, last, cache, keys } = harness({
+				id,
+				key: newLinkKey(),
+				api,
+			});
+			await session.start();
+			expect(last()).toEqual({
+				kind: "error",
+				message: "This link is damaged: its address may have been cut short.",
+			});
+			expect(api.opens).toHaveLength(1);
+			expect(views).toBe(0);
+			expect(cache.get(id)).toBeNull();
+			expect(keys.stored.size).toBe(0);
+		},
+	);
 	it("shows the note and keeps the sealed bytes for a reload", async () => {
 		const { id, key, sealed, meta } = await link();
 		const expires = 1_760_003_600;
@@ -114,9 +139,11 @@ describe("an open link", () => {
 			expires,
 		}));
 		const { session, last, cache } = harness({ id, key, api });
+		const get = vi.spyOn(cache, "get");
 		await session.start();
+		expect(get).toHaveBeenCalledExactlyOnceWith(id);
 		expect(last()).toEqual({ kind: "content", payload, viewsLeft: 4, expires });
-		expect(api.opens).toEqual([null]);
+		expect(api.opens).toEqual([(await deriveLinkKeys(key)).gate]);
 		expect(cache.get(id)).toEqual({ ...meta, sealed, viewsLeft: 4, expires });
 	});
 
@@ -131,8 +158,10 @@ describe("an open link", () => {
 		}));
 		const first = harness({ id, key, api });
 		await first.session.start();
+		const get = vi.spyOn(first.cache, "get");
 		const second = harness({ id, key, api, cache: first.cache });
 		await second.session.start();
+		expect(get).toHaveBeenCalledExactlyOnceWith(id);
 		expect(second.last()).toEqual({
 			kind: "content",
 			payload,
@@ -158,11 +187,16 @@ describe("session storage cache", () => {
 		expect(sessionCache().get(id)).toEqual(entry);
 	});
 
-	it("reloads an older cached entry without an expiry or another view", async () => {
+	it("reloads a non-expiring entry without another view", async () => {
 		const { id, key, sealed, meta } = await link();
 		sessionStorage.setItem(
 			`mdsync-link:${id}`,
-			JSON.stringify({ ...meta, sealed: toBase64Url(sealed), viewsLeft: 0 }),
+			JSON.stringify({
+				...meta,
+				sealed: toBase64Url(sealed),
+				viewsLeft: 0,
+				expires: null,
+			}),
 		);
 		const cache = sessionCache();
 		expect(cache.get(id)?.expires).toBeNull();
@@ -267,6 +301,7 @@ describe("a protected link", () => {
 		const first = harness({ id, key, api });
 		await first.session.start();
 		await first.session.submit("correct horse", false);
+		const get = vi.spyOn(first.cache, "get");
 		const second = harness({ id, key, api, cache: first.cache });
 		await second.session.start();
 		expect(second.last()).toEqual({ kind: "passphrase" });
@@ -282,6 +317,7 @@ describe("a protected link", () => {
 			viewsLeft: 2,
 			expires: null,
 		});
+		expect(get).toHaveBeenCalledExactlyOnceWith(id);
 		expect(api.opens).toHaveLength(1);
 	});
 
@@ -319,7 +355,7 @@ describe("a protected link", () => {
 		expect(keys.stored.size).toBe(0);
 	});
 
-	it("forgets kept keys the relay refuses, as after a new passphrase", async () => {
+	it("forgets kept keys the relay refuses and asks again", async () => {
 		const { id, key, meta } = await link("correct horse");
 		const api = fakeApi(meta, () => ({ kind: "gate", retryAfter: null }));
 		const keys = memoryKeys();
@@ -328,7 +364,7 @@ describe("a protected link", () => {
 		await session.start();
 		expect(last()).toEqual({
 			kind: "passphrase",
-			problem: "The passphrase has changed. Type the new one.",
+			problem: "Wrong passphrase.",
 		});
 		expect(keys.stored.size).toBe(0);
 	});
@@ -358,7 +394,10 @@ describe("a protected link", () => {
 			keys: first.keys,
 		});
 		await reload.session.start();
-		expect(reload.last()).toEqual({ kind: "passphrase" });
+		expect(reload.last()).toEqual({
+			kind: "passphrase",
+			problem: "Wrong passphrase.",
+		});
 		expect(first.keys.stored.get(id)?.keys).toBe(newer);
 	});
 

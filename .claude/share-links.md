@@ -15,7 +15,7 @@ shared folder ([shares](shares.md)): no accounts, no sync, a read-only snapshot.
 | The viewer is a static package served by the relay worker (Workers Static Assets) | one deploy, one origin, no CORS, no third-party host |
 | One `Link` Durable Object per link holds blob, counter, gate, expiry | view limit must be atomic; KV is eventually consistent (a fresh blob could miss, a spent link could re-serve) |
 | A view is counted when the ciphertext is served, not when the page loads | link-preview bots fetch only the shell |
-| Passphrase = a second factor on top of the fragment key, checked by the relay before it serves | a wrong guess burns no view; operator alone cannot decrypt |
+| Every link has a gate derived from the fragment key (plus the passphrase when there is one), checked by the relay before it serves or updates | the id alone burns no view and yields no ciphertext; a wrong guess burns no view; operator alone cannot decrypt |
 | Seal format lives in `packages/protocol` | plugin and viewer share one source of truth |
 | Link list is device-local (`settings.links`) | YAGNI; the link itself (with its key) must be re-copyable |
 
@@ -26,10 +26,11 @@ shared folder ([shares](shares.md)): no accounts, no sync, a read-only snapshot.
 (base64url has no `/`, so it cannot run into the key). The whole fragment stays
 in the browser.
 
-Payload: `{v:1, title, html, createdAt}` -> JSON -> deflate -> AES-GCM.
-Content key = HKDF(`key` [+ PBKDF2(passphrase, salt) when protected]); AAD
-`link:<id>`. With a passphrase, a second HKDF output (other `info`) is the
-**gate**; the relay stores only its hash and compares it in constant time.
+Payload: `{title, html, createdAt}` (`createdAt` is the snapshot time) -> JSON
+-> deflate -> AES-GCM. Content key = HKDF(`key` [+ PBKDF2(trimmed passphrase,
+salt) when protected]); AAD `link:<id>`. A second HKDF output (other `info`) is
+the **gate**, with or without a passphrase; the relay stores only its hash and
+compares it in constant time. A salt is stored exactly for protected links.
 
 The relay knows: id, size, expiry, view limit and count, protected yes/no,
 timings. Not the title, text or key.
@@ -38,11 +39,11 @@ timings. Not the title, text or key.
 
 | Route | Auth | Does |
 | --- | --- | --- |
-| `PUT /link/<id>` | admin | body is the sealed bytes; query `maxViews`, `expires` (unix s); headers `X-Mdsync-Gate`, `X-Mdsync-Salt`. Creates (409 if one stands); `?update=1` replaces a standing link and keeps its counter (404 when gone), so an update never brings a spent link back and a creation never inherits a counter |
+| `PUT /link/<id>` | admin | body is the sealed bytes; query `maxViews`, `ttl` (seconds, counted on the relay's clock, so a wrong device clock cannot misdate it); headers `X-Mdsync-Gate` (required), `X-Mdsync-Salt` (protected links). Creates (409 if one stands) and answers `{expires}`; `?update=1` replaces only the blob of a standing link (404 when gone) and needs the same gate (403 `gate` otherwise, so a mistyped passphrase cannot re-key it), keeping limits, expiry and counter: an update never brings a spent link back and a creation never inherits a counter |
 | `DELETE /link/<id>` | admin | revoke: `deleteAll` |
 | `GET /link/<id>/status` | admin | `{views, maxViews, expires, protected, size}` for the plugin's list |
 | `GET /link/<id>/meta` | none | `{protected, salt}`; counts nothing; 404 when gone |
-| `POST /link/<id>/open` | none | `{gate?}` -> sealed bytes, `X-Mdsync-Views-Left` when limited, `X-Mdsync-Expires` when it expires; counts a view; 401 wrong gate; 429 in cooldown; 404 for missing, expired, spent alike |
+| `POST /link/<id>/open` | none | `{gate}` (body capped at 1 KiB) -> sealed bytes, `X-Mdsync-Views-Left` when limited, `X-Mdsync-Expires` when it expires; counts a view; 401 wrong gate; 429 in cooldown; 404 for missing, expired, spent alike |
 | `GET /s/<id>` | none | viewer shell from `ASSETS` |
 
 - `Link` DO (SQLite, migration `v3` in `wrangler.toml`): blob in rows of at
@@ -75,12 +76,14 @@ gone ("expired or reached its view limit"), error.
 - Caches the sealed blob in `sessionStorage` per id: a reload decrypts locally
   and costs no view. Views count opens, not people: another tab or browser
   spends one.
-- **Remember on this browser** (passphrase form, on by default) keeps the
-  derived keys in IndexedDB (`keys.ts`, `idb-keyval`): the non-extractable AES
-  `CryptoKey` and the gate, never the passphrase. Kept until the link's
-  expiry (each visit erases every expired entry), or until the relay says it
-  is gone; a kept gate the relay refuses (a new passphrase on **Update**) is
-  dropped and the form says so.
+- **Remember on this browser** (passphrase form, off by default: a shared
+  computer must not keep a note by accident) keeps the derived keys in
+  IndexedDB (`keys.ts`, `idb-keyval`): the non-extractable AES `CryptoKey` and
+  the gate, never the passphrase. Kept until the link's expiry (each visit
+  erases every expired entry), or until the relay says it is gone; a kept gate
+  the relay refuses is dropped.
+- A passphrase is trimmed before it is stretched (`protocol`), so a pasted
+  trailing space is no wrong attempt.
 - CSS written once (`viewer.css` page and layout, `note.css` the note,
   `sidebar.css`), on Obsidian's variable names (`--code-keyword`, `--h2-size`,
   `--color-blue-rgb`...) so its SVG reads them and a theme could set them:
@@ -113,7 +116,8 @@ gone ("expired or reached its view limit"), error.
   generator), **Include images** (on), **Show the note's name** (on), and a
   line saying what was left out (counts from the snapshot, rerun when images
   toggle). **Create link** then shows the link and the passphrase with
-  **Copy**; the passphrase is never stored.
+  **Copy**; the passphrase is never stored, so the modal does not close while
+  the link is being made.
 - Snapshot (`snapshot.ts`): `MarkdownRenderer.render` into an element
   **attached** to the document (hidden off screen) with a throwaway `Component`:
   detached, callout icons stay empty `<svg>`s, which Obsidian fills on insert.
@@ -146,13 +150,18 @@ Properties are never published (no option): the renderer does not draw them.
   `storage/adapters/link-broker.ts` (beside `share-broker.ts`, `requestUrl`,
   admin header); `relayAdmin` moves from `ui/shares/share-action.ts` to
   `settings/model.ts` beside `RelayConfig`, so links never import `ui/shares`.
-  Then record `LinkRecord` (`links/record.ts`: id, url with key, path, title,
-  createdAt, publishedAt, expiry, view limit, salt, images) in `settings.links`
-  (device-local, never in device transfer). An older relay answers
-  `not_found`: the error says to redeploy it.
+  Then record `LinkRecord` (`links/record.ts`: id, url with key, path,
+  showTitle, createdAt, publishedAt, expiry as the relay set it, view limit,
+  salt, images, detached) in `settings.links` (device-local, never in device
+  transfer). If the record cannot be saved the link is revoked again, or it
+  would be live with no key here to stop it. Loading keeps any record with an
+  id and a link (`parseLinkRecord` repairs the rest): a record is never dropped
+  with its key. An older relay answers `not_found`: the error says to redeploy it.
 - `SharedLinks` (`links/shared-links.ts`, `plugin.sharedLinks`) is the only
   writer of `settings.links`: add, remove, `published` (Update), `move`
-  (rename); each change saves and notifies subscribers.
+  (rename), `detach` (the note was deleted: its links stay live and listed
+  under Manage, with no Update, and a new note at that path starts clean);
+  each change saves and notifies subscribers.
 - Shared-note marks: `noteLinks` (`links/note-links.ts`) gives a note's
   unexpired links and `stale` (`file.stat.mtime > publishedAt`; `publishedAt`
   is taken just before the note is read, and a pulled write gets a local
@@ -166,8 +175,8 @@ Properties are never published (no option): the renderer does not draw them.
   share links**, the settings Sync tab's **Share links**, or the note menu's
   **Share links of this note (n)**): a row per link with views left (status
   call), expiry, **Copy link**, **Update** (re-render, same id and key,
-  counter kept; a protected link asks for its passphrase, a different one
-  replaces it) and **Stop sharing** (revoke at the relay, then forget). An ended
+  counter, limits and expiry kept; a protected link asks for its passphrase
+  and the relay refuses one that is not the link's) and **Stop sharing** (revoke at the relay, then forget). An ended
   link, or one made through another relay than the vault's current one, can
   only be removed from the list: nothing here can stop it. A rename (of the
   note or a folder above it) updates the stored path (`plugin/links.ts`).
@@ -226,6 +235,15 @@ relay gains the `Link` Durable Object, migration `v3`, and static assets).
   note. The operator here is the owner of the deployment (one trust domain).
 - No link previews: the content is sealed, the shell is generic.
 - A closed tab after the response, or a failed decrypt, still counts a view.
+- A sealed note over about 3.9 MiB does not fit the tab's `sessionStorage`, so a
+  reload of it spends another view.
+- Pasted HTML with `style` attributes can still position or overlay parts of
+  the page (the CSP allows inline style attributes for the note's own layout).
+  The author is the link's owner.
+- Every random id asked of the public routes wakes a Durable Object; only the
+  relay's own cost limits that.
+- "Changed since it was shared" compares file times, so a touch, a sync rewrite
+  or an autosave after sharing an unsaved note can show it falsely.
 - A heading link opened in another tab counts a view: the cache is per tab.
 - The snapshot is static until **Update**; it looks as the owner's Obsidian,
   theme-independent, rendered. Other plugins' output (Dataview) is published

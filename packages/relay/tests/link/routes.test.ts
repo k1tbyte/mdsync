@@ -3,16 +3,13 @@ import {
 	LINK_MAX_SEALED_BYTES,
 	LINK_MAX_TTL_S,
 	LINK_MAX_VIEWS,
+	type LinkPutMode,
 	newLinkId,
 } from "@mdsync/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { handleLinkRequest, type LinkRouteEnv } from "../../src/link/routes";
-import {
-	type LinkSettings,
-	LinkStore,
-	type PutMode,
-} from "../../src/link/store";
+import { type LinkSettings, LinkStore } from "../../src/link/store";
 import { fingerprint } from "../../src/secret";
 import { memorySql } from "../helpers/memory-sql";
 
@@ -37,8 +34,11 @@ function makeEnv(): LinkRouteEnv {
 	const LINK = {
 		idFromName: (name: string) => name,
 		get: (id: string) => ({
-			put: async (blob: ArrayBuffer, settings: LinkSettings, mode: PutMode) =>
-				storeOf(id).put(blob, settings, mode),
+			put: async (
+				blob: ArrayBuffer,
+				settings: LinkSettings,
+				mode: LinkPutMode,
+			) => storeOf(id).put(blob, settings, mode),
 			open: async (gate: string | null, client: string) =>
 				storeOf(id).open(gate, client),
 			status: async () => storeOf(id).status(),
@@ -76,7 +76,7 @@ function put(
 	return call(env, `/link/${id}${query}`, {
 		method: "PUT",
 		admin: true,
-		headers,
+		headers: { [LINK_HEADERS.gate]: GATE, ...headers },
 		body,
 	});
 }
@@ -84,13 +84,13 @@ function put(
 const open = (
 	env: LinkRouteEnv,
 	id: string,
-	gate?: string,
+	gate: string | null = GATE,
 	ip = "203.0.113.7",
 ) =>
 	call(env, `/link/${id}/open`, {
 		method: "POST",
 		headers: { "CF-Connecting-IP": ip },
-		body: gate === undefined ? undefined : JSON.stringify({ gate }),
+		body: gate === null ? undefined : JSON.stringify({ gate }),
 	});
 
 const protectedHeaders = {
@@ -160,12 +160,41 @@ describe("owner routes", () => {
 		expect((await put(env, newLinkId())).status).toBe(401);
 	});
 
+	it("counts the ttl from the end of the upload", async () => {
+		const env = makeEnv();
+		const id = newLinkId();
+		const slow = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				vi.setSystemTime(NOW_MS + 10_000);
+				controller.enqueue(BLOB);
+				controller.close();
+			},
+		});
+		const url = new URL(`https://relay.example.com/link/${id}?ttl=5`);
+		const response = await handleLinkRequest(
+			new Request(url, {
+				method: "PUT",
+				headers: { "X-Mdsync-Admin": ADMIN, [LINK_HEADERS.gate]: GATE },
+				body: slow,
+				duplex: "half",
+			} as RequestInit),
+			env,
+			url,
+		);
+		expect(await response?.json()).toMatchObject({ expires: NOW_S + 15 });
+		expect((await open(env, id)).status).toBe(200);
+	});
+
 	it("store a link and report its status", async () => {
 		const env = makeEnv();
 		const id = newLinkId();
 		const expires = Math.floor(Date.now() / 1000) + 3600;
-		const stored = await put(env, id, `?maxViews=3&expires=${expires}`);
-		expect(await stored.json()).toEqual({ stored: true, size: BLOB.length });
+		const stored = await put(env, id, "?maxViews=3&ttl=3600");
+		expect(await stored.json()).toEqual({
+			stored: true,
+			size: BLOB.length,
+			expires,
+		});
 		await open(env, id);
 		const status = await call(env, `/link/${id}/status`, { admin: true });
 		expect(await status.json()).toEqual({
@@ -208,16 +237,23 @@ describe("owner routes", () => {
 	it("update a link in place and keep its views", async () => {
 		const env = makeEnv();
 		const id = newLinkId();
-		await put(env, id, "?maxViews=5");
+		await put(env, id, "?maxViews=5&ttl=3600");
 		await open(env, id);
 		const updated = await put(
 			env,
 			id,
-			"?update=1&maxViews=5",
+			"?update=1&maxViews=1&ttl=60",
 			{},
 			Uint8Array.from([9, 9]),
 		);
 		expect(updated.status).toBe(200);
+		expect(await updated.json()).toEqual({ stored: true, size: 2 });
+		const status = await call(env, `/link/${id}/status`, { admin: true });
+		expect(await status.json()).toMatchObject({
+			views: 1,
+			maxViews: 5,
+			expires: NOW_S + 3600,
+		});
 		const response = await open(env, id);
 		expect(new Uint8Array(await response.arrayBuffer())).toEqual(
 			Uint8Array.from([9, 9]),
@@ -227,6 +263,23 @@ describe("owner routes", () => {
 });
 
 describe("updating", () => {
+	it("refuses a wrong gate with 403 and keeps the old blob", async () => {
+		const env = makeEnv();
+		const id = newLinkId();
+		await put(env, id);
+		const response = await put(
+			env,
+			id,
+			"?update=1",
+			{ [LINK_HEADERS.gate]: "W".repeat(43) },
+			Uint8Array.from([9]),
+		);
+		expect(response.status).toBe(403);
+		expect(await response.json()).toMatchObject({ error: "gate" });
+		expect(new Uint8Array(await (await open(env, id)).arrayBuffer())).toEqual(
+			BLOB,
+		);
+	});
 	it("is 404 for a link that is spent, revoked or was never made", async () => {
 		const env = makeEnv();
 		const spent = newLinkId();
@@ -248,9 +301,9 @@ describe("storing validates", () => {
 		["a view limit above the cap", `?maxViews=${LINK_MAX_VIEWS + 1}`, {}],
 		["a fractional view limit", "?maxViews=1.5", {}],
 		["a text view limit", "?maxViews=many", {}],
-		["an expiry in the past", `?expires=${NOW_S - 1}`, {}],
-		["an expiry past the cap", `?expires=${NOW_S + LINK_MAX_TTL_S + 5}`, {}],
-		["a gate without a salt", "", { [LINK_HEADERS.gate]: GATE }],
+		["a zero ttl", "?ttl=0", {}],
+		["a ttl past the cap", `?ttl=${LINK_MAX_TTL_S + 1}`, {}],
+		["a missing gate", "", {}],
 		["a salt without a gate", "", { [LINK_HEADERS.salt]: SALT }],
 		[
 			"a malformed gate",
@@ -267,7 +320,19 @@ describe("storing validates", () => {
 	it.each(reasons)("refuses %s", async (_name, query, headers) => {
 		const env = makeEnv();
 		const id = newLinkId();
-		expect((await put(env, id, query, headers)).status).toBe(400);
+		expect(
+			(
+				await call(env, `/link/${id}${query}`, {
+					method: "PUT",
+					admin: true,
+					headers:
+						_name === "a missing gate" || _name === "a salt without a gate"
+							? headers
+							: { [LINK_HEADERS.gate]: GATE, ...headers },
+					body: BLOB,
+				})
+			).status,
+		).toBe(400);
 		expect((await open(env, id)).status).toBe(404);
 	});
 
@@ -293,11 +358,39 @@ describe("storing validates", () => {
 });
 
 describe("opening", () => {
+	it("refuses an unprotected link without its gate and spends no view", async () => {
+		const env = makeEnv();
+		const id = newLinkId();
+		await put(env, id, "?maxViews=1");
+		expect((await open(env, id, null)).status).toBe(401);
+		const status = await call(env, `/link/${id}/status`, { admin: true });
+		expect(await status.json()).toMatchObject({ views: 0, protected: false });
+		expect((await open(env, id)).status).toBe(200);
+	});
+
+	it.each([false, true])(
+		"refuses an oversized open body with Content-Length %s",
+		async (withLength) => {
+			const env = makeEnv();
+			const id = newLinkId();
+			await put(env, id, "?maxViews=1");
+			const body = JSON.stringify({ gate: GATE, padding: "x".repeat(1024) });
+			const response = await call(env, `/link/${id}/open`, {
+				method: "POST",
+				body,
+				headers: withLength ? { "Content-Length": String(body.length) } : {},
+			});
+			expect(response.status).toBe(401);
+			const status = await call(env, `/link/${id}/status`, { admin: true });
+			expect(await status.json()).toMatchObject({ views: 0 });
+			expect((await open(env, id)).status).toBe(200);
+		},
+	);
 	it("hands out the sealed bytes without caching and says how many views are left", async () => {
 		const env = makeEnv();
 		const id = newLinkId();
 		const expires = NOW_S + 3600;
-		await put(env, id, `?maxViews=2&expires=${expires}`);
+		await put(env, id, "?maxViews=2&ttl=3600");
 		const first = await open(env, id);
 		expect(first.status).toBe(200);
 		expect(first.headers.get("Cache-Control")).toBe("no-store");
@@ -324,7 +417,7 @@ describe("opening", () => {
 		const expiring = newLinkId();
 		await put(env, spent, "?maxViews=1");
 		await open(env, spent);
-		await put(env, expiring, `?expires=${Math.floor(Date.now() / 1000) + 60}`);
+		await put(env, expiring, "?ttl=60");
 		vi.setSystemTime(Date.now() + 61_000);
 		const answers = await Promise.all(
 			[spent, expiring, newLinkId()].map(async (id) => {
@@ -380,7 +473,7 @@ describe("passphrase", () => {
 		expect(wrong.status).toBe(401);
 		expect(wrong.headers.get("Retry-After")).toBeNull();
 		expect(((await wrong.json()) as { error: string }).error).toBe("gate");
-		expect((await open(env, id)).status).toBe(401);
+		expect((await open(env, id, null)).status).toBe(401);
 		expect((await open(env, id, "x".repeat(500))).status).toBe(401);
 		expect((await open(env, id, GATE)).status).toBe(200);
 	});

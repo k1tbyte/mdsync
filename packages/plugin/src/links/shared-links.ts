@@ -1,4 +1,4 @@
-import { type LinkRecord, renamedLinks } from "./record";
+import { detachedLinks, type LinkRecord, renamedLinks } from "./record";
 
 const MS_PER_S = 1000;
 /** setTimeout's ceiling; a later expiry just takes another lap. */
@@ -19,8 +19,11 @@ export class SharedLinks {
 		return this.settings().links;
 	}
 
+	/** The links the note at `path` feeds; those of a deleted note stay under {@link all}. */
 	of(path: string): LinkRecord[] {
-		return this.all().filter((record) => record.path === path);
+		return this.all().filter(
+			(record) => !record.detached && record.path === path,
+		);
 	}
 
 	add(record: LinkRecord): Promise<void> {
@@ -42,6 +45,12 @@ export class SharedLinks {
 	/** A renamed note, or the folder holding it, keeps its links. */
 	async move(from: string, to: string): Promise<void> {
 		const links = renamedLinks(this.all(), from, to);
+		if (links) await this.write(links);
+	}
+
+	/** A deleted note no longer feeds its links: a new note at that path must not inherit them. */
+	async detach(path: string): Promise<void> {
+		const links = detachedLinks(this.all(), path);
 		if (links) await this.write(links);
 	}
 

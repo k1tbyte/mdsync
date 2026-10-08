@@ -1,9 +1,9 @@
 import { type App, type Menu, type TAbstractFile, TFile } from "obsidian";
-
+import { NO_RELAY } from "@/links";
 import { docKindOf } from "@/live";
 import type { PluginHost } from "@/plugin/host";
 import { isRelayConfigured } from "@/settings/model";
-import { notifyInfo, RELAY_TEXT } from "@/ui/common";
+import { notifyInfo } from "@/ui/common";
 
 import { ManageLinksModal } from "./manage-links-modal";
 import { ShareLinkModal } from "./share-link-modal";
@@ -21,16 +21,12 @@ export function isLinkable(
 	);
 }
 
-export function openShareLink(
-	plugin: PluginHost,
-	file: TFile,
-	onCreated?: () => void,
-): void {
+export function openShareLink(plugin: PluginHost, file: TFile): void {
 	if (!isRelayConfigured(plugin.settings)) {
-		notifyInfo(`${RELAY_TEXT["no-relay"]} to share links.`);
+		notifyInfo(NO_RELAY);
 		return;
 	}
-	new ShareLinkModal(plugin, file, onCreated).open();
+	new ShareLinkModal(plugin, file).open();
 }
 
 export function openManageLinks(plugin: PluginHost, path?: string): void {

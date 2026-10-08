@@ -69,9 +69,8 @@ export async function publish(
 		keys.content,
 	);
 	const query = options.maxViews ? `?maxViews=${options.maxViews}` : "";
-	const headers: Record<string, string> = keys.gate
-		? { "X-Mdsync-Gate": keys.gate, "X-Mdsync-Salt": toBase64Url(salt) }
-		: {};
+	const headers: Record<string, string> = { "X-Mdsync-Gate": keys.gate };
+	if (options.passphrase) headers["X-Mdsync-Salt"] = toBase64Url(salt);
 	const stored = await put(base, id, sealed, query, headers);
 	if (!stored.ok) throw new Error(`could not store the link: ${stored.status}`);
 	return { id, url: linkUrl(base, id, key) };

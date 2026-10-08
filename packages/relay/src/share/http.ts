@@ -40,14 +40,43 @@ export function bearerOf(request: Request): string {
 	return header.slice("Bearer ".length).trim();
 }
 
+/** With `maxBytes`, a larger body is dropped unread rather than buffered whole: null, like any bad body. */
 export async function readJsonObject(
 	request: Request,
+	maxBytes?: number,
 ): Promise<JsonObject | null> {
 	try {
+		const text =
+			maxBytes === undefined
+				? await request.text()
+				: await boundedText(request, maxBytes);
 		// `null` is valid JSON, so the shape has to be checked before it is read.
-		const parsed: unknown = await request.json();
+		const parsed: unknown = JSON.parse(text);
 		return parsed && typeof parsed === "object" ? (parsed as JsonObject) : null;
 	} catch {
 		return null;
 	}
+}
+
+/** A chunked body carries no length to trust, so the bytes are counted as they arrive. */
+async function boundedText(
+	request: Request,
+	maxBytes: number,
+): Promise<string> {
+	if (Number(request.headers.get("Content-Length")) > maxBytes) {
+		throw new RangeError("Body too large");
+	}
+	if (!request.body) return "";
+	let total = 0;
+	const counted = request.body.pipeThrough(
+		new TransformStream<Uint8Array, Uint8Array>({
+			transform(chunk, controller) {
+				total += chunk.length;
+				if (total > maxBytes)
+					controller.error(new RangeError("Body too large"));
+				else controller.enqueue(chunk);
+			},
+		}),
+	);
+	return new Response(counted).text();
 }

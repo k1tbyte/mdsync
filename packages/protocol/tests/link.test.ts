@@ -5,6 +5,8 @@ import {
 	fromBase64Url,
 	isLinkId,
 	LINK_GATE_PATTERN,
+	LINK_HREF_ALLOWED,
+	LINK_IMAGE_SRC_ALLOWED,
 	LINK_KEY_BYTES,
 	type LinkPayload,
 	linkUrl,
@@ -35,6 +37,33 @@ describe("base64url", () => {
 	it("refuses text that is not base64url", () => {
 		expect(() => fromBase64Url("ab+/")).toThrow();
 		expect(() => fromBase64Url("a b")).toThrow();
+	});
+});
+
+describe("published content URLs", () => {
+	it.each([
+		["https://example.com/note", true],
+		["HTTP://example.com/note", true],
+		["mailto:a@b.c", true],
+		["#heading", true],
+		["Notes/Other.md", false],
+		["//example.com/note", false],
+		["app://local/note", false],
+		["javascript:alert(1)", false],
+	] as const)("allows href %s: %s", (href, allowed) => {
+		expect(LINK_HREF_ALLOWED.test(href)).toBe(allowed);
+	});
+
+	it.each([
+		["data:image/png;base64,AAAA", true],
+		["HTTPS://example.com/i.png", true],
+		["http://example.com/i.png", false],
+		["//example.com/i.png", false],
+		["data:text/html;base64,AAAA", false],
+		["Attachments/i.png", false],
+		["app://local/i.png", false],
+	] as const)("allows image src %s: %s", (src, allowed) => {
+		expect(LINK_IMAGE_SRC_ALLOWED.test(src)).toBe(allowed);
 	});
 });
 
@@ -142,8 +171,25 @@ describe("passphrase", () => {
 		for (const other of gates) expect(other.gate).not.toBe(a.gate);
 	});
 
-	it("has no gate without a passphrase", async () => {
-		expect((await deriveLinkKeys(newLinkKey())).gate).toBeNull();
+	it("derives an unprotected gate from the fragment key", async () => {
+		const key = newLinkKey();
+		const open = await deriveLinkKeys(key);
+		const protectedKeys = await deriveLinkKeys(key, protection("pass"));
+		const other = await deriveLinkKeys(newLinkKey());
+		expect(open.gate).toMatch(LINK_GATE_PATTERN);
+		expect(open.gate).not.toBe(protectedKeys.gate);
+		expect(open.gate).not.toBe(other.gate);
+	});
+
+	it("trims surrounding spaces before deriving keys", async () => {
+		const id = newLinkId();
+		const key = newLinkKey();
+		const salt = newLinkSalt();
+		const trimmed = await deriveLinkKeys(key, protection("pass", salt));
+		const padded = await deriveLinkKeys(key, protection(" pass ", salt));
+		expect(padded.gate).toBe(trimmed.gate);
+		const sealed = await sealLinkPayload(id, payload, trimmed.content);
+		expect(await openLinkPayload(id, sealed, padded.content)).toEqual(payload);
 	});
 
 	it("opens only with the same key and passphrase", async () => {

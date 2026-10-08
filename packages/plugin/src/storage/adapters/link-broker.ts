@@ -7,36 +7,68 @@ import { StorageRequestError } from "@/storage/types";
 import { ADMIN_HEADER, type BrokerAdmin } from "./share-broker";
 import { errorCode, StorageHttpError } from "./util";
 
-export interface LinkOptions {
+const OUTDATED_RELAY =
+	"This relay is out of date for share links. Redeploy it with the Deploy Relay workflow.";
+
+export interface NewLink {
 	maxViews: number | null;
-	/** Unix seconds. */
-	expires: number | null;
-	/** Passphrase gate and salt (base64url), both or neither. */
-	protection: { gate: string; salt: string } | null;
+	/** Seconds the relay counts on its own clock, so a wrong device clock cannot misdate it; null never expires. */
+	ttl: number | null;
+	gate: string;
+	/** base64url; set exactly when a passphrase protects the link. */
+	salt: string | null;
 }
 
-/** Creates a link, or with `update` replaces a standing one and keeps its view counter. */
-export async function putLink(
+/** Unix seconds the relay will end the link at; null never. */
+export async function createLink(
 	admin: BrokerAdmin,
 	id: string,
 	sealed: Uint8Array,
-	options: LinkOptions,
-	update?: boolean,
-): Promise<void> {
+	options: NewLink,
+): Promise<number | null> {
 	const query = new URLSearchParams();
 	if (options.maxViews !== null)
 		query.set("maxViews", String(options.maxViews));
-	if (options.expires !== null) query.set("expires", String(options.expires));
-	if (update) query.set("update", "1");
+	if (options.ttl !== null) query.set("ttl", String(options.ttl));
+	const stored = (await putSealed(
+		admin,
+		`/link/${id}${query.size ? `?${query}` : ""}`,
+		sealed,
+		options,
+	)) as { expires?: number | null };
+	if (stored.expires === undefined) {
+		// An older relay ignores `ttl` and would keep the link for ever.
+		await revokeLink(admin, id).catch(() => undefined);
+		throw new StorageRequestError(
+			"Link broker answered a creation without an expiry",
+			OUTDATED_RELAY,
+		);
+	}
+	return stored.expires;
+}
+
+/** Replaces a standing link's note and keeps its limits and view counter; the gate must be the link's own. */
+export async function replaceLink(
+	admin: BrokerAdmin,
+	id: string,
+	sealed: Uint8Array,
+	gate: string,
+): Promise<void> {
+	await putSealed(admin, `/link/${id}?update=1`, sealed, { gate, salt: null });
+}
+
+function putSealed(
+	admin: BrokerAdmin,
+	path: string,
+	sealed: Uint8Array,
+	protection: { gate: string; salt: string | null },
+): Promise<unknown> {
 	const headers: Record<string, string> = {
 		"Content-Type": "application/octet-stream",
+		[LINK_HEADERS.gate]: protection.gate,
 	};
-	if (options.protection) {
-		headers[LINK_HEADERS.gate] = options.protection.gate;
-		headers[LINK_HEADERS.salt] = options.protection.salt;
-	}
-	const suffix = query.size ? `?${query}` : "";
-	await callLink(admin, `/link/${id}${suffix}`, {
+	if (protection.salt) headers[LINK_HEADERS.salt] = protection.salt;
+	return callLink(admin, path, {
 		method: "PUT",
 		headers,
 		body: sealed.slice().buffer,
@@ -82,8 +114,7 @@ async function callLink(
 	let refusal: string | undefined;
 	if (res.status === 404) {
 		if (code !== "gone") {
-			refusal =
-				"This relay does not support share links yet. Redeploy it with the Deploy Relay workflow.";
+			refusal = OUTDATED_RELAY;
 		} else if (request.method === "GET") {
 			return null;
 		} else if (request.method === "PUT") {
@@ -91,6 +122,8 @@ async function callLink(
 		}
 	} else if (res.status === 401 && code === "unauthorized") {
 		refusal = "The relay did not accept its secret. Check the relay settings.";
+	} else if (res.status === 403 && code === "gate") {
+		refusal = "That is not this link's passphrase.";
 	} else if (res.status === 413 && code === "too_large") {
 		refusal = "This note is too large to share as a link.";
 	} else if (res.status === 400 && code === "bad_request") {

@@ -34,11 +34,13 @@ await runScenario("links e2e", async () => {
 		await scenario(relay.url);
 		await viewerScenario(relay.url);
 		const survivor = await seal(newLinkId(), newLinkKey());
-		await put(relay.url, survivor.id, survivor.sealed, "?maxViews=3");
-		await open(relay.url, survivor.id);
+		await put(relay.url, survivor.id, survivor.sealed, "?maxViews=3", {
+			"X-Mdsync-Gate": survivor.gate,
+		});
+		await open(relay.url, survivor.id, survivor.gate);
 		relay.stop();
 		relay = await startRelay(PORT, SECRET);
-		const again = await open(relay.url, survivor.id);
+		const again = await open(relay.url, survivor.id, survivor.gate);
 		check(
 			"a restart keeps the blob and the counter",
 			[again.status, again.headers.get(VIEWS_LEFT)],
@@ -52,14 +54,15 @@ await runScenario("links e2e", async () => {
 async function scenario(base: string): Promise<void> {
 	const id = newLinkId();
 	const key = newLinkKey();
-	const { sealed, content } = await seal(id, key);
+	const { sealed, content, gate } = await seal(id, key);
 
 	check(
 		"a stored link reports its size",
-		await (await put(base, id, sealed)).json(),
+		await (await put(base, id, sealed, "", { "X-Mdsync-Gate": gate })).json(),
 		{
 			stored: true,
 			size: sealed.length,
+			expires: null,
 		},
 	);
 	check(
@@ -67,7 +70,7 @@ async function scenario(base: string): Promise<void> {
 		(await fetch(`${base}/link/${id}/status`)).status,
 		401,
 	);
-	const opened = await open(base, id);
+	const opened = await open(base, id, gate);
 	const blob = new Uint8Array(await opened.arrayBuffer());
 	check(
 		"the sealed bytes come back whole and open",
@@ -85,17 +88,18 @@ async function scenario(base: string): Promise<void> {
 /** Spent links erase their storage; the same id must still take a new link afterwards. */
 async function oneView(base: string): Promise<void> {
 	const id = newLinkId();
-	const { sealed } = await seal(id, newLinkKey());
-	await put(base, id, sealed, "?maxViews=1");
+	const { sealed, gate } = await seal(id, newLinkKey());
+	const headers = { "X-Mdsync-Gate": gate };
+	await put(base, id, sealed, "?maxViews=1", headers);
 	const results = await Promise.all(
-		Array.from({ length: 8 }, async () => (await open(base, id)).status),
+		Array.from({ length: 8 }, async () => (await open(base, id, gate)).status),
 	);
 	check(
 		"one of eight simultaneous opens gets the only view",
 		results.filter((s) => s === 200).length,
 		1,
 	);
-	check("the spent link is gone", (await open(base, id)).status, 404);
+	check("the spent link is gone", (await open(base, id, gate)).status, 404);
 	check(
 		"and so is its status",
 		(await admin(base, `/link/${id}/status`)).status,
@@ -104,25 +108,29 @@ async function oneView(base: string): Promise<void> {
 
 	check(
 		"an update cannot bring a spent link back",
-		(await put(base, id, sealed, "?update=1&maxViews=2")).status,
+		(await put(base, id, sealed, "?update=1&maxViews=2", headers)).status,
 		404,
 	);
-	await put(base, id, sealed, "?maxViews=2");
+	await put(base, id, sealed, "?maxViews=2", headers);
 	check(
 		"a new link takes the id of a spent one",
-		(await open(base, id)).headers.get(VIEWS_LEFT),
+		(await open(base, id, gate)).headers.get(VIEWS_LEFT),
 		"1",
 	);
 	check(
 		"a creation never replaces a link that stands",
-		(await put(base, id, sealed)).status,
+		(await put(base, id, sealed, "", headers)).status,
 		409,
 	);
 
 	await admin(base, `/link/${id}`, { method: "DELETE" });
-	check("a revoked link is gone at once", (await open(base, id)).status, 404);
-	await put(base, id, sealed);
-	check("and takes a new one again", (await open(base, id)).status, 200);
+	check(
+		"a revoked link is gone at once",
+		(await open(base, id, gate)).status,
+		404,
+	);
+	await put(base, id, sealed, "", headers);
+	check("and takes a new one again", (await open(base, id, gate)).status, 200);
 }
 
 async function passphrase(base: string): Promise<void> {
@@ -184,18 +192,19 @@ async function passphrase(base: string): Promise<void> {
 async function update(base: string): Promise<void> {
 	const id = newLinkId();
 	const key = newLinkKey();
-	const { content } = await deriveLinkKeys(key);
+	const { content, gate } = await deriveLinkKeys(key);
 	const first = await sealLinkPayload(id, payload, content);
-	await put(base, id, first, "?maxViews=3");
-	await open(base, id);
+	await put(base, id, first, "?maxViews=3", { "X-Mdsync-Gate": gate });
+	await open(base, id, gate);
 	const edited = { ...payload, html: "<p>Edited</p>" };
 	await put(
 		base,
 		id,
 		await sealLinkPayload(id, edited, content),
-		"?update=1&maxViews=3",
+		"?update=1&maxViews=1&ttl=60",
+		{ "X-Mdsync-Gate": gate },
 	);
-	const opened = await open(base, id);
+	const opened = await open(base, id, gate);
 	check(
 		"an update keeps the views already spent",
 		opened.headers.get(VIEWS_LEFT),
@@ -211,17 +220,21 @@ async function update(base: string): Promise<void> {
 
 async function expiry(base: string): Promise<void> {
 	const id = newLinkId();
-	const { sealed } = await seal(id, newLinkKey());
-	await put(base, id, sealed, `?expires=${Math.floor(Date.now() / 1000) + 2}`);
-	check("a link opens before it expires", (await open(base, id)).status, 200);
+	const { sealed, gate } = await seal(id, newLinkKey());
+	await put(base, id, sealed, "?ttl=2", { "X-Mdsync-Gate": gate });
+	check(
+		"a link opens before it expires",
+		(await open(base, id, gate)).status,
+		200,
+	);
 	await sleep(3_500);
-	check("and is gone after", (await open(base, id)).status, 404);
+	check("and is gone after", (await open(base, id, gate)).status, 404);
 }
 
 /** Past the Durable Object's 2 MB value limit, so the blob must be stored in chunks. */
 async function bigNote(base: string): Promise<void> {
 	const id = newLinkId();
-	const { content } = await deriveLinkKeys(newLinkKey());
+	const { content, gate } = await deriveLinkKeys(newLinkKey());
 	const noise = crypto.getRandomValues(new Uint8Array(65_536));
 	const html = Array.from({ length: 90 }, () => toBase64Url(noise)).join("");
 	const sealed = await sealLinkPayload(id, { ...payload, html }, content);
@@ -230,8 +243,8 @@ async function bigNote(base: string): Promise<void> {
 		sealed.length > 3 * 1024 * 1024,
 		true,
 	);
-	await put(base, id, sealed);
-	const blob = new Uint8Array(await (await open(base, id)).arrayBuffer());
+	await put(base, id, sealed, "", { "X-Mdsync-Gate": gate });
+	const blob = new Uint8Array(await (await open(base, id, gate)).arrayBuffer());
 	check(
 		"a multi-chunk note comes back whole",
 		(await openLinkPayload(id, blob, content)).html === html,
@@ -241,11 +254,18 @@ async function bigNote(base: string): Promise<void> {
 		base,
 		newLinkId(),
 		new Uint8Array(6 * 1024 * 1024 + 1),
+		"",
+		{ "X-Mdsync-Gate": gate },
 	);
 	check("a note past the cap is refused", tooBig.status, 413);
 }
 
 async function seal(id: string, key: Uint8Array) {
-	const { content } = await deriveLinkKeys(key);
-	return { id, sealed: await sealLinkPayload(id, payload, content), content };
+	const { content, gate } = await deriveLinkKeys(key);
+	return {
+		id,
+		sealed: await sealLinkPayload(id, payload, content),
+		content,
+		gate,
+	};
 }

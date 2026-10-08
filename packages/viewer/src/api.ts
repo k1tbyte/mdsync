@@ -17,7 +17,7 @@ export interface LinkApi {
 	/** Null when the link is gone. Counts no view. */
 	meta(id: string): Promise<LinkMeta | null>;
 	/** Counts a view when it opens. */
-	open(id: string, gate: string | null): Promise<OpenOutcome>;
+	open(id: string, gate: string): Promise<OpenOutcome>;
 }
 
 export function createApi(fetcher: typeof fetch = fetch): LinkApi {
@@ -32,7 +32,7 @@ export function createApi(fetcher: typeof fetch = fetch): LinkApi {
 			const response = await fetcher(`/link/${id}/open`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(gate === null ? {} : { gate }),
+				body: JSON.stringify({ gate }),
 			});
 			if (response.ok) {
 				const left = response.headers.get(LINK_HEADERS.viewsLeft);

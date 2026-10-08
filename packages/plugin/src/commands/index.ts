@@ -1,7 +1,7 @@
 import { MarkdownView, type Plugin } from "obsidian";
 
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
-import { type LinkRecord, linkError, noteLinks, onRelay } from "@/links";
+import { noteLinks, onRelay } from "@/links";
 import type { PluginHost } from "@/plugin/host";
 import { spaceOf } from "@/sync/space";
 import type { DiffResult } from "@/sync/types";
@@ -24,7 +24,7 @@ import {
 	resetRemoteStorage,
 	runWithNotice,
 	toggleAuthors,
-	updateSharedLink,
+	updateSharedLinks,
 	verifyRemoteIntegrity,
 } from "@/ui";
 
@@ -183,7 +183,7 @@ export function registerCommands(
 				onRelay(record, plugin.settings),
 			);
 			if (records === undefined || records.length === 0) return false;
-			if (!checking) void updateNoteLinks(plugin, records);
+			if (!checking) void updateSharedLinks(plugin, records);
 			return true;
 		},
 	});
@@ -214,19 +214,6 @@ export function registerCommands(
 			return true;
 		},
 	});
-}
-
-async function updateNoteLinks(
-	plugin: PluginHost,
-	records: LinkRecord[],
-): Promise<void> {
-	for (const record of records) {
-		try {
-			await updateSharedLink(plugin, record);
-		} catch (err) {
-			notifyError("Could not change the link", linkError(err));
-		}
-	}
 }
 
 async function runCompare(plugin: Plugin & PluginHost): Promise<void> {

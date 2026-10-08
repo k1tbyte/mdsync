@@ -5,7 +5,7 @@ import { registerCommands } from "@/commands";
 import { type LinkRecord, SharedLinks, updateLink } from "@/links";
 import type { PluginHost } from "@/plugin/host";
 import { notifyError, notifyInfo } from "@/ui/common";
-import { updateSharedLink } from "@/ui/links/link-actions";
+import { updateSharedLinks } from "@/ui/links/link-actions";
 import { openPromptModal } from "@/ui/modals";
 
 vi.mock("@/links", async (original) => ({
@@ -40,7 +40,8 @@ const RECORD: LinkRecord = {
 	id: "one",
 	url: "https://relay.example/one",
 	path: "note.md",
-	title: "Note",
+	showTitle: true,
+	detached: false,
 	createdAt: 1,
 	publishedAt: 1,
 	expires: null,
@@ -83,17 +84,23 @@ function host(records: LinkRecord[] = [RECORD]) {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	vi.mocked(updateLink).mockResolvedValue(undefined);
+	vi.mocked(updateLink).mockReset().mockResolvedValue(undefined);
 	vi.mocked(openPromptModal).mockResolvedValue("passphrase");
 });
 
-describe("updateSharedLink", () => {
+describe("updateSharedLinks", () => {
 	it("updates an unprotected link without asking and keeps the view-limit copy", async () => {
 		const { plugin } = host();
 		const record = { ...RECORD, maxViews: 5 };
-		await updateSharedLink(plugin, record);
+		await updateSharedLinks(plugin, [record]);
 		expect(openPromptModal).not.toHaveBeenCalled();
-		expect(updateLink).toHaveBeenCalledWith(plugin, record, null);
+		expect(updateLink).toHaveBeenCalledWith(
+			plugin,
+			record,
+			null,
+			expect.any(Map),
+		);
+		expect(notifyInfo).toHaveBeenCalledOnce();
 		expect(notifyInfo).toHaveBeenCalledWith(
 			"The link now shows the note as it is. Views already used stay used.",
 		);
@@ -102,18 +109,82 @@ describe("updateSharedLink", () => {
 	it("asks for a protected link's passphrase and skips a cancelled prompt", async () => {
 		const { plugin } = host();
 		const record = { ...RECORD, salt: "salt" };
-		await updateSharedLink(plugin, record);
+		await updateSharedLinks(plugin, [record]);
 		expect(openPromptModal).toHaveBeenCalledWith(
 			expect.objectContaining({ title: "Passphrase", confirmLabel: "Update" }),
 		);
-		expect(updateLink).toHaveBeenCalledWith(plugin, record, "passphrase");
+		expect(updateLink).toHaveBeenCalledWith(
+			plugin,
+			record,
+			"passphrase",
+			expect.any(Map),
+		);
 		vi.mocked(updateLink).mockClear();
 		vi.mocked(notifyInfo).mockClear();
 		vi.mocked(openPromptModal).mockResolvedValueOnce(null);
-		await updateSharedLink(plugin, record);
+		await updateSharedLinks(plugin, [record]);
 		expect(updateLink).not.toHaveBeenCalled();
 		expect(notifyInfo).not.toHaveBeenCalled();
 	});
+
+	it("continues after errors and cancellation, shares a render map and reports only updated links", async () => {
+		const { plugin } = host();
+		const failed = { ...RECORD, id: "failed" };
+		const cancelled = { ...RECORD, id: "cancelled", salt: "salt", maxViews: 1 };
+		const protectedLink = {
+			...RECORD,
+			id: "protected",
+			salt: "salt",
+			maxViews: 5,
+		};
+		const error = new Error("offline");
+		vi.mocked(updateLink).mockRejectedValueOnce(error);
+		vi.mocked(openPromptModal).mockResolvedValueOnce(null);
+
+		await updateSharedLinks(plugin, [failed, cancelled, protectedLink, RECORD]);
+
+		const calls = vi.mocked(updateLink).mock.calls;
+		expect(calls.map(([, record]) => record.id)).toEqual([
+			"failed",
+			"protected",
+			"one",
+		]);
+		expect(calls[1]?.[2]).toBe("passphrase");
+		const rendered = calls[0]?.[3];
+		expect(rendered).toBeInstanceOf(Map);
+		expect(calls.every((call) => call[3] === rendered)).toBe(true);
+		expect(notifyError).toHaveBeenCalledExactlyOnceWith(
+			"Could not change the link",
+			error,
+		);
+		expect(notifyInfo).toHaveBeenCalledExactlyOnceWith(
+			"2 links now show the note as it is. Views already used stay used.",
+		);
+	});
+
+	it("does not mention views for failed or cancelled limited links", async () => {
+		const { plugin } = host();
+		vi.mocked(updateLink).mockRejectedValueOnce(new Error("offline"));
+		vi.mocked(openPromptModal).mockResolvedValueOnce(null);
+		await updateSharedLinks(plugin, [
+			{ ...RECORD, id: "failed", maxViews: 5 },
+			{ ...RECORD, id: "cancelled", salt: "salt", maxViews: 5 },
+			RECORD,
+		]);
+		expect(notifyInfo).toHaveBeenCalledExactlyOnceWith(
+			"The link now shows the note as it is.",
+		);
+	});
+
+	it.each([{ records: [] }, { records: [RECORD] }])(
+		"sends no success notice when nothing updates %#",
+		async ({ records }) => {
+			const { plugin } = host();
+			vi.mocked(updateLink).mockRejectedValueOnce(new Error("offline"));
+			await updateSharedLinks(plugin, records);
+			expect(notifyInfo).not.toHaveBeenCalled();
+		},
+	);
 });
 
 describe("update-note-links command", () => {

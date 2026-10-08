@@ -58,6 +58,9 @@ export interface LinkStatus {
 	size: number;
 }
 
+/** A creation never inherits a counter; only an update, which needs a link still standing, keeps one. */
+export type LinkPutMode = "create" | "update";
+
 export interface LinkProtection {
 	passphrase: string;
 	salt: Uint8Array;
@@ -65,8 +68,8 @@ export interface LinkProtection {
 
 export interface LinkKeys {
 	content: CryptoKey;
-	/** What the relay checks before it serves a protected link; null when unprotected. */
-	gate: string | null;
+	/** What the relay checks before it serves or updates a link; the fragment key alone makes it when unprotected. */
+	gate: string;
 }
 
 export function isLinkId(id: string): boolean {
@@ -87,7 +90,7 @@ export function newLinkSalt(): Uint8Array {
 
 /**
  * The key from the URL fragment, plus the stretched passphrase when there is one, feeds both outputs: without
- * the fragment the relay cannot test a passphrase guess, even offline.
+ * the fragment the relay cannot test a passphrase guess, even offline, and an id alone opens nothing.
  */
 export async function deriveLinkKeys(
 	key: Uint8Array,
@@ -108,7 +111,6 @@ export async function deriveLinkKeys(
 		false,
 		["encrypt", "decrypt"],
 	);
-	if (!protection) return { content, gate: null };
 	const gate = await subtle.deriveBits(
 		hkdf(GATE_INFO),
 		base,
@@ -222,10 +224,10 @@ async function stretch({
 	passphrase,
 	salt,
 }: LinkProtection): Promise<Uint8Array> {
-	// One passphrase typed on two systems may differ in Unicode form.
+	// One passphrase typed on two systems may differ in Unicode form or stray spaces from pasting.
 	const base = await subtle.importKey(
 		"raw",
-		utf8(passphrase.normalize("NFC")),
+		utf8(passphrase.trim().normalize("NFC")),
 		"PBKDF2",
 		false,
 		["deriveBits"],

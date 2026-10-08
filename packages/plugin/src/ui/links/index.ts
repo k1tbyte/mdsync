@@ -1,4 +1,4 @@
-export { updateSharedLink } from "./link-actions";
+export { updateSharedLinks } from "./link-actions";
 export {
 	addLinkMenuItems,
 	isLinkable,

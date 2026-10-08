@@ -53,7 +53,12 @@ export function registerNoteLinkActions(plugin: Plugin & PluginHost): void {
 	plugin.register(plugin.sharedLinks.subscribe(refresh));
 	plugin.registerEvent(workspace.on("layout-change", refresh));
 	plugin.registerEvent(workspace.on("file-open", refresh));
-	plugin.registerEvent(vault.on("modify", refresh));
+	// A sync pull modifies thousands of notes; only a shared one can change its mark.
+	plugin.registerEvent(
+		vault.on("modify", (file) => {
+			if (plugin.sharedLinks.of(file.path).length > 0) refresh();
+		}),
+	);
 	plugin.registerEvent(vault.on("rename", refresh));
 	plugin.register(() => {
 		disposed = true;

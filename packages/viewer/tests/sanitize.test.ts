@@ -38,6 +38,42 @@ describe("sanitizeNote", () => {
 		expect(hrefs).toEqual(["#fn-1", "mailto:a@b.c", null, null, null]);
 	});
 
+	it.each(["href", "xlink:href"])(
+		"opens external SVG %s links without a referrer",
+		(attribute) => {
+			const link = render(
+				`<svg><a ${attribute}="https://example.com/a"><text>a</text></a></svg>`,
+			).querySelector("svg a");
+			expect(link?.getAttribute(attribute)).toBe("https://example.com/a");
+			expect(link?.getAttribute("target")).toBe("_blank");
+			expect(link?.getAttribute("rel")).toBe("noopener noreferrer nofollow");
+		},
+	);
+
+	it.each(["href", "xlink:href"])(
+		"restricts SVG %s to the link allow-list",
+		(attribute) => {
+			const host = render(
+				`<svg><a ${attribute}="#fn-1">1</a><a ${attribute}="mailto:a@b.c">m</a><a ${attribute}="Notes/Other.md">v</a><a ${attribute}="javascript:alert(1)">j</a><a ${attribute}="app://local/x">l</a></svg>`,
+			);
+			expect(
+				[...host.querySelectorAll("svg a")].map((a) =>
+					a.getAttribute(attribute),
+				),
+			).toEqual(["#fn-1", "mailto:a@b.c", null, null, null]);
+		},
+	);
+
+	it("checks both href attributes on the same SVG link", () => {
+		const link = render(
+			'<svg><a href="Notes/Other.md" xlink:href="http://example.com/a">a</a></svg>',
+		).querySelector("svg a");
+		expect(link?.getAttribute("href")).toBeNull();
+		expect(link?.getAttribute("xlink:href")).toBe("http://example.com/a");
+		expect(link?.getAttribute("target")).toBe("_blank");
+		expect(link?.getAttribute("rel")).toBe("noopener noreferrer nofollow");
+	});
+
 	it("keeps embedded and https images and drops every other source", () => {
 		const host = render(
 			'<img src="data:image/png;base64,AAAA"><img src="https://example.com/i.png"><img src="app://local/i.png"><img src="Attachments/i.png"><img src="http://example.com/i.png"><img src="data:text/html;base64,AAAA">',
@@ -72,6 +108,17 @@ describe("sanitizeNote", () => {
 		);
 		expect(host.querySelector("input")?.hasAttribute("disabled")).toBe(true);
 		expect(host.querySelector("form, button, textarea")).toBeNull();
+	});
+
+	it("removes every input except task checkboxes", () => {
+		const host = render(
+			'<input type="image" src="https://example.com/i.png"><input type="text"><input type="hidden"><input type="radio"><input type="submit"><input><input type="checkbox" checked>',
+		);
+		const inputs = [...host.querySelectorAll("input")];
+		expect(inputs).toHaveLength(1);
+		expect(inputs[0]?.type).toBe("checkbox");
+		expect(inputs[0]?.checked).toBe(true);
+		expect(inputs[0]?.disabled).toBe(true);
 	});
 
 	it("keeps MathML and drops what could run inside it", () => {

@@ -46,7 +46,7 @@ import {
 	type IgnoreStateHandle,
 	registerIgnoreState,
 } from "./plugin/ignore-state";
-import { registerLinkRenames } from "./plugin/links";
+import { registerLinkPaths } from "./plugin/links";
 import { registerProtocolHandlers } from "./plugin/protocols";
 import { createRealtime, type Realtime } from "./plugin/realtime";
 import { registerShareRenames } from "./plugin/share-moves";
@@ -163,7 +163,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		registerScheduler(this, this.controller);
 		registerWorkspaceMenus(this);
 		registerShareRenames(this);
-		registerLinkRenames(this);
+		registerLinkPaths(this);
 		registerIgnoreFileRefresh(this);
 		registerStatePersistenceFlush(this, this.statePersister);
 

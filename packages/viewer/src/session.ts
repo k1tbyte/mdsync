@@ -40,10 +40,10 @@ type Unlock = "once" | "remember" | "remembered";
 
 const BROKEN = "This link is damaged: its address may have been cut short.";
 const WRONG = "Wrong passphrase.";
-const CHANGED = "The passphrase has changed. Type the new one.";
 
 export class LinkSession {
 	private meta: LinkMeta | null = null;
+	private cached: CachedLink | null = null;
 
 	constructor(private readonly deps: SessionDeps) {}
 
@@ -51,7 +51,8 @@ export class LinkSession {
 		const { id, key, api, cache, keys, show } = this.deps;
 		show({ kind: "loading" });
 		await this.guarded(async () => {
-			this.meta = cache.get(id) ?? (await api.meta(id));
+			this.cached = cache.get(id);
+			this.meta = this.cached ?? (await api.meta(id));
 			if (!this.meta) {
 				await keys.drop(id);
 				return show({ kind: "gone" });
@@ -81,9 +82,9 @@ export class LinkSession {
 	}
 
 	private async open(keys: LinkKeys, unlock: Unlock): Promise<void> {
-		const { id, cache, show } = this.deps;
+		const { show } = this.deps;
 		// A reload costs no view; a wrong passphrase is only known by failing to open.
-		const cached = cache.get(id);
+		const cached = this.cached;
 		const entry = cached ?? (await this.fetch(keys, unlock));
 		if (!entry) return;
 		const payload = await this.read(entry.sealed, keys.content);
@@ -91,12 +92,7 @@ export class LinkSession {
 			if (!cached) return show({ kind: "error", message: BROKEN });
 			if (!this.meta?.protected)
 				return show({ kind: "error", message: BROKEN });
-			// This tab's copy may predate a new passphrase that the kept keys already have.
-			return show(
-				unlock === "remembered"
-					? { kind: "passphrase" }
-					: { kind: "passphrase", problem: WRONG },
-			);
+			return show({ kind: "passphrase", problem: WRONG });
 		}
 		await this.keep(keys, unlock, entry.expires);
 		show({
@@ -120,14 +116,18 @@ export class LinkSession {
 			return null;
 		}
 		if (outcome.kind === "gate" || outcome.kind === "cooldown") {
-			// Refused kept keys are stale: the owner set another passphrase.
-			if (outcome.kind === "gate" && unlock === "remembered") {
-				await this.deps.keys.drop(id, keys);
+			// Without a passphrase only a cut-short address fails the gate.
+			if (!this.meta?.protected) {
+				show({ kind: "error", message: BROKEN });
+				return null;
 			}
-			const problem = unlock === "remembered" ? CHANGED : WRONG;
+			// Kept keys the relay refuses would otherwise be tried on every visit.
+			if (outcome.kind === "gate" && unlock === "remembered") {
+				await this.deps.keys.drop(id);
+			}
 			show({
 				kind: "passphrase",
-				problem: outcome.retryAfter ? waitMessage(outcome.retryAfter) : problem,
+				problem: outcome.retryAfter ? waitMessage(outcome.retryAfter) : WRONG,
 			});
 			return null;
 		}
@@ -140,6 +140,7 @@ export class LinkSession {
 			expires: outcome.expires,
 		};
 		cache.put(id, entry);
+		this.cached = entry;
 		return entry;
 	}
 

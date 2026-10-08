@@ -7,6 +7,7 @@ import {
 	linkError,
 	linkStatusOf,
 	linkStatusText,
+	noteName,
 	onRelay,
 	revokeLinkRecord,
 } from "@/links";
@@ -14,7 +15,7 @@ import type { PluginHost } from "@/plugin/host";
 import { copyText, notifyError, serial } from "@/ui/common";
 import { openConfirmModal } from "@/ui/modals";
 
-import { updateSharedLink } from "./link-actions";
+import { updateSharedLinks } from "./link-actions";
 
 /** Null: the relay no longer has it. */
 type Known = LinkStatus | null | Error;
@@ -68,9 +69,10 @@ export class ManageLinksModal extends Modal {
 		return onRelay(record, this.plugin.settings);
 	}
 
-	private async load(): Promise<void> {
+	/** Asks the relay where these stand; one update need not ask about the rest. */
+	private async load(records = this.records()): Promise<void> {
 		await Promise.all(
-			this.records()
+			records
 				.filter((record) => this.reachable(record))
 				.map(async (record) => {
 					try {
@@ -102,32 +104,36 @@ export class ManageLinksModal extends Modal {
 		// Expiry redraws without asking the relay again.
 		const known = isExpired(record) ? null : this.known.get(record.id);
 		const ended = known === null || !reachable;
-		const file = this.app.vault.getFileByPath(record.path);
+		const file = record.detached
+			? null
+			: this.app.vault.getFileByPath(record.path);
 		const stale = file && isStale(record, file.stat.mtime);
+		const deleted = record.detached ? "The note was deleted. " : "";
 		const setting = new Setting(list)
-			.setName(record.title || record.path)
+			.setName(noteName(record))
 			.setDesc(
-				`${stale ? "Changed since it was shared. " : ""}${describe(record, reachable, known)}`,
+				`${deleted}${stale ? "Changed since it was shared. " : ""}${describe(record, reachable, known)}`,
 			);
-		if (record.title && record.title !== record.path) {
+		if (record.path.includes("/")) {
 			setting.descEl.createDiv({ text: record.path });
 		}
 		if (!ended) {
-			setting
-				.addExtraButton((button) =>
-					button
-						.setIcon("copy")
-						.setTooltip("Copy link")
-						.onClick(() => void copyText("Link", record.url)),
-				)
-				.addButton((button) =>
-					button.setButtonText("Update").onClick(
-						this.guarded(button, async () => {
-							await updateSharedLink(this.plugin, record);
-							await this.load();
-						}),
-					),
-				);
+			setting.addExtraButton((button) =>
+				button
+					.setIcon("copy")
+					.setTooltip("Copy link")
+					.onClick(() => void copyText("Link", record.url)),
+			);
+		}
+		if (!ended && !record.detached) {
+			setting.addButton((button) =>
+				button.setButtonText("Update").onClick(
+					this.guarded(button, async () => {
+						await updateSharedLinks(this.plugin, [record]);
+						await this.load([record]);
+					}),
+				),
+			);
 		}
 		setting.addExtraButton((button) =>
 			button
@@ -162,7 +168,7 @@ export class ManageLinksModal extends Modal {
 				app: this.plugin.app,
 				title: "Stop sharing this link?",
 				body: [
-					`The link to "${record.title || record.path}" stops working at once. Anyone who already opened it keeps what they saw.`,
+					`The link to "${noteName(record)}" stops working at once. Anyone who already opened it keeps what they saw.`,
 				],
 				confirmLabel: "Stop sharing",
 				confirmClass: "mod-warning",
@@ -180,6 +186,9 @@ function describe(
 	known: Known | undefined,
 ): string {
 	if (!reachable) {
+		if (!URL.canParse(record.url)) {
+			return "This link's address is damaged: remove it from the list.";
+		}
 		return `Made through ${new URL(record.url).origin}, which is not this vault's relay: set that relay again to manage it.`;
 	}
 	if (known === undefined) return "Checking…";

@@ -85,10 +85,19 @@ describe("states", () => {
 		const input = root.querySelector("input") as HTMLInputElement;
 		input.value = "correct horse";
 		const form = root.querySelector("form");
-		form?.dispatchEvent(new Event("submit", { cancelable: true }));
 		const remember = root.querySelector(".remember input") as HTMLInputElement;
-		remember.checked = false;
+		expect(remember.checked).toBe(false);
+		remember.checked = true;
 		form?.dispatchEvent(new Event("submit", { cancelable: true }));
+		v.show({ kind: "passphrase", problem: "Wrong passphrase." });
+		const kept = root.querySelector(".remember input") as HTMLInputElement;
+		expect(kept.checked).toBe(true);
+		kept.checked = false;
+		(root.querySelector("#passphrase") as HTMLInputElement).value =
+			"correct horse";
+		root
+			.querySelector("form")
+			?.dispatchEvent(new Event("submit", { cancelable: true }));
 		v.show({ kind: "passphrase", problem: "Wrong passphrase." });
 		expect(
 			(root.querySelector(".remember input") as HTMLInputElement).checked,

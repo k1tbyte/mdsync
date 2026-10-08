@@ -9,35 +9,60 @@ export interface LinkRecord {
 	url: string;
 	/** Where the note was when last shared; a rename in Obsidian updates it. */
 	path: string;
-	title: string;
+	/** Whether the page carries the note's name; an update keeps the owner's choice. */
+	showTitle: boolean;
 	/** Milliseconds. */
 	createdAt: number;
 	/** Milliseconds; the last create or update. A note modified later shows a changed copy. */
 	publishedAt: number;
-	/** Unix seconds; null never expires. */
+	/** Unix seconds, as the relay set it; null never expires. */
 	expires: number | null;
 	maxViews: number | null;
 	/** base64url; set exactly when the link has a passphrase. An update needs it to seal again. */
 	salt: string | null;
 	/** Whether its images went along: an update keeps the owner's choice. */
 	images: boolean;
+	/** The note was deleted: the link stays live and listed, but no note of that path feeds it any more. */
+	detached: boolean;
 }
 
-export function isLinkRecord(value: unknown): value is LinkRecord {
-	if (typeof value !== "object" || value === null) return false;
+/**
+ * Keeps whatever a stored record still tells: the id and the link are all that stopping it takes, so a record
+ * missing other fields is repaired rather than dropped with its key.
+ */
+export function parseLinkRecord(value: unknown): LinkRecord | null {
+	if (typeof value !== "object" || value === null) return null;
 	const record = value as Record<string, unknown>;
-	return (
-		typeof record.id === "string" &&
-		typeof record.url === "string" &&
-		typeof record.path === "string" &&
-		typeof record.title === "string" &&
-		typeof record.createdAt === "number" &&
-		typeof record.publishedAt === "number" &&
-		(record.expires === null || typeof record.expires === "number") &&
-		(record.maxViews === null || typeof record.maxViews === "number") &&
-		(record.salt === null || typeof record.salt === "string") &&
-		typeof record.images === "boolean"
-	);
+	const { id, url, path } = record;
+	if (typeof id !== "string" || typeof url !== "string") return null;
+	return {
+		id,
+		url,
+		path: typeof path === "string" ? path : "",
+		// Records of the first builds kept the choice as `title`, empty when the name was hidden.
+		showTitle:
+			typeof record.showTitle === "boolean"
+				? record.showTitle
+				: record.title !== "",
+		createdAt: numberOr(record.createdAt, 0),
+		publishedAt: numberOr(record.publishedAt, 0),
+		expires: numberOr(record.expires, null),
+		maxViews: numberOr(record.maxViews, null),
+		salt: typeof record.salt === "string" ? record.salt : null,
+		images: record.images !== false,
+		detached: record.detached === true || typeof path !== "string",
+	};
+}
+
+function numberOr<T>(value: unknown, fallback: T): number | T {
+	return typeof value === "number" ? value : fallback;
+}
+
+/** The note's name as last known: its file name without the extension. */
+export function noteName(record: LinkRecord): string {
+	return record.path
+		.slice(record.path.lastIndexOf("/") + 1)
+		.replace(/\.md$/, "");
 }
 
 /** The note changed after its last publish: the link shows an older copy. */
@@ -71,17 +96,32 @@ export function renamedLinks(
 	from: string,
 	to: string,
 ): LinkRecord[] | null {
-	let moved = false;
+	return changedLinks(links, from, (record) => ({
+		...record,
+		path: to + record.path.slice(from.length),
+	}));
+}
+
+/** The links after a note, or the folder holding it, was deleted; null when none was affected. */
+export function detachedLinks(
+	links: readonly LinkRecord[],
+	path: string,
+): LinkRecord[] | null {
+	return changedLinks(links, path, (record) => ({ ...record, detached: true }));
+}
+
+/** Applies `change` to the attached links at or under `path`; null when there were none. */
+function changedLinks(
+	links: readonly LinkRecord[],
+	path: string,
+	change: (record: LinkRecord) => LinkRecord,
+): LinkRecord[] | null {
+	let touched = false;
 	const next = links.map((record) => {
-		const path =
-			record.path === from
-				? to
-				: record.path.startsWith(`${from}/`)
-					? to + record.path.slice(from.length)
-					: null;
-		if (path === null) return record;
-		moved = true;
-		return { ...record, path };
+		const within = record.path === path || record.path.startsWith(`${path}/`);
+		if (record.detached || !within) return record;
+		touched = true;
+		return change(record);
 	});
-	return moved ? next : null;
+	return touched ? next : null;
 }

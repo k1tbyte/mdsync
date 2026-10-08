@@ -29,8 +29,8 @@ export interface LinkRouteEnv extends SecretEnv, LinkEnv {}
 
 const ROUTE = /^\/link\/([^/]+)(?:\/(meta|status|open))?$/;
 const SALT_PATTERN = /^[A-Za-z0-9_-]{22}$/;
-/** Longer than any real gate; the cap only keeps a hostile body from being hashed. */
-const MAX_PRESENTED_GATE = 64;
+/** The open route is public and its body is one gate, so anything bigger is not parsed. */
+const MAX_OPEN_BODY_BYTES = 1024;
 const GONE_TEXT = "This link has expired or reached its view limit.";
 
 /** Returns null when the path is not a link route, so index.ts can fall through. */
@@ -71,8 +71,8 @@ async function storeLink(
 	url: URL,
 ): Promise<Response> {
 	if (!(await isAdmin(request, env))) return adminUnauthorized();
-	const settings = await readSettings(request, url);
-	if (typeof settings === "string") return badRequest(settings);
+	const parsed = await readSettings(request, url);
+	if (!parsed.ok) return badRequest(parsed.reason);
 	if (Number(request.headers.get("Content-Length")) > LINK_MAX_SEALED_BYTES) {
 		return tooLarge();
 	}
@@ -80,14 +80,26 @@ async function storeLink(
 	if (blob.byteLength > LINK_MAX_SEALED_BYTES) return tooLarge();
 	if (blob.byteLength === 0) return badRequest("The body is empty");
 	const mode = url.searchParams.get("update") === "1" ? "update" : "create";
+	// On the relay's clock, so a device with the wrong time cannot misdate it, and after a slow upload.
+	const expires =
+		parsed.ttl === null ? null : Math.floor(Date.now() / 1000) + parsed.ttl;
+	const settings = { ...parsed.settings, expires };
 	const stored = await linkStub(env, id).put(blob, settings, mode);
 	if (stored === "gone") return gone();
+	if (stored === "mismatch") return fresh(wrongGate());
 	if (stored === "exists") {
 		return fresh(
 			jsonError(409, "exists", "A link with this id already exists"),
 		);
 	}
-	return fresh(json({ stored: true, size: blob.byteLength }));
+	// An update keeps the limits it was created with, so only a creation has an expiry to report.
+	return fresh(
+		json({
+			stored: true,
+			size: blob.byteLength,
+			...(mode === "create" && { expires: settings.expires }),
+		}),
+	);
 }
 
 async function revokeLink(
@@ -121,9 +133,9 @@ async function openLink(
 	env: LinkRouteEnv,
 	id: string,
 ): Promise<Response> {
-	const body = await readJsonObject(request);
+	const body = await readJsonObject(request, MAX_OPEN_BODY_BYTES);
 	const presented =
-		typeof body?.gate === "string" && body.gate.length <= MAX_PRESENTED_GATE
+		typeof body?.gate === "string" && LINK_GATE_PATTERN.test(body.gate)
 			? await fingerprint(body.gate)
 			: null;
 	const result = await linkStub(env, id).open(
@@ -144,48 +156,47 @@ async function openLink(
 		return new Response(result.blob, { headers });
 	}
 	if (result.reason === "gone") return gone();
-	const response = jsonError(
-		result.reason === "gate" ? 401 : 429,
-		result.reason,
+	const response =
 		result.reason === "gate"
-			? "Wrong passphrase."
-			: "Too many wrong passphrases.",
-	);
+			? wrongGate(401)
+			: jsonError(429, result.reason, "Too many wrong passphrases.");
 	if (result.retryAfter !== null) {
 		response.headers.set("Retry-After", String(result.retryAfter));
 	}
 	return fresh(response);
 }
 
-/** A string is the reason the request is refused. */
+/** The expiry is a span, kept apart from the settings: it starts when the body has arrived, not before. */
 async function readSettings(
 	request: Request,
 	url: URL,
-): Promise<LinkSettings | string> {
-	const now = Math.floor(Date.now() / 1000);
+): Promise<
+	| { ok: true; settings: Omit<LinkSettings, "expires">; ttl: number | null }
+	| { ok: false; reason: string }
+> {
 	const maxViews = optionalInt(
 		url.searchParams.get("maxViews"),
 		1,
 		LINK_MAX_VIEWS,
 	);
-	const expires = optionalInt(
-		url.searchParams.get("expires"),
-		now + 1,
-		now + LINK_MAX_TTL_S,
-	);
-	if (maxViews === "invalid") return "Invalid maxViews";
-	if (expires === "invalid") return "Invalid expires";
+	const ttl = optionalInt(url.searchParams.get("ttl"), 1, LINK_MAX_TTL_S);
 	const gate = request.headers.get(LINK_HEADERS.gate);
 	const salt = request.headers.get(LINK_HEADERS.salt);
-	if ((gate === null) !== (salt === null))
-		return "A passphrase needs a gate and a salt";
-	if (gate !== null && salt !== null) {
-		if (!LINK_GATE_PATTERN.test(gate) || !SALT_PATTERN.test(salt)) {
-			return "Invalid gate or salt";
-		}
-		return { maxViews, expires, gate: await fingerprint(gate), salt };
+	if (maxViews === "invalid") return refused("Invalid maxViews");
+	if (ttl === "invalid") return refused("Invalid ttl");
+	if (gate === null || !LINK_GATE_PATTERN.test(gate)) {
+		return refused("Invalid gate");
 	}
-	return { maxViews, expires, gate: null, salt: null };
+	if (salt !== null && !SALT_PATTERN.test(salt)) return refused("Invalid salt");
+	return {
+		ok: true,
+		ttl,
+		settings: { maxViews, gate: await fingerprint(gate), salt },
+	};
+}
+
+function refused(reason: string) {
+	return { ok: false, reason } as const;
 }
 
 function optionalInt(
@@ -198,6 +209,10 @@ function optionalInt(
 	return Number.isInteger(value) && value >= min && value <= max
 		? value
 		: "invalid";
+}
+
+function wrongGate(status = 403): Response {
+	return jsonError(status, "gate", "Wrong passphrase.");
 }
 
 function gone(): Response {

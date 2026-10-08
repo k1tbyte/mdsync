@@ -31,7 +31,6 @@ export function sessionCache(
 				return {
 					...stored,
 					sealed: fromBase64Url(stored.sealed),
-					expires: stored.expires ?? null,
 				};
 			} catch {
 				return null;

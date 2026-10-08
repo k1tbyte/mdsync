@@ -1,25 +1,29 @@
+import { LINK_HREF_ALLOWED, LINK_IMAGE_SRC_ALLOWED } from "@mdsync/protocol";
 import DOMPurify from "dompurify";
-
-/** Anything else is a path into the owner's vault or the relay, and leads nowhere here. */
-const KEPT_LINK = /^(https?:|mailto:|#)/i;
-const KEPT_IMAGE = /^(data:image\/|https:\/\/)/i;
 
 const purify = DOMPurify(window);
 
 purify.addHook("afterSanitizeAttributes", (node) => {
-	if (node instanceof HTMLAnchorElement) {
-		const href = node.getAttribute("href");
-		if (href !== null && !KEPT_LINK.test(href)) node.removeAttribute("href");
-		if (/^https?:/i.test(href ?? "")) {
-			node.setAttribute("target", "_blank");
-			node.setAttribute("rel", "noopener noreferrer nofollow");
+	if (node instanceof Element && node.localName === "a") {
+		for (const attribute of ["href", "xlink:href"]) {
+			const href = node.getAttribute(attribute);
+			if (href !== null && !LINK_HREF_ALLOWED.test(href))
+				node.removeAttribute(attribute);
+			if (/^https?:/i.test(href ?? "")) {
+				node.setAttribute("target", "_blank");
+				node.setAttribute("rel", "noopener noreferrer nofollow");
+			}
 		}
 	}
 	if (node instanceof HTMLImageElement) {
 		node.removeAttribute("srcset");
-		if (!KEPT_IMAGE.test(node.getAttribute("src") ?? "")) node.remove();
+		if (!LINK_IMAGE_SRC_ALLOWED.test(node.getAttribute("src") ?? ""))
+			node.remove();
 	}
-	if (node instanceof HTMLInputElement) node.setAttribute("disabled", "");
+	if (node instanceof HTMLInputElement) {
+		if (node.type !== "checkbox") node.remove();
+		else node.setAttribute("disabled", "");
+	}
 });
 
 /** The note's HTML as a fragment safe to attach: no script, no handlers, no way out of the page. */

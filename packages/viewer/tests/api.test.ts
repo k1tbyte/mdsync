@@ -36,7 +36,7 @@ describe("open", () => {
 				},
 			}),
 		);
-		expect(await api.open("id", null)).toEqual({
+		expect(await api.open("id", "G".repeat(43))).toEqual({
 			kind: "opened",
 			sealed: Uint8Array.from([1, 2, 3]),
 			viewsLeft: 2,
@@ -46,7 +46,7 @@ describe("open", () => {
 
 	it("leaves the count out for an unlimited link", async () => {
 		const api = createApi(reply(200, { body: Uint8Array.from([1]) }));
-		expect(await api.open("id", null)).toMatchObject({
+		expect(await api.open("id", "G".repeat(43))).toMatchObject({
 			viewsLeft: null,
 			expires: null,
 		});
@@ -58,7 +58,9 @@ describe("open", () => {
 			const api = createApi(
 				reply(200, { headers: { "X-Mdsync-Expires": expires } }),
 			);
-			expect(await api.open("id", null)).toMatchObject({ expires: null });
+			expect(await api.open("id", "G".repeat(43))).toMatchObject({
+				expires: null,
+			});
 		},
 	);
 
@@ -70,12 +72,12 @@ describe("open", () => {
 		}) as typeof fetch);
 		await api.open("id", "G".repeat(43));
 		expect(JSON.parse(sent)).toEqual({ gate: "G".repeat(43) });
-		await api.open("id", null);
-		expect(JSON.parse(sent)).toEqual({});
+		await api.open("id", "U".repeat(43));
+		expect(JSON.parse(sent)).toEqual({ gate: "U".repeat(43) });
 	});
 
 	it("tells gone, wrong gate and cooldown apart", async () => {
-		expect(await createApi(reply(404)).open("id", null)).toEqual({
+		expect(await createApi(reply(404)).open("id", "G".repeat(43))).toEqual({
 			kind: "gone",
 		});
 		expect(await createApi(reply(401)).open("id", "g")).toEqual({
@@ -107,6 +109,8 @@ describe("open", () => {
 	});
 
 	it("throws for any other answer", async () => {
-		await expect(createApi(reply(502)).open("id", null)).rejects.toThrow("502");
+		await expect(
+			createApi(reply(502)).open("id", "G".repeat(43)),
+		).rejects.toThrow("502");
 	});
 });

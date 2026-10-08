@@ -1,13 +1,12 @@
 /** One share link: its sealed blob, view counter and gate. See store.ts for the rules. */
 
 import { DurableObject } from "cloudflare:workers";
-import type { LinkMeta, LinkStatus } from "@mdsync/protocol";
+import type { LinkMeta, LinkPutMode, LinkStatus } from "@mdsync/protocol";
 
 import {
 	type LinkSettings,
 	LinkStore,
 	type OpenResult,
-	type PutMode,
 	type PutResult,
 } from "./store";
 import type { LinkEnv } from "./stub";
@@ -20,10 +19,10 @@ export class Link extends DurableObject<LinkEnv> {
 	async put(
 		blob: ArrayBuffer,
 		settings: LinkSettings,
-		mode: PutMode,
+		mode: LinkPutMode,
 	): Promise<PutResult> {
 		const result = this.store.put(blob, settings, mode);
-		if (result !== "stored") return result;
+		if (result !== "stored" || mode === "update") return result;
 		if (settings.expires === null) await this.ctx.storage.deleteAlarm();
 		else await this.ctx.storage.setAlarm(settings.expires * 1000);
 		return result;

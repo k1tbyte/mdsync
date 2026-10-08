@@ -1,6 +1,7 @@
 import type { LinkKeys } from "@mdsync/protocol";
 import {
 	createStore,
+	del,
 	get,
 	promisifyRequest,
 	set,
@@ -14,8 +15,7 @@ export interface RememberedKeys {
 	get(id: string): Promise<LinkKeys | null>;
 	/** `expires` in Unix seconds; null keeps them until the relay says the link is gone. */
 	put(id: string, keys: LinkKeys, expires: number | null): Promise<void>;
-	/** With `stale`, only while those are still the kept ones: another tab may have kept newer. */
-	drop(id: string, stale?: LinkKeys): Promise<void>;
+	drop(id: string): Promise<void>;
 }
 
 interface Entry {
@@ -36,17 +36,9 @@ export function browserKeys(): RememberedKeys {
 		}
 		return store;
 	};
-	const drop = async (id: string, stale?: LinkKeys) => {
+	const drop = async (id: string) => {
 		try {
-			// Read and delete in one transaction, so a newer entry kept meanwhile survives.
-			await db()("readwrite", (keys) => {
-				const kept = keys.get(id);
-				kept.onsuccess = () => {
-					const entry = kept.result as Entry | undefined;
-					if (!stale || entry?.keys.gate === stale.gate) keys.delete(id);
-				};
-				return promisifyRequest(keys.transaction);
-			});
+			await del(id, db());
 		} catch {
 			// Nothing was kept.
 		}

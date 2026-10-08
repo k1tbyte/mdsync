@@ -10,7 +10,7 @@ const MIME: Record<string, string> = {
 	bmp: "image/bmp",
 	avif: "image/avif",
 };
-/** An image under this goes as it is; a bigger photo is re-encoded smaller. */
+/** An image under this goes as it is (a JPEG apart); a bigger photo is re-encoded smaller. */
 const KEEP_BYTES = 300 * 1024;
 const MAX_EDGE = 1600;
 /** A note's images share the link's size limit with its text. */
@@ -33,9 +33,12 @@ export async function inlineImage(
 	let blob = new Blob([bytes], { type: mime });
 	// An animation or vector would lose what makes it itself.
 	const flat = mime !== "image/gif" && mime !== "image/svg+xml";
-	if (flat && bytes.byteLength > KEEP_BYTES) {
-		const smaller = await reencode(blob);
-		if (smaller && smaller.size < blob.size) blob = smaller;
+	// A camera's JPEG carries its EXIF (GPS included); drawing it anew leaves that behind.
+	const photo = mime === "image/jpeg";
+	if (flat && (photo || bytes.byteLength > KEEP_BYTES)) {
+		const redrawn = await reencode(blob);
+		if (photo && !redrawn) return null;
+		if (redrawn && (photo || redrawn.size < blob.size)) blob = redrawn;
 	}
 	return blob.size <= IMAGE_MAX_BYTES ? readAsDataUrl(blob) : null;
 }
