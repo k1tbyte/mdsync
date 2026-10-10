@@ -86,6 +86,8 @@ const rows: { name: string; desc: string; buttons: Button[] }[] = [];
 const RECORD: LinkRecord = {
 	id: "one",
 	url: "https://relay.example/one",
+	rev: 0,
+	author: "",
 	path: "note.md",
 	showTitle: true,
 	detached: false,
@@ -114,10 +116,12 @@ function host(
 		relayUrl: "https://relay.example",
 		relaySecret: "secret",
 	};
-	const sharedLinks = new SharedLinks(
-		() => settings,
-		async () => {},
-	);
+	const sharedLinks = new SharedLinks({
+		settings: () => settings,
+		save: async () => {},
+		author: () => "laptop",
+		announce: () => {},
+	});
 	const note = mtime === null ? null : { path: RECORD.path, stat: { mtime } };
 	const plugin = {
 		settings,
@@ -220,6 +224,8 @@ describe("ManageLinksModal", () => {
 		expect(updateSharedLinks).toHaveBeenCalledWith(plugin, [
 			{
 				...RECORD,
+				rev: 1,
+				author: "laptop",
 				path: "moved.md",
 			},
 		]);

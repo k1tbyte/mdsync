@@ -14,6 +14,7 @@ import type { Unseen } from "@/presence";
 import {
 	canSync,
 	DEFAULT_SETTINGS,
+	isStorageConfigured,
 	type MdsyncSettings,
 	mergeSettings,
 } from "@/settings/model";
@@ -87,10 +88,15 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 	ignoreState!: IgnoreStateHandle;
 	spaces!: SpaceRecords;
 	unseen!: Unseen;
-	readonly sharedLinks = new SharedLinks(
-		() => this.settings,
-		() => this.saveSettings(),
-	);
+	readonly sharedLinks = new SharedLinks({
+		settings: () => this.settings,
+		save: () => this.saveSettings(),
+		author: () => this.controller.currentDevice().id,
+		// The vault refresh trades the links.
+		announce: () => {
+			if (isStorageConfigured(this.settings)) void this.controller.refresh();
+		},
+	});
 	private settingsTab?: MdsyncSettingTab;
 	private statePersister!: StatePersister;
 	private scopeRefreshTimer: number | null = null;
@@ -108,6 +114,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		const runtime = await bootstrapPluginRuntime({
 			app: this.app,
 			settings: this.settings,
+			links: this.sharedLinks,
 			onPushComplete: (space) => {
 				this.realtime.hub.signal(space.id);
 				refreshOpenHistoryViewsAfterPush(this);

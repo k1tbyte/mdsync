@@ -1,9 +1,12 @@
+import { isLinkId } from "@mdsync/protocol";
+
 import { isCleartextRemote, relayBase } from "@/shared";
+import type { Revised } from "@/utils";
 
 const MS_PER_S = 1000;
 
-/** One share link this device published. */
-export interface LinkRecord {
+/** One share link of this person, as every device of theirs trades it through the vault storage. */
+export interface LinkRecord extends Revised {
 	id: string;
 	/** The whole link, key included: the only way to copy it again. */
 	url: string;
@@ -26,11 +29,46 @@ export interface LinkRecord {
 	detached: boolean;
 }
 
+/** This device's copy of a record; the extra fields never leave it. */
+export interface StoredLink extends LinkRecord {
+	/** Identity of the vault storage it was last traded with; unset until first published. */
+	vault?: string;
+	/** Removed here: hidden, until the next trade deletes it from the vault storage too. */
+	removed?: true;
+}
+
+/** A record of the first builds, made before links were traded, starts at revision 0. */
+export function parseStoredLink(value: unknown): StoredLink | null {
+	const record = parseLinkRecord(value);
+	if (!record) return null;
+	const { vault, removed } = value as Record<string, unknown>;
+	return {
+		...record,
+		...(typeof vault === "string" ? { vault } : {}),
+		...(removed === true ? { removed } : {}),
+	};
+}
+
+/** Another device's record: its id names the object it came in. */
+export function parseTradedLink(value: unknown): LinkRecord | null {
+	const record = parseLinkRecord(value);
+	return record && isLinkId(record.id) ? record : null;
+}
+
+/** What goes to the vault storage: nothing only this device knows. */
+export function tradedLink({
+	vault: _,
+	removed: __,
+	...record
+}: StoredLink): LinkRecord {
+	return record;
+}
+
 /**
  * Keeps whatever a stored record still tells: the id and the link are all that stopping it takes, so a record
  * missing other fields is repaired rather than dropped with its key.
  */
-export function parseLinkRecord(value: unknown): LinkRecord | null {
+function parseLinkRecord(value: unknown): LinkRecord | null {
 	if (typeof value !== "object" || value === null) return null;
 	const record = value as Record<string, unknown>;
 	const { id, url, path } = record;
@@ -38,6 +76,8 @@ export function parseLinkRecord(value: unknown): LinkRecord | null {
 	return {
 		id,
 		url,
+		rev: numberOr(record.rev, 0),
+		author: typeof record.author === "string" ? record.author : "",
 		path: typeof path === "string" ? path : "",
 		// Records of the first builds kept the choice as `title`, empty when the name was hidden.
 		showTitle:
@@ -92,11 +132,11 @@ export function onRelay(
 }
 
 /** The links after a note, or the folder holding it, moved; null when none was affected. */
-export function renamedLinks(
-	links: readonly LinkRecord[],
+export function renamedLinks<T extends LinkRecord>(
+	links: readonly T[],
 	from: string,
 	to: string,
-): LinkRecord[] | null {
+): T[] | null {
 	return changedLinks(links, from, (record) => ({
 		...record,
 		path: to + record.path.slice(from.length),
@@ -104,19 +144,19 @@ export function renamedLinks(
 }
 
 /** The links after a note, or the folder holding it, was deleted; null when none was affected. */
-export function detachedLinks(
-	links: readonly LinkRecord[],
+export function detachedLinks<T extends LinkRecord>(
+	links: readonly T[],
 	path: string,
-): LinkRecord[] | null {
+): T[] | null {
 	return changedLinks(links, path, (record) => ({ ...record, detached: true }));
 }
 
 /** Applies `change` to the attached links at or under `path`; null when there were none. */
-function changedLinks(
-	links: readonly LinkRecord[],
+function changedLinks<T extends LinkRecord>(
+	links: readonly T[],
 	path: string,
-	change: (record: LinkRecord) => LinkRecord,
-): LinkRecord[] | null {
+	change: (record: T) => T,
+): T[] | null {
 	let touched = false;
 	const next = links.map((record) => {
 		const within = record.path === path || record.path.startsWith(`${path}/`);

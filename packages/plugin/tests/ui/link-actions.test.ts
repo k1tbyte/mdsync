@@ -39,6 +39,8 @@ vi.mock("@/ui", async () => ({
 const RECORD: LinkRecord = {
 	id: "one",
 	url: "https://relay.example/one",
+	rev: 0,
+	author: "",
 	path: "note.md",
 	showTitle: true,
 	detached: false,
@@ -59,10 +61,12 @@ function host(records: LinkRecord[] = [RECORD]) {
 	};
 	const plugin = {
 		settings,
-		sharedLinks: new SharedLinks(
-			() => settings,
-			async () => {},
-		),
+		sharedLinks: new SharedLinks({
+			settings: () => settings,
+			save: async () => {},
+			author: () => "laptop",
+			announce: () => {},
+		}),
 		app: {
 			workspace: { getActiveFile: () => file },
 			vault: { getFileByPath: () => ({ stat: { mtime: 1 } }) },

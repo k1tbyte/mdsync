@@ -6,7 +6,7 @@ import {
 	FILE_HISTORY_MAX_SNAPSHOTS,
 	FILE_HISTORY_MIN_SNAPSHOTS,
 } from "@/constants";
-import { type LinkRecord, parseLinkRecord } from "@/links/record";
+import { parseStoredLink, type StoredLink } from "@/links/record";
 import { isCleartextRemote } from "@/shared";
 import { isSpaceRecord, type SpaceRecord } from "@/spaces/record";
 import {
@@ -84,8 +84,8 @@ export interface MdsyncSettings {
 	localRoots: Record<string, string>;
 	/** The vault storage (identity) the records were traded with: another vault's never reach this one. */
 	spacesVault: string | null;
-	/** Notes this device shared as links. Holds each link's key, so never published or transferred. */
-	links: LinkRecord[];
+	/** This person's share links, keys included: traded sealed through the vault storage, never transferred. */
+	links: StoredLink[];
 	/** Self-hosted worker (packages/relay): realtime signals. */
 	relayUrl: string;
 	/** The worker's RELAY_SECRET; relay room tokens derive from it. */
@@ -298,7 +298,7 @@ export function mergeSettings(
 			: [],
 		localRoots: stringValues(stored?.localRoots),
 		links: Array.isArray(stored?.links)
-			? stored.links.flatMap((link) => parseLinkRecord(link) ?? [])
+			? stored.links.flatMap((link) => parseStoredLink(link) ?? [])
 			: [],
 		spacesVault:
 			typeof stored?.spacesVault === "string" ? stored.spacesVault : null,

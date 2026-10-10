@@ -6,6 +6,7 @@ import {
 	PassphraseManager,
 	StatePersister,
 } from "@/core";
+import type { SharedLinks } from "@/links";
 import { isStorageConfigured, type MdsyncSettings } from "@/settings/model";
 import { reportWarning } from "@/shared";
 import { SpaceRecords } from "@/spaces";
@@ -28,6 +29,8 @@ export interface PluginRuntime {
 interface BootstrapPluginRuntimeOptions {
 	app: App;
 	settings: MdsyncSettings;
+	/** Traded with the vault storage on every full refresh, after the records. */
+	links: Pick<SharedLinks, "sync">;
 	/** Also for a published space record: other devices learn of shares from the vault. */
 	onPushComplete?: (space: Space) => void;
 	onSpaceRefreshed?: (space: Space) => void;
@@ -86,7 +89,14 @@ export async function bootstrapPluginRuntime(
 					),
 				);
 				const { published, closed, left } = await spaces.sync(storage, key);
-				if (published) options.onPushComplete?.(VAULT_SPACE);
+				// A link that fails to trade must not hold up the files.
+				const traded = await options.links
+					.sync(storage, key)
+					.catch((err: unknown) => {
+						reportWarning("Share links did not sync.", err);
+						return false;
+					});
+				if (published || traded) options.onPushComplete?.(VAULT_SPACE);
 				if (left.length > 0) {
 					notifyError(
 						`The vault storage changed: ${left.length} shared folder(s) stay with the previous one and sync here as plain folders until you switch back.`,

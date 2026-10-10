@@ -28,7 +28,7 @@ export {
 	type LinkRecord,
 	noteName,
 	onRelay,
-	parseLinkRecord,
+	type StoredLink,
 } from "./record";
 export { SharedLinks } from "./shared-links";
 export type { Snapshot } from "./snapshot";

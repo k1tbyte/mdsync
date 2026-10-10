@@ -269,8 +269,9 @@ Publish one note as a link anyone can open in a browser with nothing installed, 
 - The page has an outline, folding headings, copyable code, wide text and **Copy as Markdown**.
 - Left out: properties, comments, links to other notes (their text stays) and embedded notes. Vault images are embedded and shrunk; **Include images** turns that off. The window lists what was left out before you create the link.
 - **Manage share links** shows the views left, copies the link, **Update**s it to the note as it is now (same link) or stops it at once. A globe in the file tree and in the note's header marks a shared note; a dot means it changed since.
+- Your other devices list the same links, so any of them can copy, update or stop one.
 
-A link is a copy: later edits do not reach it until you update it. Anyone who has the link (and the passphrase) can read the note and pass it on. The links, with their keys, are kept in the plugin's `data.json`.
+A link is a copy: later edits do not reach it until you update it. Anyone who has the link (and the passphrase) can read the note and pass it on. The links, with their keys, are kept in the plugin's `data.json` and reach your other devices through your storage, encrypted with the vault key.
 
 ## Device transfer
 

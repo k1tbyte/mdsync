@@ -93,6 +93,8 @@ describe("settings import", () => {
 		const link: LinkRecord = {
 			id: "one",
 			url: "https://relay.example/s/one",
+			rev: 0,
+			author: "",
 			path: "note.md",
 			showTitle: true,
 			detached: false,
