@@ -15,7 +15,7 @@ export function renderBackendSection(
 ): void {
 	new Setting(parent).setName("Backend").setHeading();
 	new Setting(parent).setDesc(
-		"Credentials are stored on this device in plain text. Inviting someone to a shared folder hands them to the relay, which signs that folder's requests.",
+		"Credentials are stored on this device, encrypted with a key in Obsidian's keychain; a copy of the vault does not carry them. Inviting someone to a shared folder hands them to the relay, which signs that folder's requests.",
 	);
 
 	const settings = plugin.settings;

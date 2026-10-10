@@ -205,8 +205,9 @@ Properties are never published (no option): the renderer does not draw them.
   link, or one made through another relay than the vault's current one, can
   only be removed from the list: nothing here can stop it. A rename (of the
   note or a folder above it) updates the stored path (`plugin/links.ts`).
-- `data.json` keeps the link with its key in plain text, like share keys; the
-  vault storage keeps it sealed under the vault key.
+- `data.json` keeps the link with its key in the device key's envelope, like
+  share keys (see [security](security.md)); the vault storage keeps it sealed
+  under the vault key.
 
 ## Steps
 

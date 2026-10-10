@@ -1,6 +1,7 @@
 import type { DataAdapter } from "obsidian";
 
 import type { EncryptionKey } from "@/crypto";
+import type { DeviceKey } from "@/crypto/device-key";
 import type { LiveKeys } from "@/crypto/live-keys";
 import {
 	clearCachedPassphrase,
@@ -52,6 +53,7 @@ export class PassphraseManager {
 		private readonly adapter: DataAdapter,
 		private readonly configDir: string,
 		private readonly settings: MdsyncSettings,
+		private readonly deviceKey: DeviceKey,
 	) {}
 
 	has(): boolean {
@@ -176,6 +178,7 @@ export class PassphraseManager {
 			await saveCachedPassphrase(
 				this.adapter,
 				this.configDir,
+				this.deviceKey,
 				this.passphrase,
 				this.bindingSignature(),
 			);
@@ -250,6 +253,7 @@ export class PassphraseManager {
 		const cached = await loadCachedPassphrase(
 			this.adapter,
 			this.configDir,
+			this.deviceKey,
 			this.bindingSignature(),
 		);
 		if (!cached) return false;

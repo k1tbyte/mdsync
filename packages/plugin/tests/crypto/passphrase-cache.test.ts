@@ -1,86 +1,86 @@
+import { deviceKey, FakeSecretStorage } from "@tests/helpers/device-key";
 import { InMemoryAdapter } from "@tests/helpers/in-memory-adapter";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DEVICE_KEY_BYTES } from "@/crypto/constants";
+
 import {
 	loadCachedPassphrase,
 	saveCachedPassphrase,
 } from "@/crypto/passphrase-cache";
 
-const keyPath = ".obsidian/plugins/mdsync/device.key";
 const cachePath = ".obsidian/plugins/mdsync/passphrase.enc";
 const binding = "s3|example|region|bucket|prefix";
 afterEach(() => vi.restoreAllMocks());
 
-describe("passphrase cache recovery", () => {
-	it.each([0, 16, 31, 33])(
-		"rebuilds a %i-byte key only when saving an available passphrase",
-		async (length) => {
-			const vault = new InMemoryAdapter();
-			vault.putText(keyPath, "x".repeat(length));
-			vault.putText(cachePath, "unreadable cache");
-			const adapter = vault.asDataAdapter();
-			const writes = vi.spyOn(adapter, "writeBinary");
-
-			expect(
-				await loadCachedPassphrase(adapter, ".obsidian", binding),
-			).toBeNull();
-			expect(writes).not.toHaveBeenCalled();
-			expect(vault.readText(keyPath)).toBe("x".repeat(length));
-			await saveCachedPassphrase(
-				adapter,
-				".obsidian",
-				"entered-passphrase",
-				binding,
-			);
-			expect((await adapter.readBinary(keyPath)).byteLength).toBe(
-				DEVICE_KEY_BYTES,
-			);
-			expect(await loadCachedPassphrase(adapter, ".obsidian", binding)).toBe(
-				"entered-passphrase",
-			);
-		},
-	);
-
-	it("rebuilds an unreadable key when the new cache can be written", async () => {
-		const vault = new InMemoryAdapter();
-		const adapter = vault.asDataAdapter();
-		await saveCachedPassphrase(adapter, ".obsidian", "old-passphrase", binding);
-		vi.spyOn(adapter, "readBinary").mockRejectedValueOnce(
-			new Error("Could not read device key"),
-		);
+describe("passphrase cache", () => {
+	it("opens on the next launch and stays bound to its storage", async () => {
+		const adapter = new InMemoryAdapter().asDataAdapter();
+		const secrets = new FakeSecretStorage();
 		await saveCachedPassphrase(
 			adapter,
 			".obsidian",
-			"entered-passphrase",
+			deviceKey(secrets, adapter),
+			"passphrase",
 			binding,
 		);
-		expect(await loadCachedPassphrase(adapter, ".obsidian", binding)).toBe(
-			"entered-passphrase",
-		);
+
+		const restarted = deviceKey(secrets, adapter);
+		expect(
+			await loadCachedPassphrase(
+				adapter,
+				".obsidian",
+				restarted,
+				"other-storage",
+			),
+		).toBeNull();
+		expect(
+			await loadCachedPassphrase(adapter, ".obsidian", restarted, binding),
+		).toBe("passphrase");
 	});
 
-	it("reuses a valid key and keeps the cache bound to its storage", async () => {
-		const vault = new InMemoryAdapter();
-		const adapter = vault.asDataAdapter();
-		await saveCachedPassphrase(adapter, ".obsidian", "old-passphrase", binding);
-		const key = await adapter.readBinary(keyPath);
-		await saveCachedPassphrase(adapter, ".obsidian", "new-passphrase", binding);
-		expect(await adapter.readBinary(keyPath)).toEqual(key);
+	it("is unreadable in a copy of the vault on another device", async () => {
+		const adapter = new InMemoryAdapter().asDataAdapter();
+		await saveCachedPassphrase(
+			adapter,
+			".obsidian",
+			deviceKey(new FakeSecretStorage(), adapter),
+			"passphrase",
+			binding,
+		);
+		const elsewhere = deviceKey(new FakeSecretStorage(), adapter);
+
 		expect(
-			await loadCachedPassphrase(adapter, ".obsidian", "other-storage"),
+			await loadCachedPassphrase(adapter, ".obsidian", elsewhere, binding),
 		).toBeNull();
-		expect(await loadCachedPassphrase(adapter, ".obsidian", binding)).toBe(
-			"new-passphrase",
+		expect(await elsewhere.read()).toBeNull();
+	});
+
+	it("rebuilds its key only when saving an available passphrase", async () => {
+		const vault = new InMemoryAdapter();
+		vault.putText(cachePath, "unreadable cache");
+		const adapter = vault.asDataAdapter();
+		const key = deviceKey(new FakeSecretStorage(), adapter);
+
+		expect(
+			await loadCachedPassphrase(adapter, ".obsidian", key, binding),
+		).toBeNull();
+		expect(await key.read()).toBeNull();
+		await saveCachedPassphrase(adapter, ".obsidian", key, "entered", binding);
+		expect(await loadCachedPassphrase(adapter, ".obsidian", key, binding)).toBe(
+			"entered",
 		);
 	});
 
 	it("reports a real write failure without claiming that the cache was saved", async () => {
-		const vault = new InMemoryAdapter();
-		vault.putText(keyPath, "");
-		const adapter = vault.asDataAdapter();
+		const adapter = new InMemoryAdapter().asDataAdapter();
 		vi.spyOn(adapter, "writeBinary").mockRejectedValue(new Error("disk full"));
 		await expect(
-			saveCachedPassphrase(adapter, ".obsidian", "entered-passphrase", binding),
+			saveCachedPassphrase(
+				adapter,
+				".obsidian",
+				deviceKey(new FakeSecretStorage(), adapter),
+				"entered",
+				binding,
+			),
 		).rejects.toThrow("disk full");
 	});
 });

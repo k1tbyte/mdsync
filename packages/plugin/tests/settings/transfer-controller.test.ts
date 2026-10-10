@@ -1,3 +1,4 @@
+import { deviceKey, FakeSecretStorage } from "@tests/helpers/device-key";
 import { InMemoryAdapter } from "@tests/helpers/in-memory-adapter";
 import type { App } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
@@ -40,14 +41,15 @@ describe("settings transfer passphrase cache", () => {
 			});
 			const token = await createSettingsTransferUrl(source, "test-passphrase");
 			const settings = mergeSettings({ cachePassphrase });
-			const vault = new InMemoryAdapter();
-			if (brokenKey) vault.putText(".obsidian/plugins/mdsync/device.key", "");
-			const adapter = vault.asDataAdapter();
+			const adapter = new InMemoryAdapter().asDataAdapter();
+			const secrets = new FakeSecretStorage();
+			if (brokenKey) secrets.setSecret("mdsync-device-key", "");
 			const manager = new PassphraseManager(
 				async () => "test-passphrase",
 				adapter,
 				".obsidian",
 				settings,
+				deviceKey(secrets, adapter),
 			);
 			let saved: MdsyncSettings = settings;
 			const transfer = new SettingsTransferController({
@@ -68,6 +70,7 @@ describe("settings transfer passphrase cache", () => {
 				adapter,
 				".obsidian",
 				mergeSettings(saved),
+				deviceKey(secrets, adapter),
 			);
 			expect(await restarted.prompt(false)).toBe(true);
 			expect(restarted.current()).toBe("test-passphrase");
@@ -89,6 +92,7 @@ describe("settings import", () => {
 			adapter,
 			".obsidian",
 			settings,
+			deviceKey(new FakeSecretStorage(), adapter),
 		);
 		const link: LinkRecord = {
 			id: "one",
@@ -143,6 +147,7 @@ describe("settings import with a typed passphrase", () => {
 			new InMemoryAdapter().asDataAdapter(),
 			".obsidian",
 			settings,
+			deviceKey(),
 		);
 		const saveSettings = vi.fn(async () => {});
 		const onSettingsReplaced = vi.fn();

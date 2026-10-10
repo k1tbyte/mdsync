@@ -20,7 +20,7 @@ export function renderSecuritySection(
 	new Setting(parent)
 		.setName("Cache passphrase between launches")
 		.setDesc(
-			"Saves a verified passphrase on this device. Its encryption key is stored in the same plugin folder; disable on shared devices.",
+			"Saves a verified passphrase on this device, encrypted with a key kept in Obsidian's keychain, outside the vault. Disable on shared devices.",
 		)
 		.addToggle((t) =>
 			t.setValue(plugin.settings.cachePassphrase).onChange(async (v) => {

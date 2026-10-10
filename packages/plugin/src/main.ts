@@ -7,10 +7,12 @@ import {
 	type PassphraseManager,
 	type StatePersister,
 } from "@/core";
+import { DeviceKey } from "@/crypto/device-key";
 import { registerReadOnlyLock } from "@/editor/read-only";
 import { registerEditorSigns, type SignsHandle } from "@/editor/signs";
 import { SharedLinks } from "@/links";
 import type { Unseen } from "@/presence";
+import { SettingsEnvelope } from "@/settings/envelope";
 import {
 	canSync,
 	DEFAULT_SETTINGS,
@@ -98,6 +100,8 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		},
 	});
 	private settingsTab?: MdsyncSettingTab;
+	private deviceKey!: DeviceKey;
+	private envelope!: SettingsEnvelope;
 	private statePersister!: StatePersister;
 	private scopeRefreshTimer: number | null = null;
 	private editorSigns: SignsHandle | null = null;
@@ -109,11 +113,19 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 
 	async onload(): Promise<void> {
 		await loadNodeFs();
+		const { secretStorage, vault } = this.app;
+		this.deviceKey = new DeviceKey(
+			secretStorage,
+			vault.adapter,
+			vault.configDir,
+		);
+		this.envelope = new SettingsEnvelope(this.deviceKey);
 		await this.loadSettings();
 		const registerShare = createShareRegistration(this);
 		const runtime = await bootstrapPluginRuntime({
 			app: this.app,
 			settings: this.settings,
+			deviceKey: this.deviceKey,
 			links: this.sharedLinks,
 			onPushComplete: (space) => {
 				this.realtime.hub.signal(space.id);
@@ -192,6 +204,14 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 			// Saved first: closing the wizard must not bring it back on every start.
 			await this.saveSettings();
 			this.app.workspace.onLayoutReady(() => this.openSetup());
+		} else if (this.envelope.unreadable()) {
+			this.app.workspace.onLayoutReady(() =>
+				notifyAction(
+					"MDSync cannot read its saved connection on this device: this vault was copied or moved, or Obsidian's keychain was reset. Import a setup link from another device, or set up again.",
+					"Set up",
+					() => this.openSetup(),
+				),
+			);
 		}
 	}
 
@@ -214,17 +234,26 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 	}
 
 	async loadSettings(): Promise<void> {
-		const data = (await this.loadData()) as Partial<MdsyncSettings> | null;
+		const data = (await this.loadData()) as Record<string, unknown> | null;
 		this.freshInstall = data === null;
-		this.settings = mergeSettings(data);
+		const { stored, inTheClear } = await this.envelope.open(data);
+		this.settings = mergeSettings(stored);
+		// Sealed now, not at the next change: the secrets of an earlier build must not linger in the clear.
+		if (inTheClear) await this.writeSettings();
 	}
 
 	async saveSettings(): Promise<void> {
-		const save = this.savingSettings.then(() => this.saveData(this.settings));
-		this.savingSettings = save.catch(() => undefined);
-		await save;
+		await this.writeSettings();
 		// Any settings write can change the room, the relay credentials or a note's space.
 		this.realtime.refresh();
+	}
+
+	private writeSettings(): Promise<void> {
+		const save = this.savingSettings.then(async () =>
+			this.saveData(await this.envelope.seal(this.settings)),
+		);
+		this.savingSettings = save.catch(() => undefined);
+		return save;
 	}
 
 	async resetLocalState(): Promise<void> {

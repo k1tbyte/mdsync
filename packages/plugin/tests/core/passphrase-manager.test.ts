@@ -2,6 +2,7 @@ import type { DataAdapter } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PassphraseManager } from "@/core/passphrase-manager";
+import type { DeviceKey } from "@/crypto/device-key";
 import {
 	loadCachedPassphrase,
 	saveCachedPassphrase,
@@ -39,10 +40,13 @@ function resolved(name: string) {
 
 function manager(answers: string[]): PassphraseManager {
 	const ask = vi.fn(async () => answers.shift() ?? null);
-	return new PassphraseManager(ask, {} as DataAdapter, ".obsidian", {
-		...DEFAULT_SETTINGS,
-		cachePassphrase: true,
-	});
+	return new PassphraseManager(
+		ask,
+		{} as DataAdapter,
+		".obsidian",
+		{ ...DEFAULT_SETTINGS, cachePassphrase: true },
+		{} as DeviceKey,
+	);
 }
 
 function configured(bucket: string): MdsyncSettings {
@@ -70,6 +74,7 @@ function vaultManager(
 		{} as DataAdapter,
 		".obsidian",
 		settings,
+		{} as DeviceKey,
 	);
 }
 

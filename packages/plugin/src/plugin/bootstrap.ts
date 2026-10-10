@@ -6,6 +6,7 @@ import {
 	PassphraseManager,
 	StatePersister,
 } from "@/core";
+import type { DeviceKey } from "@/crypto/device-key";
 import type { SharedLinks } from "@/links";
 import { isStorageConfigured, type MdsyncSettings } from "@/settings/model";
 import { reportWarning } from "@/shared";
@@ -29,6 +30,7 @@ export interface PluginRuntime {
 interface BootstrapPluginRuntimeOptions {
 	app: App;
 	settings: MdsyncSettings;
+	deviceKey: DeviceKey;
 	/** Traded with the vault storage on every full refresh, after the records. */
 	links: Pick<SharedLinks, "sync">;
 	/** Also for a published space record: other devices learn of shares from the vault. */
@@ -46,7 +48,7 @@ interface BootstrapPluginRuntimeOptions {
 export async function bootstrapPluginRuntime(
 	options: BootstrapPluginRuntimeOptions,
 ): Promise<PluginRuntime> {
-	const { app, settings, persistSettings, liveNotes } = options;
+	const { app, settings, deviceKey, persistSettings, liveNotes } = options;
 	const { adapter, configDir } = app.vault;
 	const logs = new LogService(adapter, configDir);
 	await logs.load();
@@ -57,6 +59,7 @@ export async function bootstrapPluginRuntime(
 		adapter,
 		configDir,
 		settings,
+		deviceKey,
 	);
 
 	const spaces = new SpaceRecords(settings, persistSettings);
