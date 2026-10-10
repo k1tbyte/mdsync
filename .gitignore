@@ -40,3 +40,6 @@ artifacts
 
 # Local code index.
 .codegraph/
+
+# Claude Code local settings
+.claude/settings.local.json
