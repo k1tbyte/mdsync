@@ -2,16 +2,15 @@ import { Setting } from "obsidian";
 
 import { type CloudflareAccount, tokenTemplateUrl } from "@/cloudflare";
 import { accountsOf, connectCloudflare } from "@/settings/cloudflare-login";
-import { errorMessage } from "@/shared";
 import { alertLine, onEnter } from "@/ui/common";
+
+import { type ActionState, runAction } from "./run-action";
 import type { Wizard } from "./wizard";
 
-export interface TokenForm {
+export interface TokenForm extends ActionState {
 	token: string;
 	accounts: CloudflareAccount[];
 	accountId: string;
-	error: string;
-	busy: boolean;
 }
 
 export function tokenForm(): TokenForm {
@@ -26,28 +25,20 @@ export function renderTokenForm(
 	connected: () => void,
 ): void {
 	const connect = async (): Promise<void> => {
-		if (!form.token || form.busy) return;
-		form.busy = true;
-		form.error = "";
-		wizard.redraw();
-		try {
+		if (!form.token) return;
+		let saved = false;
+		await runAction(wizard, form, async () => {
 			const listed = form.accounts.length === 0;
 			if (listed) {
 				form.accounts = await accountsOf(form.token);
 				form.accountId = form.accounts[0]?.id ?? "";
 			}
 			// Several accounts: the person picks one below and connects again.
-			if (!listed || form.accounts.length === 1) {
-				await connectCloudflare(wizard.plugin, form.token, form.accountId);
-				form.busy = false;
-				connected();
-				return;
-			}
-		} catch (err) {
-			form.error = errorMessage(err);
-		}
-		form.busy = false;
-		wizard.redraw();
+			if (listed && form.accounts.length > 1) return;
+			await connectCloudflare(wizard.plugin, form.token, form.accountId);
+			saved = true;
+		});
+		if (saved) connected();
 	};
 
 	new Setting(el)

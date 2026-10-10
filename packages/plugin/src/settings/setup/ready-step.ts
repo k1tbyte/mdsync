@@ -2,6 +2,7 @@ import { Setting } from "obsidian";
 
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import { renderFields } from "@/settings/fields";
+import { canSync } from "@/settings/model";
 import { SETUP_FIELDS } from "@/settings/sections";
 import type { SyncStatusSnapshot } from "@/sync/controller";
 import { openSourceControlView, showSettingsTransferExport } from "@/ui";
@@ -24,13 +25,14 @@ export function createReadyStep(wizard: Wizard): StepView {
 			await controller.refreshAndAutoSync(true);
 		} finally {
 			unsubscribe();
+			syncing = false;
+			synced = controller.getSnapshot();
+			wizard.redraw();
 		}
-		syncing = false;
-		synced = controller.getSnapshot();
-		wizard.redraw();
 	};
 
 	const renderSync = (el: HTMLElement): void => {
+		const ready = canSync(plugin.settings);
 		const row = new Setting(el)
 			.setName("First sync")
 			.setDesc(
@@ -40,9 +42,13 @@ export function createReadyStep(wizard: Wizard): StepView {
 				b
 					.setButtonText(syncing ? "Syncing…" : "Sync now")
 					.setCta()
-					.setDisabled(syncing)
+					.setDisabled(syncing || !ready)
 					.onClick(() => void syncNow()),
 			);
+		if (!ready) {
+			row.setDesc("Set up a storage first.");
+			return;
+		}
 		if (syncing) {
 			row.setDesc(controller.getSnapshot().progressText ?? "Syncing…");
 			return;

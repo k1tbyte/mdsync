@@ -95,6 +95,8 @@ export interface RelayTarget {
 	secret: string;
 }
 
+let deploying = false;
+
 /**
  * The URL and secret are saved the moment the worker holds the secret, so closing the wizard mid-deploy
  * never loses the secret of a live relay.
@@ -130,17 +132,19 @@ export async function deployOwnRelay(
 	}
 }
 
-let deploying = false;
-
-/** True once the relay answers with this plugin's build; false when it is still silent after a few minutes. */
-export async function waitForRelay(relay: RelayConfig): Promise<boolean> {
+/** True once the relay answers with this plugin's build; false when it is still silent after a few minutes, or `keepWaiting` says stop. */
+export async function waitForRelay(
+	relay: RelayConfig,
+	keepWaiting: () => boolean,
+): Promise<boolean> {
 	const deadline = Date.now() + WAIT_MS;
-	for (;;) {
+	while (keepWaiting()) {
 		const status = await testRelay(relay);
 		if (status.ok && status.version === RELAY_VERSION) return true;
 		if (Date.now() >= deadline) return false;
 		await new Promise((resolve) => window.setTimeout(resolve, POLL_MS));
 	}
+	return false;
 }
 
 /** Real-time sync is what a relay is for: on once it answers. */

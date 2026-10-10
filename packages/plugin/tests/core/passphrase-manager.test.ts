@@ -203,6 +203,18 @@ describe("PassphraseManager.unlock", () => {
 		expect(saveCachedPassphrase).not.toHaveBeenCalled();
 	});
 
+	it("keeps the open key of the previous passphrase when the given one fails", async () => {
+		vi.mocked(resolveContentKey).mockResolvedValueOnce(resolved("key"));
+		const passphrase = vaultManager(configured("notes"));
+		await passphrase.unlock("old");
+		vi.mocked(resolveContentKey).mockRejectedValueOnce(new Error("wrong"));
+
+		await expect(passphrase.unlock("new")).rejects.toThrow("wrong");
+
+		expect(passphrase.current()).toBe("old");
+		expect(passphrase.isUnlocked()).toBe(true);
+	});
+
 	it("leaves no passphrase behind when the first one fails", async () => {
 		vi.mocked(resolveContentKey).mockRejectedValueOnce(new Error("wrong"));
 		const passphrase = vaultManager(configured("notes"));

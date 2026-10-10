@@ -337,6 +337,8 @@ describe("deployOwnRelay", () => {
 	});
 });
 
+const KEEP_WAITING = () => true;
+
 describe("waitForRelay", () => {
 	it("returns immediately when the relay already runs the bundled version", async () => {
 		vi.useFakeTimers();
@@ -345,7 +347,7 @@ describe("waitForRelay", () => {
 			message: "ready",
 			version: RELAY_VERSION,
 		});
-		expect(await waitForRelay(RELAY)).toBe(true);
+		expect(await waitForRelay(RELAY, KEEP_WAITING)).toBe(true);
 		expect(testRelay).toHaveBeenCalledTimes(1);
 		expect(testRelay).toHaveBeenCalledWith(RELAY);
 		expect(vi.getTimerCount()).toBe(0);
@@ -374,7 +376,7 @@ describe("waitForRelay", () => {
 				message: "ready",
 				version: RELAY_VERSION,
 			});
-		const waiting = waitForRelay(RELAY);
+		const waiting = waitForRelay(RELAY, KEEP_WAITING);
 		await vi.advanceTimersByTimeAsync(2999);
 		expect(testRelay).toHaveBeenCalledTimes(1);
 		await vi.advanceTimersByTimeAsync(1);
@@ -394,13 +396,28 @@ describe("waitForRelay", () => {
 		async (status) => {
 			vi.useFakeTimers();
 			vi.mocked(testRelay).mockResolvedValue(status);
-			const waiting = waitForRelay(RELAY);
+			const waiting = waitForRelay(RELAY, KEEP_WAITING);
 			await vi.advanceTimersByTimeAsync(180_000);
 			expect(await waiting).toBe(false);
 			expect(testRelay).toHaveBeenCalledTimes(61);
 			expect(vi.getTimerCount()).toBe(0);
 		},
 	);
+});
+
+describe("waitForRelay stopping", () => {
+	it("stops polling once told to, without another request", async () => {
+		vi.useFakeTimers();
+		vi.mocked(testRelay).mockResolvedValue({ ok: false, message: "offline" });
+		let open = true;
+		const waiting = waitForRelay(RELAY, () => open);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(testRelay).toHaveBeenCalledTimes(1);
+		open = false;
+		await vi.advanceTimersByTimeAsync(3000);
+		expect(await waiting).toBe(false);
+		expect(testRelay).toHaveBeenCalledTimes(1);
+	});
 });
 
 describe("useRelay", () => {

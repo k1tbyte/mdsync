@@ -136,7 +136,11 @@ export class PassphraseManager {
 	 * passphrase; false when there is none. A value that fails is dropped again.
 	 */
 	async unlock(value?: string): Promise<boolean> {
-		const before = { passphrase: this.passphrase, unverified: this.unverified };
+		const before = {
+			passphrase: this.passphrase,
+			unverified: this.unverified,
+			cachedKey: this.cachedKey,
+		};
 		if (value !== undefined) {
 			this.passphrase = value;
 			this.unverified = true;
@@ -151,6 +155,7 @@ export class PassphraseManager {
 			if (value !== undefined && this.passphrase === value) {
 				this.passphrase = before.passphrase;
 				this.unverified = before.unverified;
+				this.cachedKey = before.cachedKey;
 			}
 			throw err;
 		}

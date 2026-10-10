@@ -309,10 +309,11 @@ MDSync has no telemetry. It connects only to:
 
 - **Your storage** (S3 endpoint, WebDAV server or the Google Drive API), which gets encrypted files and the encrypted file list.
 - **Your relay**, if you set one up. It is a Cloudflare Worker you deploy to your own account.
+- **The Cloudflare API** (`api.cloudflare.com`), only when the setup wizard deploys the relay or creates R2 storage for you. The token you paste can edit Workers, KV and R2 on that account.
 
 You need an account with your storage provider. The relay needs a Cloudflare account, and Google Drive needs your own Google Cloud OAuth client.
 
-Storage credentials, share keys and the relay secret are stored in the plugin's `data.json` on each device, like other plugins' settings. Diagnostics logs stay on the device and never sync.
+Storage credentials, share keys, the relay secret and the Cloudflare token are stored in the plugin's `data.json` on each device, like other plugins' settings. Diagnostics logs stay on the device and never sync.
 
 **What the relay sees.** It never sees file contents, file names or keys: live edits and presence travel encrypted under each space's key. It does see a hash of your storage identity, a device id per connection, and when each sync and note switch happens. For a shared folder with participants, it keeps your S3 access key in its storage to sign requests for them, plus the names you invited people by. With Google Drive, it exchanges your sign-in for tokens and sees your Drive refresh token.
 

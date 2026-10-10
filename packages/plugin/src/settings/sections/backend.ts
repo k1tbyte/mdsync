@@ -1,13 +1,12 @@
 import { Setting } from "obsidian";
 
+import { STORAGE_CHANGED_REASON } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
 import { testConnection } from "@/settings/connection-test";
 import { renderCheckRow } from "@/settings/fields";
 import type { EStorageBackend } from "@/storage";
 import { getDescriptor, listBackends } from "@/storage";
 import { renderStorageFields } from "./storage-fields";
-
-const BACKEND_SETTINGS_CHANGED = "Storage backend changed.";
 
 export function renderBackendSection(
 	parent: HTMLElement,
@@ -40,7 +39,7 @@ export function renderBackendSection(
 				settings.activeStorageKind = nextKind;
 
 				void plugin.saveSettings().then(() => {
-					plugin.scheduleScopeRefresh(BACKEND_SETTINGS_CHANGED);
+					plugin.scheduleScopeRefresh(STORAGE_CHANGED_REASON);
 					onDisplay();
 				});
 			});

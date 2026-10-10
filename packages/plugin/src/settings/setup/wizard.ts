@@ -21,6 +21,7 @@ export interface Wizard {
 	readonly plugin: PluginHost;
 	/** A late result moves on only from the step that is still on screen. */
 	isShowing(view: StepView): boolean;
+	isOpen(): boolean;
 	redraw(): void;
 	next(): void;
 	choose(path: ESetupPath): void;
@@ -31,6 +32,7 @@ export interface StepView {
 	render(el: HTMLElement): void;
 	/** Goes back inside the step; false when it has nothing to undo. */
 	back?(): boolean;
+	blocksNext?(): boolean;
 }
 
 interface StepSpec {
@@ -88,6 +90,10 @@ class SetupWizardModal extends Modal implements Wizard {
 
 	isShowing(view: StepView): boolean {
 		return this.opened && this.view === view;
+	}
+
+	isOpen(): boolean {
+		return this.opened;
 	}
 
 	redraw(): void {
@@ -173,7 +179,7 @@ class SetupWizardModal extends Modal implements Wizard {
 			b
 				.setButtonText(last ? "Done" : "Next")
 				.setCta()
-				.setDisabled(!done)
+				.setDisabled(!done || this.view.blocksNext?.() === true)
 				.onClick(() => this.next()),
 		);
 	}
@@ -187,6 +193,10 @@ function pathOf(step: ESetupStep, path: ESetupPath | null): ESetupPath | null {
 }
 
 let current: SetupWizardModal | null = null;
+
+export function closeSetupWizard(): void {
+	current?.close();
+}
 
 /** One wizard at a time: asking again moves the open one to `step`. */
 export function openSetupWizard(

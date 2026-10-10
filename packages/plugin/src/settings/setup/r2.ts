@@ -1,4 +1,5 @@
 import { ensureBucket, r2Storage, verifyToken } from "@/cloudflare";
+import { STORAGE_CHANGED_REASON } from "@/constants";
 import { sha256Hex } from "@/crypto";
 import type { PluginHost } from "@/plugin/host";
 import { cloudflareOf } from "@/settings/cloudflare-login";
@@ -21,7 +22,7 @@ export async function useR2(plugin: PluginHost): Promise<void> {
 	};
 	plugin.settings.activeStorageKind = EStorageBackend.S3;
 	await plugin.saveSettings();
-	plugin.scheduleScopeRefresh("Storage backend changed.");
+	plugin.scheduleScopeRefresh(STORAGE_CHANGED_REASON);
 }
 
 /** Two vaults of one account must not share a remote: names the slug folds together keep their own hash. */

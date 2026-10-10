@@ -15,7 +15,8 @@
 - `drawing/` - Excalidraw files without Obsidian: reading the scene, its fingerprint, the merge by element. Pure; used by `sync/`, `vault/` and `live/`
 - `storage/` - remote backends behind StorageAdapter, plus the registry
 - `vault/` - Obsidian filesystem access, scanning, ignore rules
-- `settings/` - settings model, transfer, and the settings tab sections
+- `settings/` - settings model, transfer, and the settings tab sections; `setup/` is the first-run wizard (one `create*Step` view per step, `steps.ts` computes which are done from the settings, `run-action.ts` is the busy/error wrapper every async button uses)
+- `cloudflare/` - the Cloudflare API without UI: `api.ts` envelope client over an injected `Http`, relay deploy (`relay-deploy.ts`, `assets.ts`, `migrations.ts`), R2 bucket and S3 keys (`r2.ts`), the token template (`token.ts`). `obsidian-http.ts` is the only file that imports Obsidian
 - `ui/` - views and modals at the top; `live/` (note header in `header/`, relay and live status in `status/`, the states both show in `live-state.ts`), `shares/` (share window, share and invite flows), `links/` (share-link window, its list, the menu entries, the note header button), `explorer/` (file tree indicators and presence), `actions/` (menu actions), `common/` (notices, icon buttons, avatars, relay text and fixes, menus, helpers: whatever two of these use)
 - `editor/` - CodeMirror gutter signs, the read-only share lock
 - `shared/`, `utils/` - app-aware helpers vs. generic algorithms

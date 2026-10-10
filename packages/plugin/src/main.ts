@@ -17,7 +17,11 @@ import {
 	type MdsyncSettings,
 	mergeSettings,
 } from "@/settings/model";
-import { type ESetupStep, openSetupWizard } from "@/settings/setup";
+import {
+	closeSetupWizard,
+	type ESetupStep,
+	openSetupWizard,
+} from "@/settings/setup";
 import type { MdsyncSettingTab } from "@/settings/tab";
 import { SettingsTransferController } from "@/settings/transfer-controller";
 import { reportWarning } from "@/shared";
@@ -191,6 +195,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 			this.scopeRefreshTimer = null;
 		}
 		// Isolated: one throwing teardown must not leave the rest running after unload.
+		safely(() => closeSetupWizard());
 		safely(() => this.editorSigns?.dispose());
 		this.editorSigns = null;
 		this.fileIndicators = null;

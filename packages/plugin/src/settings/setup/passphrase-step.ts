@@ -5,6 +5,7 @@ import { errorMessage } from "@/shared";
 import { PassphraseRotatedError } from "@/sync/keyfile";
 import { alertLine, focusKey, onEnter } from "@/ui/common";
 
+import { runAction } from "./run-action";
 import type { StepView, Wizard } from "./wizard";
 
 type Phase = "checking" | "new" | "existing" | "unlocked" | "unreachable";
@@ -16,13 +17,12 @@ export function createPassphraseStep(wizard: Wizard): StepView {
 	let phase: Phase = "checking";
 	let value = "";
 	let confirm = "";
-	let error = "";
-	let busy = false;
+	const state = { busy: false, error: "" };
 
 	/** A passphrase entered or saved earlier is tried first, so a set-up device just moves on. */
 	const check = async (): Promise<void> => {
 		phase = "checking";
-		error = "";
+		state.error = "";
 		wizard.redraw();
 		try {
 			if (await passphrase.unlock()) phase = "unlocked";
@@ -30,40 +30,35 @@ export function createPassphraseStep(wizard: Wizard): StepView {
 		} catch (err) {
 			if (err instanceof PassphraseRotatedError) {
 				phase = "existing";
-				error = "The passphrase saved here no longer opens the vault.";
+				state.error = "The passphrase saved here no longer opens the vault.";
 			} else {
 				phase = "unreachable";
-				error = errorMessage(err);
+				state.error = errorMessage(err);
 			}
 		}
 		wizard.redraw();
 	};
 
 	const submit = async (): Promise<void> => {
-		if (busy || !value) return;
+		if (!value) return;
 		// Only a new one is held to today's rules: an older vault may have a shorter passphrase.
 		if (phase === "new") {
-			error =
+			state.error =
 				weakPassphrase(value) ??
 				(value !== confirm ? "Passphrases do not match." : "");
-			if (error) {
+			if (state.error) {
 				wizard.redraw();
 				return;
 			}
 		}
-		busy = true;
-		error = "";
-		wizard.redraw();
-		try {
-			await passphrase.unlock(value);
-			busy = false;
-			if (wizard.isShowing(view)) wizard.next();
-			return;
-		} catch (err) {
-			error = err instanceof PassphraseRotatedError ? WRONG : errorMessage(err);
-		}
-		busy = false;
-		wizard.redraw();
+		const unlocked = await runAction(
+			wizard,
+			state,
+			() => passphrase.unlock(value),
+			(err) =>
+				err instanceof PassphraseRotatedError ? WRONG : errorMessage(err),
+		);
+		if (unlocked && wizard.isShowing(view)) wizard.next();
 	};
 
 	const field = (
@@ -95,7 +90,7 @@ export function createPassphraseStep(wizard: Wizard): StepView {
 				return;
 			}
 			if (phase === "unreachable") {
-				alertLine(el).setText(`Could not reach the storage: ${error}`);
+				alertLine(el).setText(`Could not reach the storage: ${state.error}`);
 				new Setting(el).addButton((b) =>
 					b.setButtonText("Try again").onClick(() => void check()),
 				);
@@ -119,14 +114,18 @@ export function createPassphraseStep(wizard: Wizard): StepView {
 					value = v;
 				});
 			}
-			if (error) alertLine(el).setText(error);
+			if (state.error) alertLine(el).setText(state.error);
 			new Setting(el).addButton((b) =>
 				b
 					.setButtonText(
-						busy ? "Checking…" : phase === "new" ? "Set passphrase" : "Unlock",
+						state.busy
+							? "Checking…"
+							: phase === "new"
+								? "Set passphrase"
+								: "Unlock",
 					)
 					.setCta()
-					.setDisabled(busy)
+					.setDisabled(state.busy)
 					.onClick(() => void submit()),
 			);
 		},

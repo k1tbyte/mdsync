@@ -1,33 +1,23 @@
 import { Setting } from "obsidian";
 
 import { canSync } from "@/settings/model";
-import { errorMessage } from "@/shared";
 import { alertLine, focusKey } from "@/ui/common";
 
+import { runAction } from "./run-action";
 import type { StepView, Wizard } from "./wizard";
 
 export function createImportStep(wizard: Wizard): StepView {
 	const { plugin } = wizard;
 	let link = "";
 	let passphrase = "";
-	let error = "";
-	let busy = false;
+	const state = { busy: false, error: "" };
 
 	const submit = async (): Promise<void> => {
-		if (busy || !link || !passphrase) return;
-		busy = true;
-		error = "";
-		wizard.redraw();
-		try {
-			await plugin.transfer.importWith(link, passphrase);
-			busy = false;
-			if (wizard.isShowing(view)) wizard.next();
-			return;
-		} catch (err) {
-			error = errorMessage(err);
-		}
-		busy = false;
-		wizard.redraw();
+		if (!link || !passphrase) return;
+		const imported = await runAction(wizard, state, () =>
+			plugin.transfer.importWith(link, passphrase),
+		);
+		if (imported && wizard.isShowing(view)) wizard.next();
 	};
 
 	const view: StepView = {
@@ -63,12 +53,12 @@ export function createImportStep(wizard: Wizard): StepView {
 						passphrase = v;
 					});
 				});
-			if (error) alertLine(el).setText(error);
+			if (state.error) alertLine(el).setText(state.error);
 			new Setting(el).addButton((b) =>
 				b
-					.setButtonText(busy ? "Importing…" : "Import")
+					.setButtonText(state.busy ? "Importing…" : "Import")
 					.setCta()
-					.setDisabled(busy)
+					.setDisabled(state.busy)
 					.onClick(() => void submit()),
 			);
 		},

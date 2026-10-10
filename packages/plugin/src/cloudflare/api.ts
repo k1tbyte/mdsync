@@ -76,7 +76,7 @@ export function cloudflareApi(http: Http, token: string): CloudflareApi {
 				body,
 			});
 			const envelope = parseEnvelope<T>(res.text);
-			if (res.status >= 400 || envelope?.success === false) {
+			if (res.status >= 400 || !envelope || envelope.success === false) {
 				const errors = envelope?.errors ?? [];
 				const detail = errors.map((e) => `${e.message} (${e.code})`).join("; ");
 				throw new CloudflareError(
@@ -85,7 +85,7 @@ export function cloudflareApi(http: Http, token: string): CloudflareApi {
 					`Cloudflare ${method} ${path}: ${detail || `HTTP ${res.status}`}`,
 				);
 			}
-			return envelope?.result as T;
+			return envelope.result as T;
 		},
 	};
 }

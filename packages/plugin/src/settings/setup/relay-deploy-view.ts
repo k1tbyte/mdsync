@@ -1,11 +1,14 @@
 import { Setting } from "obsidian";
 
-import { ERelayDeployStep, hasCode } from "@/cloudflare";
+import { ERelayDeployStep } from "@/cloudflare";
 import { randomSecret } from "@/crypto";
-import { cloudflareOf, forgetCloudflare } from "@/settings/cloudflare-login";
+import {
+	cloudflareErrorMessage,
+	cloudflareOf,
+	forgetCloudflare,
+} from "@/settings/cloudflare-login";
 import { testRelay } from "@/settings/connection-test";
 import { isRelayConfigured } from "@/settings/model";
-import { errorMessage } from "@/shared";
 import { alertLine, focusKey, serial } from "@/ui/common";
 
 import { renderTokenForm, tokenForm } from "./cloudflare-token";
@@ -41,8 +44,6 @@ const STEP_LABELS: Record<ERelayDeployStep, string> = {
 	[ERelayDeployStep.Route]: "Public address",
 };
 const DEPLOY_STEPS = Object.values(ERelayDeployStep);
-/** A per-Worker token or a role without the legacy Workers Scripts permission. */
-const AUTH_ERROR = 10000;
 
 export interface RelayDeployView {
 	start(): void;
@@ -66,9 +67,7 @@ export function relayDeployView(
 	let reached = 0;
 	const fail = (err: unknown): void => {
 		phase = "failed";
-		error = hasCode(err, AUTH_ERROR)
-			? "Cloudflare refused the token. Create it again with Open Cloudflare, keeping every permission it selects, and paste the new one."
-			: errorMessage(err);
+		error = cloudflareErrorMessage(err);
 		wizard.redraw();
 	};
 
@@ -120,7 +119,7 @@ export function relayDeployView(
 	const wait = async (): Promise<void> => {
 		phase = "waiting";
 		wizard.redraw();
-		if (!(await waitForRelay(plugin.settings))) {
+		if (!(await waitForRelay(plugin.settings, () => wizard.isOpen()))) {
 			phase = "silent";
 			wizard.redraw();
 			return;

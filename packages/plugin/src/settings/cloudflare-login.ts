@@ -2,16 +2,27 @@ import {
 	type CloudflareAccount,
 	type CloudflareApi,
 	cloudflareApi,
+	hasCode,
 	listAccounts,
 	verifyToken,
 } from "@/cloudflare";
 import { obsidianHttp } from "@/cloudflare/obsidian-http";
 import type { PluginHost } from "@/plugin/host";
 import type { MdsyncSettings } from "@/settings/model";
+import { errorMessage } from "@/shared";
+
+/** A per-Worker token or a role without the legacy Workers Scripts permission. */
+const AUTH_ERROR = 10000;
 
 export interface CloudflareLogin {
 	api: CloudflareApi;
 	accountId: string;
+}
+
+export function cloudflareErrorMessage(err: unknown): string {
+	return hasCode(err, AUTH_ERROR)
+		? "Cloudflare refused the token. Create it again with Open Cloudflare, keeping every permission it selects, and paste the new one."
+		: errorMessage(err);
 }
 
 /** The connected account, or null before a token is saved here. */

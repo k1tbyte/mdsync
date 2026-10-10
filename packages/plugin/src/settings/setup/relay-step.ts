@@ -7,6 +7,7 @@ import { alertLine, focusKey } from "@/ui/common";
 
 import { RELAY_VERSION, useRelay } from "./relay";
 import { relayDeployView } from "./relay-deploy-view";
+import { runAction } from "./run-action";
 import type { StepView, Wizard } from "./wizard";
 
 type Mode = "choose" | "deploy" | "manual";
@@ -18,9 +19,14 @@ export function createRelayStep(wizard: Wizard): StepView {
 	const { plugin } = wizard;
 	let mode: Mode = "choose";
 	let status: RelayTestResult | null = null;
-	const manual = { url: plugin.settings.relayUrl, secret: "", error: "" };
+	const manual = {
+		url: plugin.settings.relayUrl,
+		secret: "",
+		error: "",
+		busy: false,
+	};
 	const moveOn = (): void => {
-		if (wizard.isShowing(view)) wizard.next();
+		if (wizard.isShowing(view) && mode !== "choose") wizard.next();
 	};
 	const deploy = relayDeployView(wizard, moveOn);
 
@@ -34,15 +40,14 @@ export function createRelayStep(wizard: Wizard): StepView {
 			relayUrl: relayBase(manual.url),
 			relaySecret: manual.secret,
 		};
-		const result = await testRelay(relay);
-		if (!result.ok) {
-			manual.error = result.message;
-			wizard.redraw();
-			return;
-		}
-		Object.assign(plugin.settings, relay);
-		await useRelay(plugin);
-		moveOn();
+		const connected = await runAction(wizard, manual, async () => {
+			const result = await testRelay(relay);
+			if (!result.ok) throw new Error(result.message);
+			if (mode !== "manual") return;
+			Object.assign(plugin.settings, relay);
+			await useRelay(plugin);
+		});
+		if (connected && mode === "manual") moveOn();
 	};
 
 	const startDeploy = (): void => {

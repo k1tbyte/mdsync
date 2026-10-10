@@ -1,15 +1,18 @@
 import { Setting } from "obsidian";
 
 import { R2NotEnabledError, r2DashboardUrl } from "@/cloudflare";
-import { cloudflareOf } from "@/settings/cloudflare-login";
+import {
+	cloudflareErrorMessage,
+	cloudflareOf,
+} from "@/settings/cloudflare-login";
 import { testConnection } from "@/settings/connection-test";
 import { activeStorage, isStorageConfigured } from "@/settings/model";
 import { renderBackendSection } from "@/settings/sections";
-import { errorMessage } from "@/shared";
 import { describeStorageTarget } from "@/storage";
 import { alertLine } from "@/ui/common";
 import { renderTokenForm, tokenForm } from "./cloudflare-token";
 import { useR2 } from "./r2";
+import { runAction } from "./run-action";
 import type { StepView, Wizard } from "./wizard";
 
 type Mode = "choose" | "r2" | "other";
@@ -17,30 +20,30 @@ type Mode = "choose" | "r2" | "other";
 export function createStorageStep(wizard: Wizard): StepView {
 	const { plugin } = wizard;
 	const token = tokenForm();
+	const state = { busy: false, error: "" };
 	let mode: Mode = "choose";
-	let busy = false;
-	let error = "";
 	let r2Off: string | null = null;
 
 	/** Every way in ends here: a storage that answers, or the reason it does not. */
 	const finish = async (setUp: () => Promise<void>): Promise<void> => {
-		busy = true;
-		error = "";
 		r2Off = null;
-		wizard.redraw();
-		try {
-			await setUp();
-			const tested = await testConnection(plugin);
-			if (!tested.ok) throw new Error(tested.message);
-			busy = false;
-			if (wizard.isShowing(view)) wizard.next();
-			return;
-		} catch (err) {
-			if (err instanceof R2NotEnabledError) r2Off = err.accountId;
-			else error = errorMessage(err);
-		}
-		busy = false;
-		wizard.redraw();
+		const answered = await runAction(
+			wizard,
+			state,
+			async () => {
+				await setUp();
+				const tested = await testConnection(plugin);
+				if (!tested.ok) throw new Error(tested.message);
+			},
+			(err) => {
+				if (!(err instanceof R2NotEnabledError)) {
+					return cloudflareErrorMessage(err);
+				}
+				r2Off = err.accountId;
+				return "";
+			},
+		);
+		if (answered && mode !== "choose" && wizard.isShowing(view)) wizard.next();
 	};
 	const createR2 = () => void finish(() => useR2(plugin));
 
@@ -96,26 +99,26 @@ export function createStorageStep(wizard: Wizard): StepView {
 					.onClick(() => window.open(r2DashboardUrl(account))),
 			);
 		}
-		if (error) alertLine(el).setText(error);
+		if (state.error) alertLine(el).setText(state.error);
 		new Setting(el).addButton((b) =>
 			b
 				.setButtonText(
-					busy ? "Creating…" : r2Off ? "Try again" : "Create storage",
+					state.busy ? "Creating…" : r2Off ? "Try again" : "Create storage",
 				)
 				.setCta()
-				.setDisabled(busy)
+				.setDisabled(state.busy)
 				.onClick(createR2),
 		);
 	};
 
 	const renderOther = (el: HTMLElement): void => {
 		renderBackendSection(el, plugin, () => wizard.redraw());
-		if (error) alertLine(el).setText(error);
+		if (state.error) alertLine(el).setText(state.error);
 		new Setting(el).addButton((b) =>
 			b
-				.setButtonText(busy ? "Checking…" : "Continue")
+				.setButtonText(state.busy ? "Checking…" : "Continue")
 				.setCta()
-				.setDisabled(busy)
+				.setDisabled(state.busy)
 				.onClick(() => void finish(async () => undefined)),
 		);
 	};
@@ -130,10 +133,11 @@ export function createStorageStep(wizard: Wizard): StepView {
 		back() {
 			if (mode === "choose") return false;
 			mode = "choose";
-			error = "";
+			state.error = "";
 			r2Off = null;
 			return true;
 		},
+		blocksNext: () => mode !== "choose",
 	};
 	return view;
 }

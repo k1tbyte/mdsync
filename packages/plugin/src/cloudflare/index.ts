@@ -1,13 +1,11 @@
 export {
 	type CloudflareApi,
-	CloudflareError,
 	cloudflareApi,
 	type Http,
 	type HttpRequest,
-	type HttpResponse,
 	hasCode,
 } from "./api";
-export type { RelayAsset, RelayBundle } from "./bundle";
+export type { RelayBundle } from "./bundle";
 export {
 	ensureBucket,
 	R2NotEnabledError,
