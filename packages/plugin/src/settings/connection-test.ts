@@ -19,6 +19,11 @@ export interface ConnectionTestResult {
 	message: string;
 }
 
+export interface RelayTestResult extends ConnectionTestResult {
+	/** The build the relay runs; null for one deployed outside MDSync. */
+	version?: string | null;
+}
+
 /**
  * Reaches the remote without a passphrase, so credentials can be checked before anything is encrypted.
  * Reads only the manifest key: absent is a healthy empty remote, anything else a real connection problem.
@@ -49,9 +54,7 @@ export async function testConnection(
 }
 
 /** Tells a wrong URL (unreachable, HTTP 404) apart from a wrong secret. */
-export async function testRelay(
-	relay: RelayConfig,
-): Promise<ConnectionTestResult> {
+export async function testRelay(relay: RelayConfig): Promise<RelayTestResult> {
 	if (!isRelayConfigured(relay)) {
 		return { ok: false, message: "Enter the relay URL and secret first." };
 	}
@@ -62,9 +65,20 @@ export async function testRelay(
 			headers: { "X-Mdsync-Admin": relay.relaySecret },
 			throw: false,
 		});
+		const body = jsonOf(res) as {
+			message?: string;
+			version?: string | null;
+		} | null;
 		return res.status === 200
-			? { ok: true, message: "Connected. The relay accepts this secret." }
-			: { ok: false, message: `Relay error: ${relayMessage(res)}` };
+			? {
+					ok: true,
+					message: "Connected. The relay accepts this secret.",
+					version: body?.version ?? null,
+				}
+			: {
+					ok: false,
+					message: `Relay error: ${body?.message ?? `HTTP ${res.status}`}`,
+				};
 	} catch (err) {
 		return { ok: false, message: errorMessage(err) };
 	}
@@ -74,12 +88,10 @@ export async function testRelay(
  * An edge error page is HTML and Obsidian parses `.json` lazily: reading it would throw a SyntaxError over
  * the status the caller needs.
  */
-function relayMessage(res: { status: number; json?: unknown }): string {
+function jsonOf(res: { json?: unknown }): unknown {
 	try {
-		const detail = res.json as { message?: string } | undefined;
-		if (detail?.message) return detail.message;
+		return res.json ?? null;
 	} catch {
-		// Not JSON; the status is the whole story.
+		return null;
 	}
-	return `HTTP ${res.status}`;
 }

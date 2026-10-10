@@ -13,6 +13,8 @@ const LINK_VERSION = 5;
 const LINK_SALT_BYTES = 16;
 const LINK_PARTS = 4;
 export const LINK_PARAM = "d";
+const NOT_OPENED =
+	"Could not open the link: wrong passphrase, or the link was cut short.";
 
 const ELinkEncoding = {
 	Plain: "p",
@@ -47,7 +49,14 @@ export async function openLink(
 ): Promise<Uint8Array> {
 	const parsed = parseLinkToken(extractLinkToken(input));
 	const key = await deriveKey(passphrase, parsed.salt);
-	const encoded = await decryptBytes(key, parsed.ciphertext);
+	const encoded = await decryptBytes(key, parsed.ciphertext).catch(
+		(err: unknown) => {
+			// AES-GCM reports a wrong key only as an OperationError with no message.
+			throw err instanceof DOMException && err.name === "OperationError"
+				? new Error(NOT_OPENED)
+				: err;
+		},
+	);
 	return decodeLinkBytes(parsed.encoding, encoded);
 }
 

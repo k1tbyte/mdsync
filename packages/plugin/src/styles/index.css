@@ -28,6 +28,7 @@
 @import "./diff/hunk-preview.css";
 
 @import "./settings/transfer.css";
+@import "./settings/setup.css";
 @import "./explorer.css";
 @import "./status-bar.css";
 @import "./ribbon.css";

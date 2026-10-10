@@ -18,7 +18,11 @@ import {
 	type ObjectStorage,
 	storageIdentity,
 } from "@/storage";
-import { resolveContentKey, rotatePassphrase } from "@/sync/keyfile";
+import {
+	readKeyfile,
+	resolveContentKey,
+	rotatePassphrase,
+} from "@/sync/keyfile";
 
 interface CachedKey {
 	key: EncryptionKey;
@@ -112,10 +116,44 @@ export class PassphraseManager {
 		}
 		if (!(await this.prompt(false))) return null;
 		if (!this.passphrase) return null;
-		const storage = createStorageAdapter(activeStorage(this.settings));
-		const epoch = await rotatePassphrase(storage, this.passphrase, next);
+		const epoch = await rotatePassphrase(this.storage(), this.passphrase, next);
 		await this.replacePassphrase(next);
 		return epoch;
+	}
+
+	/** The current storage's key is open, so the passphrase is known to be this vault's. */
+	isUnlocked(): boolean {
+		return this.cachedKey?.signature === this.bindingSignature();
+	}
+
+	/** A new vault has none until the first {@link unlock} creates it. */
+	async vaultHasKey(): Promise<boolean> {
+		return (await readKeyfile(this.storage())) !== null;
+	}
+
+	/**
+	 * Opens the vault key with `value` (creating it on a new vault), or without one with the entered or saved
+	 * passphrase; false when there is none. A value that fails is dropped again.
+	 */
+	async unlock(value?: string): Promise<boolean> {
+		const before = { passphrase: this.passphrase, unverified: this.unverified };
+		if (value !== undefined) {
+			this.passphrase = value;
+			this.unverified = true;
+			this.cachedKey = null;
+		} else if (!this.passphrase && !(await this.tryLoadCached())) {
+			return false;
+		}
+		try {
+			await this.resolveKey(this.storage());
+			return true;
+		} catch (err) {
+			if (value !== undefined && this.passphrase === value) {
+				this.passphrase = before.passphrase;
+				this.unverified = before.unverified;
+			}
+			throw err;
+		}
 	}
 
 	/** Adopts a passphrase known to open the vault: a rotation's, or one that opened a transfer. */
@@ -196,6 +234,10 @@ export class PassphraseManager {
 
 	private bindingSignature(): string {
 		return storageIdentity(activeStorage(this.settings));
+	}
+
+	private storage(): ObjectStorage {
+		return createStorageAdapter(activeStorage(this.settings));
 	}
 
 	private async tryLoadCached(): Promise<boolean> {

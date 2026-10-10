@@ -9,6 +9,9 @@ export default defineConfig({
 			obsidian: fileURLToPath(
 				new URL("./tests/stubs/obsidian.ts", import.meta.url),
 			),
+			"mdsync:relay-bundle": fileURLToPath(
+				new URL("./tests/stubs/relay-bundle.ts", import.meta.url),
+			),
 		},
 	},
 	test: {

@@ -17,6 +17,7 @@ import {
 	type MdsyncSettings,
 	mergeSettings,
 } from "@/settings/model";
+import { type ESetupStep, openSetupWizard } from "@/settings/setup";
 import type { MdsyncSettingTab } from "@/settings/tab";
 import { SettingsTransferController } from "@/settings/transfer-controller";
 import { reportWarning } from "@/shared";
@@ -28,6 +29,7 @@ import {
 	createDeletedElsewhere,
 	createSpaceGone,
 	type IndicatorHandle,
+	notifyAction,
 	notifyInfo,
 } from "@/ui";
 import { loadNodeFs } from "@/vault/symlinks";
@@ -91,6 +93,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 	private editorSigns: SignsHandle | null = null;
 	private fileIndicators: IndicatorHandle | null = null;
 	private unloaded = false;
+	private freshInstall = false;
 	/** One settings write at a time: two in flight may land the older one last. */
 	private savingSettings: Promise<void> = Promise.resolve();
 
@@ -114,6 +117,10 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 				),
 			onTheirsPulled: (space, paths) =>
 				markTheirs(this, this.unseen, space, paths),
+			onNoStorage: () =>
+				notifyAction("Set up storage to sync.", "Set up", () =>
+					this.openSetup(),
+				),
 			persistSettings: () => this.saveSettings(),
 			liveNotes: (space) => this.realtime?.liveNotes(space),
 		});
@@ -169,6 +176,12 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 
 		// Re-render the open Settings tab so auth status updates live.
 		registerProtocolHandlers(this, () => this.settingsTab?.display());
+
+		if (this.freshInstall) {
+			// Saved first: closing the wizard must not bring it back on every start.
+			await this.saveSettings();
+			this.app.workspace.onLayoutReady(() => this.openSetup());
+		}
 	}
 
 	onunload(): void {
@@ -190,6 +203,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 
 	async loadSettings(): Promise<void> {
 		const data = (await this.loadData()) as Partial<MdsyncSettings> | null;
+		this.freshInstall = data === null;
 		this.settings = mergeSettings(data);
 	}
 
@@ -217,6 +231,11 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 
 	refreshSourceControlView(): void {
 		refreshOpenSourceControlViews(this);
+	}
+
+	openSetup(step?: ESetupStep): void {
+		// The settings tab under the wizard would keep showing what the wizard replaced.
+		openSetupWizard(this, step, () => this.settingsTab?.display());
 	}
 
 	scheduleScopeRefresh(reason = "Sync scope changed."): void {

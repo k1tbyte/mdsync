@@ -4,6 +4,7 @@ import type { DeviceName, LogService, PassphraseManager } from "@/core";
 import type { SharedLinks } from "@/links";
 import type { Unseen } from "@/presence";
 import type { MdsyncSettings } from "@/settings/model";
+import type { ESetupStep } from "@/settings/setup/steps";
 import type { SettingsTransferController } from "@/settings/transfer-controller";
 import type { SpaceRecords } from "@/spaces";
 import type { SyncController } from "@/sync/controller";
@@ -35,4 +36,6 @@ export interface PluginHost {
 	refreshEditorSigns(enabled: boolean): void;
 	refreshFileIndicators(enabled: boolean): void;
 	refreshSourceControlView(): void;
+	/** The setup wizard, at `step` or where this device's setup stopped. */
+	openSetup(step?: ESetupStep): void;
 }

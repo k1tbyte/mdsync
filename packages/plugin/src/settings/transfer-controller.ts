@@ -56,6 +56,15 @@ export class SettingsTransferController {
 		return true;
 	}
 
+	/** The setup wizard's import: the passphrase is typed beside the link, and its button is the consent. */
+	async importWith(input: string, passphrase: string): Promise<void> {
+		const imported = await readSettingsTransfer(input, passphrase);
+		await this.apply(
+			mergeTransferredSettings(this.deps.settings, imported),
+			passphrase,
+		);
+	}
+
 	async handleProtocol(params: ObsidianProtocolData): Promise<void> {
 		const data = params.d;
 		if (typeof data !== "string") {

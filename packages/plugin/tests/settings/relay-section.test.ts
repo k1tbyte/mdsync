@@ -14,6 +14,9 @@ vi.mock("obsidian", () => ({
 		setDesc() {
 			return this;
 		}
+		addButton() {
+			return this;
+		}
 	},
 }));
 vi.mock("@/settings/fields", () => ({

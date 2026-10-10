@@ -41,6 +41,8 @@ export interface SessionFactoryDeps {
 	state: StatePersister;
 	logs: LogService;
 	notify: (message: string) => void;
+	/** A sync asked for before this device has storage. */
+	onNoStorage: () => void;
 	/** Persists settings an adapter rewrote itself, such as a refreshed token. */
 	persistSettings?: () => Promise<void>;
 	/** Late-bound: live editing starts after the sync it hooks into. */
@@ -142,7 +144,7 @@ async function openVault(
 			ESyncLogOperation.Session,
 			"Session blocked because storage is not configured.",
 		);
-		deps.notify("Configure a storage backend first.");
+		deps.onNoStorage();
 		return null;
 	}
 	if (!(await deps.passphrase.prompt(false))) {

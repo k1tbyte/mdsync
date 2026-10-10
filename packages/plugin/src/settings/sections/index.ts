@@ -1,4 +1,4 @@
-export { renderAutomationSection } from "./automation";
+export { renderAutomationSection, SETUP_FIELDS } from "./automation";
 export { renderBackendSection } from "./backend";
 export { renderExclusionsSection } from "./exclusions";
 export { renderLinksSection } from "./links";

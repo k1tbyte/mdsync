@@ -89,6 +89,9 @@ export interface MdsyncSettings {
 	relayUrl: string;
 	/** The worker's RELAY_SECRET; relay room tokens derive from it. */
 	relaySecret: string;
+	/** Deploys and updates the relay, and made the R2 keys. Device-local, never transferred. */
+	cloudflareToken: string;
+	cloudflareAccountId: string;
 	cachePassphrase: boolean;
 	showStatusBar: boolean;
 	showRibbonIcon: boolean;
@@ -131,6 +134,8 @@ export const DEFAULT_SETTINGS: MdsyncSettings = {
 	links: [],
 	relayUrl: "",
 	relaySecret: "",
+	cloudflareToken: "",
+	cloudflareAccountId: "",
 	cachePassphrase: true,
 	showStatusBar: true,
 	showRibbonIcon: true,

@@ -11,6 +11,7 @@ export { onLongPress } from "./long-press";
 export { infoTitle, personTitle, showMenuAt } from "./menu";
 export {
 	attempt,
+	notifyAction,
 	notifyError,
 	notifyInfo,
 	reportError,

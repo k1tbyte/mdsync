@@ -124,7 +124,9 @@ export function fill(
 							(row) =>
 								row.querySelector(".setting-item-name")?.textContent === label,
 						)
-						?.querySelector("input");
+						?.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+							"input, textarea",
+						);
 					if (input) {
 						input.value = text;
 						input.dispatchEvent(new Event("input"));

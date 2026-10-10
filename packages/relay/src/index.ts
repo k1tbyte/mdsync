@@ -13,7 +13,10 @@ import { ADMIN_HEADER, isAdmin } from "./secret";
 import { handleShareRequest } from "./share/broker";
 import type { ShareEnv } from "./share/kv";
 
-export interface Env extends ShareEnv, GoogleOAuthEnv, LinkEnv, ShellEnv {}
+export interface Env extends ShareEnv, GoogleOAuthEnv, LinkEnv, ShellEnv {
+	/** Set by the plugin's deploy only; a relay from the workflow has none. */
+	RELAY_VERSION?: string;
+}
 
 export { Hub, Link };
 
@@ -67,5 +70,5 @@ async function status(request: Request, env: Env): Promise<Response> {
 			{ status: 401 },
 		);
 	}
-	return Response.json({ ok: true });
+	return Response.json({ ok: true, version: env.RELAY_VERSION ?? null });
 }

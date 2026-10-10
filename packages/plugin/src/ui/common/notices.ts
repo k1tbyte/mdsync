@@ -1,4 +1,4 @@
-import { Notice } from "obsidian";
+import { ButtonComponent, Notice } from "obsidian";
 
 import { errorMessage } from "@/shared";
 import type { SyncOperationResult } from "@/sync/controller";
@@ -13,6 +13,22 @@ export function notifyError(messagePrompt: string, err?: unknown): void {
 
 export function notifyInfo(message: string): void {
 	new Notice(`MDSync: ${message}`);
+}
+
+/** A notice with one button, for what a background task cannot open a modal for. */
+export function notifyAction(
+	message: string,
+	label: string,
+	action: () => void,
+): void {
+	const notice = new Notice(`MDSync: ${message}`, NOTICE_DURATION_MS);
+	new ButtonComponent(notice.messageEl.createDiv())
+		.setButtonText(label)
+		.setCta()
+		.onClick(() => {
+			notice.hide();
+			action();
+		});
 }
 
 /** Shows a caught error as a notice and logs the original to the console. */

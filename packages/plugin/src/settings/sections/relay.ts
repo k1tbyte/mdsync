@@ -1,16 +1,18 @@
 import { Setting } from "obsidian";
+
+import { randomSecret } from "@/crypto";
+import { forgetCloudflare } from "@/settings/cloudflare-login";
 import { testRelay } from "@/settings/connection-test";
 import {
 	type FieldContext,
 	renderCheckRow,
 	renderField,
 } from "@/settings/fields";
+import { isRelayConfigured } from "@/settings/model";
+import { ESetupStep } from "@/settings/setup/steps";
 import { relayBase } from "@/shared";
 import { EFieldKind } from "@/storage";
 import { runWithNotice } from "@/ui/common";
-import { bytesToBase64Url } from "@/utils";
-
-const SECRET_BYTES = 32;
 
 function secretButtonLabel(secret: string): string {
 	return secret ? "Copy" : "Generate";
@@ -22,9 +24,17 @@ export function renderRelaySection(
 ): void {
 	const { plugin } = ctx;
 	new Setting(parent).setName("Relay server").setHeading();
-	new Setting(parent).setDesc(
-		"Your own Cloudflare worker: instant sync between devices. Generate a secret, save it as the RELAY_SECRET repository secret, run the Deploy Relay GitHub action and paste the URL it prints.",
-	);
+	new Setting(parent)
+		.setDesc(
+			"Your own Cloudflare worker: instant sync between devices, live notes and share links. MDSync deploys it to your Cloudflare account.",
+		)
+		.addButton((button) =>
+			button
+				.setButtonText(
+					isRelayConfigured(plugin.settings) ? "Update relay" : "Deploy relay",
+				)
+				.onClick(() => plugin.openSetup(ESetupStep.Relay)),
+		);
 
 	renderField(parent, ctx, {
 		kind: EFieldKind.Text,
@@ -51,16 +61,14 @@ export function renderRelaySection(
 			?.addEventListener("input", showLabel);
 		button.onClick(async () => {
 			if (!plugin.settings.relaySecret) {
-				plugin.settings.relaySecret = bytesToBase64Url(
-					crypto.getRandomValues(new Uint8Array(SECRET_BYTES)),
-				);
+				plugin.settings.relaySecret = randomSecret();
 				await plugin.saveSettings();
 				ctx.rerender();
 			}
 			const { relaySecret } = plugin.settings;
 			await runWithNotice(
 				() => navigator.clipboard.writeText(relaySecret),
-				"Relay secret copied. Save it as the RELAY_SECRET repository secret.",
+				"Relay secret copied.",
 				"Could not copy the relay secret",
 			);
 		});
@@ -72,4 +80,16 @@ export function renderRelaySection(
 		"Checks that the URL reaches your relay and the secret matches.",
 		() => testRelay(plugin.settings),
 	);
+
+	if (plugin.settings.cloudflareToken) {
+		new Setting(parent)
+			.setName("Cloudflare token")
+			.setDesc("Kept on this device to deploy and update the relay.")
+			.addButton((button) =>
+				button.setButtonText("Forget").onClick(async () => {
+					await forgetCloudflare(plugin);
+					ctx.rerender();
+				}),
+			);
+	}
 }

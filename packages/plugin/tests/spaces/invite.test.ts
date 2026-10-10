@@ -83,7 +83,7 @@ describe("share invites", () => {
 
 	it("stay shut to another password and to links that are not invites", async () => {
 		const link = await inviteLink(INVITE, "right");
-		await expect(readInvite(link, "wrong")).rejects.toThrow();
+		await expect(readInvite(link, "wrong")).rejects.toThrow("wrong passphrase");
 
 		const settings = await sealLink(new TextEncoder().encode("{}"), "right");
 		await expect(readInvite(settings, "right")).rejects.toThrow(

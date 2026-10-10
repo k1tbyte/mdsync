@@ -2,12 +2,22 @@ import type { DataAdapter } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PassphraseManager } from "@/core/passphrase-manager";
-import { saveCachedPassphrase } from "@/crypto/passphrase-cache";
-import { DEFAULT_SETTINGS } from "@/settings/model";
-import type { ObjectStorage } from "@/storage";
-import { resolveContentKey } from "@/sync/keyfile";
+import {
+	loadCachedPassphrase,
+	saveCachedPassphrase,
+} from "@/crypto/passphrase-cache";
+import { DEFAULT_SETTINGS, type MdsyncSettings } from "@/settings/model";
+import { defaultS3Config, type ObjectStorage } from "@/storage";
+import {
+	type Keyfile,
+	PassphraseRotatedError,
+	readKeyfile,
+	resolveContentKey,
+} from "@/sync/keyfile";
 
-vi.mock("@/sync/keyfile", () => ({
+vi.mock("@/sync/keyfile", async (importOriginal) => ({
+	...(await importOriginal<Record<string, unknown>>()),
+	readKeyfile: vi.fn(),
 	resolveContentKey: vi.fn(),
 	rotatePassphrase: vi.fn(),
 }));
@@ -33,6 +43,34 @@ function manager(answers: string[]): PassphraseManager {
 		...DEFAULT_SETTINGS,
 		cachePassphrase: true,
 	});
+}
+
+function configured(bucket: string): MdsyncSettings {
+	return {
+		...DEFAULT_SETTINGS,
+		cachePassphrase: true,
+		storageConfigs: {
+			s3: {
+				...defaultS3Config(),
+				endpoint: "https://s3.example.test",
+				bucket,
+				accessKeyId: "AK",
+				secretAccessKey: "SK",
+			},
+		},
+	};
+}
+
+function vaultManager(
+	settings: MdsyncSettings,
+	answers: string[] = [],
+): PassphraseManager {
+	return new PassphraseManager(
+		async () => answers.shift() ?? null,
+		{} as DataAdapter,
+		".obsidian",
+		settings,
+	);
 }
 
 beforeEach(() => vi.clearAllMocks());
@@ -80,5 +118,128 @@ describe("PassphraseManager", () => {
 		vi.mocked(resolveContentKey).mockResolvedValue(resolved("key"));
 		await passphrase.resolveKey(STORAGE);
 		expect(saveCachedPassphrase).toHaveBeenCalledOnce();
+	});
+});
+
+describe("PassphraseManager.isUnlocked", () => {
+	it("is locked before any key is resolved", async () => {
+		const passphrase = vaultManager(configured("notes"), ["secret"]);
+		await passphrase.prompt(false);
+
+		expect(passphrase.isUnlocked()).toBe(false);
+	});
+
+	it("is unlocked once the current storage's key is open", async () => {
+		vi.mocked(resolveContentKey).mockResolvedValue(resolved("key"));
+		const passphrase = vaultManager(configured("notes"));
+
+		await passphrase.unlock("secret");
+
+		expect(passphrase.isUnlocked()).toBe(true);
+	});
+
+	it("is not unlocked by a key opened for another storage", async () => {
+		vi.mocked(resolveContentKey).mockResolvedValue(resolved("key"));
+		const settings = configured("notes");
+		const passphrase = vaultManager(settings);
+		await passphrase.unlock("secret");
+
+		settings.storageConfigs = configured("other").storageConfigs;
+
+		expect(passphrase.isUnlocked()).toBe(false);
+	});
+});
+
+describe("PassphraseManager.vaultHasKey", () => {
+	it("is true when the remote holds a keyfile", async () => {
+		vi.mocked(readKeyfile).mockResolvedValue({ epoch: 1 } as Keyfile);
+
+		expect(await vaultManager(configured("notes")).vaultHasKey()).toBe(true);
+	});
+
+	it("is false for a new vault without a keyfile", async () => {
+		vi.mocked(readKeyfile).mockResolvedValue(null);
+
+		expect(await vaultManager(configured("notes")).vaultHasKey()).toBe(false);
+	});
+});
+
+describe("PassphraseManager.unlock", () => {
+	it("opens the key with a given passphrase and caches it", async () => {
+		vi.mocked(resolveContentKey).mockResolvedValue(resolved("key"));
+		const passphrase = vaultManager(configured("notes"));
+
+		expect(await passphrase.unlock("secret")).toBe(true);
+
+		expect(passphrase.current()).toBe("secret");
+		expect(vi.mocked(resolveContentKey).mock.calls[0]?.[1]).toBe("secret");
+		expect(saveCachedPassphrase).toHaveBeenCalledOnce();
+	});
+
+	it("restores the previous passphrase when the given one fails and rethrows", async () => {
+		const passphrase = vaultManager(configured("notes"), ["old"]);
+		await passphrase.prompt(false);
+		vi.mocked(resolveContentKey).mockRejectedValueOnce(
+			new PassphraseRotatedError(),
+		);
+
+		await expect(passphrase.unlock("new")).rejects.toBeInstanceOf(
+			PassphraseRotatedError,
+		);
+
+		expect(passphrase.current()).toBe("old");
+		expect(passphrase.isUnlocked()).toBe(false);
+		expect(saveCachedPassphrase).not.toHaveBeenCalled();
+	});
+
+	it("keeps the restored passphrase unverified, so it is not cached until it opens the key", async () => {
+		const passphrase = vaultManager(configured("notes"), ["old"]);
+		await passphrase.prompt(false);
+		vi.mocked(resolveContentKey).mockRejectedValueOnce(new Error("wrong"));
+		await expect(passphrase.unlock("new")).rejects.toThrow("wrong");
+
+		await passphrase.persistIfEnabled();
+
+		expect(saveCachedPassphrase).not.toHaveBeenCalled();
+	});
+
+	it("leaves no passphrase behind when the first one fails", async () => {
+		vi.mocked(resolveContentKey).mockRejectedValueOnce(new Error("wrong"));
+		const passphrase = vaultManager(configured("notes"));
+
+		await expect(passphrase.unlock("typo")).rejects.toThrow("wrong");
+
+		expect(passphrase.has()).toBe(false);
+	});
+
+	it("uses the saved passphrase when none is given", async () => {
+		vi.mocked(loadCachedPassphrase).mockResolvedValueOnce("saved");
+		vi.mocked(resolveContentKey).mockResolvedValue(resolved("key"));
+		const passphrase = vaultManager(configured("notes"));
+
+		expect(await passphrase.unlock()).toBe(true);
+
+		expect(passphrase.current()).toBe("saved");
+		expect(passphrase.isUnlocked()).toBe(true);
+	});
+
+	it("uses the entered passphrase when none is given", async () => {
+		vi.mocked(resolveContentKey).mockResolvedValue(resolved("key"));
+		const passphrase = vaultManager(configured("notes"), ["typed"]);
+		await passphrase.prompt(false);
+		vi.mocked(loadCachedPassphrase).mockClear();
+
+		expect(await passphrase.unlock()).toBe(true);
+
+		expect(vi.mocked(resolveContentKey).mock.calls[0]?.[1]).toBe("typed");
+		expect(loadCachedPassphrase).not.toHaveBeenCalled();
+	});
+
+	it("returns false without a passphrase to try", async () => {
+		const passphrase = vaultManager(configured("notes"));
+
+		expect(await passphrase.unlock()).toBe(false);
+
+		expect(resolveContentKey).not.toHaveBeenCalled();
 	});
 });
