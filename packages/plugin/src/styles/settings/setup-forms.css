@@ -1,0 +1,198 @@
+.mdsync-setup-body .mod-warning {
+	padding: var(--size-4-2) var(--size-4-3);
+	border-radius: var(--radius-m);
+	background: color-mix(in srgb, var(--text-warning) 10%, transparent);
+	font-size: var(--font-ui-small);
+}
+
+.mdsync-callout {
+	--mdsync-callout-tone: var(--interactive-accent);
+	display: flex;
+	align-items: flex-start;
+	gap: var(--size-4-3);
+	margin: var(--size-4-3) 0;
+	padding: var(--size-4-3);
+	border-radius: var(--radius-m);
+	background: color-mix(in srgb, var(--mdsync-callout-tone) 10%, transparent);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: var(--line-height-tight);
+}
+
+.mdsync-callout.is-warning {
+	--mdsync-callout-tone: var(--text-warning);
+}
+
+.mdsync-callout.is-success {
+	--mdsync-callout-tone: var(--text-success);
+}
+
+.mdsync-callout-icon {
+	display: grid;
+	flex: none;
+	color: var(--mdsync-callout-tone);
+}
+
+.mdsync-callout-icon .svg-icon {
+	width: var(--mdsync-icon-lg);
+	height: var(--mdsync-icon-lg);
+}
+
+.mdsync-setup-busy {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-3);
+	padding: var(--size-4-3) 0;
+	color: var(--text-muted);
+}
+
+/* Numbered how-to: a circle per step, joined by a line. */
+.mdsync-howto {
+	counter-reset: mdsync-howto;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.mdsync-howto > li {
+	--mdsync-howto-dot: 26px;
+	position: relative;
+	counter-increment: mdsync-howto;
+	/* Obsidian zeroes a lone row's own padding, so the step carries it. */
+	padding: var(--size-4-3) 0 var(--size-4-3)
+		calc(var(--mdsync-howto-dot) + var(--size-4-3));
+}
+
+.mdsync-howto > li::before {
+	content: counter(mdsync-howto);
+	position: absolute;
+	top: calc(var(--size-4-3) - 3px);
+	left: 0;
+	display: grid;
+	place-items: center;
+	width: var(--mdsync-howto-dot);
+	height: var(--mdsync-howto-dot);
+	border-radius: var(--mdsync-radius-pill);
+	background: color-mix(in srgb, var(--interactive-accent) 16%, transparent);
+	color: var(--interactive-accent);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+}
+
+.mdsync-howto > li:not(:last-child)::after {
+	content: "";
+	position: absolute;
+	top: calc(var(--size-4-3) - 3px + var(--mdsync-howto-dot) + var(--size-4-1));
+	bottom: calc(var(--size-4-1) * -1);
+	left: calc(var(--mdsync-howto-dot) / 2 - 1px);
+	width: 2px;
+	background: var(--background-modifier-border);
+}
+
+.mdsync-howto-demo {
+	margin-top: var(--size-4-1);
+}
+
+.mdsync-howto-demo > summary {
+	width: fit-content;
+	color: var(--text-accent);
+	font-size: var(--font-ui-small);
+	cursor: pointer;
+}
+
+.mdsync-howto-demo > img {
+	display: block;
+	width: 100%;
+	aspect-ratio: 25 / 16;
+	margin-top: var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.mdsync-howto-demo-failed {
+	margin-top: var(--size-4-2);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+/* Obsidian's separator rule for modal settings has four classes of specificity; match it and win on order. */
+.modal.mdsync-setup .mdsync-setup-body .setting-item.mdsync-button-row,
+.modal.mdsync-setup .mdsync-setup-body .mdsync-howto .setting-item {
+	border-top: 0;
+}
+
+/* The wizard's rows are flat: the indent rule of a sub-setting would draw a stray corner. */
+.modal.mdsync-setup .mdsync-setup-body .setting-item.mdsync-sub-setting {
+	margin-left: 0;
+	padding-left: 0;
+	border-left: 0;
+}
+
+/* The info column is the only room next to the field: the meter lives under its name. */
+.mdsync-meter {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-1);
+	margin-top: var(--size-4-2);
+	max-width: 220px;
+}
+
+.mdsync-meter-bars {
+	display: flex;
+	gap: var(--size-4-1);
+}
+
+.mdsync-meter-bar {
+	flex: 1 1 0;
+	height: 4px;
+	border-radius: var(--mdsync-radius-pill);
+	background: var(--background-modifier-border);
+	transition: background-color 0.25s ease;
+}
+
+.mdsync-meter-bar.is-on {
+	background: var(--text-success);
+}
+
+.mdsync-meter[data-filled="1"] .mdsync-meter-bar.is-on {
+	background: var(--text-error);
+}
+
+.mdsync-meter[data-filled="2"] .mdsync-meter-bar.is-on {
+	background: var(--text-warning);
+}
+
+/* On a phone the field stacks under its name: flatten the info column so the meter can follow the input. */
+.is-phone .setting-item:has(.mdsync-meter) {
+	flex-wrap: wrap;
+}
+
+.is-phone .setting-item-info:has(.mdsync-meter) {
+	display: contents;
+}
+
+.is-phone .setting-item:has(.mdsync-meter) .setting-item-name {
+	flex-basis: 100%;
+}
+
+.is-phone .setting-item:has(.mdsync-meter) .setting-item-control {
+	flex-basis: 100%;
+	order: 1;
+}
+
+.is-phone .setting-item-description:has(.mdsync-meter) {
+	flex-basis: 100%;
+	order: 2;
+}
+
+.mdsync-meter-label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.mdsync-meter-bar {
+		transition: none;
+	}
+}

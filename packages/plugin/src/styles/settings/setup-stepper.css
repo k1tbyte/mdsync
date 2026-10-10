@@ -1,0 +1,177 @@
+.mdsync-stepper {
+	--mdsync-step-dot: 34px;
+	--mdsync-step-gap: var(--size-4-2);
+	display: flex;
+	min-width: 0;
+	margin: var(--size-4-2) 0 var(--size-4-6);
+	padding: 0;
+	list-style: none;
+}
+
+.mdsync-stepper.is-hidden {
+	display: none;
+}
+
+.mdsync-step {
+	position: relative;
+	display: flex;
+	flex: 1 1 0;
+	flex-direction: column;
+	min-width: 0;
+	align-items: center;
+	gap: var(--size-4-2);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	text-align: center;
+	animation: mdsync-step-in 0.4s ease-out both;
+	animation-delay: calc(var(--mdsync-step-index, 0) * 70ms);
+}
+
+/* The line into a step: empty until the step is reached, then filled left to right. */
+.mdsync-step + .mdsync-step::before {
+	content: "";
+	position: absolute;
+	top: calc(var(--mdsync-step-dot) / 2 - 1px);
+	right: calc(50% + var(--mdsync-step-dot) / 2 + var(--mdsync-step-gap));
+	left: calc(-50% + var(--mdsync-step-dot) / 2 + var(--mdsync-step-gap));
+	height: 2px;
+	border-radius: 1px;
+	background-color: var(--background-modifier-border);
+	background-image: linear-gradient(
+		var(--interactive-accent),
+		var(--interactive-accent)
+	);
+	background-repeat: no-repeat;
+	background-size: 0% 100%;
+	transition: background-size 0.5s ease-in-out;
+}
+
+.mdsync-step + .mdsync-step.is-reached::before {
+	background-size: 100% 100%;
+}
+
+.mdsync-step-dot {
+	position: relative;
+	z-index: 1;
+	display: grid;
+	place-items: center;
+	box-sizing: border-box;
+	width: var(--mdsync-step-dot);
+	height: var(--mdsync-step-dot);
+	border: 2px solid var(--background-modifier-border);
+	border-radius: var(--mdsync-radius-pill);
+	background-color: var(--background-primary);
+	color: var(--text-faint);
+	transition:
+		background-color 0.3s ease,
+		border-color 0.3s ease,
+		color 0.3s ease,
+		box-shadow 0.3s ease;
+}
+
+.mdsync-step-icon,
+.mdsync-step-check {
+	display: grid;
+	grid-area: 1 / 1;
+	place-items: center;
+}
+
+.mdsync-step-dot .svg-icon {
+	width: var(--mdsync-icon-lg);
+	height: var(--mdsync-icon-lg);
+	transition:
+		opacity 0.25s ease,
+		transform 0.3s ease;
+}
+
+.mdsync-step-check .svg-icon {
+	opacity: 0;
+	transform: scale(0.4);
+}
+
+.mdsync-step-label {
+	max-width: 100%;
+	overflow-wrap: anywhere;
+	transition: color 0.3s ease;
+}
+
+.mdsync-step.is-reached .mdsync-step-dot {
+	border-color: var(--interactive-accent);
+	color: var(--interactive-accent);
+}
+
+.mdsync-step.is-reached .mdsync-step-label {
+	color: var(--text-muted);
+}
+
+.mdsync-step.is-current .mdsync-step-dot {
+	box-shadow: 0 0 0 4px
+		color-mix(in srgb, var(--interactive-accent) 22%, transparent);
+}
+
+.mdsync-step.is-current .mdsync-step-label {
+	color: var(--text-normal);
+	font-weight: var(--font-semibold);
+}
+
+.mdsync-step.is-done .mdsync-step-dot {
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.mdsync-step.is-done .mdsync-step-icon .svg-icon {
+	opacity: 0;
+	transform: scale(0.4);
+}
+
+.mdsync-step.is-done .mdsync-step-check .svg-icon {
+	opacity: 1;
+	transform: none;
+}
+
+.mdsync-step.is-skipped .mdsync-step-dot {
+	border-style: dashed;
+	border-color: var(--text-faint);
+	color: var(--text-faint);
+}
+
+@keyframes mdsync-step-in {
+	from {
+		opacity: 0;
+		transform: translateY(var(--size-4-2));
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.mdsync-step,
+	.mdsync-step + .mdsync-step::before,
+	.mdsync-step-dot,
+	.mdsync-step-dot .svg-icon,
+	.mdsync-step-label {
+		animation: none;
+		transition: none;
+	}
+}
+
+.is-phone .mdsync-stepper {
+	--mdsync-step-dot: 30px;
+	margin-bottom: var(--size-4-4);
+}
+
+/* Only the current label shows: hidden ones take no room. */
+.is-phone .mdsync-step:not(.is-current) .mdsync-step-label {
+	display: none;
+}
+
+.mdsync-sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	clip-path: inset(50%);
+	border: 0;
+	white-space: nowrap;
+}

@@ -59,6 +59,10 @@ MDSync syncs your vault through an S3 bucket, a WebDAV server or Google Drive. T
 
 > **Tip: Cloudflare R2 is an easy S3-compatible backend.** Its free tier (10 GB, 1 million write and list requests and 10 million read requests a month) covers most vaults, downloads cost nothing, and it supports the conditional writes MDSync relies on. Enable R2 on your Cloudflare account, create a bucket, and create an API token with **Object Read & Write** limited to that bucket. R2 shows the access key ID and secret only once. In MDSync pick S3-compatible and set **Endpoint** to `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` (`https://<ACCOUNT_ID>.eu.r2.cloudflarestorage.com` for a bucket created in the EU jurisdiction), leave **Region** as `auto`, and fill in the bucket and the token's keys. The same Cloudflare account can host the [relay](#self-hosting-the-relay).
 
+**MDSync: Set up sync** can create the R2 bucket and the relay for you. It asks for a Cloudflare API token: copy **Your API token**, not the S3 keys.
+
+![Creating the Cloudflare API token for the setup wizard and copying the right value](docs/demos/cloudflare-token.webp)
+
 Give each vault its own bucket prefix. MDSync refuses a prefix that already holds another vault.
 
 Set up the first device alone and let its first sync finish. That sync creates the vault's key. On storage without conditional writes (Google Drive, some WebDAV and S3-compatible servers), two devices starting at the same moment can each create one, and files encrypted by one become unreadable to the other.
@@ -309,10 +313,12 @@ MDSync has no telemetry. It connects only to:
 
 - **Your storage** (S3 endpoint, WebDAV server or the Google Drive API), which gets encrypted files and the encrypted file list.
 - **Your relay**, if you set one up. It is a Cloudflare Worker you deploy to your own account.
+- **The Cloudflare API** (`api.cloudflare.com`), only when the setup wizard deploys the relay or creates R2 storage for you. The token you paste can edit Workers, KV and R2 on that account. If the account has no workers.dev address yet, the wizard registers a random one.
+- **GitHub** (`raw.githubusercontent.com`), only when you open **Show me how** in the setup wizard, to play a short clip of creating the Cloudflare token.
 
 You need an account with your storage provider. The relay needs a Cloudflare account, and Google Drive needs your own Google Cloud OAuth client.
 
-Storage credentials, share keys and the relay secret are stored in the plugin's `data.json` on each device, like other plugins' settings. Diagnostics logs stay on the device and never sync.
+Storage credentials, share keys, the relay secret and the Cloudflare token are stored in the plugin's `data.json` on each device, like other plugins' settings. Diagnostics logs stay on the device and never sync.
 
 **What the relay sees.** It never sees file contents, file names or keys: live edits and presence travel encrypted under each space's key. It does see a hash of your storage identity, a device id per connection, and when each sync and note switch happens. For a shared folder with participants, it keeps your S3 access key in its storage to sign requests for them, plus the names you invited people by. With Google Drive, it exchanges your sign-in for tokens and sees your Drive refresh token.
 

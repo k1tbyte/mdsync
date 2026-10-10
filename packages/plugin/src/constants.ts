@@ -19,3 +19,5 @@ export const FILE_HISTORY_MAX_SNAPSHOTS = 1000;
 export const SOURCE_CONTROL_VIEW_TYPE = "mdsync-source-control";
 
 export const DIFF_VIEW_TYPE = "mdsync-diff";
+
+export const STORAGE_CHANGED_REASON = "Storage backend changed.";

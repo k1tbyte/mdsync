@@ -35,6 +35,7 @@ interface BootstrapPluginRuntimeOptions {
 	onSpaceGone?: (space: Space) => void;
 	onUnindexed?: (count: number) => void;
 	onTheirsPulled?: (space: Space, paths: readonly string[]) => void;
+	onNoStorage: () => void;
 	persistSettings: () => Promise<void>;
 	liveNotes?: (space: Space) => LiveNotes | undefined;
 }
@@ -64,6 +65,7 @@ export async function bootstrapPluginRuntime(
 		state: statePersister,
 		logs,
 		notify: notifyInfo,
+		onNoStorage: options.onNoStorage,
 		persistSettings,
 		liveNotes,
 	});

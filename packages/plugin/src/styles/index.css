@@ -28,6 +28,11 @@
 @import "./diff/hunk-preview.css";
 
 @import "./settings/transfer.css";
+@import "./settings/setup.css";
+@import "./settings/setup-stepper.css";
+@import "./settings/setup-cards.css";
+@import "./settings/setup-forms.css";
+@import "./settings/setup-progress.css";
 @import "./explorer.css";
 @import "./status-bar.css";
 @import "./ribbon.css";

@@ -33,6 +33,12 @@ export function registerCommands(
 	openNoteMenu: (checking: boolean) => boolean,
 ): void {
 	plugin.addCommand({
+		id: "open-setup-wizard",
+		name: "Set up sync",
+		callback: () => plugin.openSetup(),
+	});
+
+	plugin.addCommand({
 		id: "compare",
 		name: "Compare with remote",
 		callback: () => void runCompare(plugin),

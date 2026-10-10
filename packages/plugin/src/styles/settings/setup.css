@@ -1,0 +1,54 @@
+.mdsync-setup {
+	--dialog-width: 620px;
+}
+
+.mdsync-setup-body h3 {
+	margin-top: 0;
+}
+
+/*
+ * Pinned, so Back and Next stay in reach on a long step. The modal scrolls inside its own padding and
+ * the footer sticks above it: the shadow paints that strip so no text shows under the buttons, and the
+ * buttons sit where they do at the end of the scroll.
+ * Obsidian's modal rule makes every setting transparent at four classes of specificity; match it and win on order.
+ */
+.modal.mdsync-setup .setting-item.mdsync-setup-footer {
+	--mdsync-footer-bg: var(--modal-background, var(--background-primary));
+	position: sticky;
+	bottom: 0;
+	z-index: 2;
+	margin-top: var(--size-4-4);
+	border-top: 1px solid var(--background-modifier-border);
+	background-color: var(--mdsync-footer-bg);
+	box-shadow: 0 var(--size-4-4) 0 var(--mdsync-footer-bg);
+}
+
+.mdsync-setup-footer .setting-item-info {
+	display: none;
+}
+
+.mdsync-setup-footer .setting-item-control {
+	flex: 1 1 auto;
+}
+
+.mdsync-setup-footer .mdsync-setup-back {
+	margin-right: auto;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+}
+
+.mdsync-setup-footer .mdsync-setup-back:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.mdsync-setup-stacked {
+	flex-wrap: wrap;
+}
+
+.mdsync-setup-stacked .setting-item-control,
+.mdsync-setup-stacked textarea {
+	flex-basis: 100%;
+	width: 100%;
+}

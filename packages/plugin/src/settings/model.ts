@@ -7,6 +7,7 @@ import {
 	FILE_HISTORY_MIN_SNAPSHOTS,
 } from "@/constants";
 import { type LinkRecord, parseLinkRecord } from "@/links/record";
+import { isCleartextRemote } from "@/shared";
 import { isSpaceRecord, type SpaceRecord } from "@/spaces/record";
 import {
 	type BrokerAdmin,
@@ -89,6 +90,9 @@ export interface MdsyncSettings {
 	relayUrl: string;
 	/** The worker's RELAY_SECRET; relay room tokens derive from it. */
 	relaySecret: string;
+	/** Deploys and updates the relay, and made the R2 keys. Device-local, never transferred. */
+	cloudflareToken: string;
+	cloudflareAccountId: string;
 	cachePassphrase: boolean;
 	showStatusBar: boolean;
 	showRibbonIcon: boolean;
@@ -131,6 +135,8 @@ export const DEFAULT_SETTINGS: MdsyncSettings = {
 	links: [],
 	relayUrl: "",
 	relaySecret: "",
+	cloudflareToken: "",
+	cloudflareAccountId: "",
 	cachePassphrase: true,
 	showStatusBar: true,
 	showRibbonIcon: true,
@@ -173,9 +179,12 @@ export function ownerStorage(settings: MdsyncSettings): S3StorageConfig | null {
 
 export type RelayConfig = Pick<MdsyncSettings, "relayUrl" | "relaySecret">;
 
-/** Both or nothing: the URL alone opens no room and signs nothing. */
+/** Both or nothing: the URL alone opens no room and signs nothing. A relay that takes the secret in the clear is none. */
 export function isRelayConfigured(relay: RelayConfig): boolean {
-	return Boolean(relay.relayUrl && relay.relaySecret);
+	return (
+		Boolean(relay.relayUrl && relay.relaySecret) &&
+		!isCleartextRemote(relay.relayUrl)
+	);
 }
 
 /** The owner's side of the relay: shares and links both speak to it with the secret. */

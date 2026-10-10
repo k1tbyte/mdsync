@@ -1,4 +1,4 @@
-import { relayBase } from "@/shared";
+import { isCleartextRemote, relayBase } from "@/shared";
 
 const MS_PER_S = 1000;
 
@@ -81,6 +81,7 @@ export function onRelay(
 	relay: { relayUrl: string; relaySecret: string },
 ): boolean {
 	if (!relay.relayUrl || !relay.relaySecret) return false;
+	if (isCleartextRemote(relay.relayUrl)) return false;
 	try {
 		return (
 			new URL(record.url).origin === new URL(relayBase(relay.relayUrl)).origin

@@ -2,6 +2,7 @@
 
 ## Commands
 
+- **Set up sync** (`open-setup-wizard`) opens the setup wizard; a fresh install opens it once. It also opens from a sync without storage (notice action), from sharing a link without a relay (at the relay step), and from Settings → Connection. Which steps are done is computed from the settings, never stored. The Cloudflare token it keeps (`cloudflareToken`, `cloudflareAccountId`) is device-local and never transferred.
 - Add user-facing commands via `this.addCommand(...)` with stable IDs; never rename once released.
 - Sync is manual by default (`compare`, `push`, `pull`); autosync and push-after-changes are opt-in settings. Push/pull run a compare preflight and must surface conflicts instead of choosing a side silently.
 - The `reset-remote-storage` command is destructive and must remain confirmation-gated. It deletes `manifest.json.enc`, `objects/`, `history.json.enc`, and `pins/` in the configured remote prefix (history must not outlive the objects it references), preserves local vault files, clears local `baseline`/`vaultId`, and keeps `salt.bin` and `keys.json` so the current passphrase-derived key remains valid.

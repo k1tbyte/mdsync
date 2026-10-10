@@ -27,7 +27,11 @@ import {
 	TYPING_SETTLE_MS,
 } from "./fields";
 import { renderLogsView } from "./logs-view";
-import type { MdsyncSettings, SettingsSyncCategories } from "./model";
+import {
+	canSync,
+	type MdsyncSettings,
+	type SettingsSyncCategories,
+} from "./model";
 import {
 	renderAutomationSection,
 	renderBackendSection,
@@ -235,6 +239,13 @@ export class MdsyncSettingTab extends PluginSettingTab {
 	}
 
 	private renderConnectionTab(parent: HTMLElement): void {
+		new Setting(parent)
+			.setName("Setup wizard")
+			.setDesc("Storage, passphrase and relay, step by step.")
+			.addButton((button) => {
+				button.setButtonText("Open").onClick(() => this.plugin.openSetup());
+				if (!canSync(this.plugin.settings)) button.setCta();
+			});
 		renderBackendSection(parent, this.plugin, () => this.display());
 		renderSecuritySection(parent, this.plugin, () => this.display());
 		renderRelaySection(parent, this.fieldContext());

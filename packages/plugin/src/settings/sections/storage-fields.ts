@@ -103,7 +103,11 @@ function renderGoogleDriveAuth(
 		.setDesc(
 			isAuth
 				? "Authenticated. Tokens are stored on this device."
-				: "Not authenticated. Click to authorize.",
+				: createFragment((f) => {
+						f.appendText("Not authenticated. Select ");
+						f.createEl("strong", { text: "Log in" });
+						f.appendText(" to authorize.");
+					}),
 		)
 		.addButton((b) =>
 			b

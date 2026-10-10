@@ -7,6 +7,7 @@ export {
 } from "./actions/maintenance-actions";
 export { addPushMenuItem } from "./actions/push-action";
 export {
+	notifyAction,
 	notifyError,
 	notifyInfo,
 	reportError,

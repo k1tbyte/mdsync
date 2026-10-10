@@ -4,7 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import { PassphraseManager } from "@/core/passphrase-manager";
 import type { LinkRecord } from "@/links";
 import { type MdsyncSettings, mergeSettings } from "@/settings/model";
-import { createSettingsTransferUrl } from "@/settings/transfer";
+import {
+	createSettingsTransferUrl,
+	ESettingsTransferStorageMode,
+} from "@/settings/transfer";
 import { SettingsTransferController } from "@/settings/transfer-controller";
 import { defaultS3Config } from "@/storage";
 import { confirmSettingsTransferImport } from "@/ui";
@@ -116,6 +119,89 @@ describe("settings import", () => {
 
 		expect(await transfer.importFrom(token)).toBe(true);
 		expect(settings.links).toEqual([link]);
+		manager.dispose();
+	});
+});
+
+describe("settings import with a typed passphrase", () => {
+	const SOURCE_S3 = {
+		...defaultS3Config(),
+		endpoint: "https://s3.example.test",
+		bucket: "notes",
+		prefix: "vault/",
+		accessKeyId: "AK",
+		secretAccessKey: "S".repeat(44),
+	};
+
+	function setup() {
+		vi.mocked(confirmSettingsTransferImport).mockClear();
+		const settings = mergeSettings({});
+		const manager = new PassphraseManager(
+			async () => null,
+			new InMemoryAdapter().asDataAdapter(),
+			".obsidian",
+			settings,
+		);
+		const saveSettings = vi.fn(async () => {});
+		const onSettingsReplaced = vi.fn();
+		const transfer = new SettingsTransferController({
+			app: {} as App,
+			settings,
+			passphrase: manager,
+			saveSettings,
+			onSettingsReplaced,
+		});
+		return { settings, manager, saveSettings, onSettingsReplaced, transfer };
+	}
+
+	it("applies the link without asking, saves it and adopts the passphrase", async () => {
+		const token = await createSettingsTransferUrl(
+			mergeSettings({ storageConfigs: { s3: SOURCE_S3 } }),
+			"pass",
+		);
+		const { settings, manager, saveSettings, onSettingsReplaced, transfer } =
+			setup();
+
+		await transfer.importWith(token, "pass");
+
+		expect(settings.storageConfigs.s3).toEqual(SOURCE_S3);
+		expect(saveSettings).toHaveBeenCalledOnce();
+		expect(onSettingsReplaced).toHaveBeenCalledOnce();
+		expect(manager.current()).toBe("pass");
+		expect(confirmSettingsTransferImport).not.toHaveBeenCalled();
+		manager.dispose();
+	});
+
+	it("keeps this device's passphrase when the link carries no storage", async () => {
+		const token = await createSettingsTransferUrl(
+			mergeSettings({ autoSyncEnabled: true }),
+			"other",
+			{ storageMode: ESettingsTransferStorageMode.None },
+		);
+		const { manager, transfer } = setup();
+		await manager.replacePassphrase("mine");
+
+		await transfer.importWith(token, "other");
+
+		expect(manager.current()).toBe("mine");
+		manager.dispose();
+	});
+
+	it("rejects a wrong passphrase and leaves the settings untouched", async () => {
+		const token = await createSettingsTransferUrl(
+			mergeSettings({ storageConfigs: { s3: SOURCE_S3 } }),
+			"pass",
+		);
+		const { settings, manager, saveSettings, onSettingsReplaced, transfer } =
+			setup();
+		const before = JSON.parse(JSON.stringify(settings));
+
+		await expect(transfer.importWith(token, "wrong")).rejects.toThrow();
+
+		expect(JSON.parse(JSON.stringify(settings))).toEqual(before);
+		expect(saveSettings).not.toHaveBeenCalled();
+		expect(onSettingsReplaced).not.toHaveBeenCalled();
+		expect(manager.has()).toBe(false);
 		manager.dispose();
 	});
 });

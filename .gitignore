@@ -18,6 +18,9 @@ packages/plugin/styles.css
 # The link viewer's build, served by the relay.
 packages/viewer/dist
 
+# The relay as one uploadable JSON (packages/relay/bundle.mjs).
+packages/relay/dist
+
 # Exclude sourcemaps
 *.map
 

@@ -1,0 +1,168 @@
+/* Relay deploy: one dot per stage, a line joins each to the one before. */
+.mdsync-progress {
+	--mdsync-progress-dot: 24px;
+	margin: var(--size-4-2) 0 var(--size-4-4);
+	padding: 0;
+	list-style: none;
+}
+
+.mdsync-progress-step {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-3);
+	min-height: calc(var(--mdsync-progress-dot) + var(--size-4-3));
+	color: var(--text-faint);
+	transition: color 0.3s ease;
+}
+
+.mdsync-progress-step + .mdsync-progress-step::before {
+	content: "";
+	position: absolute;
+	top: calc(var(--size-4-3) / -2);
+	left: calc(var(--mdsync-progress-dot) / 2 - 1px);
+	width: 2px;
+	height: var(--size-4-3);
+	background: var(--background-modifier-border);
+	transition: background-color 0.3s ease;
+}
+
+.mdsync-progress-step.is-done + .mdsync-progress-step::before {
+	background: var(--interactive-accent);
+}
+
+.mdsync-progress-dot {
+	display: grid;
+	flex: none;
+	place-items: center;
+	box-sizing: border-box;
+	width: var(--mdsync-progress-dot);
+	height: var(--mdsync-progress-dot);
+	border: 2px solid var(--background-modifier-border);
+	border-radius: var(--mdsync-radius-pill);
+	color: var(--text-on-accent);
+}
+
+.mdsync-progress-dot .svg-icon {
+	width: 14px;
+	height: 14px;
+}
+
+.mdsync-progress-step.is-done {
+	color: var(--text-normal);
+}
+
+.mdsync-progress-step.is-done .mdsync-progress-dot {
+	border-color: var(--interactive-accent);
+	background: var(--interactive-accent);
+}
+
+.mdsync-progress-step.is-running {
+	color: var(--text-normal);
+	font-weight: var(--font-semibold);
+}
+
+.mdsync-progress-step.is-running .mdsync-progress-dot {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 4px
+		color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+}
+
+.mdsync-progress-step.is-running .mdsync-progress-dot::after {
+	content: "";
+	width: 10px;
+	height: 10px;
+	border: 2px solid transparent;
+	border-top-color: var(--interactive-accent);
+	border-radius: 50%;
+	animation: mdsync-spin 0.65s linear infinite;
+}
+
+.mdsync-progress-step.is-failed {
+	color: var(--text-error);
+}
+
+.mdsync-progress-step.is-failed .mdsync-progress-dot {
+	border-color: var(--text-error);
+	background: color-mix(in srgb, var(--text-error) 14%, transparent);
+	color: var(--text-error);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.mdsync-progress-step,
+	.mdsync-progress-step + .mdsync-progress-step::before {
+		transition: none;
+	}
+
+	.mdsync-progress-step.is-running .mdsync-progress-dot::after {
+		animation: none;
+	}
+}
+
+/* Ready: what this device is set up with. */
+.mdsync-summary {
+	margin: 0 0 var(--size-4-3);
+	padding: 0;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	list-style: none;
+}
+
+.mdsync-summary-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-3);
+	padding: var(--size-4-3) var(--size-4-4);
+}
+
+.mdsync-summary-row + .mdsync-summary-row {
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.mdsync-summary-icon {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 32px;
+	height: 32px;
+	border-radius: var(--radius-m);
+	background: color-mix(in srgb, var(--text-success) 14%, transparent);
+	color: var(--text-success);
+}
+
+.mdsync-summary-icon .svg-icon {
+	width: var(--mdsync-icon-lg);
+	height: var(--mdsync-icon-lg);
+}
+
+.mdsync-summary-text {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.mdsync-summary-label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.mdsync-summary-value {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mdsync-summary-state {
+	display: grid;
+	flex: none;
+	color: var(--text-success);
+}
+
+.mdsync-summary-row.is-off .mdsync-summary-icon {
+	background: var(--background-modifier-hover);
+	color: var(--text-faint);
+}
+
+.mdsync-summary-row.is-off .mdsync-summary-value,
+.mdsync-summary-row.is-off .mdsync-summary-state {
+	color: var(--text-faint);
+}

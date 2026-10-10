@@ -124,7 +124,9 @@ export function fill(
 							(row) =>
 								row.querySelector(".setting-item-name")?.textContent === label,
 						)
-						?.querySelector("input");
+						?.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+							"input, textarea",
+						);
 					if (input) {
 						input.value = text;
 						input.dispatchEvent(new Event("input"));
@@ -145,7 +147,7 @@ export function fill(
 	);
 }
 
-/** Clicks the open modal's button with `text`, once it shows up. */
+/** Clicks the open modal's button, or choice card, with `text`, once it shows up. */
 export function press(device: Obsidian, text: string): Promise<void> {
 	return device.evaluate(
 		({ label, wait }) =>
@@ -154,7 +156,12 @@ export function press(device: Obsidian, text: string): Promise<void> {
 				const look = () => {
 					const button = [...activeDocument.querySelectorAll(".modal button")]
 						.reverse()
-						.find((each) => each.textContent === label);
+						.find(
+							(each) =>
+								each.textContent === label ||
+								each.querySelector(".mdsync-choice-title")?.firstChild
+									?.textContent === label,
+						);
 					if (button instanceof HTMLButtonElement) {
 						button.click();
 						return resolve();

@@ -200,4 +200,12 @@ describe("onRelay", () => {
 	it("rejects an invalid record URL", () => {
 		expect(onRelay({ ...record, url: "not a URL" }, relay)).toBe(false);
 	});
+
+	it("rejects a remote relay reached over plain http", () => {
+		const plain = { ...relay, relayUrl: "http://relay.example" };
+
+		expect(
+			onRelay({ ...record, url: "http://relay.example/s/one" }, plain),
+		).toBe(false);
+	});
 });

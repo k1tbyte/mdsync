@@ -5,6 +5,7 @@
 	"scripts": {
 		"dev": "pnpm --filter mdsync-viewer run build && wrangler dev",
 		"deploy": "pnpm --filter mdsync-viewer run build && wrangler deploy",
+		"bundle": "pnpm --filter mdsync-viewer run build && node bundle.mjs",
 		"typecheck": "tsc -noEmit",
 		"test": "vitest run --passWithNoTests"
 	},

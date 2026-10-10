@@ -30,8 +30,12 @@ export interface CreatedInvite {
 	password: string;
 }
 
-/** Opens an `obsidian://mdsync-share` link, or asks for one when `link` is empty. */
-export async function openInvite(plugin: PluginHost, link = ""): Promise<void> {
+/** Opens an `obsidian://mdsync-share` link, or asks for one when `link` is empty. `accepted` runs once the share is in. */
+export async function openInvite(
+	plugin: PluginHost,
+	link = "",
+	accepted?: () => void,
+): Promise<void> {
 	if (!plugin.settings.useSharedFolders && !(await turnOnShares(plugin)))
 		return;
 	new AcceptInviteModal(
@@ -42,8 +46,15 @@ export async function openInvite(plugin: PluginHost, link = ""): Promise<void> {
 			const known = recordOf(plugin, invite);
 			return known && !known.closed ? known.root : null;
 		},
-		(invite, root) =>
-			mountShare(plugin, invite, stripTrailingSlash(normalizePath(root))),
+		async (invite, root) => {
+			const problem = await mountShare(
+				plugin,
+				invite,
+				stripTrailingSlash(normalizePath(root)),
+			);
+			if (!problem) accepted?.();
+			return problem;
+		},
 	).open();
 }
 

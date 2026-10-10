@@ -56,6 +56,16 @@ export class SettingsTransferController {
 		return true;
 	}
 
+	/** The setup wizard's import: the passphrase is typed beside the link, and its button is the consent. */
+	async importWith(input: string, passphrase: string): Promise<void> {
+		const imported = await readSettingsTransfer(input, passphrase);
+		// Without storage the link opens nothing here: this device's passphrase still belongs to its own.
+		await this.apply(
+			mergeTransferredSettings(this.deps.settings, imported),
+			imported.storageConfigs ? passphrase : null,
+		);
+	}
+
 	async handleProtocol(params: ObsidianProtocolData): Promise<void> {
 		const data = params.d;
 		if (typeof data !== "string") {
@@ -77,11 +87,13 @@ export class SettingsTransferController {
 	/** `passphrase` opened the token, so it is the vault's. */
 	private async apply(
 		merged: MdsyncSettings,
-		passphrase: string,
+		passphrase: string | null,
 	): Promise<void> {
 		Object.assign(this.deps.settings, merged);
 		await this.deps.saveSettings();
-		await this.deps.passphrase.replacePassphrase(passphrase);
+		if (passphrase !== null) {
+			await this.deps.passphrase.replacePassphrase(passphrase);
+		}
 		this.deps.onSettingsReplaced();
 	}
 }
