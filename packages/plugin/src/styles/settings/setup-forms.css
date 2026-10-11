@@ -164,24 +164,24 @@
 }
 
 /* On a phone the field stacks under its name: flatten the info column so the meter can follow the input. */
-.is-phone .setting-item:has(.mdsync-meter) {
+.is-phone .setting-item.mdsync-meter-row {
 	flex-wrap: wrap;
 }
 
-.is-phone .setting-item-info:has(.mdsync-meter) {
+.is-phone .mdsync-meter-row .setting-item-info {
 	display: contents;
 }
 
-.is-phone .setting-item:has(.mdsync-meter) .setting-item-name {
+.is-phone .setting-item.mdsync-meter-row .setting-item-name {
 	flex-basis: 100%;
 }
 
-.is-phone .setting-item:has(.mdsync-meter) .setting-item-control {
+.is-phone .setting-item.mdsync-meter-row .setting-item-control {
 	flex-basis: 100%;
 	order: 1;
 }
 
-.is-phone .setting-item-description:has(.mdsync-meter) {
+.is-phone .mdsync-meter-row .setting-item-description {
 	flex-basis: 100%;
 	order: 2;
 }

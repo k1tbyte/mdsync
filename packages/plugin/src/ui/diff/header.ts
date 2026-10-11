@@ -116,6 +116,7 @@ function appendButton(
 	text: string,
 	onClick: () => void,
 ): HTMLButtonElement {
+	parent.addClass("has-buttons");
 	const button = parent.createEl("button", { text });
 	button.type = "button";
 	button.addEventListener("click", onClick);

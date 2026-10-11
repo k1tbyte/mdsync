@@ -136,8 +136,7 @@
 	pointer-events: none;
 }
 
-.mdsync-timeline-file:focus-visible .mdsync-timeline-actions,
-.mdsync-timeline-file:has(:focus-visible) .mdsync-timeline-actions {
+.mdsync-timeline-file:focus-within .mdsync-timeline-actions {
 	opacity: 1;
 	pointer-events: auto;
 }

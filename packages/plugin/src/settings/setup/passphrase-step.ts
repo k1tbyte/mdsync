@@ -114,6 +114,7 @@ export function createPassphraseStep(wizard: Wizard): StepView {
 					value = v;
 					meter?.(v);
 				});
+				first.settingEl.addClass("mdsync-meter-row");
 				meter = passphraseMeter(first.descEl, value);
 				field(el, "Confirm passphrase", confirm, (v) => {
 					confirm = v;

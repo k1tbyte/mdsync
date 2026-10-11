@@ -15,7 +15,7 @@ body.is-tablet
 		.mdsync-toolbar-icon,
 		.mdsync-section-icon-action,
 		.mdsync-rail-btn,
-		.mdsync-icon-btn:has(> svg:only-child)
+		.mdsync-icon-btn.mdsync-icon-only
 	) {
 	padding-inline: 0;
 }

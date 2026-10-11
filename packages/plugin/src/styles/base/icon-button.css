@@ -4,7 +4,7 @@
 	padding: 0 var(--size-4-2);
 }
 
-.mdsync-icon-btn:where(:has(> svg:only-child)) {
+.mdsync-icon-btn:where(.mdsync-icon-only) {
 	min-width: var(--input-height);
 	padding-inline: 0;
 }

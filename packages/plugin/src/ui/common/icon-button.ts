@@ -6,7 +6,9 @@ export function appendIconButton(
 	label: string,
 	onClick: (event: MouseEvent) => void,
 ): HTMLButtonElement {
-	const button = parent.createEl("button", { cls: "mdsync-icon-btn" });
+	const button = parent.createEl("button", {
+		cls: "mdsync-icon-btn mdsync-icon-only",
+	});
 	button.type = "button";
 	button.setAttr("aria-label", label);
 	setIcon(button, icon);

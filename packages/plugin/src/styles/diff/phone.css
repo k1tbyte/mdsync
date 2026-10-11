@@ -24,9 +24,7 @@ body.is-phone .mdsync-diff-view .mdsync-diff-file-actions > button {
 
 body.is-phone
 	.mdsync-diff-view
-	.mdsync-diff-file-actions:not(:has(> button)):not(
-		:has(.mdsync-pending:not(:empty))
-	) {
+	.mdsync-diff-file-actions:not(.has-buttons):not(.has-pending) {
 	display: none;
 }
 

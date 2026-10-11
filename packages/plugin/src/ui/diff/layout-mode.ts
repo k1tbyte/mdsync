@@ -15,7 +15,7 @@ export class LayoutMode {
 		private readonly onLayout: (combined: boolean, changed: boolean) => void,
 	) {
 		this.button = toolbar.createEl("button", {
-			cls: "mdsync-icon-btn mdsync-layout-btn",
+			cls: "mdsync-icon-btn mdsync-icon-only mdsync-layout-btn",
 		});
 		this.button.addEventListener("click", () => {
 			this.forceCombined = !this.current;
