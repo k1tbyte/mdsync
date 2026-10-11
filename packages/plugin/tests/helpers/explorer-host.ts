@@ -30,6 +30,8 @@ export const LAPTOP: Person = {
 export const LINK: LinkRecord = {
 	id: "link",
 	url: "https://example.com/link",
+	rev: 0,
+	author: "",
 	path: "notes/published.md",
 	showTitle: true,
 	detached: false,
@@ -55,10 +57,12 @@ export function host(
 	const settings = { ...DEFAULT_SETTINGS, links };
 	return {
 		settings,
-		sharedLinks: new SharedLinks(
-			() => settings,
-			async () => {},
-		),
+		sharedLinks: new SharedLinks({
+			settings: () => settings,
+			save: async () => {},
+			author: () => "laptop",
+			announce: () => {},
+		}),
 		app: {
 			vault: {
 				getFileByPath: (path: string) => ({ path, stat: { mtime: 0 } }),

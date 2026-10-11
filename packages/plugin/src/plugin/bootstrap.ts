@@ -6,6 +6,8 @@ import {
 	PassphraseManager,
 	StatePersister,
 } from "@/core";
+import type { DeviceKey } from "@/crypto/device-key";
+import type { SharedLinks } from "@/links";
 import { isStorageConfigured, type MdsyncSettings } from "@/settings/model";
 import { reportWarning } from "@/shared";
 import { SpaceRecords } from "@/spaces";
@@ -28,6 +30,9 @@ export interface PluginRuntime {
 interface BootstrapPluginRuntimeOptions {
 	app: App;
 	settings: MdsyncSettings;
+	deviceKey: DeviceKey;
+	/** Traded with the vault storage on every full refresh, after the records. */
+	links: Pick<SharedLinks, "sync">;
 	/** Also for a published space record: other devices learn of shares from the vault. */
 	onPushComplete?: (space: Space) => void;
 	onSpaceRefreshed?: (space: Space) => void;
@@ -35,6 +40,7 @@ interface BootstrapPluginRuntimeOptions {
 	onSpaceGone?: (space: Space) => void;
 	onUnindexed?: (count: number) => void;
 	onTheirsPulled?: (space: Space, paths: readonly string[]) => void;
+	onNoStorage: () => void;
 	persistSettings: () => Promise<void>;
 	liveNotes?: (space: Space) => LiveNotes | undefined;
 }
@@ -42,7 +48,7 @@ interface BootstrapPluginRuntimeOptions {
 export async function bootstrapPluginRuntime(
 	options: BootstrapPluginRuntimeOptions,
 ): Promise<PluginRuntime> {
-	const { app, settings, persistSettings, liveNotes } = options;
+	const { app, settings, deviceKey, persistSettings, liveNotes } = options;
 	const { adapter, configDir } = app.vault;
 	const logs = new LogService(adapter, configDir);
 	await logs.load();
@@ -53,6 +59,7 @@ export async function bootstrapPluginRuntime(
 		adapter,
 		configDir,
 		settings,
+		deviceKey,
 	);
 
 	const spaces = new SpaceRecords(settings, persistSettings);
@@ -64,6 +71,7 @@ export async function bootstrapPluginRuntime(
 		state: statePersister,
 		logs,
 		notify: notifyInfo,
+		onNoStorage: options.onNoStorage,
 		persistSettings,
 		liveNotes,
 	});
@@ -84,7 +92,14 @@ export async function bootstrapPluginRuntime(
 					),
 				);
 				const { published, closed, left } = await spaces.sync(storage, key);
-				if (published) options.onPushComplete?.(VAULT_SPACE);
+				// A link that fails to trade must not hold up the files.
+				const traded = await options.links
+					.sync(storage, key)
+					.catch((err: unknown) => {
+						reportWarning("Share links did not sync.", err);
+						return false;
+					});
+				if (published || traded) options.onPushComplete?.(VAULT_SPACE);
 				if (left.length > 0) {
 					notifyError(
 						`The vault storage changed: ${left.length} shared folder(s) stay with the previous one and sync here as plain folders until you switch back.`,

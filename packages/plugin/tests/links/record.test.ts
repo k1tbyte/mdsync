@@ -4,13 +4,17 @@ import {
 	type LinkRecord,
 	noteName,
 	onRelay,
-	parseLinkRecord,
+	parseStoredLink,
+	parseTradedLink,
 	renamedLinks,
+	tradedLink,
 } from "@/links/record";
 
 const record: LinkRecord = {
 	id: "abcdefghijklmnopqrstuv",
 	url: "https://relay.example/s/abcdefghijklmnopqrstuv#key",
+	rev: 3,
+	author: "laptop",
 	path: "a/b/note.md",
 	showTitle: true,
 	detached: false,
@@ -24,13 +28,13 @@ const record: LinkRecord = {
 
 const relay = { relayUrl: "https://relay.example", relaySecret: "secret" };
 
-describe("parseLinkRecord", () => {
+describe("parseStoredLink", () => {
 	it.each([
 		record,
 		{ ...record, expires: 2_000_000_000, maxViews: 5, salt: "salt" },
 		{ ...record, showTitle: false, images: false, detached: true },
 	])("keeps a complete record %#", (value) => {
-		expect(parseLinkRecord(value)).toEqual(value);
+		expect(parseStoredLink(value)).toEqual(value);
 	});
 
 	it.each([
@@ -46,7 +50,7 @@ describe("parseLinkRecord", () => {
 		{ id: 1, url: "url" },
 		{ id: "id", url: null },
 	])("drops a value without a string id and url %#", (value) => {
-		expect(parseLinkRecord(value)).toBeNull();
+		expect(parseStoredLink(value)).toBeNull();
 	});
 
 	it.each([
@@ -58,15 +62,17 @@ describe("parseLinkRecord", () => {
 		"migrates the original title choice, with an explicit showTitle winning %#",
 		(choice, showTitle) => {
 			const { showTitle: _showTitle, ...original } = record;
-			expect(parseLinkRecord({ ...original, ...choice })?.showTitle).toBe(
+			expect(parseStoredLink({ ...original, ...choice })?.showTitle).toBe(
 				showTitle,
 			);
 		},
 	);
 
 	it("repairs an incomplete record without losing its address", () => {
-		expect(parseLinkRecord({ id: record.id, url: record.url })).toEqual({
+		expect(parseStoredLink({ id: record.id, url: record.url })).toEqual({
 			...record,
+			rev: 0,
+			author: "",
 			path: "",
 			detached: true,
 			createdAt: 0,
@@ -75,6 +81,8 @@ describe("parseLinkRecord", () => {
 	});
 
 	it.each([
+		["rev", "3", { rev: 0 }],
+		["author", 1, { author: "" }],
 		["path", false, { path: "", detached: true }],
 		["showTitle", 1, { showTitle: true }],
 		["createdAt", "today", { createdAt: 0 }],
@@ -85,7 +93,7 @@ describe("parseLinkRecord", () => {
 		["images", "yes", { images: true }],
 		["detached", "yes", { detached: false }],
 	] as const)("repairs an invalid %s", (field, value, repaired) => {
-		expect(parseLinkRecord({ ...record, [field]: value })).toEqual({
+		expect(parseStoredLink({ ...record, [field]: value })).toEqual({
 			...record,
 			...repaired,
 		});
@@ -96,14 +104,35 @@ describe("parseLinkRecord", () => {
 			const incomplete = { ...record };
 			Reflect.deleteProperty(incomplete, field);
 			if (field === "id" || field === "url") {
-				expect(parseLinkRecord(incomplete), field).toBeNull();
+				expect(parseStoredLink(incomplete), field).toBeNull();
 			} else {
-				expect(parseLinkRecord(incomplete), field).toMatchObject({
+				expect(parseStoredLink(incomplete), field).toMatchObject({
 					id: record.id,
 					url: record.url,
 				});
 			}
 		}
+	});
+});
+
+describe("local and traded fields", () => {
+	it("keeps what only this device knows across a reload", () => {
+		const stored = { ...record, vault: "s3|bucket", removed: true as const };
+		expect(parseStoredLink(stored)).toEqual(stored);
+		expect(parseStoredLink({ ...record, vault: 1, removed: "yes" })).toEqual(
+			record,
+		);
+	});
+
+	it("never takes or sends this device's fields through the vault storage", () => {
+		const stored = { ...record, vault: "s3|bucket", removed: true as const };
+		expect(tradedLink(stored)).toEqual(record);
+		expect(parseTradedLink(stored)).toEqual(record);
+	});
+
+	it("refuses a traded record whose id could not name a link", () => {
+		expect(parseTradedLink({ ...record, id: "../spaces/x" })).toBeNull();
+		expect(parseTradedLink({ ...record, id: "short" })).toBeNull();
 	});
 });
 
@@ -199,5 +228,13 @@ describe("onRelay", () => {
 
 	it("rejects an invalid record URL", () => {
 		expect(onRelay({ ...record, url: "not a URL" }, relay)).toBe(false);
+	});
+
+	it("rejects a remote relay reached over plain http", () => {
+		const plain = { ...relay, relayUrl: "http://relay.example" };
+
+		expect(
+			onRelay({ ...record, url: "http://relay.example/s/one" }, plain),
+		).toBe(false);
 	});
 });

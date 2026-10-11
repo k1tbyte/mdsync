@@ -7,7 +7,7 @@ import {
 	CLEAN,
 	closeModals,
 	confirm,
-	openSettings,
+	openSharedFolderSettings,
 	press,
 	read,
 	sync,
@@ -191,8 +191,7 @@ async function people(owner: Obsidian): Promise<string[][]> {
 		() => activeDocument.querySelector(".mdsync-share-access") !== null,
 	);
 	if (!open) {
-		await openSettings(owner, "Sync");
-		await press(owner, "Manage");
+		await openSharedFolderSettings(owner);
 	}
 	return poll("the people", () =>
 		owner.evaluate(() => {

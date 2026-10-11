@@ -1,20 +1,24 @@
-import { Setting } from "obsidian";
+import type { SettingDefinitionGroup } from "obsidian";
 
-import type { PluginHost } from "@/plugin/host";
+import { type FieldContext, group } from "@/settings/fields";
 import { openManageLinks } from "@/ui";
 
-export function renderLinksSection(
-	parent: HTMLElement,
-	plugin: PluginHost,
-): void {
-	new Setting(parent).setName("Share links").setHeading();
-	const count = plugin.sharedLinks.all().length;
-	new Setting(parent)
-		.setName("Notes shared by link")
-		.setDesc(
-			`${count === 0 ? "None yet. " : `${count} on this device. `}A link publishes one note, encrypted on this device, to your relay. Create one from the note's menu: MDSync: Share link.`,
-		)
-		.addButton((button) =>
-			button.setButtonText("Manage").onClick(() => openManageLinks(plugin)),
-		);
+export function linksSection({ plugin }: FieldContext): SettingDefinitionGroup {
+	return group("Share links", [
+		{
+			name: "Notes shared by link",
+			render: (setting) => {
+				const count = plugin.sharedLinks.all().length;
+				setting
+					.setDesc(
+						`${count === 0 ? "None yet. " : `${count} on this device. `}A link publishes one note, encrypted on this device, to your relay. Create one from the note's menu: MDSync: Share link.`,
+					)
+					.addButton((button) =>
+						button
+							.setButtonText("Manage")
+							.onClick(() => openManageLinks(plugin)),
+					);
+			},
+		},
+	]);
 }

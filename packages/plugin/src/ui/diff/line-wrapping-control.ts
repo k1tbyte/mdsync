@@ -33,6 +33,7 @@ export class LineWrappingControl {
 			"Toggle line wrapping",
 			() => this.toggle(),
 		);
+		this.button.removeClass("mdsync-icon-only");
 		this.button.createSpan({ cls: "mdsync-phone-button-label", text: "Wrap" });
 		this.render();
 	}

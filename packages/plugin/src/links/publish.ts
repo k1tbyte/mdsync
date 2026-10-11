@@ -24,6 +24,7 @@ import {
 } from "@/storage";
 import { noteText } from "./note-text";
 import { type LinkRecord, onRelay } from "./record";
+import type { NewLink } from "./shared-links";
 import { type Snapshot, takeSnapshot } from "./snapshot";
 
 export interface ShareOptions {
@@ -81,7 +82,7 @@ export async function publishLink(
 		gate: sealed.gate,
 		salt,
 	});
-	const record: LinkRecord = {
+	const link: NewLink = {
 		id,
 		url: linkUrl(relayBase(admin.relayUrl), id, key),
 		// A rename during the upload moved only the links already stored.
@@ -97,7 +98,7 @@ export async function publishLink(
 		detached: plugin.app.vault.getFileByPath(file.path) !== file,
 	};
 	try {
-		await plugin.sharedLinks.add(record);
+		return await plugin.sharedLinks.add(link);
 	} catch (err) {
 		// Without the record the key is lost and nothing here could ever stop the link. If it cannot be
 		// stopped now either, the record stays in memory for the next save and a retry.
@@ -106,7 +107,6 @@ export async function publishLink(
 			.catch(() => undefined);
 		throw err;
 	}
-	return record;
 }
 
 /** Snapshots taken for one batch of updates, by whether they carry images: a note is drawn at most twice. */

@@ -1,9 +1,15 @@
-import { type App, debounce, Setting, TFile } from "obsidian";
+import {
+	type App,
+	debounce,
+	type SettingDefinitionGroup,
+	TFile,
+} from "obsidian";
 
 import { IGNORE_FILE_NAME } from "@/constants";
 import {
 	type FieldContext,
-	renderFields,
+	fieldRow,
+	group,
 	type SettingsField,
 	TYPING_SETTLE_MS,
 } from "@/settings/fields";
@@ -39,23 +45,8 @@ const EXCLUSION_FIELDS: ReadonlyArray<SettingsField> = [
 	},
 ];
 
-export function renderExclusionsSection(
-	parent: HTMLElement,
-	ctx: FieldContext,
-): void {
+export function exclusionsSection(ctx: FieldContext): SettingDefinitionGroup {
 	const { plugin } = ctx;
-	new Setting(parent).setName("Exclusions").setHeading();
-	new Setting(parent)
-		.setName("Shared vault rules")
-		.setDesc(
-			`Stored in ${IGNORE_FILE_NAME} at the vault root and synced to your other devices. Shared folders use their own ${IGNORE_FILE_NAME}.`,
-		)
-		.addButton((button) =>
-			button
-				.setButtonText(`Open ${IGNORE_FILE_NAME}`)
-				.onClick(() => void openSharedIgnore(plugin.app).catch(reportError)),
-		);
-
 	const savePatterns = debounce(
 		() => {
 			void plugin
@@ -67,28 +58,44 @@ export function renderExclusionsSection(
 		TYPING_SETTLE_MS,
 		true,
 	);
-	const patterns = new Setting(parent)
-		.setName("Rules for this device only")
-		.setDesc(
-			`Added to the shared rules; does not edit ${IGNORE_FILE_NAME}. One gitignore-style pattern per line.`,
-		)
-		.setClass("mdsync-ignore-patterns");
-	patterns.nameEl.id = "mdsync-local-ignore-label";
-	patterns.descEl.id = "mdsync-local-ignore-description";
-	patterns.addTextArea((text) => {
-		text.inputEl.rows = 6;
-		text.inputEl.spellcheck = false;
-		text.inputEl.setAttribute("aria-labelledby", patterns.nameEl.id);
-		text.inputEl.setAttribute("aria-describedby", patterns.descEl.id);
-		text
-			.setPlaceholder("Attachments/\n*.tmp")
-			.setValue(plugin.settings.ignorePatterns)
-			.onChange((value) => {
-				plugin.settings.ignorePatterns = value;
-				savePatterns();
-			});
-	});
-	renderFields(parent, ctx, EXCLUSION_FIELDS);
+	return group("Exclusions", [
+		{
+			name: "Shared vault rules",
+			desc: `Stored in ${IGNORE_FILE_NAME} at the vault root and synced to your other devices. Shared folders use their own ${IGNORE_FILE_NAME}.`,
+			render: (setting) => {
+				setting.addButton((button) =>
+					button
+						.setButtonText(`Open ${IGNORE_FILE_NAME}`)
+						.onClick(
+							() => void openSharedIgnore(plugin.app).catch(reportError),
+						),
+				);
+			},
+		},
+		{
+			name: "Rules for this device only",
+			desc: `Added to the shared rules; does not edit ${IGNORE_FILE_NAME}. One gitignore-style pattern per line.`,
+			render: (patterns) => {
+				patterns.setClass("mdsync-ignore-patterns");
+				patterns.nameEl.id = "mdsync-local-ignore-label";
+				patterns.descEl.id = "mdsync-local-ignore-description";
+				patterns.addTextArea((text) => {
+					text.inputEl.rows = 6;
+					text.inputEl.spellcheck = false;
+					text.inputEl.setAttribute("aria-labelledby", patterns.nameEl.id);
+					text.inputEl.setAttribute("aria-describedby", patterns.descEl.id);
+					text
+						.setPlaceholder("Attachments/\n*.tmp")
+						.setValue(plugin.settings.ignorePatterns)
+						.onChange((value) => {
+							plugin.settings.ignorePatterns = value;
+							savePatterns();
+						});
+				});
+			},
+		},
+		...EXCLUSION_FIELDS.map((field) => fieldRow(ctx, field)),
+	]);
 }
 
 async function openSharedIgnore(app: App): Promise<void> {

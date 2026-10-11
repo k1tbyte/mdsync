@@ -1,8 +1,9 @@
+import { Setting } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PluginHost } from "@/plugin/host";
 import { isStorageConfigured } from "@/settings/model";
-import { renderSecuritySection } from "@/settings/sections/security";
+import { securitySection } from "@/settings/sections/security";
 import { askNewPassphrase, notifyInfo, reportError } from "@/ui";
 
 vi.mock("@/settings/model", () => ({ isStorageConfigured: vi.fn(() => true) }));
@@ -77,11 +78,16 @@ function form(loaded = false) {
 		rotate: vi.fn(async () => 2),
 	};
 	const rerender = vi.fn();
-	renderSecuritySection(
-		{} as HTMLElement,
-		{ settings: {}, passphrase } as unknown as PluginHost,
+	const definitions = securitySection({
+		plugin: { settings: {}, passphrase } as unknown as PluginHost,
 		rerender,
-	);
+	});
+	for (const definition of definitions.items ?? []) {
+		if (!("render" in definition) || !definition.render) continue;
+		const setting = new Setting({} as HTMLElement).setName(definition.name);
+		if (definition.desc) setting.setDesc(definition.desc);
+		definition.render(setting, {} as never);
+	}
 	return { passphrase, rerender };
 }
 

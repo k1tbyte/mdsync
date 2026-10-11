@@ -25,6 +25,8 @@ function pickedAt(ms: number): string {
 const record: LinkRecord = {
 	id: "abcdefghijklmnopqrstuv",
 	url: "https://relay.example/s/abcdefghijklmnopqrstuv#key",
+	rev: 0,
+	author: "",
 	path: "note.md",
 	showTitle: true,
 	detached: false,

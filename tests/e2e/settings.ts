@@ -1,6 +1,6 @@
 import { chromium, type Page } from "playwright-core";
 
-import { fill, loaded, press } from "./device";
+import { fill, loaded, openSettings, press } from "./device";
 import { check, poll, runScenario } from "./harness";
 import { launchObsidian, type Obsidian } from "./obsidian";
 
@@ -45,11 +45,12 @@ await runScenario("settings UX e2e", async () => {
 		await page
 			.locator(".vertical-tab-nav-item-title", { hasText: /^MDSync$/ })
 			.click();
+		await openSettings(device, "Connection");
 		await checkPassphraseScroll(device, page);
 		await checkSyncSettings(device, page);
 		await checkExclusions(device, page);
 		await checkPhoneLayout(device, page);
-		await page.getByRole("tab", { name: "Sync", exact: true }).click();
+		await openSettings(device, "Sync");
 		await page
 			.getByRole("button", { name: "Open syncignore.md", exact: true })
 			.click();
@@ -115,8 +116,8 @@ async function checkPassphraseScroll(
 }
 
 async function checkSyncSettings(device: Obsidian, page: Page): Promise<void> {
-	await page.getByRole("tab", { name: "Sync", exact: true }).click();
-	check("switching sections starts at the top", await scrollTop(device), 0);
+	await openSettings(device, "Sync");
+	check("opening a page starts at the top", await scrollTop(device), 0);
 	const toggle = settingRow(page, "Push shared folders right away").locator(
 		".checkbox-container",
 	);
@@ -125,7 +126,7 @@ async function checkSyncSettings(device: Obsidian, page: Page): Promise<void> {
 	check("the shared-folder toggle starts below the top", before > 0, true);
 	await toggle.click();
 	await settingRow(page, "Push only added, moved and deleted files").waitFor({
-		state: "detached",
+		state: "hidden",
 	});
 	check(
 		"a conditional toggle preserves scroll",
@@ -160,9 +161,9 @@ async function checkExclusions(device: Obsidian, page: Page): Promise<void> {
 		0,
 	);
 	await textarea.fill(LOCAL_RULES);
-	await page.getByRole("tab", { name: "Interface", exact: true }).click();
+	await openSettings(device, "Interface");
 	await poll(
-		"local rules saved after leaving the tab",
+		"local rules saved after leaving the page",
 		async () =>
 			(await device.evaluate(
 				async () =>
@@ -179,7 +180,7 @@ async function checkExclusions(device: Obsidian, page: Page): Promise<void> {
 		SHARED_RULES,
 	);
 
-	await page.getByRole("tab", { name: "Sync", exact: true }).click();
+	await openSettings(device, "Sync");
 	check(
 		"local rules survive a rerender",
 		await textarea.inputValue(),
@@ -199,8 +200,12 @@ async function checkPhoneLayout(device: Obsidian, page: Page): Promise<void> {
 		const textarea = page.locator(".mdsync-ignore-patterns textarea");
 		await textarea.scrollIntoViewIfNeeded();
 		const layout = await device.evaluate(() => {
-			const root =
-				activeDocument.querySelector<HTMLElement>(".mdsync-settings");
+			const shown = [
+				...activeDocument.querySelectorAll<HTMLElement>(
+					".mod-settings .vertical-tab-content",
+				),
+			].find((el) => el.checkVisibility());
+			const root = shown?.querySelector(".mdsync-settings")?.parentElement;
 			const row = root?.querySelector<HTMLElement>(".mdsync-ignore-patterns");
 			const text = row?.querySelector("textarea");
 			const label = row?.querySelector(".setting-item-info");
@@ -228,13 +233,17 @@ async function checkPhoneLayout(device: Obsidian, page: Page): Promise<void> {
 		});
 		await shot(page, `settings-exclusions-${width}px`);
 	}
-	await page.getByRole("tab", { name: "Connection", exact: true }).click();
+	await openSettings(device, "Connection");
 	await page.setViewportSize({ width: 320, height: 844 });
 	check(
 		"connection controls fit a narrow phone",
 		await device.evaluate(() => {
-			const root =
-				activeDocument.querySelector<HTMLElement>(".mdsync-settings");
+			const shown = [
+				...activeDocument.querySelectorAll<HTMLElement>(
+					".mod-settings .vertical-tab-content",
+				),
+			].find((el) => el.checkVisibility());
+			const root = shown?.querySelector(".mdsync-settings")?.parentElement;
 			if (!root) throw new Error("No settings container");
 			return root.scrollWidth <= root.clientWidth;
 		}),
@@ -245,23 +254,29 @@ async function checkPhoneLayout(device: Obsidian, page: Page): Promise<void> {
 
 async function shot(page: Page, name: string): Promise<void> {
 	if (!process.env.E2E_SHOTS) return;
-	await page.locator(".mdsync-settings").screenshot({
+	await page.locator(".mod-settings .vertical-tab-content:visible").screenshot({
 		path: `artifacts/e2e-shots/${name}.png`,
 		style: ".notice-container { display: none; }",
 	});
 }
 
 function settingRow(page: Page, name: string) {
-	return page.locator(".mdsync-settings .setting-item").filter({
-		has: page.locator(".setting-item-name", {
-			hasText: new RegExp(`^${name}$`),
-		}),
-	});
+	return page
+		.locator(".mod-settings .vertical-tab-content:visible .setting-item")
+		.filter({
+			has: page.locator(".setting-item-name", {
+				hasText: new RegExp(`^${name}$`),
+			}),
+		});
 }
 
 function scrollTop(device: Obsidian): Promise<number> {
 	return device.evaluate(() => {
-		const root = activeDocument.querySelector<HTMLElement>(".mdsync-settings");
+		const root = [
+			...activeDocument.querySelectorAll<HTMLElement>(
+				".mod-settings .vertical-tab-content",
+			),
+		].find((el) => el.checkVisibility());
 		if (!root) throw new Error("No settings container");
 		return root.scrollTop;
 	});

@@ -43,8 +43,8 @@ announcement (`ChannelPresence.nameOf`).
   never race; one record edited on two devices is LWW (`rev`, then author).
   Never in `manifest.json.enc`: `state.json` keeps the manifest in plain text.
   A record is re-read only when its listing etag differs from the etag of the
-  bytes last read (`listWithEtags`, cached per storage and key in
-  `spaces/remote.ts`; one it just published, or one that will not decode, is
+  bytes last read (`listDetailed`, cached per storage, key and prefix in
+  `storage/records.ts`; one it just published, or one that will not decode, is
   read again next cycle): a quiet cycle is one list and no GETs. A backend
   that lists no etags reads every record.
 - A share's location (endpoint, bucket, prefix) is pinned once: re-deriving it
@@ -382,8 +382,8 @@ places to change later:
   the hub on every signature costs a Durable Object round trip per object.
 - Re-inviting recognises a person by name, case-insensitively: one name is one
   participant, a renamed person is a new one, an unnamed invite is always new.
-- `reset-remote-storage` leaves `shares/` and `spaces/`: resetting the vault does
-  not end shares others depend on.
+- `reset-remote-storage` leaves `shares/`, `spaces/` and `links/`: resetting the
+  vault does not end shares others depend on, nor forget live share links.
 - Mounting over one's own copy: identical files converge; an edit made before
   the record arrived is a conflict with no base in the share.
 - The vault drops a share folder's frozen entries at its next push, so they

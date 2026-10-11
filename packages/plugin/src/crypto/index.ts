@@ -10,7 +10,7 @@ import {
 	KDF_SALT_LABEL,
 	MIN_PASSPHRASE_LENGTH,
 } from "@/crypto/constants";
-import { deflateBytes, GZIP, inflateBytes } from "@/utils";
+import { bytesToBase64Url, deflateBytes, GZIP, inflateBytes } from "@/utils";
 
 const subtle = window.crypto.subtle;
 const encoder = new TextEncoder();
@@ -211,6 +211,11 @@ export function randomBytes(length: number): Uint8Array {
 	const bytes = new Uint8Array(length);
 	window.crypto.getRandomValues(bytes);
 	return bytes;
+}
+
+/** 32 random bytes as base64url: a shared secret such as the relay's. */
+export function randomSecret(): string {
+	return bytesToBase64Url(randomBytes(32));
 }
 
 export function randomId(): string {

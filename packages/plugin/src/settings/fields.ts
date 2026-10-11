@@ -1,4 +1,10 @@
-import { debounce, Setting } from "obsidian";
+import {
+	debounce,
+	Setting,
+	type SettingDefinitionGroup,
+	type SettingDefinitionRender,
+	type SettingGroupItem,
+} from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
 import { EFieldKind } from "@/storage";
@@ -59,25 +65,27 @@ export interface SliderField extends FieldBase {
 
 export type SettingsField = ToggleField | TextField | NumberField | SliderField;
 
-export function renderFields(
-	parent: HTMLElement,
-	ctx: FieldContext,
-	fields: ReadonlyArray<SettingsField>,
-): void {
-	for (const field of fields) {
-		if (field.when && !field.when(ctx.plugin.settings)) continue;
-		renderField(parent, ctx, field);
-	}
+export type SettingsRow = Omit<SettingDefinitionRender, "render"> & {
+	render: (setting: Setting) => ReturnType<SettingDefinitionRender["render"]>;
+};
+
+export function fieldRow(ctx: FieldContext, field: SettingsField): SettingsRow {
+	const { when } = field;
+	return {
+		name: field.name,
+		desc: field.desc,
+		visible: when ? () => when(ctx.plugin.settings) : undefined,
+		render: (setting) => {
+			applyControl(setting, ctx, field);
+		},
+	};
 }
 
-/** Returns the row so a caller can attach extra controls beside the field. */
-export function renderField(
-	parent: HTMLElement,
+function applyControl(
+	setting: Setting,
 	ctx: FieldContext,
 	field: SettingsField,
 ): Setting {
-	const setting = new Setting(parent).setName(field.name);
-	if (field.desc) setting.setDesc(field.desc);
 	if (field.sub) setting.settingEl.addClass(SUB_SETTING_CLASS);
 
 	const apply = (patch: Partial<MdsyncSettings>): void => {
@@ -125,24 +133,68 @@ export function renderField(
 }
 
 /** A Test button whose outcome replaces the row description. */
-export function renderCheckRow(
-	parent: HTMLElement,
+export function checkRow(
 	name: string,
 	desc: string,
 	run: () => Promise<ConnectionTestResult>,
+): SettingsRow {
+	return {
+		name,
+		desc,
+		render: (setting) => {
+			setting.addButton((button) => {
+				button.setButtonText("Test").onClick(async () => {
+					button.setDisabled(true);
+					button.setButtonText("Testing…");
+					const result = await run();
+					setting.setDesc(result.message);
+					setting.descEl.toggleClass(ERROR_DESC_CLASS, !result.ok);
+					button.setDisabled(false);
+					button.setButtonText("Test");
+				});
+			});
+		},
+	};
+}
+
+export function group(
+	heading: string | undefined,
+	items: SettingGroupItem[],
+): SettingDefinitionGroup {
+	return { type: "group", heading, cls: "mdsync-settings", items };
+}
+
+export function introRow(text: string): SettingsRow {
+	return {
+		name: text,
+		desc: text,
+		searchable: false,
+		render: (setting) => {
+			setting.setName("");
+		},
+	};
+}
+
+export function renderDefinitions(
+	parent: HTMLElement,
+	items: ReadonlyArray<SettingsRow | SettingDefinitionGroup>,
 ): void {
-	const setting = new Setting(parent).setName(name).setDesc(desc);
-	setting.addButton((button) => {
-		button.setButtonText("Test").onClick(async () => {
-			button.setDisabled(true);
-			button.setButtonText("Testing…");
-			const result = await run();
-			setting.setDesc(result.message);
-			setting.descEl.toggleClass(ERROR_DESC_CLASS, !result.ok);
-			button.setDisabled(false);
-			button.setButtonText("Test");
-		});
-	});
+	for (const item of items) {
+		if (
+			typeof item.visible === "function"
+				? !item.visible()
+				: item.visible === false
+		)
+			continue;
+		if ("type" in item) {
+			if (item.heading) new Setting(parent).setName(item.heading).setHeading();
+			renderDefinitions(parent, (item.items ?? []) as SettingsRow[]);
+		} else {
+			const setting = new Setting(parent).setName(item.name);
+			if (item.desc !== undefined) setting.setDesc(item.desc);
+			item.render(setting);
+		}
+	}
 }
 
 function applyPatch(

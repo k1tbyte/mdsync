@@ -1,9 +1,8 @@
 import { type App, type Menu, type TAbstractFile, TFile } from "obsidian";
-import { NO_RELAY } from "@/links";
 import { docKindOf } from "@/live";
 import type { PluginHost } from "@/plugin/host";
 import { isRelayConfigured } from "@/settings/model";
-import { notifyInfo } from "@/ui/common";
+import { ESetupStep } from "@/settings/setup/steps";
 
 import { ManageLinksModal } from "./manage-links-modal";
 import { ShareLinkModal } from "./share-link-modal";
@@ -22,11 +21,11 @@ export function isLinkable(
 }
 
 export function openShareLink(plugin: PluginHost, file: TFile): void {
-	if (!isRelayConfigured(plugin.settings)) {
-		notifyInfo(NO_RELAY);
-		return;
+	if (isRelayConfigured(plugin.settings)) {
+		new ShareLinkModal(plugin, file).open();
+	} else {
+		plugin.openSetup(ESetupStep.Relay);
 	}
-	new ShareLinkModal(plugin, file).open();
 }
 
 export function openManageLinks(plugin: PluginHost, path?: string): void {
@@ -39,14 +38,14 @@ export function addLinkMenuItems(
 	file: TAbstractFile,
 ): void {
 	if (!isLinkable(plugin.app, file)) return;
-	const ready = isRelayConfigured(plugin.settings);
 	menu.addItem((item) =>
 		item
 			.setTitle(
-				ready ? "MDSync: Share link" : "MDSync: Share link (needs a relay)",
+				isRelayConfigured(plugin.settings)
+					? "MDSync: Share link"
+					: "MDSync: Share link (set up a relay)",
 			)
 			.setIcon("link")
-			.setDisabled(!ready)
 			.onClick(() => openShareLink(plugin, file)),
 	);
 	const count = plugin.sharedLinks.of(file.path).length;

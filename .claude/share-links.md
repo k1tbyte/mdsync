@@ -17,7 +17,7 @@ shared folder ([shares](shares.md)): no accounts, no sync, a read-only snapshot.
 | A view is counted when the ciphertext is served, not when the page loads | link-preview bots fetch only the shell |
 | Every link has a gate derived from the fragment key (plus the passphrase when there is one), checked by the relay before it serves or updates | the id alone burns no view and yields no ciphertext; a wrong guess burns no view; operator alone cannot decrypt |
 | Seal format lives in `packages/protocol` | plugin and viewer share one source of truth |
-| Link list is device-local (`settings.links`) | YAGNI; the link itself (with its key) must be re-copyable |
+| Link list travels through the vault storage (`links/<id>.json.enc`, vault key), LWW, no tombstones | any of the person's devices can copy, update or stop a link; the link itself (with its key) must be re-copyable |
 
 ## Link format
 
@@ -161,16 +161,32 @@ Properties are never published (no option): the renderer does not draw them.
   `settings/model.ts` beside `RelayConfig`, so links never import `ui/shares`.
   Then record `LinkRecord` (`links/record.ts`: id, url with key, path,
   showTitle, createdAt, publishedAt, expiry as the relay set it, view limit,
-  salt, images, detached) in `settings.links` (device-local, never in device
+  salt, images, detached, `rev`, `author`) in `settings.links` (never in device
   transfer). If the record cannot be saved the link is revoked again, or it
   would be live with no key here to stop it. Loading keeps any record with an
-  id and a link (`parseLinkRecord` repairs the rest): a record is never dropped
-  with its key. An older relay answers `not_found`: the error says to redeploy it.
+  id and a link (`parseStoredLink` repairs the rest, a record of the first
+  builds starts at `rev` 0): a record is never dropped with its key. An older
+  relay answers `not_found`: the error says to redeploy it.
 - `SharedLinks` (`links/shared-links.ts`, `plugin.sharedLinks`) is the only
   writer of `settings.links`: add, remove, `published` (Update), `move`
   (rename), `detach` (the note was deleted: its links stay live and listed
   under Manage, with no Update, and a new note at that path starts clean);
-  each change saves and notifies subscribers.
+  each change saves, notifies subscribers and signs the records it replaced
+  (`rev + 1`, this device). Add and remove also refresh the vault, so the
+  other devices hear soon.
+- Trade (`links/remote.ts`, `sync` inside `host.spaces()`, after the space
+  records): one object per link under `<prefix>/links/`, read through
+  `storage/records.ts`. Local-only fields `vault` (storage identity last traded
+  with) and `removed` never leave the device. A removed link is deleted by name
+  (a lagging listing must not keep it), then forgotten; a failed delete keeps
+  it for the next trade. A copy traded with this storage that it no longer
+  lists was removed elsewhere and is dropped, even if edited here: removal
+  beats edit. One that will not decode is never written over or dropped,
+  unless removed here. Edits made while a trade runs are replayed onto its
+  outcome, above what it took in, also those that matched nothing yet. A
+  removed link is always flagged first, even one never traded: any trade, a
+  failed one too, may have written it. Known risk: two devices that each still hold a link removed on a
+  third can bring it back as a list entry; its relay payload stays gone.
 - Shared-note marks: `noteLinks` (`links/note-links.ts`) gives a note's
   unexpired links and `stale` (`file.stat.mtime > publishedAt`; `publishedAt`
   is taken just before the note is read, and a pulled write gets a local
@@ -189,8 +205,9 @@ Properties are never published (no option): the renderer does not draw them.
   link, or one made through another relay than the vault's current one, can
   only be removed from the list: nothing here can stop it. A rename (of the
   note or a folder above it) updates the stored path (`plugin/links.ts`).
-- `data.json` keeps the link with its key in plain text, like share keys; add
-  it to the security notes.
+- `data.json` keeps the link with its key in the device key's envelope, like
+  share keys (see [security](security.md)); the vault storage keeps it sealed
+  under the vault key.
 
 ## Steps
 

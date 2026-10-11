@@ -1,6 +1,7 @@
 <p align="center"><img src="docs/hero.webp" alt="MDSync: serverless, end-to-end encrypted vault sync for Obsidian, with a merge editor, file history, live editing and shared folders"></p>
 
 <p align="center">
+  <a href="https://community.obsidian.md/plugins/mdsync"><img src="https://img.shields.io/badge/Obsidian-community%20plugin-7C3AED?logo=obsidian&logoColor=white" alt="Obsidian community plugin"></a>
   <a href="https://github.com/k1tbyte/mdsync/releases/latest"><img src="https://img.shields.io/github/v/release/k1tbyte/mdsync" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/k1tbyte/mdsync" alt="License"></a>
 </p>
@@ -12,7 +13,7 @@
   <a href="#self-hosting-the-relay">Relay</a>
 </p>
 
-MDSync syncs your vault through an S3 bucket, a WebDAV server or Google Drive. There is no MDSync server: your devices talk straight to your storage, and everything they upload is encrypted on the device with a key derived from your passphrase. The provider stores only encrypted data. Sync is manual until you turn on automation, so you can review each change before it leaves the device. An optional relay, a Cloudflare Worker you deploy to your own account, adds instant sync, live editing and shared folders.
+MDSync syncs your vault through an S3 bucket, a WebDAV server or Google Drive. There is no MDSync server: your devices talk straight to your storage, and everything they upload is encrypted on the device with a key derived from your passphrase. Sync is manual until you turn on automatic sync, so you can review each change before it leaves the device. An optional relay, a Cloudflare Worker you deploy to your own account, adds instant sync, live editing, shared folders and share links.
 
 ## Features
 
@@ -47,21 +48,29 @@ MDSync syncs your vault through an S3 bucket, a WebDAV server or Google Drive. T
 - [Device transfer](#device-transfer): move your setup to a new device with an encrypted link or QR code.
 - Integrity check of the remote, and cleanup of objects nothing references.
 - Remote reset that rebuilds the remote from this vault (you type `RESET` to confirm).
-- A local diagnostics log in the settings, never synced.
+- A local diagnostics log in the settings.
 
 ## Quick start
 
-1. Install MDSync from **Settings → Community plugins** and enable it.
-2. Open **Settings → MDSync**, pick a storage backend and fill in its fields.
-3. Run **MDSync: Compare with remote** and choose a passphrase (12 characters or more).
-4. Run **MDSync: Push all local changes** for the first upload.
-5. On the next device, import the setup with a [transfer link](#device-transfer) or enter the same storage and passphrase, then pull.
-
-> **Tip: Cloudflare R2 is an easy S3-compatible backend.** Its free tier (10 GB, 1 million write and list requests and 10 million read requests a month) covers most vaults, downloads cost nothing, and it supports the conditional writes MDSync relies on. Enable R2 on your Cloudflare account, create a bucket, and create an API token with **Object Read & Write** limited to that bucket. R2 shows the access key ID and secret only once. In MDSync pick S3-compatible and set **Endpoint** to `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` (`https://<ACCOUNT_ID>.eu.r2.cloudflarestorage.com` for a bucket created in the EU jurisdiction), leave **Region** as `auto`, and fill in the bucket and the token's keys. The same Cloudflare account can host the [relay](#self-hosting-the-relay).
+1. Install [MDSync](https://community.obsidian.md/plugins/mdsync) from **Settings → Community plugins** and enable it. The setup wizard opens on its own; later, run **MDSync: Set up sync**.
+2. On the first device, choose **Start syncing this vault**: pick a storage, choose a passphrase (12 characters or more) and, if you want real time, deploy the relay. **Sync now** on the last step does the first upload.
+3. On every other device, choose **Connect to a vault set up on another device** and paste a [setup link](#device-transfer) from the first one.
 
 Give each vault its own bucket prefix. MDSync refuses a prefix that already holds another vault.
 
 Set up the first device alone and let its first sync finish. That sync creates the vault's key. On storage without conditional writes (Google Drive, some WebDAV and S3-compatible servers), two devices starting at the same moment can each create one, and files encrypted by one become unreadable to the other.
+
+<details>
+<summary>Manual setup</summary>
+
+1. Open **Settings → MDSync**, pick a storage backend and fill in its fields.
+2. Run **MDSync: Compare with remote** and choose a passphrase.
+3. Run **MDSync: Push all local changes** for the first upload.
+4. On the next device, import a [setup link](#device-transfer) or enter the same storage and passphrase, then pull.
+
+**Cloudflare R2 by hand.** Its free tier (10 GB, 1 million write and list requests and 10 million read requests a month) covers most vaults, downloads cost nothing, and it supports the conditional writes MDSync relies on. Enable R2 on your Cloudflare account, create a bucket, and create an API token with **Object Read & Write** limited to that bucket. R2 shows the access key ID and secret only once. In MDSync pick S3-compatible and set **Endpoint** to `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` (`https://<ACCOUNT_ID>.eu.r2.cloudflarestorage.com` for a bucket created in the EU jurisdiction), leave **Region** as `auto`, and fill in the bucket and the token's keys. The same Cloudflare account can host the [relay](#self-hosting-the-relay).
+
+</details>
 
 ## Sync
 
@@ -74,8 +83,6 @@ Set up the first device alone and let its first sync finish. That sync creates t
 | Google Drive | Folder name, auth server URL | Needs your own [relay](#self-hosting-the-relay) for the sign-in. Best effort: Drive has no conditional writes, so two devices writing the same new object at once can leave two files with one name. |
 
 ### Encryption
-
-The file list and every file are encrypted with a key derived from your passphrase. The passphrase itself is never uploaded.
 
 - **Cache passphrase between launches** keeps it on the device, so you are not asked at every start. **MDSync: Forget cached passphrase** clears it.
 - **Rotate passphrase** re-wraps the vault's data key under a new passphrase. Notes are not re-encrypted, so it is instant. Every device has to switch to the new passphrase afterwards.
@@ -95,7 +102,7 @@ The panel has four tabs: **Changes**, **History**, **Timeline** and **Deleted**.
 
 ### Automatic sync
 
-Sync is manual by default. In **Settings → MDSync → Sync** you can turn on:
+In **Settings → MDSync → Sync** you can turn on:
 
 - **Autosync**: compare, pull and push every few minutes.
 - **Push after changes settle**: push once the vault has been quiet for a set delay. It never pulls, so conflicts and incoming changes wait for you.
@@ -211,7 +218,7 @@ A note open on two devices edits together, keystroke by keystroke, with the othe
 
 The note header shows who else has the note open, as coloured initials. Click one to follow that person: your tab opens the notes they open and keeps their cursor in view. The file explorer shows headcounts on shared folders and a dot on files others changed that you have not opened yet. On desktop, the status bar shows the relay state.
 
-**Show my open note to others** off keeps you online without showing where you are.
+Turn off **Show my open note to others** to stay online without showing where you are.
 
 <details>
 <summary>Demos</summary>
@@ -228,13 +235,12 @@ The note header shows who else has the note open, as coloured initials. Click on
 
 ### Shared folders
 
-Share a folder from its menu in the file explorer. Owning a share needs S3-compatible storage, and sending invites needs the relay.
+Share a folder from its menu in the file explorer. Owning a share needs S3-compatible storage.
 
 1. **Invite** gives you an `obsidian://mdsync-share` link and a password. Send them separately.
 2. The other person opens the link (or pastes it in **Accept an invite**), enters the password and picks an empty folder. They need no storage of their own and never see your credentials.
-3. A **read-only** invite pulls changes but can never push.
 
-From the share's window you can see who is in it, revoke a person, pause the share on this device or on all your devices, and stop sharing. When a share ends, its files stay and sync with your vault again. Renaming a shared folder renames it on your other devices too.
+A **read-only** invite pulls changes but can never push. From the share's window you can see who is in it, revoke a person, pause the share on this device or on all your devices, and stop sharing. When a share ends, its files stay and sync with your vault again. Renaming a shared folder renames it on your other devices too.
 
 <details open>
 <summary>Demos</summary>
@@ -251,7 +257,7 @@ From the share's window you can see who is in it, revoke a person, pause the sha
 
 ### Share links
 
-Publish one note as a link anyone can open in a browser with nothing installed, from its menu in the file explorer (**MDSync: Share link**) or with **Share this note as a link**. It needs the relay, which serves the page.
+Publish one note as a link anyone can open in a browser with nothing installed, from its menu in the file explorer (**MDSync: Share link**) or with **Share this note as a link**.
 
 <details open>
 <summary>Demo</summary>
@@ -261,12 +267,12 @@ Publish one note as a link anyone can open in a browser with nothing installed, 
 </details>
 
 - **Expires** (5 minutes to 30 days, an exact date, or never), **Views** and an optional **passphrase** limit who can read it and for how long. Once the time or the views run out, the relay erases the note.
-- The note is drawn as Obsidian's reading view draws it, then encrypted on your device. The key is in the part of the link after `#`, which browsers never send, so the relay holds only ciphertext.
+- The note is drawn as Obsidian's reading view draws it, then encrypted on your device.
 - The page has an outline, folding headings, copyable code, wide text and **Copy as Markdown**.
 - Left out: properties, comments, links to other notes (their text stays) and embedded notes. Vault images are embedded and shrunk; **Include images** turns that off. The window lists what was left out before you create the link.
-- **Manage share links** shows the views left, copies the link, **Update**s it to the note as it is now (same link) or stops it at once. A globe in the file tree and in the note's header marks a shared note; a dot means it changed since.
+- **Manage share links**, on any of your devices, shows the views left. From there you can copy a link, **Update** it to the note as it is now (the link stays the same) or stop it at once. A globe in the file tree and in the note's header marks a shared note; a dot means it changed since.
 
-A link is a copy: later edits do not reach it until you update it. Anyone who has the link (and the passphrase) can read the note and pass it on. The links, with their keys, are kept in the plugin's `data.json`.
+A link is a copy: later edits do not reach it until you update it. Anyone who has the link (and the passphrase) can read the note and pass it on.
 
 ## Device transfer
 
@@ -279,9 +285,12 @@ A link is a copy: later edits do not reach it until you update it. Anyone who ha
 
 </details>
 
+## Commands
+
 <details>
 <summary>All commands</summary>
 
+- **Set up sync**: open the setup wizard.
 - **Compare with remote**: refresh sync status and open the source control view.
 - **Refresh sync status**: compare only.
 - **Push all local changes** / **Pull all remote changes**.
@@ -309,14 +318,18 @@ MDSync has no telemetry. It connects only to:
 
 - **Your storage** (S3 endpoint, WebDAV server or the Google Drive API), which gets encrypted files and the encrypted file list.
 - **Your relay**, if you set one up. It is a Cloudflare Worker you deploy to your own account.
+- **The Cloudflare API** (`api.cloudflare.com`), only when the setup wizard deploys the relay or creates R2 storage for you. The token you paste can edit Workers, KV and R2 on that account. If the account has no workers.dev address yet, the wizard registers a random one.
+- **GitHub** (`raw.githubusercontent.com`), only when you open **Show me how** in the setup wizard, to play a short clip of creating the Cloudflare token.
 
 You need an account with your storage provider. The relay needs a Cloudflare account, and Google Drive needs your own Google Cloud OAuth client.
 
-Storage credentials, share keys and the relay secret are stored in the plugin's `data.json` on each device, like other plugins' settings. Diagnostics logs stay on the device and never sync.
+Storage credentials, share keys, share links, the relay secret and the Cloudflare token are stored in the plugin's `data.json` on each device, encrypted with a key kept in Obsidian's keychain for that vault, outside the vault folder. A copy of the vault (a backup, git, a cloud folder) carries none of them; on a copied or moved vault, import a [setup link](#device-transfer) from another device. Diagnostics logs stay on the device and never sync.
+
+**The Cloudflare token.** The wizard keeps it on the device where you paste it, to update the relay later, and never syncs or exports it. The R2 storage the wizard creates uses S3 keys derived from this token, so they can read and write every R2 bucket on the account, including buckets MDSync did not create. Deleting the token in Cloudflare stops sync. For keys limited to one bucket, set up R2 by hand as the manual setup under [Quick start](#quick-start) describes.
 
 **What the relay sees.** It never sees file contents, file names or keys: live edits and presence travel encrypted under each space's key. It does see a hash of your storage identity, a device id per connection, and when each sync and note switch happens. For a shared folder with participants, it keeps your S3 access key in its storage to sign requests for them, plus the names you invited people by. With Google Drive, it exchanges your sign-in for tokens and sees your Drive refresh token.
 
-**Share links.** Creating one sends a rendered copy of that note to your relay, encrypted on your device. The relay stores the ciphertext, a fingerprint of the passphrase check, the view limit and the expiry, and counts views. It never sees the key (it stays in the part of the link after `#`), the passphrase, or the text. The page a recipient opens is served by your relay and decrypts in their browser.
+**Share links.** Creating one sends a rendered copy of that note to your relay, encrypted on your device. The relay stores the ciphertext, a fingerprint of the passphrase check, the view limit and the expiry, and counts views. It never sees the key (it stays in the part of the link after `#`, which browsers never send), the passphrase, or the text. The page a recipient opens is served by your relay and decrypts in their browser. Your other devices get the links, with their keys, through your storage, encrypted with the vault key.
 
 <details>
 <summary>What MDSync writes to your storage</summary>
@@ -329,6 +342,7 @@ Storage credentials, share keys and the relay secret are stored in the plugin's 
 <prefix>/objects/<sha256>.enc     encrypted file contents
 <prefix>/pins/<id>.json.enc       full file list of a pinned version
 <prefix>/spaces/<id>.json.enc     shared folder records
+<prefix>/links/<id>.json.enc      share links, with their keys
 <prefix>/shares/<id>/...          each shared folder's own storage
 ```
 
@@ -337,6 +351,10 @@ Storage credentials, share keys and the relay secret are stored in the plugin's 
 ## Self-hosting the relay
 
 The relay is `packages/relay`: one Cloudflare Worker that handles instant sync, live editing, invites to shared folders, share links and the Google Drive sign-in. It fits in the Workers free tier.
+
+**From MDSync (recommended).** Select **Deploy relay** in **Settings → MDSync → Connection → Relay server**, or **Deploy to my Cloudflare** in the setup wizard, and paste a Cloudflare API token. MDSync uploads the relay and connects to it. When a new MDSync version brings a newer relay, the same button reads **Update relay**.
+
+**From GitHub Actions.**
 
 1. Fork this repository.
 2. In **Settings → MDSync → Connection → Relay server**, select **Generate**. The secret is copied to your clipboard.
@@ -348,7 +366,7 @@ The relay is `packages/relay`: one Cloudflare Worker that handles instant sync, 
 <summary>Google Drive sign-in</summary>
 
 1. In Google Cloud, create an OAuth client of type *Web application* with the redirect URI `https://<your-relay>/auth`, and enable the Google Drive API.
-2. Add `GDRIVE_CLIENT_ID` and `GDRIVE_CLIENT_SECRET` to the fork's secrets and run **Deploy Relay** again.
+2. Add `GDRIVE_CLIENT_ID` and `GDRIVE_CLIENT_SECRET` as secrets: on a relay deployed from MDSync, in the Cloudflare dashboard under the worker's **Settings → Variables and Secrets** (updates from MDSync keep them); on a fork, to its repository secrets, then run **Deploy Relay** again.
 3. In MDSync, set **Auth server URL** to your relay URL and select **Log in**.
 
 While the OAuth consent screen is in testing mode, Google expires refresh tokens after 7 days. Publish it to stay signed in.

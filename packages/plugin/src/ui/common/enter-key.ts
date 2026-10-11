@@ -5,6 +5,7 @@ function isPlainEnter(event: KeyboardEvent): boolean {
 	return (
 		event.key === "Enter" &&
 		!event.isComposing &&
+		// WebKit (Obsidian on iOS) confirms IME with Enter, isComposing false and keyCode 229.
 		event.keyCode !== 229 &&
 		!event.repeat &&
 		!event.ctrlKey &&

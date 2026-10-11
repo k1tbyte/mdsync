@@ -1,4 +1,4 @@
-import { Setting } from "obsidian";
+import type { Setting, SettingDefinitionGroup } from "obsidian";
 
 import {
 	AUTO_PUSH_SETTLE_MAX_SECONDS,
@@ -13,24 +13,56 @@ import type { PluginHost } from "@/plugin/host";
 import type { People } from "@/presence";
 import {
 	type FieldContext,
-	renderFields,
+	fieldRow,
+	group,
 	type SettingsField,
 	SUB_SETTING_CLASS,
 } from "@/settings/fields";
+import { isRelayConfigured } from "@/settings/model";
 import { EFieldKind } from "@/storage";
 import { clampMaxSnapshots } from "@/sync/history";
 import { VAULT_SPACE } from "@/sync/space";
 import { RELAY_TEXT } from "@/ui/common";
 
+const AUTOSYNC_FIELD: SettingsField = {
+	kind: EFieldKind.Toggle,
+	name: "Autosync",
+	desc: "Sync automatically: once after startup and on a schedule. Pulls remote changes; conflicts that cannot be merged safely stop the cycle.",
+	get: (s) => s.autoSyncEnabled,
+	set: (v) => ({ autoSyncEnabled: v }),
+	rerender: true,
+};
+
+const REALTIME_FIELD: SettingsField = {
+	kind: EFieldKind.Toggle,
+	name: "Real-time sync",
+	desc: "Other devices pull the moment you push, and you see who is in which note. Turning it off also stops live editing. Your devices use the relay server (Connection tab), shared folders their owner's.",
+	get: (s) => s.realtimeSync,
+	set: (v) => ({ realtimeSync: v }),
+	after: restartRelay,
+	rerender: true,
+};
+
+const LIVE_EDITING_FIELD: SettingsField = {
+	kind: EFieldKind.Toggle,
+	name: "Live editing",
+	desc: "Notes open in the editor edit together, keystroke by keystroke, across your devices and with the people in shared folders, through the relay.",
+	when: (s) => s.realtimeSync,
+	sub: true,
+	get: (s) => s.liveEditing,
+	set: (v) => ({ liveEditing: v }),
+	after: (plugin) => void plugin.realtime.live.refresh(),
+};
+
+/** What the setup wizard offers once the vault syncs; real-time sync only with a relay to carry it. */
+export const SETUP_FIELDS: ReadonlyArray<SettingsField> = [
+	AUTOSYNC_FIELD,
+	{ ...REALTIME_FIELD, when: isRelayConfigured },
+	LIVE_EDITING_FIELD,
+];
+
 const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
-	{
-		kind: EFieldKind.Toggle,
-		name: "Autosync",
-		desc: "Sync automatically: once after startup and on a schedule. Pulls remote changes; conflicts that cannot be merged safely stop the cycle.",
-		get: (s) => s.autoSyncEnabled,
-		set: (v) => ({ autoSyncEnabled: v }),
-		rerender: true,
-	},
+	AUTOSYNC_FIELD,
 	{
 		kind: EFieldKind.Number,
 		name: "Interval (minutes)",
@@ -106,25 +138,8 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 		get: (s) => s.historyAutoRefresh,
 		set: (v) => ({ historyAutoRefresh: v }),
 	},
-	{
-		kind: EFieldKind.Toggle,
-		name: "Real-time sync",
-		desc: "Other devices pull the moment you push, and you see who is in which note. Turning it off also stops live editing. Your devices use the relay server (Connection tab), shared folders their owner's.",
-		get: (s) => s.realtimeSync,
-		set: (v) => ({ realtimeSync: v }),
-		after: restartRelay,
-		rerender: true,
-	},
-	{
-		kind: EFieldKind.Toggle,
-		name: "Live editing",
-		desc: "Notes open in the editor edit together, keystroke by keystroke, across your devices and with the people in shared folders, through the relay.",
-		when: (s) => s.realtimeSync,
-		sub: true,
-		get: (s) => s.liveEditing,
-		set: (v) => ({ liveEditing: v }),
-		after: (plugin) => void plugin.realtime.live.refresh(),
-	},
+	REALTIME_FIELD,
+	LIVE_EDITING_FIELD,
 	{
 		kind: EFieldKind.Toggle,
 		name: "Show my open note to others",
@@ -136,26 +151,21 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 	},
 ];
 
-/** Returns unsubscribe for the connected-devices row, if shown. */
-export function renderAutomationSection(
-	parent: HTMLElement,
-	plugin: PluginHost,
-	onDisplay: () => void,
-): (() => void) | null {
-	new Setting(parent).setName("Automation").setHeading();
-
-	const ctx: FieldContext = { plugin, rerender: onDisplay };
-	renderFields(parent, ctx, AUTOMATION_FIELDS);
-
-	if (!plugin.settings.realtimeSync) return null;
-	return renderConnectedDevices(parent, plugin);
+export function automationSection(ctx: FieldContext): SettingDefinitionGroup {
+	return group("Automation", [
+		...AUTOMATION_FIELDS.map((field) => fieldRow(ctx, field)),
+		{
+			name: "Connected devices",
+			visible: () => ctx.plugin.settings.realtimeSync,
+			render: (setting) => renderConnectedDevices(setting, ctx.plugin),
+		},
+	]);
 }
 
 function renderConnectedDevices(
-	parent: HTMLElement,
+	devicesSetting: Setting,
 	plugin: PluginHost,
 ): () => void {
-	const devicesSetting = new Setting(parent).setName("Connected devices");
 	devicesSetting.settingEl.addClass(SUB_SETTING_CLASS);
 	const { hub, people } = plugin.realtime;
 	const render = (): void => {

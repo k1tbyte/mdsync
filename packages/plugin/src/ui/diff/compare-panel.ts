@@ -173,6 +173,7 @@ export class ComparePanel {
 	mountFileActions(host: HTMLElement): void {
 		if (!this.fileActionsEl) return;
 		host.appendChild(this.fileActionsEl);
+		host.toggleClass("has-pending", this.choices.size > 0);
 	}
 
 	/** The pane the rail buttons belong to: the side a decision takes from. */
@@ -423,6 +424,10 @@ export class ComparePanel {
 
 	/** What Apply will do: a coloured count per kind, none for a kind not chosen. */
 	private renderPending(el: HTMLElement): void {
+		el.closest<HTMLElement>(".mdsync-diff-file-actions")?.toggleClass(
+			"has-pending",
+			this.choices.size > 0,
+		);
 		el.empty();
 		for (const kind of Object.values(EChoiceKind)) {
 			const count = this.choices.count(kind);

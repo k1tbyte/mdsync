@@ -70,7 +70,12 @@ function host() {
 		saveSettings,
 	} as unknown as PluginHost;
 	Object.assign(plugin, {
-		sharedLinks: new SharedLinks(() => plugin.settings, saveSettings),
+		sharedLinks: new SharedLinks({
+			settings: () => plugin.settings,
+			save: saveSettings,
+			author: () => "laptop",
+			announce: () => {},
+		}),
 	});
 	return { plugin, file, getFileByPath, saveSettings };
 }
@@ -80,6 +85,8 @@ function record(file: TFile): LinkRecord {
 	return {
 		id,
 		url: linkUrl(relay, id, newLinkKey()),
+		rev: 0,
+		author: "",
 		path: file.path,
 		showTitle: true,
 		detached: false,
@@ -130,7 +137,7 @@ describe("publishLink", () => {
 		const id = uploadCall()[1];
 		expect(revokeLink).toHaveBeenCalledExactlyOnceWith(admin, id);
 		expect(remove).toHaveBeenCalledExactlyOnceWith(id);
-		expect(plugin.settings.links).toEqual([existing]);
+		expect(plugin.sharedLinks.all()).toEqual([existing]);
 	});
 
 	it("retains the record when saving and revoking both fail, rethrowing the save error", async () => {
@@ -183,6 +190,8 @@ describe("publishLink", () => {
 		);
 		expect(location.id).toBe(published.id);
 		expect(published).toMatchObject({
+			rev: 0,
+			author: "laptop",
 			path: file.path,
 			showTitle: true,
 			detached: false,
@@ -378,7 +387,12 @@ describe("updateLink", () => {
 		expect(gate).toBe((await deriveLinkKeys(locationOf(published).key)).gate);
 		expect(published.url).toBe(url);
 		expect(plugin.settings.links).toEqual([
-			{ ...published, publishedAt: expect.any(Number) },
+			{
+				...published,
+				rev: 1,
+				author: "laptop",
+				publishedAt: expect.any(Number),
+			},
 		]);
 		expect(plugin.settings.links[0]?.publishedAt).toBeGreaterThan(
 			published.publishedAt,
@@ -473,7 +487,7 @@ describe("revokeLinkRecord", () => {
 		await revokeLinkRecord(plugin, published);
 
 		expect(revokeLink).toHaveBeenCalledExactlyOnceWith(admin, published.id);
-		expect(plugin.settings.links).toEqual([other]);
+		expect(plugin.sharedLinks.all()).toEqual([other]);
 		expect(saveSettings).toHaveBeenCalledTimes(1);
 	});
 

@@ -4,4 +4,5 @@ export * from "./compress";
 export * from "./concurrency";
 export * from "./eol";
 export * from "./file-concurrency";
+export * from "./revision";
 export * from "./search";

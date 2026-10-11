@@ -50,8 +50,8 @@ export interface Obsidian {
 
 export async function launchObsidian(options: {
 	port: number;
-	/** The plugin's data.json. */
-	settings: object;
+	/** The plugin's data.json; null for a fresh install without one. */
+	settings: object | null;
 	files?: Record<string, string>;
 	/** Other community plugins' folders, each named by its plugin id. */
 	plugins?: string[];
@@ -65,7 +65,9 @@ export async function launchObsidian(options: {
 	for (const file of PLUGIN_FILES) {
 		copyFileSync(join(REPO, file), join(pluginDir, basename(file)));
 	}
-	writeJson(join(pluginDir, "data.json"), options.settings);
+	if (options.settings) {
+		writeJson(join(pluginDir, "data.json"), options.settings);
+	}
 	const others = (options.plugins ?? []).map((dir) => {
 		cpSync(dir, join(vault, ".obsidian", "plugins", basename(dir)), {
 			recursive: true,

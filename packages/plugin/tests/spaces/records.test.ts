@@ -5,7 +5,6 @@ import { deriveKey, type EncryptionKey, encryptJson } from "@/crypto";
 import { mountError, spacesOf } from "@/spaces/partition";
 import {
 	closeRecord,
-	isNewer,
 	isSpaceRecord,
 	mergeRecords,
 	type SpaceRecord,
@@ -20,14 +19,6 @@ beforeAll(async () => {
 });
 
 describe("space records", () => {
-	it("lets the higher revision win, then the larger author", () => {
-		expect(isNewer(record("a", "x", 2), record("a", "x", 1))).toBe(true);
-		expect(isNewer(record("a", "x", 1, "b"), record("a", "x", 1, "a"))).toBe(
-			true,
-		);
-		expect(isNewer(record("a", "x", 1), record("a", "x", 1))).toBe(false);
-	});
-
 	it("keep a close over edits made offline before it, however many", () => {
 		const open = record("a", "x", 1);
 		const closed = closeRecord(open, "laptop");

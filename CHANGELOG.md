@@ -3,6 +3,23 @@
 This file is the source of truth for release notes: the section of a version becomes the notes of its GitHub release.
 The newest section must match `version` in `manifest.json`. Headings are `## [x.y.z] - YYYY-MM-DD`, then `### Important`, `### Features`, `### Improvements` and `### Fixes` as needed. Write for users, in plain sentences, not commit titles.
 
+## [1.2.0] - 2026-10-11
+
+### Important
+
+- Storage credentials, the relay secret, the Cloudflare token, shared folder keys, share links and the cached passphrase are encrypted with a key kept in Obsidian's keychain, outside the vault. Existing settings move over at the first launch. A copy of the vault folder (a backup, git, a cloud folder) no longer carries them: on a copied or moved vault, import a setup link from another device.
+
+### Features
+
+- **Setup wizard.** It opens on first install, or with **MDSync: Set up sync**, and walks through storage, passphrase, the relay and the first sync. With a Cloudflare API token it creates an R2 bucket and deploys the relay to your account from inside Obsidian. Another device joins with a setup link, and a shared folder invite can be accepted from the same window.
+- **Share links on all your devices.** Links you create appear on your other devices, and any of them can copy, update or stop one. They travel through your storage, encrypted with the vault key.
+
+### Improvements
+
+- MDSync's settings show up in Obsidian's settings search. They are split into Connection, Sync, Interface, Maintenance and Logs pages, and your shared folders are listed on their own page.
+- Log entries can be selected, and copied one by one or all at once.
+- The relay test refuses a plain `http://` URL, since the relay secret is sent with every request.
+
 ## [1.1.0] - 2026-10-08
 
 ### Features

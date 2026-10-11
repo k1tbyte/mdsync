@@ -6,9 +6,9 @@ import {
 	type S3StorageConfig,
 	type StorageAdapterConfig,
 } from "@/storage";
-import { bytesToBase64 } from "@/utils";
+import { bytesToBase64, isNewer } from "@/utils";
 
-import { isNewer, type ShareLocation, type SpaceRecord } from "./record";
+import type { ShareLocation, SpaceRecord } from "./record";
 
 const SHARE_KEY_BYTES = 32;
 

@@ -7,16 +7,24 @@ import {
 	type PassphraseManager,
 	type StatePersister,
 } from "@/core";
+import { DeviceKey } from "@/crypto/device-key";
 import { registerReadOnlyLock } from "@/editor/read-only";
 import { registerEditorSigns, type SignsHandle } from "@/editor/signs";
 import { SharedLinks } from "@/links";
 import type { Unseen } from "@/presence";
+import { SettingsEnvelope } from "@/settings/envelope";
 import {
 	canSync,
 	DEFAULT_SETTINGS,
+	isStorageConfigured,
 	type MdsyncSettings,
 	mergeSettings,
 } from "@/settings/model";
+import {
+	closeSetupWizard,
+	type ESetupStep,
+	openSetupWizard,
+} from "@/settings/setup";
 import type { MdsyncSettingTab } from "@/settings/tab";
 import { SettingsTransferController } from "@/settings/transfer-controller";
 import { reportWarning } from "@/shared";
@@ -28,6 +36,7 @@ import {
 	createDeletedElsewhere,
 	createSpaceGone,
 	type IndicatorHandle,
+	notifyAction,
 	notifyInfo,
 } from "@/ui";
 import { loadNodeFs } from "@/vault/symlinks";
@@ -81,26 +90,43 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 	ignoreState!: IgnoreStateHandle;
 	spaces!: SpaceRecords;
 	unseen!: Unseen;
-	readonly sharedLinks = new SharedLinks(
-		() => this.settings,
-		() => this.saveSettings(),
-	);
+	readonly sharedLinks = new SharedLinks({
+		settings: () => this.settings,
+		save: () => this.saveSettings(),
+		author: () => this.controller.currentDevice().id,
+		// The vault refresh trades the links.
+		announce: () => {
+			if (isStorageConfigured(this.settings)) void this.controller.refresh();
+		},
+	});
 	private settingsTab?: MdsyncSettingTab;
+	private deviceKey!: DeviceKey;
+	private envelope!: SettingsEnvelope;
 	private statePersister!: StatePersister;
 	private scopeRefreshTimer: number | null = null;
 	private editorSigns: SignsHandle | null = null;
 	private fileIndicators: IndicatorHandle | null = null;
-	private unloaded = false;
+	unloaded = false;
+	private freshInstall = false;
 	/** One settings write at a time: two in flight may land the older one last. */
 	private savingSettings: Promise<void> = Promise.resolve();
 
 	async onload(): Promise<void> {
 		await loadNodeFs();
+		const { secretStorage, vault } = this.app;
+		this.deviceKey = new DeviceKey(
+			secretStorage,
+			vault.adapter,
+			vault.configDir,
+		);
+		this.envelope = new SettingsEnvelope(this.deviceKey);
 		await this.loadSettings();
 		const registerShare = createShareRegistration(this);
 		const runtime = await bootstrapPluginRuntime({
 			app: this.app,
 			settings: this.settings,
+			deviceKey: this.deviceKey,
+			links: this.sharedLinks,
 			onPushComplete: (space) => {
 				this.realtime.hub.signal(space.id);
 				refreshOpenHistoryViewsAfterPush(this);
@@ -114,6 +140,10 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 				),
 			onTheirsPulled: (space, paths) =>
 				markTheirs(this, this.unseen, space, paths),
+			onNoStorage: () =>
+				notifyAction("Set up storage to sync.", "Set up", () =>
+					this.openSetup(),
+				),
 			persistSettings: () => this.saveSettings(),
 			liveNotes: (space) => this.realtime?.liveNotes(space),
 		});
@@ -168,7 +198,21 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		registerStatePersistenceFlush(this, this.statePersister);
 
 		// Re-render the open Settings tab so auth status updates live.
-		registerProtocolHandlers(this, () => this.settingsTab?.display());
+		registerProtocolHandlers(this, () => this.settingsTab?.update());
+
+		if (this.freshInstall) {
+			// Saved first: closing the wizard must not bring it back on every start.
+			await this.saveSettings();
+			this.app.workspace.onLayoutReady(() => this.openSetup());
+		} else if (this.envelope.unreadable()) {
+			this.app.workspace.onLayoutReady(() =>
+				notifyAction(
+					"MDSync cannot read its saved connection on this device: this vault was copied or moved, or Obsidian's keychain was reset. Import a setup link from another device, or set up again.",
+					"Set up",
+					() => this.openSetup(),
+				),
+			);
+		}
 	}
 
 	onunload(): void {
@@ -178,6 +222,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 			this.scopeRefreshTimer = null;
 		}
 		// Isolated: one throwing teardown must not leave the rest running after unload.
+		safely(() => closeSetupWizard());
 		safely(() => this.editorSigns?.dispose());
 		this.editorSigns = null;
 		this.fileIndicators = null;
@@ -189,16 +234,26 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 	}
 
 	async loadSettings(): Promise<void> {
-		const data = (await this.loadData()) as Partial<MdsyncSettings> | null;
-		this.settings = mergeSettings(data);
+		const data = (await this.loadData()) as Record<string, unknown> | null;
+		this.freshInstall = data === null;
+		const { stored, inTheClear } = await this.envelope.open(data);
+		this.settings = mergeSettings(stored);
+		// Sealed now, not at the next change: the secrets of an earlier build must not linger in the clear.
+		if (inTheClear) await this.writeSettings();
 	}
 
 	async saveSettings(): Promise<void> {
-		const save = this.savingSettings.then(() => this.saveData(this.settings));
-		this.savingSettings = save.catch(() => undefined);
-		await save;
+		await this.writeSettings();
 		// Any settings write can change the room, the relay credentials or a note's space.
 		this.realtime.refresh();
+	}
+
+	private writeSettings(): Promise<void> {
+		const save = this.savingSettings.then(async () =>
+			this.saveData(await this.envelope.seal(this.settings)),
+		);
+		this.savingSettings = save.catch(() => undefined);
+		return save;
 	}
 
 	async resetLocalState(): Promise<void> {
@@ -217,6 +272,11 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 
 	refreshSourceControlView(): void {
 		refreshOpenSourceControlViews(this);
+	}
+
+	openSetup(step?: ESetupStep): void {
+		// The settings tab under the wizard would keep showing what the wizard replaced.
+		openSetupWizard(this, step, () => this.settingsTab?.update());
 	}
 
 	scheduleScopeRefresh(reason = "Sync scope changed."): void {
@@ -246,7 +306,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		this.refreshEditorSigns(this.settings.showEditorChangeSigns);
 		this.refreshFileIndicators(this.settings.showFileExplorerIndicators);
 		this.refreshSourceControlView();
-		this.settingsTab?.display();
+		this.settingsTab?.update();
 		this.scheduleScopeRefresh("Settings imported.");
 	}
 }

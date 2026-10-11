@@ -1,30 +1,15 @@
-/**
- * Records travel through the vault's own storage, one object each, so two devices adding spaces never race
- * and no compare-and-set is needed.
- */
+import type { EncryptionKey } from "@/crypto";
+import { type RecordKind, readRecords, writeRecord } from "@/storage/records";
+import type { ObjectStorage } from "@/storage/types";
+import { isNewer } from "@/utils";
 
-import { decryptJson, type EncryptionKey, encryptJson } from "@/crypto";
-import { reportWarning } from "@/shared";
-import type { ListedObject, ObjectStorage } from "@/storage/types";
+import { isSpaceRecord, mergeRecords, type SpaceRecord } from "./record";
 
-import {
-	isNewer,
-	isSpaceRecord,
-	mergeRecords,
-	type SpaceRecord,
-} from "./record";
-
-const RECORDS_PREFIX = "spaces/";
-const RECORD_SUFFIX = ".json.enc";
-
-/** Keyed by the etag of the bytes that were read, which a listing may run ahead of or behind. */
-type RecordCache = Map<string, { etag: string; record: SpaceRecord }>;
-
-// The storage lives as long as its settings; a new key or storage starts cold.
-const caches = new WeakMap<
-	ObjectStorage,
-	{ key: EncryptionKey; records: RecordCache }
->();
+const SPACES: RecordKind<SpaceRecord> = {
+	prefix: "spaces/",
+	parse: (value) => (isSpaceRecord(value) ? value : null),
+	label: "Space record",
+};
 
 /**
  * Merges the remote records into `local` and publishes what the remote lacks; `unbound`: `local` was made
@@ -36,11 +21,10 @@ export async function syncRecords(
 	local: readonly SpaceRecord[],
 	unbound = false,
 ): Promise<{ records: SpaceRecord[]; published: boolean }> {
-	const cache = cacheFor(storage, key);
 	const { records: remote, unreadable } = await readRecords(
 		storage,
 		key,
-		cache,
+		SPACES,
 	);
 	const theirs = new Map(remote.map((record) => [record.id, record]));
 	// Unbound: the vault's own share stays its owner's; a join outranks its older close, as `acceptInvite` does.
@@ -57,16 +41,10 @@ export async function syncRecords(
 	let published = false;
 	for (const record of mine) {
 		// One this device cannot read may be newer, or of a newer format: never written over.
-		if (unreadable.has(recordKey(record.id))) continue;
+		if (unreadable.has(record.id)) continue;
 		const known = theirs.get(record.id);
 		if (known && !isNewer(record, known)) continue;
-		await storage.put(
-			recordKey(record.id),
-			await encryptJson(key, record),
-			"application/octet-stream",
-		);
-		// Its listing etag is not known until the next list, which reads it once.
-		cache.delete(recordKey(record.id));
+		await writeRecord(storage, key, SPACES, record);
 		published = true;
 	}
 	return { records: mergeRecords(remote, mine), published };
@@ -76,90 +54,5 @@ export async function fetchRecords(
 	storage: ObjectStorage,
 	key: EncryptionKey,
 ): Promise<SpaceRecord[]> {
-	return (await readRecords(storage, key, cacheFor(storage, key))).records;
-}
-
-function cacheFor(storage: ObjectStorage, key: EncryptionKey): RecordCache {
-	const held = caches.get(storage);
-	if (held?.key === key) return held.records;
-	const records: RecordCache = new Map();
-	caches.set(storage, { key, records });
-	return records;
-}
-
-async function listRecords(storage: ObjectStorage): Promise<ListedObject[]> {
-	if (storage.listDetailed) return storage.listDetailed(RECORDS_PREFIX);
-	return (await storage.list(RECORDS_PREFIX)).map((name) => ({
-		key: name,
-		etag: null,
-		modified: null,
-	}));
-}
-
-/** `unreadable`: names of records listed but not decoded. */
-async function readRecords(
-	storage: ObjectStorage,
-	key: EncryptionKey,
-	cache: RecordCache,
-): Promise<{ records: SpaceRecord[]; unreadable: Set<string> }> {
-	const listed = (await listRecords(storage)).filter(({ key: name }) =>
-		name.endsWith(RECORD_SUFFIX),
-	);
-	const names = new Set(listed.map(({ key: name }) => name));
-	for (const name of cache.keys()) {
-		if (!names.has(name)) cache.delete(name);
-	}
-	const unreadable = new Set<string>();
-	const records = await Promise.all(
-		listed.map(async ({ key: name, etag }) => {
-			const held = cache.get(name);
-			if (etag !== null && held?.etag === etag) return held.record;
-			const read = await readObject(storage, name, etag);
-			if (!read) return null;
-			const record = await decodeRecord(key, name, read.body);
-			if (!record) unreadable.add(name);
-			else if (read.etag !== null) {
-				cache.set(name, { etag: read.etag, record });
-			}
-			return record;
-		}),
-	);
-	return {
-		records: records.filter((record) => record !== null),
-		unreadable,
-	};
-}
-
-/** A backend that cannot name the version it served leaves the listing's word as the only one. */
-async function readObject(
-	storage: ObjectStorage,
-	name: string,
-	listedEtag: string | null,
-): Promise<{ body: Uint8Array; etag: string | null } | null> {
-	if (!storage.getIfChanged) {
-		const body = await storage.get(name);
-		return body && { body, etag: listedEtag };
-	}
-	const read = await storage.getIfChanged(name, null);
-	return read.status === "found" ? read : null;
-}
-
-async function decodeRecord(
-	key: EncryptionKey,
-	name: string,
-	blob: Uint8Array,
-): Promise<SpaceRecord | null> {
-	try {
-		const record = await decryptJson<unknown>(key, blob);
-		if (isSpaceRecord(record) && recordKey(record.id) === name) return record;
-	} catch (err) {
-		reportWarning(`Space record "${name}" is unreadable.`, err);
-		return null;
-	}
-	reportWarning(`Space record "${name}" is malformed.`);
-	return null;
-}
-
-function recordKey(id: string): string {
-	return `${RECORDS_PREFIX}${id}${RECORD_SUFFIX}`;
+	return (await readRecords(storage, key, SPACES)).records;
 }

@@ -5,10 +5,10 @@
 
 import {
 	CLEAN,
+	choose,
 	clickMenuItem,
 	closeModals,
-	openSettings,
-	press,
+	openSharedFolderSettings,
 	read,
 	sync,
 	unlock,
@@ -135,7 +135,7 @@ async function scenario(
 		[true, null],
 	);
 
-	await pauseHere(desktop, "Pause on this device", 1);
+	await pauseHere(desktop, true);
 	await write(laptop, PLAN, "plan v4\n");
 	check("the laptop pushes to the paused desktop", await sync(laptop), CLEAN);
 	const todo = await vaultEntry(desktop, TODO);
@@ -150,7 +150,7 @@ async function scenario(
 		await vaultEntry(desktop, TODO),
 		todo,
 	);
-	await pauseHere(desktop, "Resume on this device", 0);
+	await pauseHere(desktop, false);
 	check("the desktop resumes", await sync(desktop), CLEAN);
 	check("the laptop pulls the paused edit", await sync(laptop), CLEAN);
 	check(
@@ -237,18 +237,13 @@ function vaultEntry(device: Obsidian, path: string): Promise<string | null> {
 }
 
 /** Pause or resume the only share on this device, from its window in the settings. */
-async function pauseHere(
-	device: Obsidian,
-	action: string,
-	paused: number,
-): Promise<void> {
-	await openSettings(device, "Sync");
-	await press(device, "Manage");
-	await press(device, action);
+async function pauseHere(device: Obsidian, paused: boolean): Promise<void> {
+	await openSharedFolderSettings(device);
+	await choose(device, "Pause", paused ? "here" : "");
 	await device.waitFor(
-		`${action} saved`,
+		`pause ${paused} saved`,
 		() => app.plugins.plugins.mdsync.settings.pausedSpaces.length,
-		(count: number) => count === paused,
+		(count: number) => count === Number(paused),
 	);
 	await closeModals(device);
 }

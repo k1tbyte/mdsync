@@ -11,6 +11,8 @@ vi.mock("@/ui/links/link-menu", () => ({ openManageLinks: vi.fn() }));
 const RECORD: LinkRecord = {
 	id: "one",
 	url: "https://relay.example/one",
+	rev: 0,
+	author: "",
 	path: "note.md",
 	showTitle: true,
 	detached: false,
@@ -63,10 +65,12 @@ function host() {
 	};
 	const cleanup: (() => void)[] = [];
 	const settings = { links: [{ ...RECORD }] };
-	const sharedLinks = new SharedLinks(
-		() => settings,
-		async () => {},
-	);
+	const sharedLinks = new SharedLinks({
+		settings: () => settings,
+		save: async () => {},
+		author: () => "laptop",
+		announce: () => {},
+	});
 	const plugin = {
 		sharedLinks,
 		app: {

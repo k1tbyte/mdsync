@@ -303,7 +303,15 @@ describe("hub routing", () => {
 		const status = (secret: string, env = makeEnv().env) =>
 			call("/status", env, { headers: { "X-Mdsync-Admin": secret } });
 
-		expect((await status(SECRET)).status).toBe(200);
+		expect(await (await status(SECRET)).json()).toEqual({
+			ok: true,
+			version: null,
+		});
+		const deployed = { ...makeEnv().env, RELAY_VERSION: "abc123" };
+		expect(await (await status(SECRET, deployed)).json()).toEqual({
+			ok: true,
+			version: "abc123",
+		});
 		expect((await status("wrong")).status).toBe(401);
 		expect((await status("", makeEnv(new FakeKV(), null).env)).status).toBe(
 			401,

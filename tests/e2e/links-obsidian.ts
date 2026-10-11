@@ -5,7 +5,15 @@
 
 import { type Browser, chromium, type Page } from "playwright-core";
 
-import { clickMenuItem, confirm, field, fill, loaded, press } from "./device";
+import {
+	choose,
+	clickMenuItem,
+	confirm,
+	field,
+	fill,
+	loaded,
+	press,
+} from "./device";
 import { check, poll, runScenario } from "./harness";
 import { admin, SECRET } from "./link-client";
 import { launchObsidian, type Obsidian } from "./obsidian";
@@ -368,7 +376,7 @@ async function manage(
 	check(
 		"and leaves the list",
 		await device.evaluate(
-			() => app.plugins.plugins.mdsync.settings.links.length,
+			() => app.plugins.plugins.mdsync.sharedLinks.all().length,
 		),
 		0,
 	);
@@ -407,26 +415,6 @@ async function views(base: string, link: string): Promise<number> {
 	const id = new URL(link).pathname.split("/").pop();
 	const status = await admin(base, `/link/${id}/status`);
 	return ((await status.json()) as { views: number }).views;
-}
-
-/** Picks `value` in the open modal's dropdown named `name`. */
-function choose(device: Obsidian, name: string, value: string): Promise<void> {
-	return device.evaluate(
-		({ label, wanted }) => {
-			const select = [
-				...activeDocument.querySelectorAll(".modal .setting-item"),
-			]
-				.find(
-					(row) =>
-						row.querySelector(".setting-item-name")?.textContent === label,
-				)
-				?.querySelector("select");
-			if (!select) throw new Error(`no "${label}" dropdown`);
-			select.value = wanted;
-			select.dispatchEvent(new Event("change"));
-		},
-		{ label: name, wanted: value },
-	);
 }
 
 /** Answers the prompt modal, whose field is not a setting. */

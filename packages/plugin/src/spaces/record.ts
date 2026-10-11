@@ -1,5 +1,7 @@
 import { isShareId, OWNER } from "@mdsync/protocol";
 
+import { isNewer } from "@/utils";
+
 /**
  * Where a share's objects live: its owner's S3 location when it was created. Pinned for good; re-deriving
  * it from later settings would orphan them.
@@ -51,11 +53,6 @@ export interface SpaceRecord {
 	closed?: true;
 	/** Paused on every device of the person; one device alone is `pausedSpaces`. */
 	paused?: true;
-}
-
-/** Last writer wins, deterministically on every device. */
-export function isNewer(a: SpaceRecord, b: SpaceRecord): boolean {
-	return a.rev !== b.rev ? a.rev > b.rev : a.author > b.author;
 }
 
 /** Outranks every edit made offline before the close; a join built on it still outranks it. */
