@@ -1,5 +1,6 @@
 /** What a scenario does to one Obsidian through the plugin, its menus and its modals. */
 
+import { poll } from "./harness";
 import type { Obsidian } from "./obsidian";
 
 // biome-ignore lint/suspicious/noExplicitAny: the renderer's app is untyped here.
@@ -215,13 +216,56 @@ export function field(device: Obsidian, name: string): Promise<string> {
 
 export async function openSettings(
 	device: Obsidian,
-	tab: string,
+	...pages: string[]
 ): Promise<void> {
 	await device.evaluate(() => {
 		app.setting.open();
 		app.setting.openTabById("mdsync");
 	});
-	await press(device, tab);
+	for (const page of pages) {
+		await poll(`${page} settings row`, async () => {
+			const clicked = await device.evaluate((name) => {
+				const row = [
+					...activeDocument.querySelectorAll<HTMLElement>(
+						".mod-settings .setting-item.mod-navigable",
+					),
+				].find(
+					(item) =>
+						item.checkVisibility() &&
+						item.querySelector(".setting-item-name")?.textContent === name,
+				);
+				row?.click();
+				return Boolean(row);
+			}, page);
+			return clicked || undefined;
+		});
+		// The page slides in over the last one: helpers read the one left shown.
+		await poll(`${page} settings page shown`, async () => {
+			const shown = await device.evaluate((name) => {
+				const visible = (selector: string) =>
+					[
+						...activeDocument.querySelectorAll<HTMLElement>(
+							`.mod-settings ${selector}`,
+						),
+					].filter((el) => el.checkVisibility());
+				return (
+					visible(".vertical-tab-content").length === 1 &&
+					// A phone shows the page title as the modal's.
+					visible(".setting-page-title, .modal-title").some(
+						(el) => el.textContent === name,
+					)
+				);
+			}, page);
+			return shown || undefined;
+		});
+	}
+}
+
+export async function openSharedFolderSettings(
+	device: Obsidian,
+): Promise<void> {
+	await openSettings(device, "Sync", "Your shared folders");
+	await press(device, "Manage");
 }
 
 export function closeSettings(device: Obsidian): Promise<void> {

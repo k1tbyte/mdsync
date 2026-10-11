@@ -12,7 +12,7 @@ import {
 	field,
 	fill,
 	loaded,
-	openSettings,
+	openSharedFolderSettings,
 	press,
 	read,
 	sync,
@@ -190,8 +190,7 @@ export async function closeFromSettings(
 	device: Obsidian,
 	action: string,
 ): Promise<void> {
-	await openSettings(device, "Sync");
-	await press(device, "Manage");
+	await openSharedFolderSettings(device);
 	await press(device, action);
 	await confirm(device, action);
 	await device.waitFor(

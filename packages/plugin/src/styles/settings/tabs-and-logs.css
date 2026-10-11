@@ -1,9 +1,3 @@
-.mdsync-settings-tabs {
-	display: flex;
-	gap: var(--size-4-2);
-	margin-bottom: var(--size-4-4);
-}
-
 .mdsync-settings-tab-button {
 	background-color: var(--interactive-normal);
 }
@@ -12,19 +6,6 @@
 .mdsync-settings-tab-button.is-active:hover {
 	background-color: var(--interactive-accent);
 	color: var(--text-on-accent);
-}
-
-.mdsync-settings-nav {
-	flex-wrap: wrap;
-}
-
-.mdsync-settings-nav .mdsync-settings-tab-button {
-	flex: 0 1 auto;
-}
-
-body.is-phone .mdsync-settings-nav .mdsync-settings-tab-button {
-	flex-grow: 1;
-	border: 1px solid var(--background-modifier-border);
 }
 
 .mdsync-log-list {

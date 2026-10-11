@@ -1,412 +1,94 @@
 import {
 	type App,
-	debounce,
 	type Plugin,
 	PluginSettingTab,
-	Setting,
+	type SettingDefinitionItem,
 } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
-import { EFieldKind } from "@/storage";
-import { defaultDeviceName } from "@/sync/device";
-import type { Manifest } from "@/sync/types";
+import { type FieldContext, group } from "./fields";
+import { logsPage } from "./logs-view";
+import { canSync } from "./model";
 import {
-	askSettingsTransferInput,
-	notifyError,
-	notifyInfo,
-	openConfirmModal,
-	reportError,
-	showSettingsTransferExport,
-} from "@/ui";
-import { createScopePolicy, type ScopePolicy } from "@/vault/scope";
-import {
-	type FieldContext,
-	renderField,
-	renderFields,
-	type SettingsField,
-	TYPING_SETTLE_MS,
-} from "./fields";
-import { renderLogsView } from "./logs-view";
-import {
-	canSync,
-	type MdsyncSettings,
-	type SettingsSyncCategories,
-} from "./model";
-import {
-	renderAutomationSection,
-	renderBackendSection,
-	renderExclusionsSection,
-	renderLinksSection,
-	renderMaintenanceSection,
-	renderRelaySection,
-	renderSecuritySection,
-	renderSharesSection,
+	advancedSection,
+	automationSection,
+	backendSection,
+	configurationScopeSection,
+	deviceTransferSection,
+	exclusionsSection,
+	interfaceSection,
+	linksSection,
+	maintenanceSection,
+	relaySection,
+	securitySection,
+	sharesSection,
 } from "./sections";
-
-const ESettingsViewTab = {
-	Connection: "connection",
-	Sync: "sync",
-	Interface: "interface",
-	Maintenance: "maintenance",
-	Logs: "logs",
-} as const;
-type ESettingsViewTab =
-	(typeof ESettingsViewTab)[keyof typeof ESettingsViewTab];
-
-const SETTINGS_TAB_LABELS: Record<ESettingsViewTab, string> = {
-	[ESettingsViewTab.Connection]: "Connection",
-	[ESettingsViewTab.Sync]: "Sync",
-	[ESettingsViewTab.Interface]: "Interface",
-	[ESettingsViewTab.Maintenance]: "Maintenance",
-	[ESettingsViewTab.Logs]: "Logs",
-};
-
-const SETTINGS_TABS = Object.values(ESettingsViewTab);
-
-interface SettingsSyncRow {
-	key: keyof SettingsSyncCategories;
-	name: string;
-	desc: string;
-}
-
-const SETTINGS_SYNC_ROWS: ReadonlyArray<SettingsSyncRow> = [
-	{
-		key: "coreSettings",
-		name: "Core settings",
-		desc: "App, appearance, core plugins, graph, bookmarks and templates.",
-	},
-	{ key: "hotkeys", name: "Hotkeys", desc: "hotkeys.json" },
-	{
-		key: "pluginList",
-		name: "Enabled community plugins",
-		desc: "community-plugins.json only",
-	},
-	{
-		key: "pluginConfigs",
-		name: "Plugins and their settings",
-		desc: "Plugin files and settings (MDSync and device-local plugins excluded).",
-	},
-	{
-		key: "snippets",
-		name: "CSS snippets",
-		desc: "snippets folder inside the config folder",
-	},
-	{
-		key: "themes",
-		name: "Themes",
-		desc: "themes folder inside the config folder",
-	},
-];
-
-/** Files and empty folders the remote holds per configuration category. */
-function countRemoteCategories(
-	remote: Manifest | null | undefined,
-	scope: ScopePolicy,
-): Map<keyof SettingsSyncCategories, number> {
-	const counts = new Map<keyof SettingsSyncCategories, number>();
-	const paths = [
-		...Object.keys(remote?.files ?? {}),
-		...(remote?.folders ?? []).map((dir) => `${dir}/`),
-	];
-	for (const path of paths) {
-		const category = scope.getCategory(path);
-		if (category) counts.set(category, (counts.get(category) ?? 0) + 1);
-	}
-	return counts;
-}
-
-const INTERFACE_FIELDS: ReadonlyArray<SettingsField> = [
-	{
-		kind: EFieldKind.Toggle,
-		name: "Status bar indicator",
-		desc: "Applies after Obsidian restarts.",
-		get: (s) => s.showStatusBar,
-		set: (v) => ({ showStatusBar: v }),
-	},
-	{
-		kind: EFieldKind.Toggle,
-		name: "Ribbon icon",
-		desc: "Applies after Obsidian restarts.",
-		get: (s) => s.showRibbonIcon,
-		set: (v) => ({ showRibbonIcon: v }),
-	},
-	{
-		kind: EFieldKind.Toggle,
-		name: "File and folder indicators",
-		desc: "Show change marks, linked and ignored paths, who is in a note and new-note dots in the file tree, and a linked or ignored label for the open note. Share badges always stay: they open the share window.",
-		get: (s) => s.showFileExplorerIndicators,
-		set: (v) => ({ showFileExplorerIndicators: v }),
-		after: (plugin) =>
-			plugin.refreshFileIndicators(plugin.settings.showFileExplorerIndicators),
-	},
-	{
-		kind: EFieldKind.Toggle,
-		name: "Editor change signs",
-		desc: "Show per-line gutter marks for changes since the last sync.",
-		get: (s) => s.showEditorChangeSigns,
-		set: (v) => ({ showEditorChangeSigns: v }),
-		after: (plugin) =>
-			plugin.refreshEditorSigns(plugin.settings.showEditorChangeSigns),
-	},
-	{
-		kind: EFieldKind.Toggle,
-		name: "File sizes in changes",
-		desc: "Show current sizes and size changes in the Changes list.",
-		get: (s) => s.showFileSizes,
-		set: (v) => ({ showFileSizes: v }),
-		after: (plugin) => plugin.refreshSourceControlView(),
-	},
-];
 
 export class MdsyncSettingTab extends PluginSettingTab {
 	private readonly plugin: Plugin & PluginHost;
-	private activeTab: ESettingsViewTab = ESettingsViewTab.Connection;
-	private sectionUnsubs: Array<() => void> = [];
 
 	constructor(app: App, plugin: Plugin & PluginHost) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
-	hide(): void {
-		this.unsubscribeSections();
-		this.activeTab = ESettingsViewTab.Connection;
-	}
-
-	display(): void {
-		this.unsubscribeSections();
-		const { containerEl } = this;
-		const scrollTop = containerEl.scrollTop;
-		containerEl.addClass("mdsync-settings");
-		containerEl.empty();
-		this.renderTabBar(containerEl);
-
-		switch (this.activeTab) {
-			case ESettingsViewTab.Connection:
-				this.renderConnectionTab(containerEl);
-				break;
-			case ESettingsViewTab.Sync:
-				this.renderSyncTab(containerEl);
-				break;
-			case ESettingsViewTab.Interface:
-				this.renderUiSection(containerEl);
-				break;
-			case ESettingsViewTab.Maintenance:
-				renderMaintenanceSection(containerEl, this.plugin);
-				break;
-			case ESettingsViewTab.Logs:
-				renderLogsView(containerEl, this.plugin, () => this.display());
-				break;
-		}
-		containerEl.scrollTop = scrollTop;
-	}
-
-	private fieldContext(): FieldContext {
-		return { plugin: this.plugin, rerender: () => this.display() };
-	}
-
-	private unsubscribeSections(): void {
-		for (const unsub of this.sectionUnsubs) unsub();
-		this.sectionUnsubs = [];
-	}
-
-	private renderTabBar(parent: HTMLElement): void {
-		const bar = parent.createDiv({
-			cls: "mdsync-settings-tabs mdsync-settings-nav",
-		});
-		bar.setAttr("role", "tablist");
-		bar.setAttr("aria-label", "MDSync settings sections");
-		for (const tab of SETTINGS_TABS) this.renderTabButton(bar, tab);
-	}
-
-	private renderTabButton(parent: HTMLElement, tab: ESettingsViewTab): void {
-		const button = parent.createEl("button", {
-			cls: "mdsync-settings-tab-button",
-			text: SETTINGS_TAB_LABELS[tab],
-		});
-		button.type = "button";
-		button.setAttr("role", "tab");
-		button.setAttr("aria-selected", String(tab === this.activeTab));
-		if (tab === this.activeTab) {
-			button.addClass("is-active");
-		}
-		button.addEventListener("click", () => {
-			if (tab === this.activeTab) return;
-			this.activeTab = tab;
-			this.containerEl.scrollTop = 0;
-			this.display();
-		});
-	}
-
-	private renderConnectionTab(parent: HTMLElement): void {
-		new Setting(parent)
-			.setName("Setup wizard")
-			.setDesc("Storage, passphrase and relay, step by step.")
-			.addButton((button) => {
-				button.setButtonText("Open").onClick(() => this.plugin.openSetup());
-				if (!canSync(this.plugin.settings)) button.setCta();
-			});
-		renderBackendSection(parent, this.plugin, () => this.display());
-		renderSecuritySection(parent, this.plugin, () => this.display());
-		renderRelaySection(parent, this.fieldContext());
-		this.renderTransferSection(parent);
-		this.renderAdvancedSection(parent);
-	}
-
-	private renderSyncTab(parent: HTMLElement): void {
-		const automationUnsub = renderAutomationSection(parent, this.plugin, () =>
-			this.display(),
-		);
-		if (automationUnsub) this.sectionUnsubs.push(automationUnsub);
-		renderSharesSection(parent, this.fieldContext());
-		renderLinksSection(parent, this.plugin);
-		this.renderSettingsSyncSection(parent);
-		renderExclusionsSection(parent, this.fieldContext());
-	}
-
-	private renderTransferSection(parent: HTMLElement): void {
-		new Setting(parent).setName("Device transfer").setHeading();
-		new Setting(parent).setDesc(
-			"Export or import compact encrypted sync settings. Local-only display preferences stay on each device.",
-		);
-
-		new Setting(parent)
-			.setName("Export setup")
-			.setDesc(
-				"Create a compact encrypted link and QR code for another device.",
-			)
-			.addButton((button) =>
-				button
-					.setButtonText("Export")
-					.onClick(() => void this.handleExportSettings()),
-			);
-
-		new Setting(parent)
-			.setName("Import setup")
-			.setDesc(
-				"Paste an encrypted setup link and replace storage, sync scope, ignore, and automation settings.",
-			)
-			.addButton((button) =>
-				button
-					.setButtonText("Import")
-					.setDestructive()
-					.onClick(() => void this.handleImportSettings()),
-			);
-	}
-
-	private renderSettingsSyncSection(parent: HTMLElement): void {
-		new Setting(parent).setName("Obsidian configuration scope").setHeading();
-		new Setting(parent).setDesc(
-			"Workspace, cache, trash and device-local plugin data are never synced. Turning a category off only stops this device from syncing it; the remote keeps its files.",
-		);
-		const remote = this.plugin.controller.getSnapshot().result?.remote;
-		if (!remote) {
-			new Setting(parent)
-				.setDesc("Compare with the remote to see which categories it holds.")
-				.addButton((button) =>
-					button.setButtonText("Check remote").onClick(async () => {
-						button.setDisabled(true);
-						await this.plugin.controller.refresh();
-						this.display();
-					}),
-				);
-		}
-		const remoteCounts = countRemoteCategories(
-			remote,
-			createScopePolicy({
-				settingsSync: this.plugin.settings.settingsSync,
-				configDir: this.app.vault.configDir,
-			}),
-		);
-		for (const row of SETTINGS_SYNC_ROWS) {
-			const setting = renderField(parent, this.fieldContext(), {
-				kind: EFieldKind.Toggle,
-				name: row.name,
-				desc: row.desc,
-				get: (s: MdsyncSettings) => s.settingsSync[row.key],
-				set: (v: boolean) => ({
-					settingsSync: { ...this.plugin.settings.settingsSync, [row.key]: v },
-				}),
-				refreshScope: true,
-			});
-			const count = remoteCounts.get(row.key);
-			if (!count) continue;
-			setting.addButton((button) =>
-				button
-					.setButtonText("Clear on remote")
-					.setTooltip(`${count} remote item(s)`)
-					.setDestructive()
-					.onClick(() => void this.handleClearCategoryRemote(row)),
-			);
-		}
-	}
-
-	private async handleClearCategoryRemote(row: SettingsSyncRow): Promise<void> {
-		const confirmed = await openConfirmModal({
-			app: this.app,
-			title: `Clear ${row.name} on remote?`,
-			body: [
-				`Removes every ${row.name} file from the remote storage. Local files stay on every device, and devices with this category enabled re-upload theirs on their next push.`,
-				"Disable the category on every device first if it should stay gone. Update MDSync on your other devices before clearing: older versions refuse the cleared remote.",
-			],
-			confirmLabel: "Clear on remote",
-			confirmClass: "mod-warning",
-		});
-		if (!confirmed) return;
-		if (await this.plugin.controller.resetCategory(row.key)) {
-			notifyInfo(`Cleared ${row.name} on remote.`);
-		} else {
-			notifyError(
-				this.plugin.controller.getSnapshot().error ??
-					"Could not clear the category on the remote.",
-			);
-		}
-		this.display();
-	}
-
-	private renderUiSection(parent: HTMLElement): void {
-		new Setting(parent).setName("Interface").setHeading();
-		renderFields(parent, this.fieldContext(), INTERFACE_FIELDS);
-	}
-
-	private renderAdvancedSection(parent: HTMLElement): void {
-		new Setting(parent).setName("Advanced").setHeading();
-
-		new Setting(parent)
-			.setName("Device name")
-			.setDesc(
-				"Shown in file history so you can tell devices apart. Stored locally on this device; never synced.",
-			)
-			.addText((t) =>
-				t
-					.setPlaceholder(defaultDeviceName())
-					.setValue(this.plugin.device.current())
-					.onChange(
-						debounce(
-							(v) => void this.plugin.device.rename(v),
-							TYPING_SETTLE_MS,
-							true,
-						),
-					),
-			);
-	}
-
-	private async handleExportSettings(): Promise<void> {
-		showSettingsTransferExport(this.app, {
-			createPackage: (options) => this.plugin.transfer.createPackage(options),
-		});
-	}
-
-	private async handleImportSettings(): Promise<void> {
-		const input = await askSettingsTransferInput(this.app);
-		if (!input) return;
-		try {
-			const imported = await this.plugin.transfer.importFrom(input);
-			if (!imported) return;
-			notifyInfo("Settings imported.");
-			this.display();
-		} catch (err) {
-			reportError(err);
-		}
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		const ctx: FieldContext = {
+			plugin: this.plugin,
+			rerender: () => this.update(),
+		};
+		return [
+			group(undefined, [
+				{
+					name: "Setup wizard",
+					desc: "Storage, passphrase and relay, step by step.",
+					render: (setting) => {
+						setting.addButton((button) => {
+							button
+								.setButtonText("Open")
+								.onClick(() => this.plugin.openSetup());
+							if (!canSync(this.plugin.settings)) button.setCta();
+						});
+					},
+				},
+			]),
+			{
+				type: "page",
+				name: "Connection",
+				desc: "Storage, encryption, relay and device transfer.",
+				items: [
+					backendSection(ctx),
+					securitySection(ctx),
+					relaySection(ctx),
+					deviceTransferSection(ctx),
+					advancedSection(ctx),
+				],
+			},
+			{
+				type: "page",
+				name: "Sync",
+				desc: "Automation, shared folders, share links, configuration scope and exclusions.",
+				items: [
+					automationSection(ctx),
+					sharesSection(ctx),
+					linksSection(ctx),
+					configurationScopeSection(ctx),
+					exclusionsSection(ctx),
+				],
+			},
+			{
+				type: "page",
+				name: "Interface",
+				desc: "Status bar, ribbon, file indicators and editor signs.",
+				items: [interfaceSection(ctx)],
+			},
+			{
+				type: "page",
+				name: "Maintenance",
+				desc: "Local state, remote integrity and storage cleanup.",
+				items: [maintenanceSection(ctx)],
+			},
+			logsPage(this.plugin),
+		];
 	}
 }

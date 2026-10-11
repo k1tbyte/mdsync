@@ -7,7 +7,7 @@ import {
 	CLEAN,
 	clickMenuItem,
 	closeModals,
-	openSettings,
+	openSharedFolderSettings,
 	press,
 	read,
 	sync,
@@ -242,8 +242,7 @@ async function pauseHere(
 	action: string,
 	paused: number,
 ): Promise<void> {
-	await openSettings(device, "Sync");
-	await press(device, "Manage");
+	await openSharedFolderSettings(device);
 	await press(device, action);
 	await device.waitFor(
 		`${action} saved`,

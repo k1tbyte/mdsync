@@ -1,7 +1,7 @@
+import type { Setting } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-import { type FieldContext, renderField } from "@/settings/fields";
-import { renderRelaySection } from "@/settings/sections/relay";
+import { type FieldContext, fieldRow } from "@/settings/fields";
+import { relaySection } from "@/settings/sections/relay";
 
 vi.mock("obsidian", () => ({
 	Setting: class {
@@ -20,8 +20,9 @@ vi.mock("obsidian", () => ({
 	},
 }));
 vi.mock("@/settings/fields", () => ({
-	renderField: vi.fn(),
-	renderCheckRow: vi.fn(),
+	fieldRow: vi.fn(),
+	checkRow: vi.fn(),
+	group: (_heading: string, items: unknown[]) => ({ items }),
 }));
 vi.mock("@/ui/common/notices", () => ({
 	runWithNotice: vi.fn(async (action: () => Promise<void>) => {
@@ -52,20 +53,25 @@ function relayForm(relaySecret: string) {
 			typed = listener;
 		},
 	};
-	vi.mocked(renderField)
-		.mockReturnValueOnce({} as ReturnType<typeof renderField>)
-		.mockReturnValueOnce({
-			addButton: (build: (button: unknown) => void) => build(button),
-			controlEl: { querySelector: () => input },
-		} as unknown as ReturnType<typeof renderField>);
+	vi.mocked(fieldRow).mockImplementation((_ctx, field) => ({
+		name: field.name,
+		render: () => {},
+	}));
 	const saveSettings = vi.fn(async () => {});
 	const rerender = vi.fn();
-	renderRelaySection(
-		{} as HTMLElement,
+	const definitions = relaySection({
+		plugin: { settings, saveSettings },
+		rerender,
+	} as unknown as FieldContext);
+	const row = definitions.items?.find((item) => item.name === "Relay secret");
+	if (!row || !("render" in row) || !row.render)
+		throw new Error("No relay secret row");
+	row.render(
 		{
-			plugin: { settings, saveSettings },
-			rerender,
-		} as unknown as FieldContext,
+			addButton: (build: (button: unknown) => void) => build(button),
+			controlEl: { querySelector: () => input },
+		} as unknown as Setting,
+		{} as never,
 	);
 	return {
 		settings,

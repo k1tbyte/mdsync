@@ -1,4 +1,4 @@
-import { Setting } from "obsidian";
+import type { Setting, SettingDefinitionGroup } from "obsidian";
 
 import {
 	AUTO_PUSH_SETTLE_MAX_SECONDS,
@@ -13,7 +13,8 @@ import type { PluginHost } from "@/plugin/host";
 import type { People } from "@/presence";
 import {
 	type FieldContext,
-	renderFields,
+	fieldRow,
+	group,
 	type SettingsField,
 	SUB_SETTING_CLASS,
 } from "@/settings/fields";
@@ -150,26 +151,21 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 	},
 ];
 
-/** Returns unsubscribe for the connected-devices row, if shown. */
-export function renderAutomationSection(
-	parent: HTMLElement,
-	plugin: PluginHost,
-	onDisplay: () => void,
-): (() => void) | null {
-	new Setting(parent).setName("Automation").setHeading();
-
-	const ctx: FieldContext = { plugin, rerender: onDisplay };
-	renderFields(parent, ctx, AUTOMATION_FIELDS);
-
-	if (!plugin.settings.realtimeSync) return null;
-	return renderConnectedDevices(parent, plugin);
+export function automationSection(ctx: FieldContext): SettingDefinitionGroup {
+	return group("Automation", [
+		...AUTOMATION_FIELDS.map((field) => fieldRow(ctx, field)),
+		{
+			name: "Connected devices",
+			visible: () => ctx.plugin.settings.realtimeSync,
+			render: (setting) => renderConnectedDevices(setting, ctx.plugin),
+		},
+	]);
 }
 
 function renderConnectedDevices(
-	parent: HTMLElement,
+	devicesSetting: Setting,
 	plugin: PluginHost,
 ): () => void {
-	const devicesSetting = new Setting(parent).setName("Connected devices");
 	devicesSetting.settingEl.addClass(SUB_SETTING_CLASS);
 	const { hub, people } = plugin.realtime;
 	const render = (): void => {

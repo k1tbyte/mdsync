@@ -198,7 +198,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		registerStatePersistenceFlush(this, this.statePersister);
 
 		// Re-render the open Settings tab so auth status updates live.
-		registerProtocolHandlers(this, () => this.settingsTab?.display());
+		registerProtocolHandlers(this, () => this.settingsTab?.update());
 
 		if (this.freshInstall) {
 			// Saved first: closing the wizard must not bring it back on every start.
@@ -276,7 +276,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 
 	openSetup(step?: ESetupStep): void {
 		// The settings tab under the wizard would keep showing what the wizard replaced.
-		openSetupWizard(this, step, () => this.settingsTab?.display());
+		openSetupWizard(this, step, () => this.settingsTab?.update());
 	}
 
 	scheduleScopeRefresh(reason = "Sync scope changed."): void {
@@ -306,7 +306,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		this.refreshEditorSigns(this.settings.showEditorChangeSigns);
 		this.refreshFileIndicators(this.settings.showFileExplorerIndicators);
 		this.refreshSourceControlView();
-		this.settingsTab?.display();
+		this.settingsTab?.update();
 		this.scheduleScopeRefresh("Settings imported.");
 	}
 }

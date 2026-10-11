@@ -4,8 +4,9 @@ import {
 	cloudflareOf,
 } from "@/settings/cloudflare-login";
 import { testConnection } from "@/settings/connection-test";
+import { renderDefinitions } from "@/settings/fields";
 import { activeStorage, isStorageConfigured } from "@/settings/model";
-import { renderBackendSection } from "@/settings/sections/backend";
+import { backendSection } from "@/settings/sections/backend";
 import { describeStorageTarget } from "@/storage";
 import { alertLine } from "@/ui/common";
 import { choiceCard } from "./choice-card";
@@ -116,7 +117,9 @@ export function createStorageStep(wizard: Wizard): StepView {
 	};
 
 	const renderOther = (el: HTMLElement): void => {
-		renderBackendSection(el, plugin, () => wizard.redraw());
+		renderDefinitions(el, [
+			backendSection({ plugin, rerender: () => wizard.redraw() }),
+		]);
 		if (state.error) alertLine(el).setText(state.error);
 		actionRow(el).addButton((b) =>
 			b

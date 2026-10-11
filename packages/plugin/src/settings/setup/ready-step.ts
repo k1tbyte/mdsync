@@ -1,7 +1,7 @@
 import { Setting, setIcon } from "obsidian";
 
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
-import { renderFields } from "@/settings/fields";
+import { fieldRow, renderDefinitions } from "@/settings/fields";
 import {
 	activeStorage,
 	canSync,
@@ -157,10 +157,11 @@ export function createReadyStep(wizard: Wizard): StepView {
 			});
 			renderSummary(el);
 			renderSync(el);
-			renderFields(
+			renderDefinitions(
 				el,
-				{ plugin, rerender: () => wizard.redraw() },
-				SETUP_FIELDS,
+				SETUP_FIELDS.map((field) =>
+					fieldRow({ plugin, rerender: () => wizard.redraw() }, field),
+				),
 			);
 			new Setting(el)
 				.setName("Set up another device")

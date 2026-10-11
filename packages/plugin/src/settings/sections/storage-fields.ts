@@ -1,6 +1,7 @@
-import { Setting } from "obsidian";
+import type { Setting } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
+import type { SettingsRow } from "@/settings/fields";
 import {
 	EFieldKind,
 	EStorageBackend,
@@ -11,21 +12,22 @@ import {
 } from "@/storage";
 import { notifyError, notifyInfo } from "@/ui";
 
-/**
- * Renders one backend's credential fields. Takes the kind explicitly so the shares section can edit S3
- * without the vault switching to it.
- */
-export function renderStorageFields(
-	parent: HTMLElement,
+export function storageRows(
 	plugin: PluginHost,
 	kind: EStorageBackend,
-): void {
-	for (const field of getDescriptor(kind).fields) {
-		renderStorageField(parent, plugin, kind, field);
-	}
+): SettingsRow[] {
+	const rows: SettingsRow[] = getDescriptor(kind).fields.map((field) => ({
+		name: field.name,
+		desc: field.desc,
+		render: (setting) => renderStorageField(setting, plugin, kind, field),
+	}));
 	if (kind === EStorageBackend.GoogleDrive) {
-		renderGoogleDriveAuth(parent, plugin, kind);
+		rows.push({
+			name: "Google account",
+			render: (setting) => renderGoogleDriveAuth(setting, plugin, kind),
+		});
 	}
+	return rows;
 }
 
 function storageOf(
@@ -38,13 +40,11 @@ function storageOf(
 }
 
 function renderStorageField(
-	parent: HTMLElement,
+	setting: Setting,
 	plugin: PluginHost,
 	kind: EStorageBackend,
 	field: SettingsFieldSpec,
 ): void {
-	const setting = new Setting(parent).setName(field.name);
-	if (field.desc) setting.setDesc(field.desc);
 	const storage = storageOf(plugin, kind);
 
 	if (field.kind === EFieldKind.Toggle) {
@@ -89,7 +89,7 @@ function renderStorageField(
 }
 
 function renderGoogleDriveAuth(
-	parent: HTMLElement,
+	setting: Setting,
 	plugin: PluginHost,
 	kind: EStorageBackend,
 ): void {
@@ -98,8 +98,7 @@ function renderGoogleDriveAuth(
 		storageOf(plugin, kind) as unknown as GoogleDriveStorageConfig;
 	const isAuth = Boolean(config().refreshToken);
 
-	new Setting(parent)
-		.setName("Google account")
+	setting
 		.setDesc(
 			isAuth
 				? "Authenticated. Tokens are stored on this device."

@@ -1,6 +1,7 @@
-import { Setting } from "obsidian";
+import type { SettingDefinitionGroup } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
+import { type FieldContext, group } from "@/settings/fields";
 import {
 	deepCleanOrphanedObjects,
 	resetLocalState,
@@ -46,28 +47,29 @@ const MAINTENANCE_ACTIONS: ReadonlyArray<MaintenanceAction> = [
 	},
 ];
 
-export function renderMaintenanceSection(
-	parent: HTMLElement,
-	plugin: PluginHost,
-): void {
-	new Setting(parent).setName("Maintenance").setHeading();
-
-	for (const action of MAINTENANCE_ACTIONS) {
-		new Setting(parent)
-			.setName(action.name)
-			.setDesc(action.desc)
-			.addButton((button) => {
-				let running = false;
-				button.setButtonText(action.buttonText).onClick(() => {
-					if (running) return;
-					running = true;
-					button.setDisabled(true);
-					void action.run(plugin).finally(() => {
-						running = false;
-						button.setDisabled(false);
+export function maintenanceSection({
+	plugin,
+}: FieldContext): SettingDefinitionGroup {
+	return group(
+		undefined,
+		MAINTENANCE_ACTIONS.map((action) => ({
+			name: action.name,
+			desc: action.desc,
+			render: (setting) => {
+				setting.addButton((button) => {
+					let running = false;
+					button.setButtonText(action.buttonText).onClick(() => {
+						if (running) return;
+						running = true;
+						button.setDisabled(true);
+						void action.run(plugin).finally(() => {
+							running = false;
+							button.setDisabled(false);
+						});
 					});
+					if (action.warning) button.setDestructive();
 				});
-				if (action.warning) button.setDestructive();
-			});
-	}
+			},
+		})),
+	);
 }

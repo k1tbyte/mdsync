@@ -1,9 +1,10 @@
+import { Setting } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 
 import {
 	type FieldContext,
+	fieldRow,
 	type NumberField,
-	renderField,
 } from "@/settings/fields";
 import { EFieldKind } from "@/storage/field-spec";
 
@@ -48,7 +49,7 @@ function typeInto(raw: string) {
 		plugin: { settings, saveSettings: async () => undefined },
 		rerender: () => undefined,
 	} as unknown as FieldContext;
-	renderField({} as HTMLElement, ctx, minutes);
+	fieldRow(ctx, minutes).render(new Setting({} as HTMLElement));
 	typed(raw);
 	return settings.autoSyncIntervalMinutes;
 }

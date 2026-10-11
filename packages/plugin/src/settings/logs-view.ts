@@ -1,4 +1,4 @@
-import { Setting } from "obsidian";
+import { Setting, type SettingDefinitionPage } from "obsidian";
 import {
 	ESyncLogLevel,
 	ESyncLogOperation,
@@ -6,6 +6,7 @@ import {
 } from "@/logs/store";
 import type { PluginHost } from "@/plugin/host";
 import { formatTimestamp } from "@/shared";
+import { imperativePage } from "./page";
 
 const LOG_LEVEL_LABELS: Record<ESyncLogLevel, string> = {
 	[ESyncLogLevel.Info]: "Info",
@@ -27,12 +28,23 @@ const OPERATION_LABELS: Record<ESyncLogOperation, string> = {
 	[ESyncLogOperation.Session]: "Session",
 };
 
-export function renderLogsView(
+export function logsPage(plugin: PluginHost): SettingDefinitionPage {
+	return {
+		type: "page",
+		name: "Logs",
+		desc: "Local sync diagnostics and errors.",
+		page: () =>
+			imperativePage("Logs", (parent, refresh) =>
+				renderLogsView(parent, plugin, refresh),
+			),
+	};
+}
+
+function renderLogsView(
 	parent: HTMLElement,
 	plugin: PluginHost,
 	onRefresh: () => void,
 ): void {
-	new Setting(parent).setName("Logs").setHeading();
 	parent.createEl("p", {
 		text:
 			"Compare, push, pull, reset and sync errors are recorded locally on this device. " +
