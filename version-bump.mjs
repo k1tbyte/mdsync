@@ -12,13 +12,22 @@ if (!notesFor(targetVersion)) {
 	);
 }
 
-const manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
+const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
+// Biome's formatter wants the trailing newline.
+const writeJson = (path, data) =>
+	writeFileSync(path, `${JSON.stringify(data, null, "\t")}\n`);
+
+const manifest = readJson("manifest.json");
 const { minAppVersion } = manifest;
 manifest.version = targetVersion;
-writeFileSync("manifest.json", JSON.stringify(manifest, null, "\t"));
+writeJson("manifest.json", manifest);
 
-const versions = JSON.parse(readFileSync("versions.json", "utf8"));
+const plugin = readJson("packages/plugin/package.json");
+plugin.version = targetVersion;
+writeJson("packages/plugin/package.json", plugin);
+
+const versions = readJson("versions.json");
 if (versions[targetVersion] !== minAppVersion) {
 	versions[targetVersion] = minAppVersion;
-	writeFileSync("versions.json", JSON.stringify(versions, null, "\t"));
+	writeJson("versions.json", versions);
 }
