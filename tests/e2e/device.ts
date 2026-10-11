@@ -214,6 +214,34 @@ export function field(device: Obsidian, name: string): Promise<string> {
 	);
 }
 
+/** Picks `value` in the open modal's dropdown named `name`, once it shows up. */
+export async function choose(
+	device: Obsidian,
+	name: string,
+	value: string,
+): Promise<void> {
+	await poll(`"${name}" dropdown`, () =>
+		device.evaluate(
+			({ label, wanted }) => {
+				const select = [
+					...activeDocument.querySelectorAll(".modal .setting-item"),
+				]
+					.reverse()
+					.find(
+						(row) =>
+							row.querySelector(".setting-item-name")?.textContent === label,
+					)
+					?.querySelector("select");
+				if (!select) throw new Error(`no "${label}" dropdown`);
+				select.value = wanted;
+				select.dispatchEvent(new Event("change"));
+				return true;
+			},
+			{ label: name, wanted: value },
+		),
+	);
+}
+
 export async function openSettings(
 	device: Obsidian,
 	...pages: string[]
