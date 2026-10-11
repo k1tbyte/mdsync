@@ -22,7 +22,9 @@ export function notifyAction(
 	action: () => void,
 ): void {
 	const notice = new Notice(`MDSync: ${message}`, NOTICE_DURATION_MS);
-	new ButtonComponent(notice.messageEl.createDiv())
+	new ButtonComponent(
+		notice.messageEl.createDiv({ cls: "mdsync-notice-action" }),
+	)
 		.setButtonText(label)
 		.setCta()
 		.onClick(() => {

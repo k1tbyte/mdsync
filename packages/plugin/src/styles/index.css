@@ -16,6 +16,7 @@
 
 @import "./diff/view.css";
 @import "./base/icon-button.css";
+@import "./base/notice.css";
 @import "./diff/tones.css";
 @import "./diff/toolbars.css";
 @import "./diff/pane-grid.css";
