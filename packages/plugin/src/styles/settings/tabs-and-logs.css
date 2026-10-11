@@ -8,10 +8,13 @@
 	color: var(--text-on-accent);
 }
 
+/* Obsidian makes the app unselectable; WebKit on iOS reads only the prefixed property. */
 .mdsync-log-list {
 	display: flex;
 	flex-direction: column;
 	gap: var(--size-4-2);
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .mdsync-log-entry {
@@ -34,6 +37,10 @@
 }
 
 .mdsync-log-meta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--size-4-2);
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 	margin-bottom: var(--size-4-1);
