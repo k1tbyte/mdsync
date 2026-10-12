@@ -4,60 +4,27 @@ import { shouldRedeliverBaseline } from "./helpers";
 import type { SignsProvider } from "./provider";
 import { compareTextField, pathFromState } from "./state";
 
+/**
+ * The path is taken once, with the state: Obsidian points the view at the next note before its text
+ * arrives, and the state that brings the text builds this plugin anew. Renames go through the provider.
+ */
 export const subscriberPlugin = (provider: SignsProvider) =>
 	ViewPlugin.fromClass(
 		class {
-			private readonly view: EditorView;
-			private path: string | null = null;
-			private pendingPath: string | null = null;
-
-			constructor(view: EditorView) {
-				this.view = view;
-				const next = pathFromState(view.state);
-				if (next) {
-					this.path = next;
-					provider.registerView(view, next);
-				}
+			constructor(private readonly view: EditorView) {
+				const path = pathFromState(view.state);
+				if (path) provider.registerView(view, path);
 			}
 
 			update(u: ViewUpdate): void {
-				const next = pathFromState(u.view.state);
-				if (next === this.path) {
-					if (next && this.pendingPath === next) {
-						if (u.docChanged) {
-							this.pendingPath = null;
-							provider.redeliver(this.view, next);
-						}
-						return;
-					}
-					if (next && this.needsRedeliver(u, next)) {
-						provider.redeliver(this.view, next);
-					}
-					return;
-				}
-				if (this.path && next) {
-					this.path = next;
-					// Deliver immediately to avoid leaving the gutter blank until the user types.
-					this.pendingPath = null;
-					provider.changeViewPath(this.view, next, true);
-					return;
-				}
-				if (this.path && !next) {
-					this.pendingPath = null;
-					provider.unregisterView(u.view);
-					this.path = null;
-					return;
-				}
-				if (!this.path && next) {
-					this.path = next;
-					provider.registerView(this.view, next);
+				const path = provider.getViewPath(this.view);
+				if (path && this.needsRedeliver(u, path)) {
+					provider.redeliver(this.view, path);
 				}
 			}
 
 			destroy(): void {
-				this.pendingPath = null;
-				if (this.path) provider.unregisterView(this.view);
-				this.path = null;
+				provider.unregisterView(this.view);
 			}
 
 			private needsRedeliver(u: ViewUpdate, path: string): boolean {

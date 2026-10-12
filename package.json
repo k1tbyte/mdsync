@@ -28,6 +28,7 @@
 		"e2e:guest": "pnpm build && jiti tests/e2e/guest.ts",
 		"e2e:people": "pnpm build && jiti tests/e2e/people.ts",
 		"e2e:live-drawing": "pnpm build && jiti tests/e2e/live-drawing.ts",
+		"e2e:note-switch": "pnpm build && jiti tests/e2e/note-switch.ts",
 		"prepare": "husky"
 	},
 	"devDependencies": {

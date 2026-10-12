@@ -9,7 +9,7 @@ import type { SyncController } from "@/sync/controller";
 import { notifyError, runWithNotice } from "@/ui";
 
 import { type SyncChange, toCmText } from "./helpers";
-import { pathFromState, setCompareTextEffect } from "./state";
+import { setCompareTextEffect } from "./state";
 
 const BASELINE_CACHE_MAX = 64;
 
@@ -45,27 +45,6 @@ export class SignsProvider {
 		if (!path) return;
 		this.viewToPath.delete(view);
 		this.detachPath(path, view);
-	}
-
-	changeViewPath(
-		view: EditorView,
-		nextPath: string,
-		shouldDeliver = true,
-	): void {
-		const prevPath = this.viewToPath.get(view);
-		if (prevPath === nextPath) return;
-		if (prevPath) this.detachPath(prevPath, view);
-		this.viewToPath.set(view, nextPath);
-		this.attachPath(nextPath, view);
-		safeDispatch(view, null, () => this.isViewPath(view, nextPath));
-		if (!shouldDeliver) return;
-		const cached = this.cache.get(nextPath);
-		if (cached) {
-			this.touchCache(nextPath, cached);
-			safeDispatch(view, cached.text, () => this.isViewPath(view, nextPath));
-			return;
-		}
-		void this.reload(nextPath);
 	}
 
 	redeliver(view: EditorView, path: string): void {
@@ -134,18 +113,6 @@ export class SignsProvider {
 		this.cache.clear();
 		for (const path of this.pathToViews.keys()) {
 			void this.reload(path);
-		}
-	}
-
-	recheckAll(): void {
-		const snapshot = [...this.viewToPath.entries()];
-		for (const [view, storedPath] of snapshot) {
-			const current = pathFromState(view.state);
-			if (current && current !== storedPath) {
-				this.changeViewPath(view, current);
-			} else if (!current && storedPath) {
-				this.unregisterView(view);
-			}
 		}
 	}
 

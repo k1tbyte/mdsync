@@ -68,6 +68,10 @@ re-injected only on reload.
   file sync of drawings saved with different zoom settles clean; with live
   off, a drawing view that saved takes what the sync writes under it.
   `E2E_SHOTS=1` saves screenshots of these under `artifacts/e2e-shots/`.
+- `pnpm e2e:note-switch` - one leaf switches between two live notes of a
+  share with a slow disk read and a focus change mid-load: no moment shows
+  one note's change signs on the other's text, the header's live mark never
+  drops, and each note keeps its own text.
 
 On Windows the Obsidians run on a desktop of their own (`hidden-desktop.ps1`),
 so they never show or take focus; `E2E_VISIBLE=1` puts them on screen.

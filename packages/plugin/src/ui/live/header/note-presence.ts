@@ -10,6 +10,7 @@ import {
 import { STATE_ICONS } from "@/ui/live/live-state";
 import { CursorFollow } from "./cursor-follow";
 import { type HeaderState, headerOf, showsHeader } from "./header-state";
+import type { LiveStatus } from "./live-status";
 import { openActiveNoteMenu, openNoteMenu } from "./note-menu";
 import { LOCKED } from "./note-menu-items";
 
@@ -20,6 +21,7 @@ interface Shown {
 	el: HTMLElement;
 	/** What it shows: an unchanged header is not redrawn. */
 	key: string;
+	status: LiveStatus | null;
 	path: string;
 	since: number;
 }
@@ -40,6 +42,7 @@ export function registerNotePresence(
 		frame = null;
 		const now = Date.now();
 		const seen = new Set<WorkspaceLeaf>();
+		let settleAt = Number.POSITIVE_INFINITY;
 		workspace.iterateAllLeaves((leaf) => {
 			const header = headerOf(plugin, leaf);
 			if (!header) return;
@@ -53,34 +56,36 @@ export function registerNotePresence(
 			if (entry?.el.parentElement !== actions) {
 				entry?.el.remove();
 				const el = createHeader(plugin, leaf, actions, follows);
-				entry = { el, key: "", path: file.path, since: now };
+				entry = { el, key: "", status: null, path: file.path, since: now };
 				shown.set(leaf, entry);
 			}
 			if (entry.path !== file.path) {
 				entry.path = file.path;
 				entry.since = now;
-				// The last note's people stay off the next one while it settles.
-				entry.key = "";
-				entry.el.empty();
-				entry.el.addClass("mdsync-hidden");
 			}
+			let next = state;
 			if (isPassing(state) && now - entry.since < SETTLE_MS) {
-				settle ??= window.setTimeout(() => {
-					settle = null;
-					schedule();
-				}, SETTLE_MS);
-				return;
+				settleAt = Math.min(settleAt, entry.since + SETTLE_MS);
+				// The last mark holds while this note settles; the last note's people do not.
+				next = { ...state, status: entry.status };
 			}
-			const key = JSON.stringify(state);
+			const key = JSON.stringify(next);
 			if (entry.key === key) return;
 			entry.key = key;
-			fillHeader(entry.el, state);
+			entry.status = next.status;
+			fillHeader(entry.el, next);
 		});
 		for (const [leaf, { el }] of shown) {
 			if (seen.has(leaf)) continue;
 			el.remove();
 			shown.delete(leaf);
 		}
+		if (settleAt === Number.POSITIVE_INFINITY) return;
+		if (settle !== null) window.clearTimeout(settle);
+		settle = window.setTimeout(() => {
+			settle = null;
+			schedule();
+		}, settleAt - now);
 	};
 	const schedule = (): void => {
 		frame ??= window.requestAnimationFrame(render);
