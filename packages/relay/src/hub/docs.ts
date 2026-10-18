@@ -61,7 +61,8 @@ export interface DocStore {
 		payload: Uint8Array,
 	): boolean;
 	purge(channel: string): void;
-	append(channel: string, doc: string, payload: Uint8Array): number;
+	/** Null once the log is full: nothing compacts it, so the note goes back to the file sync. */
+	append(channel: string, doc: string, payload: Uint8Array): number | null;
 	/** Appends only to a document with no log; null when it has one. */
 	seed(channel: string, doc: string, payload: Uint8Array): number | null;
 	/** The snapshot only when `since` predates it; deltas after both. */
@@ -110,13 +111,12 @@ export class Documents {
 			return;
 		}
 		switch (frame.type) {
-			case EFrame.Update:
-				logged(
-					context,
-					frame,
-					this.store.append(grant.channel, doc, frame.payload),
-				);
+			case EFrame.Update: {
+				const seq = this.store.append(grant.channel, doc, frame.payload);
+				if (seq === null) refuse(peer, frame, ERefusal.TooLarge);
+				else logged(context, frame, seq);
 				break;
+			}
 			case EFrame.Seed:
 				this.seed(context, frame);
 				break;

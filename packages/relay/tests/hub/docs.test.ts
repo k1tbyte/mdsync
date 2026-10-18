@@ -9,7 +9,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { HubCore } from "../../src/hub/core";
-import { type Sql, SqlDocStore } from "../../src/hub/store";
+import { MAX_TAIL_DELTAS, type Sql, SqlDocStore } from "../../src/hub/store";
 import { type FakePeer, grant, hub, peer, send, types } from "../helpers/hub";
 import { memorySql } from "../helpers/memory-sql";
 
@@ -165,6 +165,26 @@ describe("hub documents", () => {
 			Array.from({ length: 3 }, () => refused(DOC, ERefusal.ReadOnly)),
 		);
 		expect(sub(core, reader)).toMatchObject({ head: 0, deltas: [] });
+	});
+
+	it("refuses an update to a log nothing compacts, and fans none of it out", () => {
+		const sql = memorySql();
+		const full = new SqlDocStore(sql);
+		for (let at = 0; at < MAX_TAIL_DELTAS; at++) {
+			full.append(VAULT, DOC, Uint8Array.of(1));
+		}
+		const writer = peer(1, [grant(VAULT)]);
+		const follower = peer(2, [grant(VAULT)]);
+		const core = over(sql, writer, follower);
+		sub(core, writer);
+		sub(core, follower);
+		writer.inbox.length = 0;
+		follower.inbox.length = 0;
+
+		update(core, writer, 2);
+
+		expect(writer.inbox).toEqual([refused(DOC, ERefusal.TooLarge)]);
+		expect(follower.inbox).toEqual([]);
 	});
 
 	it("takes the first seed of a document and answers a later one with the room", () => {

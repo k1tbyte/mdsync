@@ -102,7 +102,7 @@ export function useLiveRoom() {
 	}
 
 	/** Another device's keystrokes, each landing in the room's log as its own delta. */
-	async function typedElsewhere(count: number): Promise<void> {
+	async function typedElsewhere(count: number, text = "z"): Promise<void> {
 		const doc = new Y.Doc();
 		for (let left = count; left > 0; ) {
 			const raw = live.hub.connection();
@@ -110,7 +110,7 @@ export function useLiveRoom() {
 			raw.send({ type: EFrame.Sub, doc: live.docId, since: 0 });
 			for (let sent = 0; sent < FRAMES_PER_SOCKET && left > 0; sent++, left--) {
 				const before = Y.encodeStateVector(doc);
-				doc.getText("body").insert(0, "z");
+				doc.getText("body").insert(0, text);
 				const update = Y.encodeStateAsUpdate(doc, before);
 				const payload = await seal(live.keys, update, `doc:${live.docId}`);
 				raw.send({ type: EFrame.Update, doc: live.docId, n: sent, payload });

@@ -257,7 +257,9 @@ places to change later:
   renames settle on the one the hub took first.
 - The lowest writer's client id compacts once 200 deltas pile up; **Rebuild
   live note** sheds tombstones (a note's document reached 3x its text after an
-  hour).
+  hour). A snapshot past a frame makes the leader rebuild the room itself; a
+  rebuild past a frame too sends the note back to the file sync ("too-large"),
+  and past the tail cap the hub refuses its updates the same way.
 - A read-only person's text note follows its room (`live/session/follower-session.ts`):
   it sends only `Sub`, `Unsub` and `Awareness`, never seeds, rotates or
   compacts. It joins only when the disk is the room's text, the agreed text or
@@ -440,8 +442,21 @@ places to change later:
   leaked owner grant admits for up to a day.
 - An unauthenticated upgrade can cost up to 2 KV reads per slot before the hub
   is reached; a Cloudflare rate-limiting rule on `/hub` is the remedy.
-- A writable token can grow one document's log until a client compacts it; the
-  hub caps frames, not a document's delta count.
+- A writable token can fill one document's log up to the tail cap (2,000 deltas
+  or 8 MiB since its snapshot), and open as many documents as it likes; the hub
+  caps frames and tails, not a channel's document count.
+- Open: the hub keeps every room (snapshot, tail, pointer) until its share
+  ends, in one Durable Object capped at 10 GB. Deleting idle rooms is not
+  enough: a deleted id is seedable again, so a device returning with a stale
+  disk takes the regrown log for a lost one and rotates over newer edits, and
+  an expired pointer splits a note from its live successor. Retiring needs a
+  tombstone the hub answers with a new signal, clients moving to the next
+  generation (join it, else seed it), and a backfill batched within the
+  Workers Free write budget.
+- A rebuild (automatic, manual, or a lost log moving on) that lands while a
+  rename waits for its workspace refresh leaves the renamed note in a fresh
+  room apart from the others (`carryRenamed` skips a moved session): live
+  edits stop crossing until it reopens, and the file sync reconciles it.
 - The relay can still withhold, replay or reorder a document's frames:
   additional data binds a frame to where it belongs, not to when.
 - The broker presigns DELETE too: a writer can remove a share's objects;

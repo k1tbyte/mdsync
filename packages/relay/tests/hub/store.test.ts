@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { MOVED_CACHE_MAX, SqlDocStore } from "../../src/hub/store";
+import {
+	MAX_TAIL_BYTES,
+	MAX_TAIL_DELTAS,
+	MOVED_CACHE_MAX,
+	SqlDocStore,
+} from "../../src/hub/store";
 import { loggedSql, memorySql } from "../helpers/memory-sql";
 
 const VAULT = "vault-channel";
@@ -9,6 +14,28 @@ const DOC = "a".repeat(32);
 const NEXT = "b".repeat(32);
 
 const bytes = (...values: number[]) => Uint8Array.from(values);
+
+describe("a log nothing compacts", () => {
+	it("takes no delta past the count cap, until a snapshot covers the log", () => {
+		const store = new SqlDocStore(memorySql());
+		for (let at = 0; at < MAX_TAIL_DELTAS; at++)
+			store.append(VAULT, DOC, bytes(1));
+
+		expect(store.append(VAULT, DOC, bytes(1))).toBeNull();
+		store.compact(VAULT, DOC, bytes(9), MAX_TAIL_DELTAS);
+		expect(store.append(VAULT, DOC, bytes(1))).toBe(MAX_TAIL_DELTAS + 1);
+	});
+
+	it("takes no delta past the byte cap", () => {
+		const store = new SqlDocStore(memorySql());
+		const quarter = new Uint8Array(MAX_TAIL_BYTES / 4);
+		for (let at = 1; at <= 4; at++) {
+			expect(store.append(VAULT, DOC, quarter)).toBe(at);
+		}
+
+		expect(store.append(VAULT, DOC, bytes(1))).toBeNull();
+	});
+});
 
 describe("what an update costs", () => {
 	it("writes the delta row only, once the document exists", () => {

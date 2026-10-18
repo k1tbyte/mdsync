@@ -1,4 +1,4 @@
-import { EFrame } from "@mdsync/protocol";
+import { EFrame, ERefusal } from "@mdsync/protocol";
 import {
 	converge,
 	FLUSHED_MS,
@@ -70,6 +70,46 @@ describe("live session compaction", () => {
 		await sleep(FLUSHED_MS);
 
 		expect(snapshots()).toBe(0);
+	});
+
+	it("goes cold when its snapshot would not fit a frame, rather than let the log grow", async () => {
+		await typedElsewhere(COMPACT_AFTER, "z".repeat(6 * 1024));
+
+		const a = await synced("");
+
+		await waitUntil(() => expect(a.refused).toBe(ERefusal.TooLarge));
+		expect(await roomState()).toMatchObject({ snapshot: null });
+	});
+
+	/** A leader over a room whose snapshot outgrew a frame, though its text alone fits. */
+	async function oversized() {
+		await typedElsewhere(COMPACT_AFTER, "z".repeat(6 * 1024));
+		const a = device("");
+		const small = new Y.Doc();
+		small.getText("body").insert(0, "text");
+		vi.spyOn(a.session.model, "rebuild").mockReturnValue(
+			Y.encodeStateAsUpdate(small),
+		);
+		return a;
+	}
+	const rebuilt = async (a: { session: { movedTo: string | null } }) =>
+		expect(a.session.movedTo).toBe(await docIdFor(live.keys, "note.md", 1));
+
+	it("rebuilds a room whose snapshot would not fit a frame, when its text does", async () => {
+		const a = await oversized();
+
+		await waitUntil(() => rebuilt(a));
+		expect(a.refused).toBeNull();
+	});
+
+	it("asks for that rebuild again after one that did not go through", async () => {
+		const a = await oversized();
+		const rotate = vi.spyOn(a.session, "rotate").mockResolvedValueOnce("busy");
+		await waitUntil(() => expect(rotate).toHaveBeenCalledTimes(1));
+
+		await typedElsewhere(1);
+
+		await waitUntil(() => rebuilt(a));
 	});
 
 	it("lets only the device with the lowest client id compact", async () => {

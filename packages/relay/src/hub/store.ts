@@ -27,6 +27,10 @@ const NEW_LOG = "lower(hex(randomblob(8)))";
 /** `movedTo` is asked on every frame and a pointer never changes once set, so answers are kept, oldest out first. */
 export const MOVED_CACHE_MAX = 1024;
 
+/** A log no client compacts (its snapshot outgrew a frame, or a writer misbehaves) takes no more writes. */
+export const MAX_TAIL_DELTAS = 2_000;
+export const MAX_TAIL_BYTES = 8 * 1024 * 1024;
+
 const cacheKey = (channel: string, doc: string) =>
 	`${channel.length}:${channel}${doc}`;
 
@@ -110,8 +114,29 @@ export class SqlDocStore implements DocStore {
 		this.remember(cacheKey(channel, doc), pointer);
 	}
 
-	append(channel: string, doc: string, payload: Uint8Array): number {
-		return this.insert(channel, doc, payload, this.row(channel, doc));
+	append(channel: string, doc: string, payload: Uint8Array): number | null {
+		const row = this.row(channel, doc);
+		if (row && this.tailFull(channel, doc, row, payload.length)) return null;
+		return this.insert(channel, doc, payload, row);
+	}
+
+	/** Counted first, so the byte sum reads at most MAX_TAIL_DELTAS rows. */
+	private tailFull(
+		channel: string,
+		doc: string,
+		row: DocRow,
+		adding: number,
+	): boolean {
+		if (row.head - row.snapSeq >= MAX_TAIL_DELTAS) return true;
+		const [tail] = this.sql
+			.exec(
+				"SELECT coalesce(sum(length(blob)), 0) AS bytes FROM deltas WHERE channel = ? AND doc = ? AND seq > ?",
+				channel,
+				doc,
+				row.snapSeq,
+			)
+			.toArray();
+		return Number(tail?.bytes) + adding > MAX_TAIL_BYTES;
 	}
 
 	seed(channel: string, doc: string, payload: Uint8Array): number | null {

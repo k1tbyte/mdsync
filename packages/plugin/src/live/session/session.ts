@@ -56,6 +56,8 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	/** Disk text offered to an empty room, applied here only once the hub takes it. */
 	private seed: Uint8Array | null = null;
 	private moved: { target: string; note: Uint8Array } | null = null;
+	/** Its snapshot outgrew a frame: each settle asks for a rebuild instead, until the room moves or goes cold. */
+	private oversized = false;
 	private queue: Promise<void> = Promise.resolve();
 	private readonly log: RoomLog;
 	private readonly presence: RoomAwareness;
@@ -395,14 +397,21 @@ export class LiveSession<M extends LiveModel = LiveModel>
 		if (!this.online || !this.log.compactionDue || !this.presence.leads()) {
 			return;
 		}
+		const payload = this.oversized
+			? null
+			: await seal(
+					this.deps.keys,
+					Y.encodeStateAsUpdate(this.doc),
+					this.sealedFor,
+				);
+		// Tombstones may be what outgrew the frame: rebuilt, the note stays live; still too large, `send`
+		// refuses the rebuild and the note leaves live, before its log grows for good.
+		if (!payload || payload.length > MAX_PAYLOAD_BYTES) {
+			this.oversized = true;
+			void this.rotate(await this.deps.successor());
+			return;
+		}
 		const upto = this.log.compactedNow();
-		const payload = await seal(
-			this.deps.keys,
-			Y.encodeStateAsUpdate(this.doc),
-			this.sealedFor,
-		);
-		// Past a frame the log just stays: refused, the whole room would go cold.
-		if (payload.length > MAX_PAYLOAD_BYTES) return;
 		if (this.online) {
 			this.send({ type: EFrame.Snapshot, upto, payload });
 		}
