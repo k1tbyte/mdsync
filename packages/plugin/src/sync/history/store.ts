@@ -26,6 +26,12 @@ export async function readHistoryLog(
 ): Promise<HistoryLog> {
 	const blob = await storage.get(REMOTE_HISTORY_LOG_KEY);
 	if (!blob) {
+		// Read as empty, a log that is there gets rewritten from scratch or its blobs cleaned: ask twice.
+		if (await storage.exists(REMOTE_HISTORY_LOG_KEY)) {
+			throw new Error(
+				"History log is there but could not be read; refusing to reset it.",
+			);
+		}
 		return { version: HISTORY_LOG_VERSION, snapshots: [], changes: {} };
 	}
 	let parsed: HistoryLog;
@@ -136,7 +142,6 @@ export async function setSnapshotPinned(
 	/** Undefined keeps whatever name the pin already has; "" clears it. */
 	label?: string,
 ): Promise<void> {
-	let wroteManifest = false;
 	// A readable manifest for this snapshot is the pin (no replay needed); anything else there must be
 	// replaced, or GC would trust an unreadable pin.
 	const stored = pinned
@@ -157,33 +162,27 @@ export async function setSnapshotPinned(
 		// Manifest before flag: a flag without its manifest lets GC believe objects are protected.
 		const blob = await encryptJson(key, manifestToSpace(manifest, root));
 		await storage.put(pinKey(snapshotId), blob, "application/octet-stream");
-		wroteManifest = true;
 	}
-	try {
-		await updateHistoryLog(
-			storage,
-			key,
-			root,
-			(log) => ({
-				...log,
-				snapshots: log.snapshots.map((entry) =>
-					entry.id === snapshotId ? repin(entry, pinned, label) : entry,
-				),
-			}),
-			(log) =>
-				log.snapshots.some(
-					(entry) =>
-						entry.id === snapshotId &&
-						entry.pinned === pinned &&
-						(label === undefined ||
-							entry.label === (pinned ? label || undefined : undefined)),
-				),
-		);
-	} catch (err) {
-		// Roll the manifest back so it does not linger unreferenced.
-		if (wroteManifest) await safeDeletePin(storage, snapshotId);
-		throw err;
-	}
+	// No rollback on failure: the flag may have landed anyway, and an unflagged manifest is inert (deep clean takes it).
+	await updateHistoryLog(
+		storage,
+		key,
+		root,
+		(log) => ({
+			...log,
+			snapshots: log.snapshots.map((entry) =>
+				entry.id === snapshotId ? repin(entry, pinned, label) : entry,
+			),
+		}),
+		(log) =>
+			log.snapshots.some(
+				(entry) =>
+					entry.id === snapshotId &&
+					entry.pinned === pinned &&
+					(label === undefined ||
+						entry.label === (pinned ? label || undefined : undefined)),
+			),
+	);
 	// A leftover manifest is inert - GC only reads pins that are still flagged.
 	if (!pinned) await safeDeletePin(storage, snapshotId);
 }

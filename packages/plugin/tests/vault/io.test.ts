@@ -167,3 +167,13 @@ describe("vault io", () => {
 		await expect(deletePath(adapter, "locked.md")).rejects.toThrow("EBUSY");
 	});
 });
+
+describe("a name this disk refuses", () => {
+	it("is never written, so Windows hides nothing in a stream", async () => {
+		const adapter = new InMemoryAdapter().asDataAdapter();
+		await expect(writeBinary(adapter, "a:b.md", bytes)).rejects.toThrow(
+			"does not allow",
+		);
+		expect(await adapter.exists("a:b.md")).toBe(false);
+	});
+});

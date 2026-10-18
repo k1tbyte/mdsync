@@ -399,6 +399,81 @@ describe("scanVault with a vault index", () => {
 		expect(snapshot.skipped).toEqual([]);
 	});
 
+	/** The test platform is Windows: any casing of a name opens the file. */
+	function caseBlind(
+		adapter: InMemoryAdapter,
+		unreadable = false,
+	): DataAdapter {
+		const data = adapter.asDataAdapter();
+		return new Proxy(data, {
+			get(target, key, receiver) {
+				const value: unknown = Reflect.get(target, key, receiver);
+				if (!["stat", "exists", "readBinary"].includes(String(key))) {
+					return value;
+				}
+				return async (path: string) => {
+					if (unreadable && key === "readBinary") throw new Error("EBUSY");
+					const { files } = await target.list("");
+					const lower = path.toLowerCase();
+					const real = files.find((p) => p.toLowerCase() === lower) ?? path;
+					return (value as (path: string) => Promise<unknown>).call(
+						target,
+						real,
+					);
+				};
+			},
+		});
+	}
+
+	it("reads another casing of an indexed file as gone, so a case-only rename is a move", async () => {
+		const adapter = vault({ "Note.md": "text" });
+		const index = await indexOf(adapter);
+
+		const { snapshot } = await scanVault(
+			caseBlind(adapter),
+			policy(),
+			{ ...options, index, expected: { "note.md": {} } },
+			{},
+		);
+
+		expect(Object.keys(snapshot.files)).toEqual(["Note.md"]);
+		expect(snapshot.skipped).toEqual([]);
+	});
+
+	it("keeps the index's casing while the index lags a recasing the walk found", async () => {
+		const adapter = vault({ "note.md": "text" });
+		const index = await indexOf(adapter);
+		await adapter.rename("note.md", "Note.md");
+
+		const { snapshot } = await scanVault(
+			caseBlind(adapter),
+			policy(),
+			{ ...options, index, expected: { "note.md": {} }, walk: true },
+			{},
+		);
+
+		expect(Object.keys(snapshot.files)).toEqual(["note.md"]);
+		expect(snapshot.skipped).toEqual([]);
+	});
+
+	it("keeps the old casing of a recased file it cannot read out of the diff", async () => {
+		const adapter = vault({ "Note.md": "text" });
+		const index = await indexOf(adapter);
+
+		const { snapshot } = await scanVault(
+			caseBlind(adapter, true),
+			policy(),
+			{ ...options, index, expected: { "note.md": {} } },
+			{},
+		);
+
+		expect(snapshot.files).toEqual({});
+		expect(snapshot.skipped.map(({ path }) => path).sort()).toEqual([
+			"Note.md",
+			"note.md",
+		]);
+	});
+
 	it("finds files the index missed only when asked to list the disk, never a dot-path", async () => {
 		const adapter = vault({ "a.md": "one" });
 		const index = await indexOf(adapter);

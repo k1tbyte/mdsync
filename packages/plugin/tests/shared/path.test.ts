@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	folderName,
 	hasDotSegment,
+	hasReservedChar,
 	normalizeKeyPrefix,
 	normalizePath,
 } from "@/shared/path";
@@ -36,5 +37,17 @@ describe("folder names", () => {
 		expect(folderName("Team/2024: plans?")).toBe("Team-2024- plans-");
 		expect(folderName("..\\hidden.")).toBe("-hidden");
 		expect(folderName(" . ")).toBe("");
+		expect(folderName("a\tb")).toBe("a-b");
+	});
+});
+
+describe("reserved characters", () => {
+	it("flag a name Windows or Android cannot create, in any folder", () => {
+		expect(hasReservedChar("Icon\r")).toBe(true);
+		expect(hasReservedChar("why?/a.md")).toBe(true);
+		expect(hasReservedChar('say "hi".md')).toBe(true);
+		expect(hasReservedChar("notes/Привет, мир.md")).toBe(false);
+		expect(hasReservedChar("del\u007f.md")).toBe(true);
+		expect(hasReservedChar("nel\u0085 😀 ~.md")).toBe(false);
 	});
 });

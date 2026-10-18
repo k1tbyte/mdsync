@@ -178,7 +178,7 @@ describe("OperationRunner.runOperation", () => {
 			VAULT_SPACE,
 			ESyncLogOperation.Push,
 			async () => {
-				throw new ConcurrentPushError("Remote changed", null);
+				throw new ConcurrentPushError("Remote changed");
 			},
 		);
 		expect(result).toEqual({ ok: false, error: "Remote changed" });

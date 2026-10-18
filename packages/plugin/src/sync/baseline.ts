@@ -1,7 +1,9 @@
 import { randomId } from "@/crypto";
 import { entryAt, sortedByPath } from "@/shared";
+import { diskRefuses } from "@/vault/io";
 import type { ScopePolicy } from "@/vault/scope";
 import { reconcileBaselineResetGenerations } from "./config-reset";
+import { isUnderUnreadableDir } from "./diff";
 import type { CompareResult } from "./engine";
 import type {
 	HashCacheEntry,
@@ -141,6 +143,26 @@ export function resetSessionState(state: SessionState): SessionState {
 		baseline: null,
 		hashCache: state.hashCache,
 	};
+}
+
+/** A baseline folder this device cannot open or create is not absent, so it is no deletion. */
+export function foldersToPublish(
+	compared: Pick<CompareResult, "remote" | "snapshot">,
+	baselineFolders: ReadonlyArray<string> | undefined,
+	scope: ScopePolicy,
+): string[] {
+	const { remote, snapshot } = compared;
+	return mergeFolderArrays(
+		remote?.folders,
+		snapshot.emptyFolders,
+		baselineFolders?.filter(
+			(dir) =>
+				scope.canDescend(dir) &&
+				!diskRefuses(dir) &&
+				!isUnderUnreadableDir(`${dir}/`, snapshot.unreadableDirs),
+		),
+		// Another space's folders leave with its frozen entries.
+	).filter((dir) => scope.owns(dir));
 }
 
 /** A baseline folder stays only while both sides still have it, or every push resurrects a deletion. */

@@ -1,4 +1,5 @@
 import { TestSession, useEncryptionKey } from "@tests/helpers/session";
+import { Platform } from "obsidian";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS_SYNC } from "@/settings/model";
 import type { EngineDependencies } from "@/sync/engine";
@@ -98,5 +99,34 @@ describe("history on a device that ignores a folder", () => {
 		expect(session.text("notes/new.md")).toBe(
 			"written while the modal was open",
 		);
+	});
+});
+
+describe("history restore on a disk that refuses a name", () => {
+	it("restores the rest and leaves the refused path alone", async () => {
+		const session = new TestSession();
+		Platform.isWin = false;
+		try {
+			session.adapter.putText("notes/a.md", "a1");
+			session.adapter.putText("why?.md", "q");
+			await pushAll(session);
+			session.adapter.putText("notes/a.md", "a2");
+			await session.adapter.remove("why?.md");
+			await pushAll(session);
+		} finally {
+			Platform.isWin = true;
+		}
+		const service = serviceFor(session);
+		const { snapshots } = await service.listSnapshots();
+		const first = snapshots[snapshots.length - 1];
+		if (!first) throw new Error("expected two snapshots");
+
+		const preview = await service.previewVaultRestore(first.id);
+		const { plan, applied } = await service.restoreVault(first.id, preview);
+
+		expect(applied).toBe(true);
+		expect(session.text("notes/a.md")).toBe("a1");
+		expect(session.adapter.hasFile("why?.md")).toBe(false);
+		expect(plan.ignored).toEqual(["why?.md"]);
 	});
 });

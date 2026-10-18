@@ -111,13 +111,10 @@ export function reconcileRemoteAgainstBaseline(
 }
 
 export class ConcurrentPushError extends Error {
-	readonly conflictingRemote: Manifest | null;
-	constructor(message: string, conflictingRemote: Manifest | null) {
-		super(message);
-		this.name = "ConcurrentPushError";
-		this.conflictingRemote = conflictingRemote;
-	}
+	override readonly name = "ConcurrentPushError";
 }
+
+const VERIFY_DELAYS_MS = [500, 1_000, 2_000];
 
 /**
  * Publishes if the remote head matches expectedParentSnapshotId; the post-publish verify guards races where
@@ -145,25 +142,29 @@ export async function publishManifestWithGuard(
 	if (precheckId !== expectedParentSnapshotId) {
 		throw new ConcurrentPushError(
 			"Remote manifest changed since the last compare. Re-sync and try again.",
-			precheck,
 		);
 	}
 	await storage.put(REMOTE_MANIFEST_KEY, blob, "application/octet-stream");
-	const verify = await fetchRemoteManifest(storage, key, root);
-	if (
-		verify?.snapshotId === manifest.snapshotId ||
-		(verify && ownSnapshotIds(manifest, storage, key).has(verify.snapshotId))
-	) {
+	// Only our own id read back proves the push landed.
+	const replaced = ownSnapshotIds(manifest, storage, key);
+	let verify = await fetchRemoteManifest(storage, key, root);
+	for (const ms of VERIFY_DELAYS_MS) {
+		if (!verify || !replaced.has(verify.snapshotId)) break;
+		await new Promise((resolve) => window.setTimeout(resolve, ms));
+		verify = await fetchRemoteManifest(storage, key, root);
+	}
+	if (verify?.snapshotId === manifest.snapshotId) {
 		publishedHeads.set(storage, { manifest, key });
 		return;
 	}
 	throw new ConcurrentPushError(
-		"Another device overwrote the manifest immediately after our push.",
-		verify,
+		verify && replaced.has(verify.snapshotId)
+			? "The storage did not show this push yet. Re-sync to see where things stand."
+			: "Another device overwrote the manifest immediately after our push.",
 	);
 }
 
-/** Reading one of these ids back means a stale read, not a lost push. */
+/** Heads this push replaced: read back, they are a stale read or a lost push, so the verify reads again. */
 function ownSnapshotIds(
 	published: Manifest,
 	storage: ObjectStorage,

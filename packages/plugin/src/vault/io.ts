@@ -1,5 +1,6 @@
-import type { DataAdapter } from "obsidian";
+import { type DataAdapter, Platform } from "obsidian";
 
+import { hasReservedChar } from "@/shared";
 import { toArrayBuffer } from "@/utils";
 
 /**
@@ -7,6 +8,21 @@ import { toArrayBuffer } from "@/utils";
  * Only its retry notices a stale yes, so only it reads this; everything else probes. Keyed per adapter.
  */
 const ensuredDirs = new WeakMap<DataAdapter, Set<string>>();
+
+/** Their default disks keep `A.md` and `a.md` as one file. */
+export function caseInsensitiveDisk(): boolean {
+	return (
+		Platform.isWin ||
+		Platform.isMacOS ||
+		Platform.isIosApp ||
+		Platform.isAndroidApp
+	);
+}
+
+/** Windows and Android cannot create a name holding a reserved character. */
+export function diskRefuses(path: string): boolean {
+	return (Platform.isWin || Platform.isAndroidApp) && hasReservedChar(path);
+}
 
 export async function readBinary(
 	adapter: DataAdapter,
@@ -21,6 +37,12 @@ export async function writeBinary(
 	path: string,
 	bytes: Uint8Array,
 ): Promise<void> {
+	// Windows would put `a:b.md` in a hidden stream of `a`; Android fails with FILE_NOTCREATED.
+	if (diskRefuses(path)) {
+		throw new Error(
+			`Cannot write "${path}": its name holds a character this system does not allow.`,
+		);
+	}
 	const buffer = toArrayBuffer(bytes);
 	const parent = parentDir(path);
 	const dirs = knownDirs(adapter);

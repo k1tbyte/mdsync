@@ -1,6 +1,6 @@
 import type { TestSession } from "@tests/helpers/session";
 import { pairedSessions, useEncryptionKey } from "@tests/helpers/session";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { autoMergeOp, isTextMergeCandidate } from "@/sync/auto-merge";
 import { pushPathsOp } from "@/sync/operations/push";
 import { recomputeAfterWrite } from "@/sync/session-state";
@@ -140,6 +140,36 @@ describe("autoMergeOp", () => {
 		expect(outcome.touchedPaths.size).toBe(0);
 		expect(outcome.localEntries).toBeUndefined();
 		expect(a.text("note.md")).toContain("LOCAL");
+	});
+
+	it("leaves a note typed into while the remote sides download", async () => {
+		const [a] = await diverged(
+			BASE.replace("one", "ONE"),
+			BASE.replace("six", "SIX"),
+		);
+		const result = await a.compare();
+		const typed = BASE.replace("one", "ONE, and more");
+		let localRead = (): void => undefined;
+		const read = new Promise<void>((resolve) => {
+			localRead = resolve;
+		});
+		const readBinary = a.adapter.readBinary.bind(a.adapter);
+		vi.spyOn(a.adapter, "readBinary").mockImplementation(async (path) => {
+			const bytes = await readBinary(path);
+			localRead();
+			return bytes;
+		});
+		const get = a.storage.get.bind(a.storage);
+		vi.spyOn(a.storage, "get").mockImplementation(async (key) => {
+			await read;
+			a.adapter.putText("note.md", typed);
+			return get(key);
+		});
+
+		const outcome = await autoMergeOp(a.deps(), result, a.context());
+
+		expect(a.text("note.md")).toBe(typed);
+		expect(outcome.touchedPaths.size).toBe(0);
 	});
 
 	it("skips a conflict with no common ancestor", async () => {

@@ -401,7 +401,7 @@ describe("describeRestorePlan", () => {
 
 	it("says the ignore rules win, and reads right for a single file", () => {
 		expect(describeRestorePlan(plan({ ignored: ["secret.md"] }))).toContain(
-			"1 file excluded by ignore rules will not be touched.",
+			"1 file excluded from sync on this device will not be touched.",
 		);
 		expect(describeRestorePlan(plan({ unchanged: 1 }))).toContain(
 			"1 file already up to date.",

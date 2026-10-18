@@ -106,7 +106,9 @@ export type SkippedFile =
 	| { path: string; reason: "too-large"; size: number }
 	| { path: string; reason: "unreadable"; detail?: string }
 	/** Its name differs from `other`'s only in case. */
-	| { path: string; reason: "case-clash"; other: string };
+	| { path: string; reason: "case-clash"; other: string }
+	/** A remote name this disk refuses. */
+	| { path: string; reason: "reserved-name" };
 
 export const EChangeType = {
 	LocalAdd: "local-add",

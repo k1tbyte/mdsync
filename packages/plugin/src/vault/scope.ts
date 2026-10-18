@@ -36,6 +36,9 @@ const CONFIG_SUBDIR_DENYLIST: ReadonlyArray<string> = [".cache/"];
 
 const VAULT_SUBDIR_DENYLIST: ReadonlyArray<string> = [".trash/", ".git/"];
 
+/** Finder's custom folder icon: empty, the icon lives in a resource fork. Android cannot even name it. */
+const MAC_FOLDER_ICON = "Icon\r";
+
 const DEVICE_LOCAL_PLUGIN_IDS: ReadonlyArray<string> = [
 	"obsidian-git",
 	"file-recovery",
@@ -167,6 +170,9 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 
 	function isPathAllowed(path: string): boolean {
 		if (!path) return false;
+		if (path === MAC_FOLDER_ICON || path.endsWith(`/${MAC_FOLDER_ICON}`)) {
+			return false;
+		}
 		if (isInVaultDenylist(path)) return false;
 		if (path.startsWith(ownPluginPrefix)) return false;
 		// Device-local like ignore patterns: excluded from diff so links are not read as deletions.

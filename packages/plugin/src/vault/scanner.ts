@@ -1,5 +1,4 @@
 import type { DataAdapter } from "obsidian";
-import { Platform } from "obsidian";
 import { DEFAULT_CONCURRENCY } from "@/constants";
 import { sha256Hex } from "@/crypto";
 import { sceneOfBytes } from "@/drawing";
@@ -16,9 +15,20 @@ import {
 	runWithConcurrency,
 } from "@/utils";
 import type { VaultIndex } from "./file-index";
+import { caseInsensitiveDisk } from "./io";
 import type { ScopePolicy } from "./scope";
 
 const RACY_INDEX_WINDOW_MS = 2_000;
+
+function sameFile(a?: ManifestEntry, b?: ManifestEntry): boolean {
+	return (
+		a !== undefined &&
+		b !== undefined &&
+		a.hash === b.hash &&
+		a.size === b.size &&
+		a.mtime === b.mtime
+	);
+}
 
 const ROOT = "";
 
@@ -137,20 +147,35 @@ export async function scanVault(
 		if (options.onProgress && count % 500 === 0) options.onProgress(count);
 	});
 
-	// Windows and macOS default to case-insensitive filesystems; prevent case collisions.
-	if (Platform.isWin || Platform.isMacOS) {
+	if (caseInsensitiveDisk()) {
+		const listed = new Set(
+			paths
+				.filter(({ size, mtime }) => size !== undefined && mtime !== undefined)
+				.map(({ path }) => path),
+		);
 		const lower = new Map<string, string>();
 		// Sort to ensure the surviving spelling of a case collision is deterministic.
 		for (const path of Object.keys(files).sort()) {
 			const lc = path.toLowerCase();
 			const existing = lower.get(lc);
-			if (existing) {
-				skipped.push({ path, reason: "case-clash", other: existing });
-				delete files[path];
-				delete updatedCache[path];
-			} else {
+			if (!existing) {
 				lower.set(lc, path);
+				continue;
 			}
+			// One file read under the index's spelling and an old one: the old is gone, so a recasing is a move.
+			if (
+				listed.has(existing) !== listed.has(path) &&
+				sameFile(files[existing], files[path])
+			) {
+				const alias = listed.has(path) ? existing : path;
+				if (alias === existing) lower.set(lc, path);
+				delete files[alias];
+				delete updatedCache[alias];
+				continue;
+			}
+			skipped.push({ path, reason: "case-clash", other: existing });
+			delete files[path];
+			delete updatedCache[path];
 		}
 	}
 

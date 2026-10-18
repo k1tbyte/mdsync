@@ -36,7 +36,7 @@ import {
 } from "@/sync/projection";
 import type { LocalSnapshot, Manifest } from "@/sync/types";
 import { runWithConcurrency, withEolOf } from "@/utils";
-import { trashPath, writeBinary } from "@/vault/io";
+import { diskRefuses, trashPath, writeBinary } from "@/vault/io";
 import { scanVault } from "@/vault/scanner";
 
 const NO_SESSION = "Storage session unavailable";
@@ -133,8 +133,10 @@ export class HistoryService {
 		session: EngineDependencies,
 		target: Manifest,
 	): Promise<VaultRestorePlan> {
-		return planVaultRestore(target, await scanLocal(session), (path) =>
-			session.scope.includes(path),
+		return planVaultRestore(
+			target,
+			await scanLocal(session),
+			(path) => session.scope.includes(path) && !diskRefuses(path),
 		);
 	}
 

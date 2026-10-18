@@ -32,3 +32,27 @@ export function forgetUploads(
 	if (!byHash || byHash.size === 0) return;
 	for (const hash of hashes) byHash.delete(hash);
 }
+
+/** Past any upload a push still trusts, with room for clock skew. */
+const SETTLED_AFTER_MS = 2 * UPLOAD_TRUST_MS;
+
+/**
+ * Keys old enough to be no push's: another device's push uploads before it
+ * publishes, and a pin's manifest lands before its flag. Undated ones are kept.
+ */
+export async function settledKeys(
+	storage: ObjectStorage,
+	prefix: string,
+): Promise<string[]> {
+	if (!storage.listDetailed) {
+		throw new Error(
+			"This storage does not report when objects were written, so a running upload cannot be told from an orphan.",
+		);
+	}
+	const settledBefore = Date.now() - SETTLED_AFTER_MS;
+	return (await storage.listDetailed(prefix))
+		.filter(
+			(object) => object.modified !== null && object.modified < settledBefore,
+		)
+		.map((object) => object.key);
+}

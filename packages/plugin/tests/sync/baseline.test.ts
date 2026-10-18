@@ -1,17 +1,21 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_SETTINGS_SYNC } from "@/settings/model";
 import {
 	advanceBaselineForPaths,
+	foldersToPublish,
 	majorityFolders,
 	mergeFolderArrays,
 	mergeWrittenIntoCache,
 	publishedDelta,
 } from "@/sync/baseline";
+import type { CompareResult } from "@/sync/engine";
 import {
 	EFileKind,
 	type HashCacheEntry,
 	type Manifest,
 	type ManifestEntry,
 } from "@/sync/types";
+import { createScopePolicy } from "@/vault/scope";
 
 function entry(hash: string, overrides: Partial<ManifestEntry> = {}) {
 	return {
@@ -55,6 +59,25 @@ describe("baseline utilities", () => {
 		it("handles undefined or empty remote folders", () => {
 			expect(mergeFolderArrays(undefined, ["local"]).sort()).toEqual(["local"]);
 			expect(mergeFolderArrays([], ["local"]).sort()).toEqual(["local"]);
+		});
+
+		it("keeps publishing a folder this disk cannot create, until another device drops it", () => {
+			const scope = createScopePolicy({
+				settingsSync: DEFAULT_SETTINGS_SYNC,
+				configDir: ".obsidian",
+			});
+			const compared = (folders: string[]) =>
+				({
+					remote: manifest("r", {}, folders),
+					snapshot: { emptyFolders: ["kept"], unreadableDirs: [] },
+				}) as unknown as Pick<CompareResult, "remote" | "snapshot">;
+			const baseline = ["empty?", "kept"];
+			expect(
+				foldersToPublish(compared(["empty?", "kept"]), baseline, scope).sort(),
+			).toEqual(["empty?", "kept"]);
+			expect(foldersToPublish(compared(["kept"]), baseline, scope)).toEqual([
+				"kept",
+			]);
 		});
 
 		it("drops a folder the baseline knew about and the vault no longer has", () => {

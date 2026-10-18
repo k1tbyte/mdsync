@@ -197,7 +197,7 @@ export function describeRestorePlan(plan: VaultRestorePlan): string[] {
 	}
 	if (plan.ignored.length > 0) {
 		lines.push(
-			`${pluralize(plan.ignored.length, "file")} excluded by ignore rules will not be touched.`,
+			`${pluralize(plan.ignored.length, "file")} excluded from sync on this device will not be touched.`,
 		);
 	}
 	if (lines.length === 0)

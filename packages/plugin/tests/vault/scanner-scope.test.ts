@@ -40,6 +40,12 @@ describe("scope: vault paths", () => {
 		expect(scope.canDescend(".git")).toBe(false);
 	});
 
+	it("leaves out Finder's folder icon, at the root and below", () => {
+		expect(scope.includes("Icon\r")).toBe(false);
+		expect(scope.includes("notes/Icon\r")).toBe(false);
+		expect(scope.includes("Icon.md")).toBe(true);
+	});
+
 	it("never syncs its own plugin data", () => {
 		const own = `${CONFIG}/plugins/mdsync/data.json`;
 		expect(scope.includes(own)).toBe(false);

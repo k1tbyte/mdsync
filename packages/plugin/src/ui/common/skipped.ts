@@ -18,5 +18,8 @@ export function skippedText(file: SkippedFile, maxFileBytes: number): string {
 	if (file.reason === "case-clash") {
 		return `Not synced: its name differs from "${file.other}" only in case, which this system cannot keep apart.`;
 	}
+	if (file.reason === "reserved-name") {
+		return 'Not synced: its name holds a character this system does not allow, such as : ? * " < > | or a control character. Rename it on the device that has it.';
+	}
 	return `Not synced: it could not be read${file.detail ? ` (${file.detail})` : ""}.`;
 }

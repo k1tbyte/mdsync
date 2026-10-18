@@ -11,6 +11,7 @@ import { tryAutoMergeConflict } from "./conflict-merge";
 import {
 	hasKnownBinaryExtension,
 	textToBytes,
+	untouchedSince,
 	writeLocalFile,
 } from "./content";
 import type { CompareResult, EngineDependencies } from "./engine";
@@ -114,9 +115,17 @@ async function settleConflict(
 	const side = await settleLive(deps, result, conflict.path);
 	if (side === "later") return undefined;
 	if (side === "local") return result.snapshot.files[conflict.path] ?? null;
+	// Edited since the scan: a write now would drop what was typed meanwhile.
+	const ready = untouchedSince(
+		deps,
+		conflict.path,
+		result.snapshot.files[conflict.path],
+	);
 	const remote = result.remote?.files[conflict.path];
 	if (side === "remote" && remote) {
-		return (await writeIncoming(deps, conflict.path, remote)) ?? undefined;
+		return (
+			(await writeIncoming(deps, conflict.path, remote, ready)) ?? undefined
+		);
 	}
 	// No common ancestor: nothing to merge against, and no reason to stat.
 	if (!conflict.baselineHash) return undefined;
@@ -129,7 +138,7 @@ async function settleConflict(
 	);
 	if (!mergeable) return undefined;
 	const text = await tryAutoMergeConflict(deps, conflict);
-	if (text === null) return undefined;
+	if (text === null || !(await ready())) return undefined;
 	const written = await writeLocalFile(deps, conflict.path, textToBytes(text));
 	if (remote) await grewFrom(deps, conflict.path, remote);
 	return written;

@@ -1,5 +1,13 @@
 import { FakeStorage } from "@tests/helpers/fake-storage";
-import { beforeAll, describe, expect, it } from "vitest";
+import {
+	afterEach,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
 import { deriveKey, type EncryptionKey, encryptJson } from "@/crypto";
 import { REMOTE_MANIFEST_KEY } from "@/sync/constants";
 import {
@@ -33,9 +41,15 @@ async function seed(storage: FakeStorage, head: Manifest): Promise<void> {
 
 class StaleReadStorage extends FakeStorage {
 	staleBlob: Uint8Array | null = null;
+	/** Manifest reads that still get `staleBlob`, then the storage catches up. */
+	staleReads = Number.POSITIVE_INFINITY;
 
 	override async get(objectKey: string): Promise<Uint8Array | null> {
-		if (objectKey === REMOTE_MANIFEST_KEY && this.staleBlob) {
+		if (
+			objectKey === REMOTE_MANIFEST_KEY &&
+			this.staleBlob &&
+			this.staleReads-- > 0
+		) {
 			return this.staleBlob;
 		}
 		return super.get(objectKey);
@@ -120,19 +134,16 @@ describe("publishManifestWithGuard", () => {
 		const theirs = manifest("s9", "s1");
 		await seed(storage, theirs);
 
-		const error = await publishManifestWithGuard(
-			storage,
-			key,
-			"",
-			manifest("s2", "s1"),
-			"s1",
-			manifest("s1", null),
-		).catch((err: unknown) => err);
-
-		expect(error).toBeInstanceOf(ConcurrentPushError);
-		expect((error as ConcurrentPushError).conflictingRemote?.snapshotId).toBe(
-			"s9",
-		);
+		await expect(
+			publishManifestWithGuard(
+				storage,
+				key,
+				"",
+				manifest("s2", "s1"),
+				"s1",
+				manifest("s1", null),
+			),
+		).rejects.toBeInstanceOf(ConcurrentPushError);
 		// The competing head must survive intact.
 		expect((await fetchRemoteManifest(storage, key, ""))?.snapshotId).toBe(
 			"s9",
@@ -153,8 +164,9 @@ describe("publishManifestWithGuard", () => {
 		const baseline = manifest("s2", "s1");
 		await seed(storage, manifest("s1", null));
 		await publishManifestWithGuard(storage, key, "", baseline, "s1");
-		// Read path is stuck one publish behind.
+		// Read path is one publish behind for the precheck and the first verify.
 		storage.staleBlob = await encryptJson(key, manifest("s1", null));
+		storage.staleReads = 2;
 
 		await publishManifestWithGuard(
 			storage,
@@ -171,18 +183,33 @@ describe("publishManifestWithGuard", () => {
 		);
 	});
 
-	it("tolerates a verify that reads back the manifest we replaced", async () => {
+	// Verify retries wait between reads; fire them at once.
+	beforeEach(() => {
+		vi.spyOn(window, "setTimeout").mockImplementation(((fn: () => void) => {
+			fn();
+			return 0;
+		}) as typeof window.setTimeout);
+	});
+	afterEach(() => vi.restoreAllMocks());
+
+	/** The verify reads back the head it replaced, `reads` times. */
+	async function staleAfterPush(reads: number) {
 		const storage = new StaleReadStorage();
 		const head = manifest("s1", null);
 		await seed(storage, head);
 		const staleAfterWrite = await encryptJson(key, head);
-
 		const originalPut = storage.put.bind(storage);
 		storage.put = async (objectKey, body) => {
 			await originalPut(objectKey, body);
-			if (objectKey === REMOTE_MANIFEST_KEY)
-				storage.staleBlob = staleAfterWrite;
+			if (objectKey !== REMOTE_MANIFEST_KEY) return;
+			storage.staleBlob = staleAfterWrite;
+			storage.staleReads = reads;
 		};
+		return { storage, head };
+	}
+
+	it("reads again while the storage still shows the manifest we replaced", async () => {
+		const { storage, head } = await staleAfterPush(1);
 
 		await publishManifestWithGuard(
 			storage,
@@ -193,10 +220,24 @@ describe("publishManifestWithGuard", () => {
 			head,
 		);
 
-		storage.staleBlob = null;
 		expect((await fetchRemoteManifest(storage, key, ""))?.snapshotId).toBe(
 			"s2",
 		);
+	});
+
+	it("never calls a push done that it could not read back", async () => {
+		const { storage, head } = await staleAfterPush(Number.POSITIVE_INFINITY);
+
+		await expect(
+			publishManifestWithGuard(
+				storage,
+				key,
+				"",
+				manifest("s2", "s1"),
+				"s1",
+				head,
+			),
+		).rejects.toBeInstanceOf(ConcurrentPushError);
 	});
 
 	it("reports a manifest overwritten right after our push", async () => {

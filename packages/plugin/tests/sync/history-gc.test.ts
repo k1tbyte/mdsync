@@ -21,6 +21,8 @@ import type { HistoryLog, SnapshotEntry } from "@/sync/history/types";
 import { objectKey } from "@/sync/manifest";
 import type { EFileKind, Manifest } from "@/sync/types";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 function manifest(
 	snapshotId: string,
 	parentSnapshotId: string | null,
@@ -184,6 +186,7 @@ describe("collectGarbage (change log)", () => {
 		const head = chain[4] as Manifest;
 		await publishManifest(storage, k, head);
 		await seedObjects(storage, ["A1", "A2", "A3"]);
+		storage.age(DAY_MS + 1);
 		const log = logOf(chain);
 		await writeHistoryLog(storage, k, "", log);
 
@@ -206,6 +209,66 @@ describe("collectGarbage (change log)", () => {
 		const next = await readHistoryLog(storage, k, "");
 		expect(next.snapshots.map((e) => e.id)).toEqual(["s5", "s4"]);
 		expect(Object.keys(next.changes).sort()).toEqual(["s4", "s5"]);
+	});
+
+	it("keeps an orphan another device re-uploaded for a push not yet published", async () => {
+		const storage = new FakeStorage();
+		const k = await key();
+		const chain = [
+			manifest("s1", null, { a: "A1" }),
+			manifest("s2", "s1", { a: "A2" }),
+			manifest("s3", "s2", { a: "A3" }),
+			manifest("s4", "s3", { a: "A4" }),
+		];
+		const head = chain[3] as Manifest;
+		await publishManifest(storage, k, head);
+		await seedObjects(storage, ["A1", "A2", "A3", "A4"]);
+		storage.age(DAY_MS + 1);
+		await seedObjects(storage, ["A1"]);
+		const log = logOf(chain);
+		await writeHistoryLog(storage, k, "", log);
+
+		const res = await collectGarbage({
+			storage,
+			key: k,
+			root: "",
+			log,
+			maxSnapshots: 1,
+			headManifest: head,
+		});
+
+		expect(res.deletedObjects).toBe(1);
+		expect(await storage.exists(objectKey("A1"))).toBe(true);
+		expect(await storage.exists(objectKey("A2"))).toBe(false);
+	});
+
+	it("counts only the blobs it could delete", async () => {
+		const storage = new FakeStorage();
+		const k = await key();
+		const chain = [
+			manifest("s1", null, { a: "A1" }),
+			manifest("s2", "s1", { a: "A2" }),
+			manifest("s3", "s2", { a: "A3" }),
+		];
+		const head = chain[2] as Manifest;
+		await publishManifest(storage, k, head);
+		await seedObjects(storage, ["A1", "A2", "A3"]);
+		storage.age(DAY_MS + 1);
+		const log = logOf(chain);
+		await writeHistoryLog(storage, k, "", log);
+		vi.spyOn(storage, "delete").mockRejectedValue(new Error("denied"));
+
+		const res = await collectGarbage({
+			storage,
+			key: k,
+			root: "",
+			log,
+			maxSnapshots: 1,
+			headManifest: head,
+		});
+
+		expect(res.deletedObjects).toBe(0);
+		expect(await storage.exists(objectKey("A1"))).toBe(true);
 	});
 
 	it("skips the object sweep when a pinned manifest is unreadable", async () => {
@@ -331,6 +394,7 @@ describe("collectGarbage (change log)", () => {
 		const head = chain[4] as Manifest;
 		await publishManifest(storage, k, head);
 		await seedObjects(storage, ["A1", "A2", "A3", "A4", "A5"]);
+		storage.age(DAY_MS + 1);
 		const log = logOf(chain, ["s1"]);
 		await writeHistoryLog(storage, k, "", log);
 		await storage.put(pinKey("s1"), await encryptJson(k, chain[0] as Manifest));
@@ -458,6 +522,31 @@ describe("setSnapshotPinned", () => {
 		expect(await storage.exists(pinKey("s1"))).toBe(true);
 	});
 
+	it("keeps the pin manifest when the flag lands but its check fails", async () => {
+		const storage = new FakeStorage();
+		const k = await key();
+		const chain = [
+			manifest("s1", null, { a: "A1" }),
+			manifest("s2", "s1", { a: "A2" }),
+		];
+		await publishManifest(storage, k, chain[1] as Manifest);
+		await writeHistoryLog(storage, k, "", logOf(chain));
+		const put = storage.put.bind(storage);
+		vi.spyOn(storage, "put").mockImplementation(async (objectKey, body) => {
+			await put(objectKey, body);
+			if (objectKey === REMOTE_HISTORY_LOG_KEY)
+				vi.spyOn(storage, "get").mockRejectedValueOnce(new Error("offline"));
+		});
+
+		await expect(setSnapshotPinned(storage, k, "", "s1", true)).rejects.toThrow(
+			"offline",
+		);
+
+		const after = await readHistoryLog(storage, k, "");
+		expect(after.snapshots.find((e) => e.id === "s1")?.pinned).toBe(true);
+		expect(await storage.exists(pinKey("s1"))).toBe(true);
+	});
+
 	it("removes the pin manifest on unpin", async () => {
 		const storage = new FakeStorage();
 		const k = await key();
@@ -549,5 +638,21 @@ describe("readHistoryLog", () => {
 		await storage.put(REMOTE_HISTORY_LOG_KEY, await encryptJson(k, newer));
 
 		await expect(readHistoryLog(storage, k, "")).rejects.toThrow(/newer/);
+	});
+
+	it("refuses a log that reads as missing but is there", async () => {
+		const storage = new FakeStorage();
+		const k = await key();
+		const log = { version: 2, snapshots: [], changes: {} };
+		await storage.put(REMOTE_HISTORY_LOG_KEY, await encryptJson(k, log));
+		vi.spyOn(storage, "get").mockResolvedValueOnce(null);
+
+		await expect(readHistoryLog(storage, k, "")).rejects.toThrow(/refusing/);
+	});
+
+	it("reads a log that is not there as empty", async () => {
+		expect(
+			(await readHistoryLog(new FakeStorage(), await key(), "")).snapshots,
+		).toEqual([]);
 	});
 });

@@ -254,6 +254,97 @@ describe("batch operations", () => {
 		);
 	});
 
+	it("revert keeps an edit made after the compare", async () => {
+		const [a] = await syncedPair({ "note.md": "original\n" });
+		a.adapter.putText("note.md", "scribbled over\n");
+		const result = await a.compare();
+		a.adapter.putText("note.md", "typed since\n");
+
+		const outcome = await revertPathsOp(
+			a.deps(),
+			result,
+			["note.md"],
+			a.context(),
+		);
+
+		expect(a.text("note.md")).toBe("typed since\n");
+		expect(outcome.touchedPaths.size).toBe(0);
+	});
+
+	it("revert keeps a new file edited after the compare", async () => {
+		const [a] = await syncedPair({ "note.md": "original\n" });
+		a.adapter.putText("draft.md", "only here\n");
+		const result = await a.compare();
+		a.adapter.putText("draft.md", "typed since\n");
+
+		await revertPathsOp(a.deps(), result, ["draft.md"], a.context());
+
+		expect(a.text("draft.md")).toBe("typed since\n");
+	});
+
+	it("revert undoes a move whole: back at its old path, or not at all", async () => {
+		const [a] = await syncedPair({ "a.md": "moved\n" });
+		await a.adapter.rename("a.md", "b.md");
+		const moved = await a.compare();
+		expect(moved.diff.moves).toEqual([
+			{ from: "a.md", to: "b.md", side: "local" },
+		]);
+		a.adapter.putText("a.md", "new at the old path\n");
+
+		const refused = await revertPathsOp(a.deps(), moved, ["b.md"], a.context());
+		expect(a.text("a.md")).toBe("new at the old path\n");
+		expect(a.text("b.md")).toBe("moved\n");
+		expect(refused.touchedPaths.size).toBe(0);
+
+		await a.adapter.remove("a.md");
+		await revertPathsOp(a.deps(), await a.compare(), ["b.md"], a.context());
+		expect(a.text("a.md")).toBe("moved\n");
+		expect(a.adapter.hasFile("b.md")).toBe(false);
+	});
+
+	it("revert leaves a move whose new path was edited after the compare", async () => {
+		const [a] = await syncedPair({ "a.md": "moved\n" });
+		await a.adapter.rename("a.md", "b.md");
+		const moved = await a.compare();
+		a.adapter.putText("b.md", "edited since\n");
+
+		await revertPathsOp(a.deps(), moved, ["a.md"], a.context());
+
+		expect(a.adapter.hasFile("a.md")).toBe(false);
+		expect(a.text("b.md")).toBe("edited since\n");
+	});
+
+	it("revert renames a recasing back instead of trashing the one file", async () => {
+		const [a] = await syncedPair({ "note.md": "text\n" });
+		await a.adapter.rename("note.md", "Note.md");
+		const recased = await a.compare();
+		expect(recased.diff.moves).toEqual([
+			{ from: "note.md", to: "Note.md", side: "local" },
+		]);
+
+		await revertPathsOp(a.deps(), recased, ["Note.md"], a.context());
+
+		expect(a.text("note.md")).toBe("text\n");
+		expect(a.adapter.hasFile("Note.md")).toBe(false);
+		expect(a.adapter.hasFile(".trash/Note.md")).toBe(false);
+	});
+
+	it("revert brings a move back whole while another device edited its old path", async () => {
+		const [a, b] = await syncedPair({ "a.md": "A\n" });
+		await a.adapter.rename("a.md", "b.md");
+		b.adapter.putText("a.md", "A2\n");
+		await pushPathsOp(b.deps(), await b.compare(), ["a.md"], b.context());
+		const moved = await a.compare();
+		expect(moved.diff.moves).toEqual([
+			{ from: "a.md", to: "b.md", side: "local" },
+		]);
+
+		await revertPathsOp(a.deps(), moved, ["b.md"], a.context());
+
+		expect(a.text("a.md")).toBe("A\n");
+		expect(a.adapter.hasFile("b.md")).toBe(false);
+	});
+
 	it("revert moves a file that never synced to the trash, not out of existence", async () => {
 		const [a] = await syncedPair({ "note.md": "original\n" });
 		a.adapter.putText("draft.md", "only here\n");

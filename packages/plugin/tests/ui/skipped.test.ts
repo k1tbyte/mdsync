@@ -19,6 +19,9 @@ describe("files the sync leaves out", () => {
 		expect(
 			skippedText({ path: "B.md", reason: "case-clash", other: "b.md" }, MIB),
 		).toContain('differs from "b.md" only in case');
+		expect(skippedText({ path: "a?.md", reason: "reserved-name" }, MIB)).toBe(
+			'Not synced: its name holds a character this system does not allow, such as : ? * " < > | or a control character. Rename it on the device that has it.',
+		);
 		expect(
 			skippedText(
 				{ path: "c.md", reason: "unreadable", detail: "EACCES" },

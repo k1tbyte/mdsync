@@ -5,8 +5,10 @@ import {
 import type { EncryptionKey } from "@/crypto";
 import { reportWarning } from "@/shared";
 import type { ObjectStorage } from "@/storage/types";
+import { REMOTE_OBJECTS_PREFIX } from "@/sync/constants";
 import { fetchRemoteManifest, objectKey } from "@/sync/manifest";
 import type { Manifest } from "@/sync/types";
+import { settledKeys } from "@/sync/uploads";
 import { runWithConcurrency } from "@/utils";
 import { collectChangeHashes } from "./changes";
 import { pinKey, readPinManifest, updateHistoryLog } from "./store";
@@ -137,11 +139,15 @@ export async function collectGarbage(input: GcInput): Promise<GcResult> {
 		!retainedComplete || !headUnchanged || rescued.size > 0;
 
 	let deletedObjects = 0;
-	if (!skippedObjectSweep) {
-		const orphans = [...evictedHashes].filter((hash) => !liveHashes.has(hash));
+	const orphans = skippedObjectSweep
+		? []
+		: [...evictedHashes].filter((hash) => !liveHashes.has(hash));
+	if (orphans.length > 0) {
+		// Another device may have re-uploaded an old hash for a push it has not published: only settled blobs go.
+		const settled = new Set(await settledKeys(storage, REMOTE_OBJECTS_PREFIX));
 		await runWithConcurrency(orphans, GC_CONCURRENCY, async (hash) => {
-			await safeDelete(storage, objectKey(hash));
-			deletedObjects++;
+			if (!settled.has(objectKey(hash))) return;
+			if (await safeDelete(storage, objectKey(hash))) deletedObjects++;
 		});
 	}
 
@@ -221,14 +227,16 @@ export function collectHashes(manifest: Manifest, into: Set<string>): void {
 async function safeDelete(
 	storage: ObjectStorage,
 	storageKey: string,
-): Promise<void> {
+): Promise<boolean> {
 	try {
 		await storage.delete(storageKey);
+		return true;
 	} catch (err) {
 		reportWarning(
 			`Could not delete "${storageKey}" during history cleanup.`,
 			err,
 		);
+		return false;
 	}
 }
 

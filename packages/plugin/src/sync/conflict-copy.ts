@@ -1,4 +1,5 @@
 import type { DataAdapter } from "obsidian";
+import { folderName } from "@/shared";
 
 /** Guard against an endless "(conflict from X) N" chain on one file. */
 const CONFLICT_COPY_LIMIT = 100;
@@ -16,7 +17,7 @@ export function conflictCopyPath(
 	const stem = dot > 0 ? file.slice(0, dot) : file;
 	const ext = dot > 0 ? file.slice(dot) : "";
 	const day = now.toISOString().slice(0, 10);
-	const who = (deviceName ?? "remote").replace(/[\\/:*?"<>|]/g, "-").trim();
+	const who = folderName(deviceName ?? "remote");
 	return `${dir}${stem} (conflict from ${who} ${day})${ext}`;
 }
 

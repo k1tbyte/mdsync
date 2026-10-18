@@ -5,6 +5,7 @@
 
 import { entryAt } from "@/shared";
 import {
+	diskRefuses,
 	ensureDir,
 	ensureParent,
 	removeEmptyDir,
@@ -67,8 +68,9 @@ export async function syncFolders(
 	remote: Manifest,
 	written: ReadonlyMap<string, ManifestEntry | null>,
 ): Promise<string[]> {
-	const remoteFolders = (remote.folders ?? []).filter((dir) =>
-		deps.scope.canDescend(dir),
+	// One this disk refuses is not claimed as here, so a push keeps it remote.
+	const remoteFolders = (remote.folders ?? []).filter(
+		(dir) => deps.scope.canDescend(dir) && !diskRefuses(dir),
 	);
 	const baselineFolders = (deps.state.baseline?.folders ?? []).filter((dir) =>
 		deps.scope.canDescend(dir),
@@ -116,7 +118,7 @@ async function removeEmptied(
 }
 
 /** Never over a file that appeared at `to` since the compare, nor from a `from` gone since: the move waits. */
-async function renameLocal(
+export async function renameLocal(
 	deps: EngineDependencies,
 	from: string,
 	to: string,

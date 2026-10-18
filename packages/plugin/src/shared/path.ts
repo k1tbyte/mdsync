@@ -11,12 +11,22 @@ export function hasDotSegment(path: string): boolean {
 	return path.startsWith(".") || path.includes("/.");
 }
 
+/** Refused in a name by Windows or Android's shared storage; the second class is U+0000-U+001F and DEL. */
+const RESERVED_CHAR = /[\\/:*?"<>|]|[^ -~\u{80}-\u{10FFFF}]/u;
+
 /**
  * A name as one folder on every platform: separators and reserved characters become "-", no leading or
  * trailing dots.
  */
 export function folderName(name: string): string {
-	return name.replace(/[\\/:*?"<>|]/g, "-").replace(/^[.\s]+|[.\s]+$/g, "");
+	return name
+		.replace(new RegExp(RESERVED_CHAR, "gu"), "-")
+		.replace(/^[.\s]+|[.\s]+$/g, "");
+}
+
+/** Some name in the path holds a character Windows and Android refuse. */
+export function hasReservedChar(path: string): boolean {
+	return path.split("/").some((name) => RESERVED_CHAR.test(name));
 }
 
 /** Drops one trailing slash, after normalising separators: `"a/b/" -> "a/b"`. */

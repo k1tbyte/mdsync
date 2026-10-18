@@ -11,11 +11,11 @@ import { deletePath, readBinary, unchangedSince } from "@/vault/io";
 import { scanVault } from "@/vault/scanner";
 import type { ScopePolicy } from "@/vault/scope";
 import { attribute, publisher } from "./authors";
-import { advanceBaselineForPaths, mergeFolderArrays } from "./baseline";
+import { advanceBaselineForPaths, foldersToPublish } from "./baseline";
 import { throwIfCancelled } from "./cancel";
 import { reconcileBaselineResetGenerations } from "./config-reset";
 import { untouchedSince } from "./content";
-import { diff, isUnderUnreadableDir } from "./diff";
+import { diff } from "./diff";
 import { ownedFiles } from "./foreign";
 import { type HistoryConfig, publishManifestWithHistory } from "./history";
 import { type LiveNotes, settleLive, writeIncoming } from "./live-notes";
@@ -26,6 +26,7 @@ import {
 	reconcileRemoteAgainstBaseline,
 } from "./manifest";
 import { pullMoves, syncFolders } from "./pull-moves";
+import { skipUnholdableNames } from "./remote-names";
 import { assertSpacePresent, type Space } from "./space";
 import {
 	type DiffResult,
@@ -77,7 +78,7 @@ export async function compare(
 	/** Avoids re-downloading a freshly fetched remote head. */
 	knownRemote?: Manifest | null,
 ): Promise<CompareResult> {
-	const [{ snapshot, updatedCache }, fetched] = await Promise.all([
+	const [{ snapshot: scanned, updatedCache }, fetched] = await Promise.all([
 		scanVault(
 			deps.adapter,
 			deps.scope,
@@ -97,12 +98,18 @@ export async function compare(
 			: Promise.resolve(knownRemote),
 	]);
 	assertVaultCompatibility(deps.state, fetched);
-	assertSpacePresent(deps.space, snapshot, deps.state.baseline);
+	assertSpacePresent(deps.space, scanned, deps.state.baseline);
 	const remote = reconcileRemoteAgainstBaseline(
 		fetched,
 		deps.state.baseline,
 		deps.storage,
 		deps.key,
+	);
+	const snapshot = skipUnholdableNames(
+		scanned,
+		remote,
+		deps.state.baseline,
+		deps.scope,
 	);
 	if (fetched && remote !== fetched) {
 		reportWarning(
@@ -357,20 +364,11 @@ export async function publishFileMap(
 		compareResult.remote,
 		{
 			files: attributed.files,
-			emptyFolders: mergeFolderArrays(
-				compareResult.remote?.folders,
-				compareResult.snapshot.emptyFolders,
-				// Unreadable is not absent: a folder in or under one the scan could not open stays.
-				deps.state.baseline?.folders?.filter(
-					(dir) =>
-						deps.scope.canDescend(dir) &&
-						!isUnderUnreadableDir(
-							`${dir}/`,
-							compareResult.snapshot.unreadableDirs,
-						),
-				),
-				// Another space's folders leave with its frozen entries.
-			).filter((dir) => deps.scope.owns(dir)),
+			emptyFolders: foldersToPublish(
+				compareResult,
+				deps.state.baseline?.folders,
+				deps.scope,
+			),
 		},
 	);
 	manifest.authors = attributed.authors;

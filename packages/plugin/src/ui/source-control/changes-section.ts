@@ -198,6 +198,8 @@ export class ChangesSection {
 			this.selected.clear();
 			this.deps.rerender();
 		});
+		// With nothing selected it reads as "dismiss these changes".
+		this.selectionButtons.push(selectNone);
 	}
 
 	/** Clears the selection only on success, so a failure leaves it to retry. */

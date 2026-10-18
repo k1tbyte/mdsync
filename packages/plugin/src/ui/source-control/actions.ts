@@ -195,7 +195,8 @@ export class SourceControlActions {
 		if (!(await confirmRevert(this.plugin.app, paths, added))) return false;
 		return runWithNotice(
 			() => this.plugin.controller.revertPaths(paths),
-			`Reverted ${paths.length} file(s).`,
+			// No count: a file edited while it reverts is left as it is.
+			"Reverted.",
 			"Revert failed",
 		);
 	}

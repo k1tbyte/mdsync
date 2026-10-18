@@ -11,6 +11,7 @@ import {
 import { readHistoryLog } from "@/sync/history/store";
 import { objectKey } from "@/sync/manifest";
 import { EFileKind, type Manifest, type ManifestEntry } from "@/sync/types";
+import { UPLOAD_TRUST_MS } from "@/sync/uploads";
 import { createScopePolicy } from "@/vault/scope";
 
 const vaultScope = createScopePolicy({
@@ -204,6 +205,8 @@ describe("publishing from a space with another space's folder in it", () => {
 			(await session.compare()).remote?.files["Shared/p/b.md"]?.hash ?? "",
 		);
 		expect(await session.storage.exists(frozenBlob)).toBe(true);
+		// GC sweeps only blobs past any push still in flight.
+		session.storage.age(2 * UPLOAD_TRUST_MS + 1);
 
 		for (let edit = 2; edit < 40; edit++) {
 			const deps = {
