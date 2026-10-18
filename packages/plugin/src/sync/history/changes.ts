@@ -59,16 +59,20 @@ export function undoChangesForPath(
 	return entryAt(changes.deleted, path) ?? entry;
 }
 
+/** Every version a record names, so all it can restore stays reachable. */
+export function changeEntries(changes: SnapshotChanges): ManifestEntry[] {
+	return [
+		...Object.values(changes.added),
+		...Object.values(changes.modified).flatMap(({ from, to }) => [from, to]),
+		...Object.values(changes.deleted),
+	];
+}
+
 export function collectChangeHashes(
 	changes: SnapshotChanges,
 	into: Set<string>,
 ): void {
-	for (const entry of Object.values(changes.added)) into.add(entry.hash);
-	for (const change of Object.values(changes.modified)) {
-		into.add(change.from.hash);
-		into.add(change.to.hash);
-	}
-	for (const entry of Object.values(changes.deleted)) into.add(entry.hash);
+	for (const { hash } of changeEntries(changes)) into.add(hash);
 }
 
 /**

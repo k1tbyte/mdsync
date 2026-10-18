@@ -6,6 +6,7 @@ import type { OperationOutcome } from "./operations/types";
 import { type Space, spaceOf } from "./space";
 import { manifestMoved } from "./space-paths";
 import type {
+	HashCacheEntry,
 	LocalSnapshot,
 	LocalState,
 	ManifestEntry,
@@ -129,26 +130,33 @@ export function sharesHold(
 	};
 }
 
-/** A rename keeps content: the hashes of what moved go with it, so no scan reads it again. */
+export interface HashMove {
+	from: string;
+	to: string;
+	folder: boolean;
+}
+
+/** A rename keeps content: the hashes of what moved go with it, so no scan reads it again. Moves apply in order, over one copy. */
 export function carryHashes(
 	state: LocalState,
-	from: string,
-	to: string,
-	folder: boolean,
+	moves: readonly HashMove[],
 ): LocalState {
-	const { hashCache } = state;
-	const moved = folder
-		? Object.entries(hashCache).filter(([path]) => path.startsWith(`${from}/`))
-		: [];
-	const own = entryAt(hashCache, from);
-	if (own) moved.push([from, own]);
-	if (moved.length === 0) return state;
-	const next = { ...hashCache };
-	for (const [path, entry] of moved) {
-		next[`${to}${path.slice(from.length)}`] = entry;
-		delete next[path];
+	let next: Record<string, HashCacheEntry> | null = null;
+	for (const { from, to, folder } of moves) {
+		const cache = next ?? state.hashCache;
+		const moved = folder
+			? Object.entries(cache).filter(([path]) => path.startsWith(`${from}/`))
+			: [];
+		const own = entryAt(cache, from);
+		if (own) moved.push([from, own]);
+		if (moved.length === 0) continue;
+		next ??= { ...state.hashCache };
+		for (const [path] of moved) delete next[path];
+		for (const [path, entry] of moved) {
+			next[`${to}${path.slice(from.length)}`] = entry;
+		}
 	}
-	return { ...state, hashCache: next };
+	return next ? { ...state, hashCache: next } : state;
 }
 
 /** Drops a share's slot, wherever it was mounted: it mounts afresh, no session needed. */

@@ -53,11 +53,24 @@ export async function handleShellRequest(
 	headers.set("X-Content-Type-Options", "nosniff");
 	headers.set("X-Robots-Tag", "noindex, nofollow");
 	headers.set("Cache-Control", "no-cache");
-	return new Response(request.method === "HEAD" ? null : shell.body, {
-		status: 200,
-		headers,
-	});
+	const etag = shell.headers.get("ETag");
+	// "*" matches any current page.
+	const unchanged = (request.headers.get("If-None-Match") ?? "")
+		.split(",")
+		.some(
+			(tag) =>
+				tag.trim() === "*" || (etag !== null && weak(tag) === weak(etag)),
+		);
+	return new Response(
+		unchanged || request.method === "HEAD" ? null : shell.body,
+		{
+			status: unchanged ? 304 : 200,
+			headers,
+		},
+	);
 }
+
+const weak = (tag: string) => tag.trim().replace(/^W\//, "");
 
 function notFound(): Response {
 	return new Response("Not found", { status: 404 });

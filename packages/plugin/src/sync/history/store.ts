@@ -2,7 +2,7 @@ import { decryptJson, type EncryptionKey, encryptJson } from "@/crypto";
 import { errorMessage, reportWarning } from "@/shared";
 import type { ObjectStorage } from "@/storage/types";
 import { REMOTE_HISTORY_LOG_KEY, REMOTE_PINS_PREFIX } from "@/sync/constants";
-import { fetchRemoteManifest } from "@/sync/manifest";
+import { fetchRemoteManifest, readIfChanged } from "@/sync/manifest";
 import {
 	historyLogToSpace,
 	historyLogToVault,
@@ -15,6 +15,12 @@ import type { HistoryLog, SnapshotChanges, SnapshotEntry } from "./types";
 
 const HISTORY_LOG_VERSION = 2;
 
+// Callers treat the log as read-only, so the cached object is handed out as is.
+const validators = new WeakMap<
+	ObjectStorage,
+	{ etag: string; log: HistoryLog; key: EncryptionKey; root: string }
+>();
+
 export function pinKey(snapshotId: string): string {
 	return `${REMOTE_PINS_PREFIX}${snapshotId}.json.enc`;
 }
@@ -24,8 +30,25 @@ export async function readHistoryLog(
 	key: EncryptionKey,
 	root: string,
 ): Promise<HistoryLog> {
-	const blob = await storage.get(REMOTE_HISTORY_LOG_KEY);
-	if (!blob) {
+	const cached = validators.get(storage);
+	const validator =
+		cached?.key === key && cached.root === root ? cached : undefined;
+	const read = await readIfChanged(
+		storage,
+		REMOTE_HISTORY_LOG_KEY,
+		validator?.etag ?? null,
+	);
+	if (read.status === "unchanged") {
+		// Only an answer about the validator we sent; otherwise it describes nothing we hold.
+		if (!validator) {
+			throw new Error(
+				"Storage answered 'not modified' to a read that carried no validator.",
+			);
+		}
+		return validator.log;
+	}
+	validators.delete(storage);
+	if (read.status === "absent") {
 		// Read as empty, a log that is there gets rewritten from scratch or its blobs cleaned: ask twice.
 		if (await storage.exists(REMOTE_HISTORY_LOG_KEY)) {
 			throw new Error(
@@ -36,7 +59,7 @@ export async function readHistoryLog(
 	}
 	let parsed: HistoryLog;
 	try {
-		parsed = await decryptJson<HistoryLog>(key, blob);
+		parsed = await decryptJson<HistoryLog>(key, read.body);
 	} catch (err) {
 		// Present but unreadable (corruption, key rotation). Failing loudly beats
 		// returning a fresh log, which would overwrite the real one and orphan history.
@@ -51,7 +74,11 @@ export async function readHistoryLog(
 	if (parsed.version > HISTORY_LOG_VERSION) {
 		throw new Error("History log is from a newer MDSync; update the plugin.");
 	}
-	return historyLogToVault(parsed, root);
+	const log = historyLogToVault(parsed, root);
+	if (read.etag) {
+		validators.set(storage, { etag: read.etag, log, key, root });
+	}
+	return log;
 }
 
 export async function writeHistoryLog(
@@ -62,6 +89,7 @@ export async function writeHistoryLog(
 ): Promise<void> {
 	const blob = await encryptJson(key, historyLogToSpace(log, root));
 	await storage.put(REMOTE_HISTORY_LOG_KEY, blob, "application/octet-stream");
+	validators.delete(storage);
 }
 
 /** Applies a change and confirms it survived: log updates are not serialised by the manifest guard. */

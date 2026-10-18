@@ -139,6 +139,121 @@ describe("Google Drive bulk read IDs", () => {
 	});
 });
 
+describe("Google Drive conditional reads", () => {
+	const bodyOf = (url: string) => url.includes("alt=media");
+
+	it("answers unchanged from the checksum alone, without downloading", async () => {
+		replies = [FOLDER, { files: [{ id: "7" }] }, { md5Checksum: "aa" }];
+
+		expect(await adapter().getIfChanged?.("head", "aa")).toEqual({
+			status: "unchanged",
+		});
+		expect(requests.some(({ url }) => bodyOf(url))).toBe(false);
+	});
+
+	it("downloads and returns the new checksum when it differs", async () => {
+		const head = { md5Checksum: "bb", headRevisionId: "r2" };
+		replies = [FOLDER, { files: [{ id: "7" }] }, head, {}, head];
+
+		const read = await adapter().getIfChanged?.("head", "aa");
+
+		expect(read).toMatchObject({ status: "found", etag: "bb" });
+		expect(requests.some(({ url }) => url.includes("/7?alt=media"))).toBe(true);
+	});
+
+	it("binds no checksum to bytes a write replaced during the download", async () => {
+		replies = [
+			FOLDER,
+			{ files: [{ id: "7" }] },
+			{ md5Checksum: "bb", headRevisionId: "r2" },
+			{},
+			{ md5Checksum: "bb", headRevisionId: "r3" },
+		];
+
+		expect(await adapter().getIfChanged?.("head", "aa")).toMatchObject({
+			status: "found",
+			etag: null,
+		});
+	});
+
+	it("never answers unchanged without a checksum", async () => {
+		replies = [FOLDER, { files: [{ id: "7" }] }, {}, {}];
+
+		expect(await adapter().getIfChanged?.("head", null)).toMatchObject({
+			status: "found",
+			etag: null,
+		});
+	});
+
+	it("reports a missing file as absent", async () => {
+		replies = [FOLDER, { files: [] }];
+
+		expect(await adapter().getIfChanged?.("head", "aa")).toEqual({
+			status: "absent",
+		});
+	});
+
+	it("looks the id up again when the cached one answers 404", async () => {
+		const drive = adapter();
+		replies = [FOLDER, { files: [{ id: "9", name: "head" }] }];
+		await drive.list("head");
+		const head = { md5Checksum: "cc", headRevisionId: "r" };
+		replies = [failed(404), { files: [{ id: "10" }] }, head, {}, head];
+
+		expect(await drive.getIfChanged?.("head", "aa")).toMatchObject({
+			status: "found",
+			etag: "cc",
+		});
+		expect(requests.some(({ url }) => url.includes("/10?alt=media"))).toBe(
+			true,
+		);
+	});
+});
+
+describe("Google Drive bulk write hint", () => {
+	const keys = Array.from({ length: 256 }, (_, index) => `objects/${index}`);
+	const searches = () =>
+		requests.filter(({ url }) => new URL(url).searchParams.has("q"));
+	const creates = () =>
+		requests.filter(
+			({ method, url }) => method === "POST" && url.includes("/upload/"),
+		);
+
+	it("lists the prefix once and creates absent keys without a lookup", async () => {
+		const drive = adapter();
+		drive.prepareWrites?.(keys);
+		expect(requests).toEqual([]);
+		const existing = { id: "E", name: "objects/3" };
+		replies = [FOLDER, { files: [existing] }];
+		await drive.put("objects/1", new Uint8Array([1]));
+		await drive.put("objects/2", new Uint8Array([1]));
+		await drive.put("objects/3", new Uint8Array([1]));
+
+		expect(searches()).toHaveLength(2);
+		expect(creates()).toHaveLength(2);
+		expect(
+			requests.some(
+				({ method, url }) => method === "PATCH" && url.includes("/E?"),
+			),
+		).toBe(true);
+	});
+
+	it("still asks Drive for exists() and putIfAbsent()", async () => {
+		const drive = adapter();
+		drive.prepareWrites?.(keys);
+		replies = [FOLDER, { files: [] }];
+		await drive.put("objects/1", new Uint8Array([1]));
+		const before = searches().length;
+		replies = [{ files: [] }, { files: [{ id: "X" }] }];
+
+		expect(await drive.exists("objects/2")).toBe(false);
+		expect(await drive.putIfAbsent("objects/4", new Uint8Array([1]))).toBe(
+			false,
+		);
+		expect(searches()).toHaveLength(before + 2);
+	});
+});
+
 describe("Google Drive file ids another device deleted", () => {
 	const listed = () => [FOLDER, { files: [{ id: "9", name: "objects/x" }] }];
 

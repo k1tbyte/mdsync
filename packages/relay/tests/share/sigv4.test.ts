@@ -201,3 +201,28 @@ describe("createPresigner", () => {
 		expect(importKey).not.toHaveBeenCalled();
 	});
 });
+
+describe("the signing key cache", () => {
+	it("derives the key once for repeated presigners of one credential and day", async () => {
+		const spy = vi.spyOn(crypto.subtle, "importKey");
+		const creds = target({ secretAccessKey: "cache-secret-once" });
+		const first = await presignS3(creds, "GET", "a", 120);
+		const used = spy.mock.calls.length;
+		const again = await presignS3(creds, "GET", "a", 120);
+		expect(spy.mock.calls.length).toBe(used);
+		expect(signatureOf(again)).toBe(signatureOf(first));
+		spy.mockRestore();
+	});
+
+	it("drops a derivation that failed, so the next request tries again", async () => {
+		const creds = target({ secretAccessKey: "cache-secret-failing" });
+		const spy = vi
+			.spyOn(crypto.subtle, "importKey")
+			.mockRejectedValueOnce(new Error("boom"));
+		await expect(presignS3(creds, "GET", "a", 120)).rejects.toThrow("boom");
+		spy.mockRestore();
+		expect(await presignS3(creds, "GET", "a", 120)).toContain(
+			"X-Amz-Signature",
+		);
+	});
+});

@@ -62,7 +62,7 @@ export function refuse(
 	send(peer, slot, doc, { type: EFrame.Refused, reason });
 }
 
-/** Encodes once and readdresses per recipient; `accept` picks who gets it. */
+/** Encodes once per distinct slot; `accept` picks who gets it. */
 export function broadcast(
 	peers: readonly HubPeer[],
 	channel: string,
@@ -70,10 +70,16 @@ export function broadcast(
 	body: ServerBody,
 	accept: (peer: HubPeer, slot: number) => boolean,
 ): void {
-	const bytes = encodeServer({ ...body, slot: 0, doc });
+	const bySlot = new Map([[0, encodeServer({ ...body, slot: 0, doc })]]);
 	for (const peer of peers) {
 		const slot = slotOf(peer, channel);
-		if (slot >= 0 && accept(peer, slot)) peer.send(withSlot(bytes, slot));
+		if (slot < 0 || !accept(peer, slot)) continue;
+		let frame = bySlot.get(slot);
+		if (!frame) {
+			frame = withSlot(bySlot.get(0) as Uint8Array<ArrayBuffer>, slot);
+			bySlot.set(slot, frame);
+		}
+		peer.send(frame);
 	}
 }
 

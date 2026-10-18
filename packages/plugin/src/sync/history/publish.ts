@@ -46,8 +46,7 @@ export async function publishManifestWithHistory(
 			(current) => prependSnapshot(current, entry, changes),
 			(current) => current.snapshots.some((s) => s.id === entry.id),
 		);
-		const nonPinned = log.snapshots.filter((s) => !s.pinned).length;
-		if (shouldRunGc(nonPinned, history.maxSnapshots)) {
+		if (shouldRunGc(log, history.maxSnapshots)) {
 			await collectGarbage({
 				storage,
 				key,

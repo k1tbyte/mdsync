@@ -2,17 +2,16 @@ import { DEFAULT_CONCURRENCY } from "@/constants";
 import { decryptBytes, type EncryptionKey, sha256Hex } from "@/crypto";
 import type { StorageAdapter } from "@/storage/types";
 import { REMOTE_OBJECTS_PREFIX, REMOTE_PINS_PREFIX } from "@/sync/constants";
-import { runWithConcurrency } from "@/utils";
+import { runWithConcurrency, runWithFileConcurrency } from "@/utils";
 import {
-	collectChangeHashes,
-	collectHashes,
+	changeEntries,
 	type HistoryLog,
 	pinKey,
 	readHistoryLog,
 	readPinManifest,
 } from "./history";
 import { fetchRemoteManifest, objectKey } from "./manifest";
-import type { Manifest } from "./types";
+import type { Manifest, ManifestEntry } from "./types";
 import { settledKeys } from "./uploads";
 
 export interface MaintenanceOptions {
@@ -32,7 +31,8 @@ export interface CleanResult {
 }
 
 interface ReachableSet {
-	hashes: Set<string>;
+	/** Each reachable hash with its largest known size. */
+	hashes: Map<string, number>;
 	head: Manifest | null;
 	log: HistoryLog;
 	/** False when a pinned manifest could not be read, so the live set is unknown. */
@@ -49,8 +49,13 @@ async function reachableHashes(
 		fetchRemoteManifest(storage, key, root),
 		readHistoryLog(storage, key, root),
 	]);
-	const hashes = new Set<string>();
-	if (head) collectHashes(head, hashes);
+	const hashes = new Map<string, number>();
+	const reach = (entries: Iterable<ManifestEntry>): void => {
+		for (const { hash, size } of entries) {
+			hashes.set(hash, Math.max(hashes.get(hash) ?? 0, size));
+		}
+	};
+	if (head) reach(Object.values(head.files));
 	let complete = true;
 	for (const entry of log.snapshots) {
 		const changes = log.changes[entry.id];
@@ -58,7 +63,7 @@ async function reachableHashes(
 			complete = false;
 			continue;
 		}
-		collectChangeHashes(changes, hashes);
+		reach(changeEntries(changes));
 	}
 	for (const entry of log.snapshots) {
 		if (!entry.pinned) continue;
@@ -67,7 +72,7 @@ async function reachableHashes(
 			complete = false;
 			continue;
 		}
-		collectHashes(manifest, hashes);
+		reach(Object.values(manifest.files));
 	}
 	return { hashes, head, log, complete };
 }
@@ -88,24 +93,29 @@ export async function verifyRemote(
 		);
 	}
 
-	const list = [...reachable.hashes];
+	const list = [...reachable.hashes.keys()];
 	const missing: string[] = [];
 	const corrupt: string[] = [];
 	let done = 0;
-	await runWithConcurrency(list, concurrency, async (hash) => {
-		const blob = await storage.get(objectKey(hash));
-		if (!blob) {
-			missing.push(hash);
-		} else if (deep) {
-			try {
-				const plain = await decryptBytes(key, blob);
-				if ((await sha256Hex(plain)) !== hash) corrupt.push(hash);
-			} catch {
-				corrupt.push(hash);
+	await runWithFileConcurrency(
+		list,
+		concurrency,
+		(hash) => reachable.hashes.get(hash) ?? Number.POSITIVE_INFINITY,
+		async (hash) => {
+			const blob = await storage.get(objectKey(hash));
+			if (!blob) {
+				missing.push(hash);
+			} else if (deep) {
+				try {
+					const plain = await decryptBytes(key, blob);
+					if ((await sha256Hex(plain)) !== hash) corrupt.push(hash);
+				} catch {
+					corrupt.push(hash);
+				}
 			}
-		}
-		options.onProgress?.(++done, list.length);
-	});
+			options.onProgress?.(++done, list.length);
+		},
+	);
 	return { checked: list.length, missing, corrupt };
 }
 
@@ -158,7 +168,7 @@ export async function deepCleanOrphans(
 	}
 
 	const liveObjectKeys = new Set(
-		[...reachable.hashes].map((hash) => objectKey(hash)),
+		[...reachable.hashes.keys()].map((hash) => objectKey(hash)),
 	);
 	const orphanObjects = objectKeys.filter(
 		(storageKey) => !liveObjectKeys.has(storageKey),

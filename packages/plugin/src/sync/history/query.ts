@@ -4,6 +4,7 @@ import type { ObjectStorage } from "@/storage/types";
 import { loadRemoteBytes } from "@/sync/content";
 import { fetchRemoteManifest } from "@/sync/manifest";
 import type { Manifest, ManifestEntry } from "@/sync/types";
+import { runWithConcurrency } from "@/utils";
 import { contiguousLength, undoChangesForPath } from "./changes";
 import { readHistoryLog, readPinManifest } from "./store";
 import type {
@@ -15,6 +16,45 @@ import type {
 	SnapshotListResult,
 	SnapshotSummary,
 } from "./types";
+
+const PIN_READ_CONCURRENCY = 4;
+/** Manifests are big, so only a few stay. */
+const PIN_CACHE_SIZE = 4;
+
+// A pin's manifest never changes once written, so a query can reuse it.
+const pinCache = new WeakMap<
+	ObjectStorage,
+	{ key: EncryptionKey; root: string; manifests: Map<string, Manifest> }
+>();
+
+async function readPins(
+	storage: ObjectStorage,
+	key: EncryptionKey,
+	root: string,
+	ids: readonly string[],
+): Promise<(Manifest | null)[]> {
+	let cache = pinCache.get(storage);
+	if (cache?.key !== key || cache.root !== root) {
+		cache = { key, root, manifests: new Map() };
+		pinCache.set(storage, cache);
+	}
+	const { manifests } = cache;
+	const out: (Manifest | null)[] = [];
+	await runWithConcurrency(ids, PIN_READ_CONCURRENCY, async (id, index) => {
+		let manifest = manifests.get(id) ?? null;
+		if (!manifest) {
+			manifest = await readPinManifest(storage, key, root, id);
+			if (!manifest) return;
+			manifests.set(id, manifest);
+			for (const oldest of manifests.keys()) {
+				if (manifests.size <= PIN_CACHE_SIZE) break;
+				manifests.delete(oldest);
+			}
+		}
+		out[index] = manifest;
+	});
+	return ids.map((_, index) => out[index] ?? null);
+}
 
 export interface FileHistoryQuery {
 	storage: ObjectStorage;
@@ -106,10 +146,16 @@ async function pinnedVersions(
 	visited: ReadonlySet<string>,
 	path: string,
 ): Promise<FileVersion[]> {
+	const pins = log.snapshots.filter((m) => m.pinned && !visited.has(m.id));
+	const manifests = await readPins(
+		storage,
+		key,
+		root,
+		pins.map((m) => m.id),
+	);
 	const versions: FileVersion[] = [];
-	for (const meta of log.snapshots) {
-		if (!meta.pinned || visited.has(meta.id)) continue;
-		const manifest = await readPinManifest(storage, key, root, meta.id);
+	for (const [index, meta] of pins.entries()) {
+		const manifest = manifests[index];
 		const entry = manifest ? entryAt(manifest.files, path) : undefined;
 		if (entry) versions.push(toVersion(meta, entry));
 	}
@@ -216,8 +262,11 @@ async function applyPins(
 ): Promise<void> {
 	const pinned = log.snapshots.filter((meta) => meta.pinned);
 	if (pinned.length === 0) return;
-	const manifests = await Promise.all(
-		pinned.map((meta) => readPinManifest(storage, key, root, meta.id)),
+	const manifests = await readPins(
+		storage,
+		key,
+		root,
+		pinned.map((meta) => meta.id),
 	);
 	// Newest first, so the freshest pinned version of a path wins.
 	for (const [index, meta] of pinned.entries()) {

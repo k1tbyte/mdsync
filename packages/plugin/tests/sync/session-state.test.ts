@@ -303,7 +303,10 @@ describe("carryHashes", () => {
 	};
 
 	it("moves a renamed file's hash to its new path", () => {
-		expect(carryHashes(state, "a.md", "x.md", false).hashCache).toEqual({
+		expect(
+			carryHashes(state, [{ from: "a.md", to: "x.md", folder: false }])
+				.hashCache,
+		).toEqual({
 			"x.md": entry("a"),
 			"Team/b.md": entry("b"),
 			"Team/c/d.md": entry("d"),
@@ -312,7 +315,10 @@ describe("carryHashes", () => {
 	});
 
 	it("moves every hash under a renamed folder, and only those", () => {
-		expect(carryHashes(state, "Team", "Old/Team", true).hashCache).toEqual({
+		expect(
+			carryHashes(state, [{ from: "Team", to: "Old/Team", folder: true }])
+				.hashCache,
+		).toEqual({
 			"a.md": entry("a"),
 			"Old/Team/b.md": entry("b"),
 			"Old/Team/c/d.md": entry("d"),
@@ -321,6 +327,24 @@ describe("carryHashes", () => {
 	});
 
 	it("keeps the state itself when nothing it knows moved", () => {
-		expect(carryHashes(state, "new.md", "newer.md", false)).toBe(state);
+		expect(
+			carryHashes(state, [{ from: "new.md", to: "newer.md", folder: false }]),
+		).toBe(state);
+	});
+
+	it("applies a burst in order over one copy", () => {
+		const next = carryHashes(state, [
+			{ from: "a.md", to: "b.md", folder: false },
+			{ from: "b.md", to: "c.md", folder: false },
+			{ from: "Team", to: "Old", folder: true },
+			{ from: "none.md", to: "x.md", folder: false },
+		]);
+		expect(next.hashCache).toEqual({
+			"c.md": entry("a"),
+			"Old/b.md": entry("b"),
+			"Old/c/d.md": entry("d"),
+			"Teams/e.md": entry("e"),
+		});
+		expect(state.hashCache["a.md"]).toEqual(entry("a"));
 	});
 });

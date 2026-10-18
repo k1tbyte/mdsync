@@ -105,6 +105,8 @@ async function inline(
 			img.setAttribute("src", uri);
 			room -= uri.length;
 		} else {
+			// Room only shrinks, so a copy that did not fit now never will; keep no URI for it.
+			read.set(link, Promise.resolve(null));
 			img.remove();
 			left++;
 		}

@@ -1,5 +1,5 @@
 import { TestSession, useEncryptionKey } from "@tests/helpers/session";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS_SYNC } from "@/settings/model";
 import { advanceSessionAfterPush } from "@/sync/baseline";
 import { compare, pushPaths } from "@/sync/engine";
@@ -11,7 +11,7 @@ import {
 import { readHistoryLog } from "@/sync/history/store";
 import { objectKey } from "@/sync/manifest";
 import { EFileKind, type Manifest, type ManifestEntry } from "@/sync/types";
-import { UPLOAD_TRUST_MS } from "@/sync/uploads";
+import { SETTLED_AFTER_MS } from "@/sync/uploads";
 import { createScopePolicy } from "@/vault/scope";
 
 const vaultScope = createScopePolicy({
@@ -205,19 +205,27 @@ describe("publishing from a space with another space's folder in it", () => {
 			(await session.compare()).remote?.files["Shared/p/b.md"]?.hash ?? "",
 		);
 		expect(await session.storage.exists(frozenBlob)).toBe(true);
-		// GC sweeps only blobs past any push still in flight.
-		session.storage.age(2 * UPLOAD_TRUST_MS + 1);
-
-		for (let edit = 2; edit < 40; edit++) {
-			const deps = {
-				...session.deps(),
-				scope: vaultScope,
-				history: { maxSnapshots: 1 },
-			};
-			session.adapter.putText("a.md", `A${edit}`);
-			const result = await compare(deps);
-			const published = await pushPaths(deps, result, ["a.md"]);
-			session.state = advanceSessionAfterPush(session.state, result, published);
+		// GC sweeps only blobs, and evicts only records, past any push still in flight: a day between pushes.
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			for (let edit = 2; edit < 40; edit++) {
+				vi.setSystemTime(Date.now() + SETTLED_AFTER_MS + 1);
+				const deps = {
+					...session.deps(),
+					scope: vaultScope,
+					history: { maxSnapshots: 1 },
+				};
+				session.adapter.putText("a.md", `A${edit}`);
+				const result = await compare(deps);
+				const published = await pushPaths(deps, result, ["a.md"]);
+				session.state = advanceSessionAfterPush(
+					session.state,
+					result,
+					published,
+				);
+			}
+		} finally {
+			vi.useRealTimers();
 		}
 
 		expect(await session.storage.exists(frozenBlob)).toBe(false);

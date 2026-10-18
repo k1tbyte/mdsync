@@ -1,6 +1,10 @@
 import type { RequestUrlParam } from "obsidian";
 import type { GoogleDriveStorageConfig } from "@/storage/config";
-import type { ListedObject, StorageAdapter } from "@/storage/types";
+import type {
+	ConditionalRead,
+	ListedObject,
+	StorageAdapter,
+} from "@/storage/types";
 import {
 	computeExpiresAt,
 	googleAuthUrl,
@@ -50,6 +54,13 @@ export function createGoogleDriveAdapter(
 		keys: Set<string>;
 		prefix: string;
 		ready?: Promise<void>;
+	} | null = null;
+	let writeHint: {
+		keys: Set<string>;
+		prefix: string;
+		ready?: Promise<void>;
+		// Hinted keys the listing did not find. Only put() may create them unlooked: exists() and putIfAbsent() must ask.
+		absent?: Set<string>;
 	} | null = null;
 
 	const refreshAccessToken = async (): Promise<void> => {
@@ -214,6 +225,35 @@ export function createGoogleDriveAdapter(
 		return new Uint8Array(res.arrayBuffer);
 	};
 
+	/** Null once the id is gone. */
+	const revisionOf = async (
+		key: string,
+		id: string,
+	): Promise<{ md5Checksum?: string; headRevisionId?: string } | null> => {
+		const res = await authorized({
+			url: `${DRIVE_API}/${id}?fields=md5Checksum,headRevisionId`,
+			method: "GET",
+		});
+		if (res.status === NOT_FOUND) {
+			fileIdCache.delete(key);
+			return null;
+		}
+		assertOk(res, "look up", key);
+		return res.json as { md5Checksum?: string; headRevisionId?: string };
+	};
+
+	/** A hint is worth one listing when many uncached keys share a prefix. */
+	const hintOf = (keys: string[]) => {
+		const missing = keys.filter((key) => !fileIdCache.has(key));
+		const first = missing[0];
+		const prefix = first?.slice(0, first.lastIndexOf("/") + 1) ?? "";
+		return missing.length >= PREPARE_READS_MIN &&
+			prefix !== "" &&
+			missing.every((key) => key.startsWith(prefix))
+			? { keys: new Set(missing), prefix }
+			: null;
+	};
+
 	const listObjects = async (
 		prefix: string,
 		detailed: boolean,
@@ -272,15 +312,11 @@ export function createGoogleDriveAdapter(
 		},
 
 		prepareReads(keys) {
-			const missing = keys.filter((key) => !fileIdCache.has(key));
-			const first = missing[0];
-			const prefix = first?.slice(0, first.lastIndexOf("/") + 1) ?? "";
-			readHint =
-				missing.length >= PREPARE_READS_MIN &&
-				prefix !== "" &&
-				missing.every((key) => key.startsWith(prefix))
-					? { keys: new Set(missing), prefix }
-					: null;
+			readHint = hintOf(keys);
+		},
+
+		prepareWrites(keys) {
+			writeHint = hintOf(keys);
 		},
 
 		async get(key: string): Promise<Uint8Array | null> {
@@ -299,8 +335,48 @@ export function createGoogleDriveAdapter(
 			return body ?? (cached ? download(key) : null);
 		},
 
+		async getIfChanged(key, etag): Promise<ConditionalRead> {
+			const attempt = async (): Promise<ConditionalRead | null> => {
+				const id = await findFileId(key);
+				if (!id) return { status: "absent" };
+				const before = await revisionOf(key, id);
+				if (!before) return null;
+				// Blobs are re-encrypted on every write, so a content md5 never returns to an old value.
+				const md5 = before.md5Checksum ?? null;
+				if (md5 && md5 === etag) return { status: "unchanged" };
+				const body = await download(key);
+				if (!body) return null;
+				// Separate requests: only the same head revision on both sides proves the md5 names these bytes.
+				const rev = before.headRevisionId;
+				const after = rev ? await revisionOf(key, id) : null;
+				const bound = rev && after?.headRevisionId === rev;
+				return { status: "found", body, etag: bound ? md5 : null };
+			};
+			// The cached id may name a file deleted and recreated since.
+			return (await attempt()) ?? (await attempt()) ?? { status: "absent" };
+		},
+
 		async put(key, body, contentType) {
-			await upload(key, body, contentType, await findFileId(key));
+			const hint = writeHint;
+			if (hint?.keys.has(key) && !fileIdCache.has(key)) {
+				hint.ready ??= listObjects(hint.prefix, false).then(
+					() => {
+						hint.absent = new Set(
+							[...hint.keys].filter((name) => !fileIdCache.has(name)),
+						);
+					},
+					() => undefined,
+				);
+				await hint.ready;
+			}
+			// An id learned since the listing (exists, putIfAbsent) wins over the negative.
+			const create = hint?.absent?.delete(key) && !fileIdCache.has(key);
+			await upload(
+				key,
+				body,
+				contentType,
+				create ? null : await findFileId(key),
+			);
 		},
 
 		async putIfAbsent(key, body, contentType) {

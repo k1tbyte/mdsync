@@ -6,7 +6,11 @@ import { IMAGE_MAX_BYTES, inlineImage } from "@/links/images";
 const sourcePath = "notes/Trip.md";
 
 function imageApp(extension = "png", bytes = new ArrayBuffer(0)) {
-	const file = { path: `images/photo.${extension}`, extension } as TFile;
+	const file = {
+		path: `images/photo.${extension}`,
+		extension,
+		stat: { size: bytes.byteLength },
+	} as TFile;
 	const getFirstLinkpathDest = vi.fn((): TFile | null => file);
 	const readBinary = vi.fn(async () => bytes);
 	const app = {
@@ -165,8 +169,12 @@ describe("inlineImage", () => {
 	});
 
 	it("returns null for an image over the cap without re-encoding GIFs", async () => {
-		const { app } = imageApp("gif", new ArrayBuffer(IMAGE_MAX_BYTES + 1));
+		const { app, readBinary } = imageApp(
+			"gif",
+			new ArrayBuffer(IMAGE_MAX_BYTES + 1),
+		);
 
 		expect(await inlineImage(app, sourcePath, "images/photo.gif")).toBeNull();
+		expect(readBinary).not.toHaveBeenCalled();
 	});
 });

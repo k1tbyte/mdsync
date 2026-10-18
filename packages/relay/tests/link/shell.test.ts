@@ -80,3 +80,33 @@ describe("the link page", () => {
 		expect(response?.status).toBe(503);
 	});
 });
+
+describe("conditional requests for the link page", () => {
+	const ask = (headers: Record<string, string>, method = "GET") => {
+		const url = new URL(`https://relay.example.com/s/${newLinkId()}`);
+		return handleShellRequest(
+			new Request(url, { method, headers }),
+			envWith().env,
+			url,
+		);
+	};
+
+	it("answers a matching ETag with 304, no body and the security headers", async () => {
+		const response = await ask({ "If-None-Match": '"v1"' });
+		expect(response?.status).toBe(304);
+		expect(await response?.text()).toBe("");
+		expect(response?.headers.get("Content-Security-Policy")).toContain(
+			"default-src 'none'",
+		);
+		expect(response?.headers.get("Cache-Control")).toBe("no-cache");
+		expect(response?.headers.get("ETag")).toBe('"v1"');
+	});
+
+	it("takes a list and a weak match, and serves the page for another tag", async () => {
+		expect((await ask({ "If-None-Match": '"v0", W/"v1"' }))?.status).toBe(304);
+		expect((await ask({ "If-None-Match": "*" }))?.status).toBe(304);
+		expect((await ask({ "If-None-Match": '"v0"' }))?.status).toBe(200);
+		expect((await ask({}))?.status).toBe(200);
+		expect((await ask({ "If-None-Match": '"v1"' }, "HEAD"))?.status).toBe(304);
+	});
+});

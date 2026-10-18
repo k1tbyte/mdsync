@@ -93,6 +93,8 @@ export class SourceControlView extends ItemView {
 	private historyTab!: HistoryTab;
 	private trashTab!: TrashTab;
 	private timelineTab!: TimelineTab;
+	/** The file changed while the view was hidden; reloading then would fetch history nobody sees. */
+	private historyStale = false;
 
 	constructor(leaf: WorkspaceLeaf, plugin: PluginHost) {
 		super(leaf);
@@ -152,6 +154,10 @@ export class SourceControlView extends ItemView {
 				// Opening the diff itself fires this with no file; that is not a
 				// reason to throw away the history the user just clicked into.
 				if (!file) return;
+				if (!this.containerEl.isShown()) {
+					this.historyStale = true;
+					return;
+				}
 				this.historyTab.clearVersions();
 				this.render(this.plugin.controller.getSnapshot(), true);
 			}),
@@ -169,6 +175,14 @@ export class SourceControlView extends ItemView {
 		if (!this.plugin.controller.getSnapshot().result) {
 			void this.plugin.controller.refresh();
 		}
+	}
+
+	onResize(): void {
+		if (!this.historyStale || !this.containerEl.isShown()) return;
+		this.historyStale = false;
+		if (this.tab !== ESourceTab.History) return;
+		this.historyTab.clearVersions();
+		this.render(this.plugin.controller.getSnapshot(), true);
 	}
 
 	async onClose(): Promise<void> {

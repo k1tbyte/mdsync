@@ -59,6 +59,8 @@ export class RoomAwareness {
 	}
 
 	async announce(): Promise<void> {
+		// Reconnect announces again (goOnline), so nothing sealed now would be missed.
+		if (!this.io.canSend()) return;
 		const { clientID, meta } = this.awareness;
 		const own = meta.get(clientID);
 		// Peers ignore a clock they have seen: one that dropped this state would never take it back.

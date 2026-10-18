@@ -1,17 +1,12 @@
-import {
-	type App,
-	debounce,
-	type SettingDefinitionGroup,
-	TFile,
-} from "obsidian";
+import { type App, type SettingDefinitionGroup, TFile } from "obsidian";
 
 import { IGNORE_FILE_NAME } from "@/constants";
 import {
 	type FieldContext,
 	fieldRow,
 	group,
+	onSettled,
 	type SettingsField,
-	TYPING_SETTLE_MS,
 } from "@/settings/fields";
 import { NUMERIC_BOUNDS } from "@/settings/model";
 import { EFieldKind } from "@/storage";
@@ -47,17 +42,13 @@ const EXCLUSION_FIELDS: ReadonlyArray<SettingsField> = [
 
 export function exclusionsSection(ctx: FieldContext): SettingDefinitionGroup {
 	const { plugin } = ctx;
-	const savePatterns = debounce(
-		() => {
-			void plugin
-				.saveSettings()
-				.then(() => plugin.ignoreState.refresh())
-				.then(() => plugin.scheduleScopeRefresh(SCOPE_CHANGED))
-				.catch(reportError);
-		},
-		TYPING_SETTLE_MS,
-		true,
-	);
+	const savePatterns = onSettled(() => {
+		void plugin
+			.saveSettings()
+			.then(() => plugin.ignoreState.refresh())
+			.then(() => plugin.scheduleScopeRefresh(SCOPE_CHANGED))
+			.catch(reportError);
+	});
 	return group("Exclusions", [
 		{
 			name: "Shared vault rules",

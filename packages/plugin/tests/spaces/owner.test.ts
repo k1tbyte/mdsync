@@ -62,6 +62,13 @@ describe("a share its owner creates", () => {
 		expect(share).toMatchObject({ name: "Docs", root: "Team/Docs", rev: 1 });
 	});
 
+	it("imports one key object per key material", async () => {
+		const share = createShare("Docs", "laptop", S3, "");
+		const other = createShare("Docs", "laptop", S3, "");
+		expect(await shareKey(share)).toBe(await shareKey({ ...share, rev: 2 }));
+		expect(await shareKey(other)).not.toBe(await shareKey(share));
+	});
+
 	it("carries its own key", async () => {
 		const share = createShare("Docs", "laptop", S3, "");
 		const other = createShare("Docs", "laptop", S3, "");

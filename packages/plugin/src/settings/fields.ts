@@ -15,8 +15,34 @@ import type { MdsyncSettings } from "./model";
 export const SUB_SETTING_CLASS = "mdsync-sub-setting";
 const ERROR_DESC_CLASS = "mdsync-settings-error";
 /** A relay URL typed letter by letter must not open a socket, or send a grant, per prefix. */
-export const TYPING_SETTLE_MS = 800;
+const TYPING_SETTLE_MS = 800;
 const WHOLE_NUMBER = /^\s*\d+\s*$/;
+
+/** Typed edits still settling: closing the settings applies them instead of dropping them. */
+const settling = new Set<() => void>();
+
+/** Applies once typing settles, or when the settings close. */
+export function onSettled<T extends unknown[]>(
+	apply: (...args: T) => void,
+): (...args: T) => void {
+	const later = debounce<T, void>(
+		(...args) => {
+			settling.delete(flush);
+			apply(...args);
+		},
+		TYPING_SETTLE_MS,
+		true,
+	);
+	const flush = (): void => void later.run();
+	return (...args) => {
+		settling.add(flush);
+		later(...args);
+	};
+}
+
+export function settleTyping(): void {
+	for (const flush of [...settling]) flush();
+}
 
 export interface FieldContext {
 	plugin: PluginHost;
@@ -91,7 +117,7 @@ function applyControl(
 	const apply = (patch: Partial<MdsyncSettings>): void => {
 		applyPatch(ctx, patch, field);
 	};
-	const applyTyped = debounce(apply, TYPING_SETTLE_MS, true);
+	const applyTyped = onSettled(apply);
 	const type = (patch: Partial<MdsyncSettings>): void => {
 		Object.assign(ctx.plugin.settings, patch);
 		applyTyped(patch);

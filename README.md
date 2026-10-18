@@ -373,6 +373,15 @@ While the OAuth consent screen is in testing mode, Google expires refresh tokens
 
 </details>
 
+## Roadmap
+
+What comes next, in this order:
+
+1. **Big files.** Today a file is read and encrypted whole, so anything over **Max file size** (100 MB by default) is skipped. Large files will sync in parts, so videos and big PDFs go through without holding the whole file in memory.
+2. **History that thins out.** **Versions to keep** holds the last pushes, so a busy afternoon of pushes drops last week. History will keep every recent push and fewer as they age, down to one a day and then one a week, so older days stay reachable.
+3. **Canvas sync.** Obsidian Canvas boards merge card by card and edit live, as Excalidraw drawings do.
+4. **Relay on your own server.** The relay will run outside Cloudflare too, for when the Workers free tier runs short, and as a home for features that need more than it gives.
+
 ## Development
 
 ```bash

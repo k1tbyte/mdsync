@@ -72,11 +72,28 @@ export function buildTimelineRows(
 			isHead: snapshot.isHead,
 			restorable: snapshot.restorable,
 			label,
-			files: snapshot.files
-				? buildFileRows(snapshot.files, snapshot.createdAt)
-				: null,
+			// Only expanded cards read it, so the rows of a collapsed push are never built.
+			get files() {
+				return snapshot.files
+					? fileRowsOf(snapshot.files, snapshot.createdAt)
+					: null;
+			},
 		};
 	});
+}
+
+const fileRowCache = new WeakMap<SnapshotChanges, TimelineFileRow[]>();
+
+function fileRowsOf(
+	changes: SnapshotChanges,
+	createdAt: number,
+): TimelineFileRow[] {
+	let rows = fileRowCache.get(changes);
+	if (!rows) {
+		rows = buildFileRows(changes, createdAt);
+		fileRowCache.set(changes, rows);
+	}
+	return rows;
 }
 
 function buildFileRows(

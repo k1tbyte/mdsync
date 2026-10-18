@@ -47,6 +47,7 @@ function harness(state: {
 		},
 		register: (fn: () => void) => teardown.push(fn),
 		registerInterval: () => undefined,
+		registerDomEvent: () => undefined,
 		registerEvent: () => undefined,
 	} as unknown as SchedulerHost;
 	const controller = {

@@ -94,10 +94,37 @@ export function createPresigner(
 			toHex(await sha256(canonicalRequest)),
 		].join("\n");
 
-		derivedKey ??= signingKey(target, dateStamp);
+		derivedKey ??= cachedSigningKey(target, dateStamp);
 		const signature = toHex(await hmac(await derivedKey, stringToSign));
 		return `${endpoint.protocol}//${host}${canonicalUri}?${canonicalQuery}&X-Amz-Signature=${signature}`;
 	};
+}
+
+const KEY_CACHE_MAX = 16;
+const keyCache = new Map<string, Promise<CryptoKey>>();
+
+/** The key only changes with the day, so the isolate derives it once per day and credential, not per request. */
+function cachedSigningKey(
+	target: S3Target,
+	dateStamp: string,
+): Promise<CryptoKey> {
+	const id = JSON.stringify([
+		target.accessKeyId,
+		target.secretAccessKey,
+		target.region,
+		dateStamp,
+	]);
+	const known = keyCache.get(id);
+	if (known) return known;
+	if (keyCache.size >= KEY_CACHE_MAX) {
+		keyCache.delete(keyCache.keys().next().value as string);
+	}
+	const derived = signingKey(target, dateStamp);
+	keyCache.set(id, derived);
+	derived.catch(() => {
+		if (keyCache.get(id) === derived) keyCache.delete(id);
+	});
+	return derived;
 }
 
 async function signingKey(

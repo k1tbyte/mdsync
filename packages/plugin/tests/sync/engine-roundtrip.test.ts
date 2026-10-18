@@ -1,7 +1,7 @@
 import { FakeStorage } from "@tests/helpers/fake-storage";
 import { InMemoryAdapter } from "@tests/helpers/in-memory-adapter";
 import { TestSession, useEncryptionKey } from "@tests/helpers/session";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { deriveKey, type EncryptionKey } from "@/crypto";
 import { DEFAULT_SETTINGS_SYNC } from "@/settings/model";
 import { advanceSessionAfterPush } from "@/sync/baseline";
@@ -15,6 +15,7 @@ import {
 import { readHistoryLog } from "@/sync/history/store";
 import { VAULT_SPACE } from "@/sync/space";
 import { EChangeType, type SessionState } from "@/sync/types";
+import { SETTLED_AFTER_MS } from "@/sync/uploads";
 import { createScopePolicy } from "@/vault/scope";
 
 let key: EncryptionKey;
@@ -222,13 +223,20 @@ describe("engine round-trip", () => {
 		const adapter = new InMemoryAdapter();
 		const history = { maxSnapshots: 2 };
 		let state = freshState("A");
-		for (let i = 0; i < 14; i++) {
-			adapter.putText("note.md", `rev ${i}`);
-			const cmp = await compare(deps(adapter, storage, state, history));
-			const m = await pushPaths(deps(adapter, storage, state, history), cmp, [
-				"note.md",
-			]);
-			state = advanceSessionAfterPush(state, cmp, m);
+		// A day between pushes: GC evicts only records whose blobs have settled.
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			for (let i = 0; i < 14; i++) {
+				vi.setSystemTime(Date.now() + SETTLED_AFTER_MS + 1);
+				adapter.putText("note.md", `rev ${i}`);
+				const cmp = await compare(deps(adapter, storage, state, history));
+				const m = await pushPaths(deps(adapter, storage, state, history), cmp, [
+					"note.md",
+				]);
+				state = advanceSessionAfterPush(state, cmp, m);
+			}
+		} finally {
+			vi.useRealTimers();
 		}
 		const log = await readHistoryLog(storage, key, "");
 		// buffer floor is 10 → GC fires once count exceeds max(2)+10, prunes to 2.

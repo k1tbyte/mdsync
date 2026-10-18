@@ -36,6 +36,8 @@ const cacheKey = (channel: string, doc: string) =>
 
 export class SqlDocStore implements DocStore {
 	private readonly moved = new Map<string, Pointer | null>();
+	/** Bytes of each log's tail, so an update need not sum the rows again; every delta delete forgets it. */
+	private readonly tails = new Map<string, number>();
 
 	constructor(private readonly sql: Sql) {
 		sql.exec(
@@ -64,21 +66,15 @@ export class SqlDocStore implements DocStore {
 						note: bytes(row.moved_note ?? new ArrayBuffer(0)),
 					}
 				: null;
-		this.remember(key, pointer);
+		remember(this.moved, key, pointer);
 		return pointer;
-	}
-
-	private remember(key: string, pointer: Pointer | null): void {
-		if (this.moved.size >= MOVED_CACHE_MAX && !this.moved.has(key)) {
-			this.moved.delete(this.moved.keys().next().value as string);
-		}
-		this.moved.set(key, pointer);
 	}
 
 	purge(channel: string): void {
 		this.sql.exec("DELETE FROM deltas WHERE channel = ?", channel);
 		this.sql.exec("DELETE FROM docs WHERE channel = ?", channel);
 		this.moved.clear();
+		this.tails.clear();
 	}
 
 	rotate(
@@ -111,23 +107,24 @@ export class SqlDocStore implements DocStore {
 			channel,
 			doc,
 		);
-		this.remember(cacheKey(channel, doc), pointer);
+		remember(this.moved, cacheKey(channel, doc), pointer);
+		this.tails.delete(cacheKey(channel, doc));
 	}
 
 	append(channel: string, doc: string, payload: Uint8Array): number | null {
 		const row = this.row(channel, doc);
-		if (row && this.tailFull(channel, doc, row, payload.length)) return null;
-		return this.insert(channel, doc, payload, row);
+		if (!row) return this.insert(channel, doc, payload, row, 0);
+		// Counted first, so the byte sum reads at most MAX_TAIL_DELTAS rows.
+		if (row.head - row.snapSeq >= MAX_TAIL_DELTAS) return null;
+		const used = this.tailBytes(channel, doc, row);
+		if (used + payload.length > MAX_TAIL_BYTES) return null;
+		return this.insert(channel, doc, payload, row, used);
 	}
 
-	/** Counted first, so the byte sum reads at most MAX_TAIL_DELTAS rows. */
-	private tailFull(
-		channel: string,
-		doc: string,
-		row: DocRow,
-		adding: number,
-	): boolean {
-		if (row.head - row.snapSeq >= MAX_TAIL_DELTAS) return true;
+	private tailBytes(channel: string, doc: string, row: DocRow): number {
+		const key = cacheKey(channel, doc);
+		const known = this.tails.get(key);
+		if (known !== undefined) return known;
 		const [tail] = this.sql
 			.exec(
 				"SELECT coalesce(sum(length(blob)), 0) AS bytes FROM deltas WHERE channel = ? AND doc = ? AND seq > ?",
@@ -136,12 +133,12 @@ export class SqlDocStore implements DocStore {
 				row.snapSeq,
 			)
 			.toArray();
-		return Number(tail?.bytes) + adding > MAX_TAIL_BYTES;
+		return Number(tail?.bytes);
 	}
 
 	seed(channel: string, doc: string, payload: Uint8Array): number | null {
 		const row = this.row(channel, doc);
-		return row ? null : this.insert(channel, doc, payload, row);
+		return row ? null : this.insert(channel, doc, payload, row, 0);
 	}
 
 	private insert(
@@ -149,6 +146,7 @@ export class SqlDocStore implements DocStore {
 		doc: string,
 		payload: Uint8Array,
 		row: DocRow | null,
+		used: number,
 	): number {
 		if (!row) {
 			this.sql.exec(
@@ -165,6 +163,7 @@ export class SqlDocStore implements DocStore {
 			seq,
 			blob(payload),
 		);
+		remember(this.tails, cacheKey(channel, doc), used + payload.length);
 		return seq;
 	}
 
@@ -212,6 +211,7 @@ export class SqlDocStore implements DocStore {
 			doc,
 			covered,
 		);
+		this.tails.delete(cacheKey(channel, doc));
 	}
 
 	private row(channel: string, doc: string): DocRow | null {
@@ -239,6 +239,13 @@ export class SqlDocStore implements DocStore {
 			.toArray();
 		return row?.snap ? bytes(row.snap) : null;
 	}
+}
+
+function remember<V>(cache: Map<string, V>, key: string, value: V): void {
+	if (cache.size >= MOVED_CACHE_MAX && !cache.has(key)) {
+		cache.delete(cache.keys().next().value as string);
+	}
+	cache.set(key, value);
 }
 
 function blob(payload: Uint8Array): ArrayBuffer {

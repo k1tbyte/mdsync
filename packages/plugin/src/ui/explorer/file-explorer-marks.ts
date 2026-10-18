@@ -1,4 +1,4 @@
-import { noteLinks, noteLinksText } from "@/links";
+import { type LinkRecord, noteLinks, noteLinksText } from "@/links";
 import type { PluginHost } from "@/plugin/host";
 import { isAtNote, mergePeople, type Person } from "@/presence";
 import { type Space, spaceOf, VAULT_SPACE } from "@/sync/space";
@@ -48,9 +48,18 @@ export function shareMarks(
 			},
 		});
 	}
-	const paths = new Set(plugin.sharedLinks.all().map(({ path }) => path));
-	for (const path of paths) {
-		const links = noteLinks(plugin, path);
+	const byPath = new Map<string, LinkRecord[]>();
+	for (const record of plugin.sharedLinks.all()) {
+		const group = byPath.get(record.path);
+		if (group) group.push(record);
+		else byPath.set(record.path, [record]);
+	}
+	for (const [path, records] of byPath) {
+		const links = noteLinks(
+			plugin,
+			path,
+			records.filter((record) => !record.detached),
+		);
 		if (!links) continue;
 		out.set(path, {
 			...out.get(path),

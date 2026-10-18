@@ -426,3 +426,16 @@ describe("samplePaths", () => {
 		expect(samplePaths([], 5)).toEqual([]);
 	});
 });
+
+describe("buildTimelineRows file rows", () => {
+	it("builds them on first read and reuses them across redraws", () => {
+		const summary = snapshot({
+			files: changes({ added: { "a.md": entry("A1") } }),
+		});
+		const [first] = buildTimelineRows([summary], { now: NOW });
+		const [again] = buildTimelineRows([summary], { now: NOW });
+
+		expect(first?.files).toBe(first?.files);
+		expect(again?.files).toBe(first?.files);
+	});
+});

@@ -46,8 +46,20 @@ export function shareStorage(
 	};
 }
 
+/** One CryptoKey per key material: the manifest cache validates a 304 by key identity. */
+const shareKeys = new Map<string, Promise<EncryptionKey>>();
+/** Far over the shares one mounts, so only keys of shares long left go. */
+const SHARE_KEYS_MAX = 64;
+
 export function shareKey(record: SpaceRecord): Promise<EncryptionKey> {
-	return importAesKey(base64ToBytes(record.key));
+	const cached = shareKeys.get(record.key);
+	if (cached) return cached;
+	const key = importAesKey(base64ToBytes(record.key));
+	shareKeys.set(record.key, key);
+	const [oldest] = shareKeys.keys();
+	if (shareKeys.size > SHARE_KEYS_MAX && oldest) shareKeys.delete(oldest);
+	key.catch(() => shareKeys.delete(record.key));
+	return key;
 }
 
 export function shareLiveKeys(record: SpaceRecord): Promise<LiveKeys> {

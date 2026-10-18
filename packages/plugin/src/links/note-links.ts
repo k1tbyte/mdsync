@@ -10,10 +10,13 @@ export interface NoteLinks {
 }
 
 /** Null when the note has no links, or only expired ones. */
-export function noteLinks(plugin: PluginHost, path: string): NoteLinks | null {
-	const records = plugin.sharedLinks
-		.of(path)
-		.filter((record) => !isExpired(record));
+export function noteLinks(
+	plugin: PluginHost,
+	path: string,
+	/** The note's links when the caller already grouped them. */
+	of: readonly LinkRecord[] = plugin.sharedLinks.of(path),
+): NoteLinks | null {
+	const records = of.filter((record) => !isExpired(record));
 	if (records.length === 0) return null;
 	const mtime = plugin.app.vault.getFileByPath(path)?.stat.mtime ?? 0;
 	return { records, stale: records.some((record) => isStale(record, mtime)) };

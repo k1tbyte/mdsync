@@ -34,7 +34,7 @@ export function forgetUploads(
 }
 
 /** Past any upload a push still trusts, with room for clock skew. */
-const SETTLED_AFTER_MS = 2 * UPLOAD_TRUST_MS;
+export const SETTLED_AFTER_MS = 2 * UPLOAD_TRUST_MS;
 
 /**
  * Keys old enough to be no push's: another device's push uploads before it
@@ -44,15 +44,25 @@ export async function settledKeys(
 	storage: ObjectStorage,
 	prefix: string,
 ): Promise<string[]> {
+	return [...(await keysByAge(storage, prefix)).settled];
+}
+
+/** {@link settledKeys}, and the present keys a push may still be using; an absent key is in neither. */
+export async function keysByAge(
+	storage: ObjectStorage,
+	prefix: string,
+): Promise<{ settled: Set<string>; settling: Set<string> }> {
 	if (!storage.listDetailed) {
 		throw new Error(
 			"This storage does not report when objects were written, so a running upload cannot be told from an orphan.",
 		);
 	}
 	const settledBefore = Date.now() - SETTLED_AFTER_MS;
-	return (await storage.listDetailed(prefix))
-		.filter(
-			(object) => object.modified !== null && object.modified < settledBefore,
-		)
-		.map((object) => object.key);
+	const settled = new Set<string>();
+	const settling = new Set<string>();
+	for (const object of await storage.listDetailed(prefix)) {
+		const old = object.modified !== null && object.modified < settledBefore;
+		(old ? settled : settling).add(object.key);
+	}
+	return { settled, settling };
 }

@@ -32,7 +32,11 @@ export async function fetchRemoteManifest(
 	const cached = validators.get(storage);
 	const validator =
 		cached?.key === key && cached.root === root ? cached : undefined;
-	const read = await readManifest(storage, validator?.etag ?? null);
+	const read = await readIfChanged(
+		storage,
+		REMOTE_MANIFEST_KEY,
+		validator?.etag ?? null,
+	);
 	if (read.status === "unchanged") {
 		// Only an answer about the validator we sent; for an unconditional read it describes nothing we hold
 		// and would look like a never-pushed vault.
@@ -68,15 +72,15 @@ export async function fetchRemoteManifest(
 	return manifest;
 }
 
-function readManifest(
+/** A conditional read where the backend has validators, else a plain one. */
+export function readIfChanged(
 	storage: ObjectStorage,
+	name: string,
 	etag: string | null,
 ): Promise<ConditionalRead> {
-	if (storage.getIfChanged) {
-		return storage.getIfChanged(REMOTE_MANIFEST_KEY, etag);
-	}
+	if (storage.getIfChanged) return storage.getIfChanged(name, etag);
 	return storage
-		.get(REMOTE_MANIFEST_KEY)
+		.get(name)
 		.then((body) =>
 			body ? { status: "found", body, etag: null } : { status: "absent" },
 		);

@@ -4,6 +4,7 @@ import { makeActivatable } from "@/ui/common";
 import { type ActionTone, actionButton } from "./action-button";
 import type { SourceControlActions } from "./actions";
 import { type RowContext, renderFileRow, renderFolderRow } from "./change-rows";
+import { RowPager } from "./row-pager";
 import { buildTree, flattenRows, flattenTree } from "./tree-builder";
 import { ESection, type FileRow, type VisualRow } from "./types";
 import { mountVirtualList, type VirtualListHandle } from "./virtual-list";
@@ -69,6 +70,8 @@ export class ChangesSection {
 	/** Act on the whole section: only a running operation holds them back. */
 	private batchButtons: HTMLButtonElement[] = [];
 	private list: VirtualListHandle | null = null;
+	/** Conflict rows grow inline previews, so they page instead of windowing. */
+	private readonly pager = new RowPager();
 
 	constructor(
 		readonly id: ESection,
@@ -126,17 +129,25 @@ export class ChangesSection {
 			setIcon(disclosure, this.collapsed ? "chevron-right" : "chevron-down");
 		};
 		showCollapsed();
+		const body = sectionEl.createDiv({ cls: "mdsync-section-body" });
+		let built = false;
+		// A collapsed section builds nothing until it is first opened, by then maybe no longer busy.
+		const buildBody = (now: boolean): void => {
+			if (built) return;
+			built = true;
+			this.renderActions(body, rows, now);
+			this.layoutList(body.createDiv({ cls: "mdsync-file-list" }), rows);
+			this.updateUi(now);
+		};
 		makeActivatable(header, `${this.title} section`, () => {
 			this.collapsed = !this.collapsed;
 			showCollapsed();
+			if (!this.collapsed) buildBody(this.deps.isBusy());
 			// Hiding a body moves every section under it, and a windowed list
 			// reads its own position to decide which rows to hold.
 			this.deps.refreshLists();
 		});
-
-		const body = sectionEl.createDiv({ cls: "mdsync-section-body" });
-		this.renderActions(body, rows, busy);
-		this.layoutList(body.createDiv({ cls: "mdsync-file-list" }), rows);
+		if (!this.collapsed) buildBody(busy);
 		this.updateUi(busy);
 	}
 
@@ -249,20 +260,19 @@ export class ChangesSection {
 				this.layoutList(list, rows);
 			},
 		};
-		const build = (index: number): HTMLElement => {
-			const visualRow = visual[index] as VisualRow;
-			return visualRow.row
+		const buildRow = (visualRow: VisualRow): HTMLElement =>
+			visualRow.row
 				? renderFileRow(list, visualRow.row, visualRow.depth, ctx)
 				: renderFolderRow(list, visualRow, ctx);
-		};
+		const build = (index: number): HTMLElement =>
+			buildRow(visual[index] as VisualRow);
 
 		// Conflict rows grow an inline preview, so their height is not the pitch
 		// a windowed list places them on.
-		if (
-			!scroller ||
-			this.id === ESection.Conflicts ||
-			visual.length < VIRTUAL_MIN_ROWS
-		) {
+		if (this.id === ESection.Conflicts) {
+			for (const visualRow of this.pager.slice(visual)) buildRow(visualRow);
+			this.pager.render(list, visual.length, () => this.layoutList(list, rows));
+		} else if (!scroller || visual.length < VIRTUAL_MIN_ROWS) {
 			for (let index = 0; index < visual.length; index++) build(index);
 		} else {
 			this.list = mountVirtualList({

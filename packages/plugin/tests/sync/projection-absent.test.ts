@@ -178,4 +178,23 @@ describe("buildHistoryDiff with absent sides", () => {
 		expect(model.leftText).toBe("");
 		expect(model.rightPresent).toBe(false);
 	});
+
+	it("reads a stored version once while a diff refreshes", async () => {
+		const storage = new TrackingStorage();
+		const hash = await storeText(storage, key, "hello\n");
+		const deps = {
+			adapter: new InMemoryAdapter().asDataAdapter(),
+			storage,
+			key,
+		};
+		const request: HistoryDiffRequest = {
+			path: "note.md",
+			left: { version: { hash, label: "V1", size: 6 } },
+			right: { absent: true, label: "(deleted)" },
+		};
+		await buildHistoryDiff(deps, request);
+		const again = await buildHistoryDiff(deps, request);
+		expect(again.leftText).toBe("hello\n");
+		expect(storage.gets).toEqual([`objects/${hash}`]);
+	});
 });

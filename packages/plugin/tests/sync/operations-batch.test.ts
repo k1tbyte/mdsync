@@ -118,6 +118,36 @@ describe("batch operations", () => {
 		expect(a.state.baseline?.files["note.md"]).toBeUndefined();
 	});
 
+	it("accept-remote keeps a file edited during the downloads, and its conflict", async () => {
+		const [a, b] = await syncedPair({ "a.md": "shared\n", "b.md": "shared\n" });
+		b.adapter.putText("a.md", "B's a\n");
+		b.adapter.putText("b.md", "B's b\n");
+		const bResult = await b.compare();
+		await pushPathsOp(b.deps(), bResult, ["a.md", "b.md"], b.context());
+
+		a.adapter.putText("a.md", "A's a\n");
+		a.adapter.putText("b.md", "A's b\n");
+		const aResult = await a.compare();
+		const baseline = a.state.baseline?.files["b.md"]?.hash;
+		const deps = a.deps();
+		const get = deps.storage.get.bind(deps.storage);
+		deps.storage.get = (key) => {
+			a.adapter.putText("b.md", "typed meanwhile\n");
+			return get(key);
+		};
+		const outcome = await batchAcceptRemoteOp(
+			deps,
+			aResult,
+			new Set(["a.md", "b.md"]),
+			a.context(),
+		);
+
+		expect(a.text("a.md")).toBe("B's a\n");
+		expect(a.text("b.md")).toBe("typed meanwhile\n");
+		expect([...outcome.touchedPaths]).toEqual(["a.md"]);
+		expect(a.state.baseline?.files["b.md"]?.hash).toBe(baseline);
+	});
+
 	it("pull records the mtime it wrote, so the next scan does not re-hash", async () => {
 		const [a, b] = await syncedPair({ "note.md": "shared\n" });
 

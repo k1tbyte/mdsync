@@ -14,8 +14,11 @@ import {
 import type { PluginHost } from "@/plugin/host";
 import { copyText, notifyError, serial } from "@/ui/common";
 import { openConfirmModal } from "@/ui/modals";
+import { runWithConcurrency } from "@/utils";
 
 import { updateSharedLinks } from "./link-actions";
+
+const STATUS_CONCURRENCY = 4;
 
 /** Null: the relay no longer has it. */
 type Known = LinkStatus | null | Error;
@@ -24,6 +27,7 @@ type Known = LinkStatus | null | Error;
 export class ManageLinksModal extends Modal {
 	private readonly known = new Map<string, Known>();
 	private closed = false;
+	private frame: number | null = null;
 	/** Follows a rename while open, where the path would not. */
 	private note: TFile | null = null;
 	private unsubscribe: (() => void) | null = null;
@@ -52,6 +56,7 @@ export class ManageLinksModal extends Modal {
 
 	onClose(): void {
 		this.closed = true;
+		if (this.frame !== null) window.cancelAnimationFrame(this.frame);
 		this.unsubscribe?.();
 		if (this.modifyRef) this.app.vault.offref(this.modifyRef);
 		this.contentEl.empty();
@@ -71,18 +76,27 @@ export class ManageLinksModal extends Modal {
 
 	/** Asks the relay where these stand; one update need not ask about the rest. */
 	private async load(records = this.records()): Promise<void> {
-		await Promise.all(
-			records
-				.filter((record) => this.reachable(record))
-				.map(async (record) => {
-					try {
-						this.known.set(record.id, await linkStatusOf(this.plugin, record));
-					} catch (err) {
-						this.known.set(record.id, linkError(err));
-					}
-					if (!this.closed) this.draw();
-				}),
+		await runWithConcurrency(
+			records.filter((record) => this.reachable(record) && !isExpired(record)),
+			STATUS_CONCURRENCY,
+			async (record) => {
+				try {
+					this.known.set(record.id, await linkStatusOf(this.plugin, record));
+				} catch (err) {
+					this.known.set(record.id, linkError(err));
+				}
+				this.drawSoon();
+			},
 		);
+	}
+
+	/** Answers arrive in bursts: one redraw per frame, not per answer. */
+	private drawSoon(): void {
+		if (this.closed || this.frame !== null) return;
+		this.frame = window.requestAnimationFrame(() => {
+			this.frame = null;
+			this.draw();
+		});
 	}
 
 	private draw(): void {

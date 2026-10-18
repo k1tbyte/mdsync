@@ -66,6 +66,17 @@ function logOf(
 	return { version: 2, snapshots, changes };
 }
 
+/** `count` unpinned records, all created at `createdAt`. */
+function logOfAge(count: number, createdAt: number): HistoryLog {
+	const snapshots = Array.from({ length: count }, (_, index) => ({
+		id: `s${index}`,
+		parentId: null,
+		createdAt,
+		deviceId: "d",
+	}));
+	return { version: 2, snapshots, changes: {} };
+}
+
 async function key(): Promise<EncryptionKey> {
 	return deriveKey("pw", new Uint8Array(16));
 }
@@ -96,10 +107,17 @@ describe("file-history GC math", () => {
 	});
 
 	it("shouldRunGc only fires past the buffer", () => {
-		expect(shouldRunGc(65, 50)).toBe(false);
-		expect(shouldRunGc(66, 50)).toBe(true);
-		expect(shouldRunGc(15, 5)).toBe(false);
-		expect(shouldRunGc(16, 5)).toBe(true);
+		const now = 2 * DAY_MS;
+		expect(shouldRunGc(logOfAge(65, 0), 50, now)).toBe(false);
+		expect(shouldRunGc(logOfAge(66, 0), 50, now)).toBe(true);
+		expect(shouldRunGc(logOfAge(15, 0), 5, now)).toBe(false);
+		expect(shouldRunGc(logOfAge(16, 0), 5, now)).toBe(true);
+	});
+
+	it("shouldRunGc counts only records old enough to have settled", () => {
+		const now = 2 * DAY_MS;
+		expect(shouldRunGc(logOfAge(200, now - 60_000), 50, now)).toBe(false);
+		expect(shouldRunGc(logOfAge(200, now - DAY_MS), 50, now)).toBe(true);
 	});
 });
 
@@ -237,9 +255,57 @@ describe("collectGarbage (change log)", () => {
 			headManifest: head,
 		});
 
-		expect(res.deletedObjects).toBe(1);
+		// s1 and s2 name the settling A1, so they stay, and A2 with them; s3 holds nothing only it names.
+		expect(res.deletedObjects).toBe(0);
+		expect(res.log.snapshots.map((entry) => entry.id)).toEqual([
+			"s4",
+			"s2",
+			"s1",
+		]);
 		expect(await storage.exists(objectKey("A1"))).toBe(true);
+		expect(await storage.exists(objectKey("A2"))).toBe(true);
+
+		storage.age(DAY_MS + 1);
+		const later = await collectGarbage({
+			storage,
+			key: k,
+			root: "",
+			log: res.log,
+			maxSnapshots: 1,
+			headManifest: head,
+		});
+		expect(later.log.snapshots.map((entry) => entry.id)).toEqual(["s4"]);
+		expect(await storage.exists(objectKey("A1"))).toBe(false);
 		expect(await storage.exists(objectKey("A2"))).toBe(false);
+	});
+
+	it("never evicts a record too young for its blobs to have settled", async () => {
+		const storage = new FakeStorage();
+		const k = await key();
+		const chain = [
+			manifest("s1", null, { a: "A1" }),
+			manifest("s2", "s1", { a: "A2" }),
+		];
+		const head = chain[1] as Manifest;
+		await publishManifest(storage, k, head);
+		await seedObjects(storage, ["A1", "A2"]);
+		const log = logOf(chain);
+		for (const entry of log.snapshots) entry.createdAt = Date.now();
+		await writeHistoryLog(storage, k, "", log);
+		const list = vi.spyOn(storage, "listDetailed");
+
+		const res = await collectGarbage({
+			storage,
+			key: k,
+			root: "",
+			log,
+			maxSnapshots: 1,
+			headManifest: head,
+		});
+
+		expect(res.log).toBe(log);
+		expect(list).not.toHaveBeenCalled();
+		expect(await storage.exists(objectKey("A1"))).toBe(true);
 	});
 
 	it("counts only the blobs it could delete", async () => {
@@ -317,6 +383,7 @@ describe("collectGarbage (change log)", () => {
 		const head = chain[2] as Manifest;
 		await publishManifest(storage, k, head);
 		await seedObjects(storage, ["A1", "A2", "A3"]);
+		storage.age(DAY_MS + 1);
 		const log = logOf(chain);
 		await writeHistoryLog(storage, k, "", log);
 		// Another device wrote the manifest but has not flagged it yet, and our own
@@ -347,6 +414,7 @@ describe("collectGarbage (change log)", () => {
 		];
 		await publishManifest(storage, k, chain[2] as Manifest);
 		await seedObjects(storage, ["A1", "A2", "A3"]);
+		storage.age(DAY_MS + 1);
 		const log = logOf(chain);
 		await writeHistoryLog(storage, k, "", log);
 
@@ -429,6 +497,7 @@ describe("collectGarbage (change log)", () => {
 		];
 		// HEAD is never published, so the pre-sweep re-read finds nothing.
 		await seedObjects(storage, ["A1", "A2", "A3"]);
+		storage.age(DAY_MS + 1);
 		const log = logOf(chain);
 		await writeHistoryLog(storage, k, "", log);
 
@@ -457,6 +526,7 @@ describe("collectGarbage (change log)", () => {
 		const head = chain[2] as Manifest;
 		await publishManifest(storage, k, head);
 		await seedObjects(storage, ["A1", "A2", "A3"]);
+		storage.age(DAY_MS + 1);
 		const log = logOf(chain);
 		// Stored log already carries the other device's pin on the snapshot we evict.
 		await writeHistoryLog(storage, k, "", logOf(chain, ["s1"]));

@@ -17,6 +17,8 @@ const FOLLOWED = "a line to follow\n".repeat(80);
 
 // biome-ignore lint/suspicious/noExplicitAny: the renderer's app is untyped here.
 declare const app: any;
+/** Obsidian mounts notices here, which need not be `document`. */
+declare const activeDocument: Document;
 
 await runSharing(
 	"live share e2e",
@@ -180,14 +182,16 @@ await runSharing(
 
 		check(
 			"the owner sees the friend's cursor under the name it was invited by",
-			await owner.waitFor(
-				"remote cursor name",
-				() =>
-					app.workspace
-						.getLeavesOfType("markdown")[0]
-						.view.editor.cm.contentDOM.querySelector(".cm-ySelectionInfo")
-						?.textContent,
-				(name) => name === "Friend",
+			person(
+				await owner.waitFor(
+					"remote cursor name",
+					() =>
+						app.workspace
+							.getLeavesOfType("markdown")[0]
+							.view.editor.cm.contentDOM.querySelector(".cm-ySelectionInfo")
+							?.textContent,
+					(name) => person(name) === "Friend",
+				),
 			),
 			"Friend",
 		);
@@ -213,20 +217,23 @@ await runSharing(
 						.values(),
 				].some(
 					(state) =>
-						state.user?.name === "Friend" && state.cursor?.head.item === null,
+						state.user?.name.startsWith("Friend · ") &&
+						state.cursor?.head.item === null,
 				),
 			(there) => there,
 		);
 		check(
 			"the owner's scrollbar marks the friend's cursor",
-			await owner.waitFor(
-				"the scrollbar mark",
-				() =>
-					app.workspace
-						.getLeavesOfType("markdown")[0]
-						.view.containerEl.querySelector(".mdsync-scroll-mark")
-						?.getAttribute("aria-label"),
-				(name) => name === "Friend",
+			person(
+				await owner.waitFor(
+					"the scrollbar mark",
+					() =>
+						app.workspace
+							.getLeavesOfType("markdown")[0]
+							.view.containerEl.querySelector(".mdsync-scroll-mark")
+							?.getAttribute("aria-label"),
+					(name) => person(name) === "Friend",
+				),
 			),
 			"Friend",
 		);
@@ -253,9 +260,11 @@ await runSharing(
 				editor.setCursor(editor.offsetToPos(0));
 				containerEl.querySelector(".mdsync-note-presence").click();
 				const item = [...document.querySelectorAll(".menu .menu-item")].find(
-					(each) => each.textContent?.includes("follow cursor"),
+					(each) =>
+						each.querySelector(".mdsync-person-state")?.textContent ===
+						"follow",
 				) as HTMLElement | undefined;
-				if (!item) throw new Error("no follow cursor in the header menu");
+				if (!item) throw new Error("no follow in the header menu");
 				item.click();
 				return editor.posToOffset(editor.getCursor());
 			}),
@@ -346,6 +355,11 @@ await runSharing(
 	},
 );
 
+/** A cursor is labelled "name · device". */
+function person(label: string | null | undefined): string | undefined {
+	return label?.split(" · ")[0];
+}
+
 function roomSpace(device: Obsidian, path: string): Promise<string | null> {
 	return device.evaluate(
 		(target) => app.plugins.plugins.mdsync.realtime.live.spaceOf(target),
@@ -410,12 +424,18 @@ async function follows(owner: Obsidian, friend: Obsidian): Promise<void> {
 		true,
 	);
 	check("the menu says whom the owner follows", await states(), ["following"]);
-	await owner.evaluate(() =>
+	// The owner's own scroll only asks; its nudge ends following.
+	await owner.evaluate(() => {
 		app.workspace
 			.getLeavesOfType("markdown")[0]
-			.view.contentEl.dispatchEvent(new Event("wheel")),
-	);
-	check("the owner's own scroll ends it", await states(), ["follow cursor"]);
+			.view.contentEl.dispatchEvent(new Event("wheel"));
+		const stop = [...activeDocument.querySelectorAll(".notice button")].find(
+			(each) => each.textContent === "Stop following",
+		) as HTMLElement | undefined;
+		if (!stop) throw new Error("no stop following nudge");
+		stop.click();
+	});
+	check("the owner's own scroll ends it", await states(), ["follow"]);
 	await block(false);
 	await converged(owner, friend);
 }

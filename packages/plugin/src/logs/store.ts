@@ -71,7 +71,7 @@ export async function saveSyncLogs(
 ): Promise<void> {
 	const path = logFilePath(configDir);
 	await ensureParent(adapter, path);
-	await writeAtomic(adapter, path, JSON.stringify(entries, null, 2));
+	await writeAtomic(adapter, path, JSON.stringify(entries));
 }
 
 export function createSyncLogEntry(

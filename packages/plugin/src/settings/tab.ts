@@ -6,7 +6,7 @@ import {
 } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
-import { type FieldContext, group } from "./fields";
+import { type FieldContext, group, settleTyping } from "./fields";
 import { logsPage } from "./logs-view";
 import { canSync } from "./model";
 import {
@@ -30,6 +30,11 @@ export class MdsyncSettingTab extends PluginSettingTab {
 	constructor(app: App, plugin: Plugin & PluginHost) {
 		super(app, plugin);
 		this.plugin = plugin;
+	}
+
+	override hide(): void {
+		settleTyping();
+		super.hide();
 	}
 
 	getSettingDefinitions(): SettingDefinitionItem[] {

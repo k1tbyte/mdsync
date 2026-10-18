@@ -7,6 +7,7 @@ import {
 	SCHEDULER_HEARTBEAT_MS,
 	type SchedulerHost,
 } from "@/sync/scheduler";
+import { VAULT_SPACE } from "@/sync/space";
 
 const MINUTE_MS = 60_000;
 
@@ -16,6 +17,8 @@ interface Harness {
 	pushFlags: () => ReadonlyArray<boolean>;
 	manualSync: () => void;
 	setSyncError: (error: string | null) => void;
+	edit: (path: string) => void;
+	pushes: () => number;
 }
 
 function harness(settings: {
@@ -24,6 +27,8 @@ function harness(settings: {
 	autoPushAfterSync?: boolean;
 }): Harness {
 	let syncs = 0;
+	let pushes = 0;
+	const vaultListeners = new Map<string, (file: { path: string }) => void>();
 	const pushFlags: Array<boolean> = [];
 	let snapshotError: string | null = null;
 	const statusListeners: Array<
@@ -35,6 +40,7 @@ function harness(settings: {
 			autoSyncEnabled: settings.autoSyncEnabled ?? true,
 			autoSyncIntervalMinutes: settings.autoSyncIntervalMinutes,
 			autoPushAfterSync: settings.autoPushAfterSync ?? true,
+			autoPushAfterChange: true,
 			storageConfigs: {
 				[DEFAULT_SETTINGS.activeStorageKind]: {
 					...DEFAULT_SETTINGS.storageConfigs[
@@ -52,10 +58,17 @@ function harness(settings: {
 				initialized: true,
 				on: () => ({}),
 			},
-			vault: { on: () => ({}) },
+			vault: {
+				on: (event: string, listener: (file: { path: string }) => void) => {
+					vaultListeners.set(event, listener);
+					return {};
+				},
+			},
 		},
+		spaces: { partition: () => [VAULT_SPACE] },
 		register: () => undefined,
 		registerInterval: () => undefined,
+		registerDomEvent: () => undefined,
 		registerEvent: () => undefined,
 	} as unknown as SchedulerHost;
 	const controller = {
@@ -63,6 +76,10 @@ function harness(settings: {
 			syncs++;
 			pushFlags.push(push);
 		},
+		refreshAndAutoPush: async () => {
+			pushes++;
+		},
+		noteLocalChange: () => undefined,
 		getSnapshot: () => ({ error: snapshotError }),
 		subscribe: (
 			listener: (snapshot: { busy: boolean; error?: string | null }) => void,
@@ -84,6 +101,8 @@ function harness(settings: {
 		setSyncError: (error: string | null) => {
 			snapshotError = error;
 		},
+		edit: (path) => vaultListeners.get("modify")?.({ path }),
+		pushes: () => pushes,
 	};
 }
 
@@ -187,6 +206,22 @@ describe("auto-sync intervals", () => {
 		expect(h.syncs()).toBe(4);
 		await vi.advanceTimersByTimeAsync(30_000);
 		expect(h.syncs()).toBe(5);
+	});
+
+	it("releases a push held by the backoff once a clean sync ends it", async () => {
+		const h = harness({ autoSyncIntervalMinutes: 1 });
+		const settle = h.host.settings.autoPushSettleSeconds * 1000;
+		h.setSyncError("backend down");
+		// Failures at 3s, 60s and 120s arm the backoff until 240s.
+		await vi.advanceTimersByTimeAsync(120_000);
+		h.edit("a.md");
+		await vi.advanceTimersByTimeAsync(settle);
+		expect(h.pushes()).toBe(0);
+
+		h.setSyncError(null);
+		h.manualSync();
+		await vi.advanceTimersByTimeAsync(settle);
+		expect(h.pushes()).toBe(1);
 	});
 
 	it("checks the heartbeat often enough for a one-minute interval", () => {

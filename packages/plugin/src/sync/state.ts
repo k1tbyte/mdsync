@@ -14,11 +14,14 @@ export function stateFilePath(configDir: string): string {
 	return `${trimmed}/plugins/${PLUGIN_ID}/${STATE_FILE_NAME}`;
 }
 
-/** `stored` is the state file's own text, null when the state did not come from it. */
+/**
+ * `stored` is the state file's own text, null when the state did not come from it; `clean` that the file
+ * already holds exactly this state (nothing minted, filled in or recovered), so loading needs no write.
+ */
 export async function loadState(
 	adapter: DataAdapter,
 	configDir: string,
-): Promise<{ state: LocalState; stored: string | null }> {
+): Promise<{ state: LocalState; stored: string | null; clean: boolean }> {
 	const path = stateFilePath(configDir);
 	const candidates = [path, `${path}.new`, `${path}.bak`];
 	let unreadable: string | null = null;
@@ -27,14 +30,25 @@ export async function loadState(
 		let raw: string | null = null;
 		try {
 			raw = await adapter.read(candidate);
-			const state = normalizeState(JSON.parse(raw) as Partial<LocalState>);
-			return { state, stored: candidate === path ? raw : null };
+			const parsed = JSON.parse(raw) as Partial<LocalState>;
+			const state = normalizeState(parsed);
+			const complete =
+				parsed.deviceId !== undefined &&
+				parsed.deviceName !== undefined &&
+				parsed.storages !== undefined &&
+				parsed.hashCache !== undefined;
+			const primary = candidate === path;
+			return {
+				state,
+				stored: primary ? raw : null,
+				clean: primary && complete,
+			};
 		} catch {
 			unreadable ??= raw;
 		}
 	}
 	if (unreadable !== null) await keepUnreadable(adapter, path, unreadable);
-	return { state: createEmptyState(), stored: null };
+	return { state: createEmptyState(), stored: null, clean: false };
 }
 
 /** The fresh state about to be written would replace it: every baseline is compared again from scratch. */

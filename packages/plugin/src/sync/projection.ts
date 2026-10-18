@@ -326,6 +326,36 @@ function sideLabel(side: HistoryDiffSide): string {
 	return side.label ?? "Current";
 }
 
+/** In bytes: a forced diff side can be 16 MiB. */
+const VERSION_CACHE_MAX_BYTES = 4 * 1024 * 1024;
+// A stored version never changes (loadRemoteBytes verifies its hash), so a refreshing diff keeps its bytes.
+const versionBytes = new WeakMap<ObjectStorage, Map<string, Uint8Array>>();
+
+async function loadVersion(
+	deps: Pick<ProjectionDeps, "storage" | "key">,
+	hash: string,
+): Promise<Uint8Array | null> {
+	let cache = versionBytes.get(deps.storage);
+	if (!cache) {
+		cache = new Map();
+		versionBytes.set(deps.storage, cache);
+	}
+	const cached = cache.get(hash);
+	if (cached) return cached;
+	const bytes = await loadRemoteBytes(deps, hash);
+	if (!bytes) return null;
+	cache.set(hash, bytes);
+	let total = 0;
+	for (const held of cache.values()) total += held.length;
+	for (const [oldest, held] of cache) {
+		// The newest stays even alone over the cap: the open diff refreshes it.
+		if (total <= VERSION_CACHE_MAX_BYTES || cache.size === 1) break;
+		cache.delete(oldest);
+		total -= held.length;
+	}
+	return bytes;
+}
+
 async function historySource(
 	deps: Pick<ProjectionDeps, "adapter" | "storage" | "key">,
 	path: string,
@@ -338,7 +368,7 @@ async function historySource(
 			path,
 			size,
 			load: async () => {
-				const bytes = await loadRemoteBytes(deps, hash);
+				const bytes = await loadVersion(deps, hash);
 				if (!bytes) throw new Error("This version is no longer available.");
 				return bytes;
 			},

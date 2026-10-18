@@ -1,6 +1,6 @@
-import { debounce, type SettingDefinitionGroup } from "obsidian";
+import type { SettingDefinitionGroup } from "obsidian";
 
-import { type FieldContext, group, TYPING_SETTLE_MS } from "@/settings/fields";
+import { type FieldContext, group, onSettled } from "@/settings/fields";
 import { defaultDeviceName } from "@/sync/device";
 
 export function advancedSection({
@@ -16,11 +16,7 @@ export function advancedSection({
 						.setPlaceholder(defaultDeviceName())
 						.setValue(plugin.device.current())
 						.onChange(
-							debounce(
-								(value) => void plugin.device.rename(value),
-								TYPING_SETTLE_MS,
-								true,
-							),
+							onSettled((value: string) => void plugin.device.rename(value)),
 						),
 				);
 			},

@@ -29,10 +29,11 @@ export async function inlineImage(
 	);
 	const mime = target && MIME[target.extension.toLowerCase()];
 	if (!target || !mime) return null;
-	const bytes = await app.vault.readBinary(target);
-	let blob = new Blob([bytes], { type: mime });
 	// An animation or vector would lose what makes it itself.
 	const flat = mime !== "image/gif" && mime !== "image/svg+xml";
+	if (!flat && target.stat.size > IMAGE_MAX_BYTES) return null;
+	const bytes = await app.vault.readBinary(target);
+	let blob = new Blob([bytes], { type: mime });
 	// A camera's JPEG carries its EXIF (GPS included); drawing it anew leaves that behind.
 	const photo = mime === "image/jpeg";
 	if (flat && (photo || bytes.byteLength > KEEP_BYTES)) {

@@ -6,13 +6,18 @@ import {
 } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import type { Editor, MarkdownView } from "obsidian";
-import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
+import {
+	yCollab,
+	yRemoteSelectionsTheme,
+	yUndoManagerKeymap,
+} from "y-codemirror.next";
 import type * as Y from "yjs";
 import { USERS } from "@/live/authors";
 import type { BoundEditor } from "@/live/model";
 import type { LiveSession } from "@/live/session";
 import { authorMarks } from "./author-marks";
 import type { TextModel } from "./model";
+import { remoteSelections } from "./remote-selections";
 import { scrollMarks } from "./scroll-marks";
 
 /**
@@ -48,9 +53,12 @@ export function bindEditor(
 	cm.dispatch({
 		effects: StateEffect.appendConfig.of(
 			compartment.of([
-				yCollab(session.model.text, session.awareness, {
+				// No awareness: the library's selection plugin redraws every selected line on each update.
+				yCollab(session.model.text, null, {
 					undoManager: session.model.undoManager,
 				}),
+				yRemoteSelectionsTheme,
+				remoteSelections(session.model.text, session.awareness),
 				// Obsidian's own undo would also revert what other devices typed.
 				Prec.high([
 					keymap.of(yUndoManagerKeymap),
@@ -76,8 +84,18 @@ export function bindEditor(
 		detach: () => {
 			restoreUndo();
 			apply(compartment.reconfigure([]));
+			forgetView(session.model.undoManager, cm);
 		},
 	};
+}
+
+/** The library keys undo selections by a plugin holding its view, which would outlive the split in the shared history. */
+export function forgetView(undoManager: Y.UndoManager, cm: EditorView): void {
+	for (const item of [...undoManager.undoStack, ...undoManager.redoStack]) {
+		for (const key of [...item.meta.keys()]) {
+			if ((key as { view?: unknown })?.view === cm) item.meta.delete(key);
+		}
+	}
 }
 
 const HISTORY_INPUTS: Record<string, "undo" | "redo"> = {

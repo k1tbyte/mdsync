@@ -1,7 +1,7 @@
 import type { Setting } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
-import type { SettingsRow } from "@/settings/fields";
+import { onSettled, type SettingsRow } from "@/settings/fields";
 import {
 	EFieldKind,
 	EStorageBackend,
@@ -46,6 +46,8 @@ function renderStorageField(
 	field: SettingsFieldSpec,
 ): void {
 	const storage = storageOf(plugin, kind);
+	// An identity field changes the hub route key: save once typing settles, not per key.
+	const saveTyped = onSettled(() => saveSettings(plugin));
 
 	if (field.kind === EFieldKind.Toggle) {
 		setting.addToggle((t) =>
@@ -70,7 +72,7 @@ function renderStorageField(
 					numberField.max,
 					Math.max(numberField.min, parsed),
 				);
-				updateStorage(plugin, kind, { [numberField.key]: next });
+				updateStorage(plugin, kind, { [numberField.key]: next }, saveTyped);
 			});
 		});
 		return;
@@ -83,7 +85,12 @@ function renderStorageField(
 		const text = typeof raw === "string" ? raw : "";
 		t.setValue(text).onChange((v) => {
 			// Trim non-secret fields only; trailing spaces in passwords must be preserved.
-			updateStorage(plugin, kind, { [field.key]: isSecret ? v : v.trim() });
+			updateStorage(
+				plugin,
+				kind,
+				{ [field.key]: isSecret ? v : v.trim() },
+				saveTyped,
+			);
 		});
 	});
 }
@@ -126,12 +133,17 @@ function updateStorage(
 	plugin: PluginHost,
 	kind: EStorageBackend,
 	patch: Record<string, unknown>,
+	save: () => void = () => saveSettings(plugin),
 ): void {
 	const settings = plugin.settings;
 	settings.storageConfigs[kind] = {
 		...(settings.storageConfigs[kind] ?? getDescriptor(kind).defaults()),
 		...patch,
 	};
+	save();
+}
+
+function saveSettings(plugin: PluginHost): void {
 	void plugin
 		.saveSettings()
 		.catch((err: unknown) => notifyError("Could not save settings", err));

@@ -1,8 +1,11 @@
 import type { DataAdapter } from "obsidian";
+import { carryHashes, type HashMove } from "@/sync/session-state";
 import { loadState, resetState, saveState, serializeState } from "@/sync/state";
 import type { LocalState } from "@/sync/types";
 
 const PERSIST_STATE_DEBOUNCE_MS = 500;
+// Obsidian awaits each rename of a burst, so only a timer batches them into one cache copy.
+const HASH_CARRY_MS = 75;
 
 export class StatePersister {
 	private pendingHashCacheState: LocalState | null = null;
@@ -16,6 +19,9 @@ export class StatePersister {
 	private writes: Promise<void> = Promise.resolve();
 	/** Unloaded: an operation still running must not write over the next instance's state. */
 	private disposed = false;
+	/** Renames not yet carried into the hash cache: applied before anyone reads the state. */
+	private moves: HashMove[] = [];
+	private carryTimer: number | null = null;
 
 	constructor(
 		private readonly adapter: DataAdapter,
@@ -28,16 +34,26 @@ export class StatePersister {
 		adapter: DataAdapter,
 		configDir: string,
 	): Promise<StatePersister> {
-		const { state, stored } = await loadState(adapter, configDir);
+		const { state, stored, clean } = await loadState(adapter, configDir);
 		const persister = new StatePersister(adapter, configDir, state);
 		if (stored !== null) persister.lastWritten = fingerprint(stored);
 		// An unwritable disk must not stop the plugin loading; the next persist retries.
-		await persister.write(state).catch(() => undefined);
+		if (!clean) await persister.write(state).catch(() => undefined);
 		return persister;
 	}
 
 	get state(): LocalState {
+		this.carryMoves();
 		return this.current;
+	}
+
+	/** A rename keeps content, so its hashes go with it and no scan reads it again. */
+	carry(move: HashMove): void {
+		this.moves.push(move);
+		this.carryTimer ??= window.setTimeout(
+			() => this.carryMoves(),
+			HASH_CARRY_MS,
+		);
 	}
 
 	async persist(state: LocalState): Promise<void> {
@@ -45,6 +61,13 @@ export class StatePersister {
 		const prev = this.current;
 		this.current = state;
 		if (canDebounce(prev, state)) {
+			// The scanner reuses hit entries, so an idle refresh only rebuilds an identical cache; an unknown disk still retries.
+			if (
+				this.lastWritten !== null &&
+				sameEntries(prev?.hashCache, state.hashCache)
+			) {
+				return;
+			}
 			this.schedule(state);
 			return;
 		}
@@ -79,6 +102,7 @@ export class StatePersister {
 	 * forces a full re-hash next launch.
 	 */
 	async flush(): Promise<void> {
+		this.carryMoves();
 		const pending = this.takePending();
 		if (pending) await this.write(pending);
 		else await this.writes;
@@ -86,6 +110,7 @@ export class StatePersister {
 
 	async reset(): Promise<LocalState> {
 		this.cancelTimer();
+		this.dropMoves();
 		// Takes its turn in the chain rather than racing an in-flight persist.
 		this.lastWritten = null;
 		const next = await this.enqueue(() =>
@@ -98,11 +123,25 @@ export class StatePersister {
 
 	/** Last-ditch write from synchronous `onunload`: deliberately detached, but never unhandled. */
 	dispose(): void {
+		this.carryMoves();
 		this.disposed = true;
 		const pending = this.takePending();
 		if (pending) {
 			this.write(pending).catch(() => undefined);
 		}
+	}
+
+	private carryMoves(): void {
+		if (this.moves.length === 0) return;
+		const next = carryHashes(this.current, this.moves);
+		this.dropMoves();
+		if (next !== this.current) void this.persist(next);
+	}
+
+	private dropMoves(): void {
+		if (this.carryTimer !== null) window.clearTimeout(this.carryTimer);
+		this.carryTimer = null;
+		this.moves = [];
 	}
 
 	private takePending(): LocalState | null {
@@ -161,8 +200,22 @@ function storagesEqual(
 		if (p.vaultId !== n.vaultId) return false;
 		if (p.baseline !== n.baseline) return false;
 		if (p.root !== n.root || p.space !== n.space) return false;
+		if (!sameEntries(p.shareBases, n.shareBases)) return false;
 	}
 	return true;
+}
+
+/** Same keys holding the same objects: a rebuilt map of unchanged entries needs no serializing to compare. */
+function sameEntries(
+	prev: Readonly<Record<string, unknown>> = {},
+	next: Readonly<Record<string, unknown>> = {},
+): boolean {
+	if (prev === next) return true;
+	const keys = Object.keys(prev);
+	if (keys.length !== Object.keys(next).length) return false;
+	return keys.every(
+		(key) => Object.hasOwn(next, key) && prev[key] === next[key],
+	);
 }
 
 function hasHashCacheEntries(state: LocalState): boolean {

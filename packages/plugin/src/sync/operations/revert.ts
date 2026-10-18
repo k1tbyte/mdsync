@@ -6,7 +6,7 @@ import { untouchedSince, writeRemoteEntry } from "@/sync/content";
 import { withMoves } from "@/sync/moves";
 import { renameLocal } from "@/sync/pull-moves";
 import { EChangeType, type ManifestEntry } from "@/sync/types";
-import { runWithConcurrency } from "@/utils";
+import { runWithConcurrency, runWithFileConcurrency } from "@/utils";
 import { trashPath } from "@/vault/io";
 import type { Operation } from "./types";
 
@@ -57,14 +57,19 @@ export const revertPathsOp: Operation<ReadonlyArray<string>> = async (
 		localEntries.set(to, null);
 		localEntries.set(from, result.snapshot.files[to] ?? null);
 	});
-	await runWithConcurrency(restores, concurrency, async ([path, entry]) => {
-		const to = destinationOf.get(path);
-		if (to !== undefined && !heldAs.has(path) && !(await unedited(to)())) {
-			return;
-		}
-		const written = await writeRemoteEntry(deps, path, entry, unedited(path));
-		if (written) localEntries.set(path, written);
-	});
+	await runWithFileConcurrency(
+		restores,
+		concurrency,
+		([, entry]) => entry.size,
+		async ([path, entry]) => {
+			const to = destinationOf.get(path);
+			if (to !== undefined && !heldAs.has(path) && !(await unedited(to)())) {
+				return;
+			}
+			const written = await writeRemoteEntry(deps, path, entry, unedited(path));
+			if (written) localEntries.set(path, written);
+		},
+	);
 	// After the restores: a moved file leaves only once its old path holds it again.
 	await runWithConcurrency(trashes, concurrency, async (path) => {
 		const from = sourceOf.get(path);

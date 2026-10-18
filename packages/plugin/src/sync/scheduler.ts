@@ -108,11 +108,17 @@ export function registerScheduler(
 	);
 
 	// Offline or backing off, a push would only fail and log again: its paths wait.
-	const held = (): boolean => !navigator.onLine || Date.now() < backoffUntil;
+	const resumers: Array<() => void> = [];
+	const onOnline = resumers.push.bind(resumers);
+	host.registerDomEvent(window, "online", () => {
+		for (const resume of resumers) resume();
+	});
+	const backingOff = (): boolean => Date.now() < backoffUntil;
 	const queueVaultPush = quietQueue(
 		host,
 		() => host.settings.autoPushSettleSeconds * 1000,
-		held,
+		backingOff,
+		onOnline,
 		(paths) => void runQueuedPush(host, controller, paths),
 	);
 	// One per share: typing in one must not hold back another's push.
@@ -123,7 +129,8 @@ export function registerScheduler(
 			queue = quietQueue(
 				host,
 				() => SHARE_PUSH_QUIET_MS,
-				held,
+				backingOff,
+				onOnline,
 				(paths) => {
 					if (host.settings.pushSharesRightAway && canSync(host.settings)) {
 						void controller.autoPushShares(paths);
@@ -184,11 +191,15 @@ function scheduleFirstRun(host: SchedulerHost, run: () => void): void {
 	host.registerEvent(host.app.metadataCache.on("resolved", fire));
 }
 
-/** Paths gathered until `quietMs()` pass without a new one, then handed to `run` together; kept while `held()`. */
+/**
+ * Paths gathered until `quietMs()` pass without a new one, then handed to `run` together. Offline they
+ * wait for the `online` event; backing off, they ask again each quiet period, as a clean sync ends it early.
+ */
 function quietQueue(
 	host: SchedulerHost,
 	quietMs: () => number,
-	held: () => boolean,
+	backingOff: () => boolean,
+	onOnline: (resume: () => void) => void,
 	run: (paths: Set<string>) => void,
 ): (path: string) => void {
 	const pending = new Set<string>();
@@ -196,9 +207,13 @@ function quietQueue(
 	host.register(() => {
 		if (timer !== null) window.clearTimeout(timer);
 	});
+	onOnline(() => {
+		if (pending.size > 0 && timer === null) arm();
+	});
 	const fire = (): void => {
 		timer = null;
-		if (held()) {
+		if (!navigator.onLine) return;
+		if (backingOff()) {
 			arm();
 			return;
 		}

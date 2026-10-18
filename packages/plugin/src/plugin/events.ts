@@ -8,7 +8,6 @@ import {
 import type { StatePersister } from "@/core";
 import type { PluginHost } from "@/plugin/host";
 import { reportWarning } from "@/shared";
-import { carryHashes } from "@/sync/session-state";
 import {
 	addIgnoreMenuItem,
 	addLinkMenuItems,
@@ -116,16 +115,13 @@ export function registerHashCarry(
 	statePersister: StatePersister,
 ): void {
 	plugin.registerEvent(
-		plugin.app.vault.on("rename", (file, oldPath) => {
-			const { state } = statePersister;
-			const next = carryHashes(
-				state,
-				oldPath,
-				file.path,
-				file instanceof TFolder,
-			);
-			if (next !== state) void statePersister.persist(next);
-		}),
+		plugin.app.vault.on("rename", (file, oldPath) =>
+			statePersister.carry({
+				from: oldPath,
+				to: file.path,
+				folder: file instanceof TFolder,
+			}),
+		),
 	);
 }
 

@@ -13,6 +13,7 @@ import {
 	loadLocalBytes,
 	loadRemoteBytes,
 	textToBytes,
+	untouchedSince,
 	withLocalMtime,
 	writeRemoteEntry,
 } from "@/sync/content";
@@ -24,9 +25,12 @@ import {
 	storeObject,
 } from "@/sync/engine";
 import type { ManifestEntry } from "@/sync/types";
-import { runWithConcurrency } from "@/utils";
+import { runWithFileConcurrency } from "@/utils";
 import { trashPath, unchangedSince, writeBinary } from "@/vault/io";
 import type { Operation, OperationContext, OperationOutcome } from "./types";
+
+const EDITED_SINCE =
+	"These files changed since the compare, so accepting the remote version would overwrite that change. Review them again.";
 
 export const batchAcceptRemoteOp: Operation<ReadonlySet<string>> = async (
 	deps,
@@ -41,24 +45,32 @@ export const batchAcceptRemoteOp: Operation<ReadonlySet<string>> = async (
 		const scanned = entryAt(result.snapshot.files, path);
 		if (await unchangedSince(deps.adapter, path, scanned)) unchanged.add(path);
 	}
-	if (unchanged.size === 0) {
-		throw new Error(
-			"These files changed since the compare, so accepting the remote version would overwrite that change. Review them again.",
-		);
-	}
+	if (unchanged.size === 0) throw new Error(EDITED_SINCE);
 	const { conflictPaths, localEntries } = await resolveEach(
 		deps,
 		result,
 		unchanged,
 		ctx,
 		async (path) => {
+			// Edited while an earlier file downloaded: that edit stays, and so does the conflict.
+			const ready = untouchedSince(
+				deps,
+				path,
+				entryAt(result.snapshot.files, path),
+			);
 			const remoteEntry = remote.files[path];
-			if (remoteEntry) return writeRemoteEntry(deps, path, remoteEntry);
+			if (remoteEntry) {
+				return (
+					(await writeRemoteEntry(deps, path, remoteEntry, ready)) ?? undefined
+				);
+			}
 			// Edit vs delete, accepting remote: the remote side is the deletion.
+			if (!(await ready())) return undefined;
 			await trashPath(deps.adapter, path);
 			return null;
 		},
 	);
+	if (conflictPaths.length === 0) throw new Error(EDITED_SINCE);
 	const baseline = advanceBaselineForPaths(
 		deps.state.baseline,
 		remote,
@@ -209,13 +221,13 @@ export const saveMergedOp: Operation<MergedSaveArgs> = async (
 	return batchKeepLocalOp(deps, result, new Set([path]), ctx);
 };
 
-/** Runs `resolve` on each selected conflict; it returns what it left on disk. */
+/** Runs `resolve` on each selected conflict; it returns what it left on disk, undefined if it left the path alone. */
 async function resolveEach(
 	deps: EngineDependencies,
 	result: CompareResult,
 	paths: ReadonlySet<string>,
 	ctx: OperationContext,
-	resolve: (path: string) => Promise<ManifestEntry | null>,
+	resolve: (path: string) => Promise<ManifestEntry | null | undefined>,
 ): Promise<{
 	conflictPaths: string[];
 	localEntries: Map<string, ManifestEntry | null>;
@@ -228,13 +240,23 @@ async function resolveEach(
 	}
 	const localEntries = new Map<string, ManifestEntry | null>();
 	let done = 0;
-	await runWithConcurrency(
+	await runWithFileConcurrency(
 		conflictPaths,
 		deps.concurrency ?? DEFAULT_CONCURRENCY,
+		(path) =>
+			Math.max(
+				result.snapshot.files[path]?.size ?? 0,
+				result.remote?.files[path]?.size ?? 0,
+				deps.state.baseline?.files[path]?.size ?? 0,
+			),
 		async (path) => {
-			localEntries.set(path, await resolve(path));
+			const entry = await resolve(path);
+			if (entry !== undefined) localEntries.set(path, entry);
 			ctx.reportProgressSoon(`Resolving ${++done}/${conflictPaths.length}…`);
 		},
 	);
-	return { conflictPaths, localEntries };
+	return {
+		conflictPaths: conflictPaths.filter((path) => localEntries.has(path)),
+		localEntries,
+	};
 }

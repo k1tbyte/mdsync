@@ -8,7 +8,7 @@ import type { ObjectStorage } from "@/storage/types";
 import { REMOTE_OBJECTS_PREFIX } from "@/sync/constants";
 import { fetchRemoteManifest, objectKey } from "@/sync/manifest";
 import type { Manifest } from "@/sync/types";
-import { settledKeys } from "@/sync/uploads";
+import { keysByAge, SETTLED_AFTER_MS } from "@/sync/uploads";
 import { runWithConcurrency } from "@/utils";
 import { collectChangeHashes } from "./changes";
 import { pinKey, readPinManifest, updateHistoryLog } from "./store";
@@ -43,9 +43,29 @@ export function gcExcessBuffer(maxSnapshots: number): number {
 	);
 }
 
-export function shouldRunGc(entryCount: number, maxSnapshots: number): boolean {
-	const max = clampMaxSnapshots(maxSnapshots);
-	return entryCount - max > gcExcessBuffer(maxSnapshots);
+export function shouldRunGc(
+	log: HistoryLog,
+	maxSnapshots: number,
+	now = Date.now(),
+): boolean {
+	return (
+		evictable(log, maxSnapshots, now).length > gcExcessBuffer(maxSnapshots)
+	);
+}
+
+/**
+ * Past the limit and old enough for their blobs to have settled: a younger record's orphans cannot be swept
+ * yet, and once it is pruned nothing names them again.
+ */
+function evictable(
+	log: HistoryLog,
+	maxSnapshots: number,
+	now: number,
+): SnapshotEntry[] {
+	return log.snapshots
+		.filter((entry) => !entry.pinned)
+		.slice(clampMaxSnapshots(maxSnapshots))
+		.filter((entry) => now - entry.createdAt >= SETTLED_AFTER_MS);
 }
 
 export interface GcInput {
@@ -70,28 +90,19 @@ export interface GcResult {
  */
 export async function collectGarbage(input: GcInput): Promise<GcResult> {
 	const { storage, key, root, log } = input;
-	const max = clampMaxSnapshots(input.maxSnapshots);
-	const pinned = log.snapshots.filter((entry) => entry.pinned);
-	const nonPinned = log.snapshots.filter((entry) => !entry.pinned);
-	if (nonPinned.length <= max) {
-		return {
-			log,
-			deletedObjects: 0,
-			deletedSnapshots: 0,
-			skippedObjectSweep: false,
-		};
-	}
-
-	const evicted = nonPinned.slice(max);
-	const keptIds = new Set(
-		[...pinned, ...nonPinned.slice(0, max)].map((entry) => entry.id),
+	const candidates = evictable(log, input.maxSnapshots, Date.now());
+	if (candidates.length === 0) return untouched(log);
+	const hashes = new Map(
+		candidates.map((entry) => [entry.id, recordHashes(log, entry.id)]),
 	);
+	const hashesOf = (entry: SnapshotEntry): string[] =>
+		hashes.get(entry.id) ?? [];
 
 	const liveHashes = new Set<string>();
 	collectHashes(input.headManifest, liveHashes);
 	let retainedComplete = true;
 	for (const entry of log.snapshots) {
-		if (!keptIds.has(entry.id)) continue;
+		if (hashes.has(entry.id)) continue;
 		const changes = log.changes[entry.id];
 		// A kept record we cannot read leaves its hashes unaccounted for.
 		if (!changes) {
@@ -100,14 +111,34 @@ export async function collectGarbage(input: GcInput): Promise<GcResult> {
 		}
 		collectChangeHashes(changes, liveHashes);
 	}
+	const pinned = log.snapshots.filter((entry) => entry.pinned);
 	retainedComplete =
 		(await addPinnedHashes(storage, key, root, pinned, liveHashes)) &&
 		retainedComplete;
 
+	// Another device may have re-uploaded an old hash for a push it has not published: only settled blobs go.
+	// Listed before the prune: a record naming one still settling stays, or nothing would name that blob again.
+	const orphan = (hash: string): boolean => !liveHashes.has(hash);
+	const ages =
+		retainedComplete && candidates.some((entry) => hashesOf(entry).some(orphan))
+			? await keysByAge(storage, REMOTE_OBJECTS_PREFIX)
+			: null;
+	const settling = ages
+		? candidates.filter((entry) =>
+				hashesOf(entry).some(
+					(hash) => orphan(hash) && ages.settling.has(objectKey(hash)),
+				),
+			)
+		: [];
+	for (const entry of settling) {
+		for (const hash of hashesOf(entry)) liveHashes.add(hash);
+	}
+	const evicted = candidates.filter((entry) => !settling.includes(entry));
+	if (evicted.length === 0) return untouched(log);
+
 	const evictedHashes = new Set<string>();
 	for (const entry of evicted) {
-		const changes = log.changes[entry.id];
-		if (changes) collectChangeHashes(changes, evictedHashes);
+		for (const hash of hashesOf(entry)) evictedHashes.add(hash);
 	}
 
 	// Prune before sweeping: a crash in between leaves orphan blobs (deep-clean collects them), not log
@@ -143,10 +174,8 @@ export async function collectGarbage(input: GcInput): Promise<GcResult> {
 		? []
 		: [...evictedHashes].filter((hash) => !liveHashes.has(hash));
 	if (orphans.length > 0) {
-		// Another device may have re-uploaded an old hash for a push it has not published: only settled blobs go.
-		const settled = new Set(await settledKeys(storage, REMOTE_OBJECTS_PREFIX));
 		await runWithConcurrency(orphans, GC_CONCURRENCY, async (hash) => {
-			if (!settled.has(objectKey(hash))) return;
+			if (!ages?.settled.has(objectKey(hash))) return;
 			if (await safeDelete(storage, objectKey(hash))) deletedObjects++;
 		});
 	}
@@ -160,6 +189,22 @@ export async function collectGarbage(input: GcInput): Promise<GcResult> {
 		deletedSnapshots: evicted.length - stillPresent,
 		skippedObjectSweep,
 	};
+}
+
+function untouched(log: HistoryLog): GcResult {
+	return {
+		log,
+		deletedObjects: 0,
+		deletedSnapshots: 0,
+		skippedObjectSweep: false,
+	};
+}
+
+function recordHashes(log: HistoryLog, id: string): string[] {
+	const changes = log.changes[id];
+	const into = new Set<string>();
+	if (changes) collectChangeHashes(changes, into);
+	return [...into];
 }
 
 /**
@@ -220,7 +265,7 @@ async function addPinnedHashes(
 	return complete;
 }
 
-export function collectHashes(manifest: Manifest, into: Set<string>): void {
+function collectHashes(manifest: Manifest, into: Set<string>): void {
 	for (const entry of Object.values(manifest.files)) into.add(entry.hash);
 }
 

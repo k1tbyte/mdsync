@@ -3,6 +3,123 @@ import { StatePersister } from "@/core/state-persister";
 import { loadState, serializeState, stateFilePath } from "@/sync/state";
 import type { LocalState } from "@/sync/types";
 
+describe("StatePersister.load", () => {
+	const stored = createState({
+		hashCache: { "a.md": { mtime: 1, size: 1, hash: "h" } },
+	});
+
+	it("writes nothing when the state file already holds the state", async () => {
+		const adapter = new MemoryAdapter();
+		await adapter.write(stateFilePath(".obsidian"), serializeState(stored));
+		const before = adapter.writes;
+		const persister = await StatePersister.load(adapter as never, ".obsidian");
+		expect(persister.state).toEqual(stored);
+		expect(adapter.writes).toBe(before);
+	});
+
+	it("writes when a device id had to be minted", async () => {
+		const adapter = new MemoryAdapter();
+		await adapter.write(stateFilePath(".obsidian"), JSON.stringify({}));
+		const before = adapter.writes;
+		await StatePersister.load(adapter as never, ".obsidian");
+		expect(adapter.writes).toBeGreaterThan(before);
+	});
+
+	it("writes when the state came from the backup", async () => {
+		const adapter = new MemoryAdapter();
+		await adapter.write(
+			`${stateFilePath(".obsidian")}.bak`,
+			serializeState(stored),
+		);
+		const before = adapter.writes;
+		await StatePersister.load(adapter as never, ".obsidian");
+		expect(adapter.writes).toBeGreaterThan(before);
+	});
+});
+
+describe("StatePersister.persist", () => {
+	it("does nothing for a rebuilt hash cache holding the same entries", async () => {
+		vi.useFakeTimers();
+		try {
+			const entry = { mtime: 1, size: 1, hash: "h" };
+			const initial = createState({ hashCache: { "a.md": entry } });
+			const adapter = new MemoryAdapter();
+			const persister = new StatePersister(
+				adapter as never,
+				".obsidian",
+				initial,
+			);
+			await persister.persist(initial);
+			await vi.runAllTimersAsync();
+			expect(adapter.writes).toBe(1);
+
+			await persister.persist({ ...initial, hashCache: { "a.md": entry } });
+			expect(vi.getTimerCount()).toBe(0);
+
+			await persister.persist({
+				...initial,
+				hashCache: { "a.md": { ...entry } },
+			});
+			expect(vi.getTimerCount()).toBe(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("writes a slot whose share bases changed under the same baseline and cache", async () => {
+		const baseline = null;
+		const slot = { vaultId: "v", baseline };
+		const initial = createState({ storages: { s: slot } });
+		const adapter = new MemoryAdapter();
+		const persister = new StatePersister(
+			adapter as never,
+			".obsidian",
+			initial,
+		);
+		await persister.persist(initial);
+		const writes = adapter.writes;
+
+		const entry = { hash: "h", size: 1, mtime: 1, kind: "vault" as const };
+		const next = {
+			...initial,
+			storages: { s: { ...slot, shareBases: { "a.md": entry } } },
+		} as LocalState;
+		await persister.persist(next);
+		await persister.flush();
+
+		expect(adapter.writes).toBeGreaterThan(writes);
+		const reloaded = await loadState(adapter as never, ".obsidian");
+		expect(reloaded.state.storages.s?.shareBases).toEqual({ "a.md": entry });
+	});
+});
+
+describe("StatePersister.carry", () => {
+	it("carries a rename burst into the state before anyone reads it", () => {
+		vi.useFakeTimers();
+		try {
+			const a = { mtime: 1, size: 1, hash: "A" };
+			const b = { mtime: 1, size: 1, hash: "B" };
+			const persister = new StatePersister(
+				new MemoryAdapter() as never,
+				".obsidian",
+				createState({ hashCache: { "a.md": a, "b.md": b } }),
+			);
+			const swap = [
+				["a.md", "tmp.md"],
+				["b.md", "a.md"],
+				["tmp.md", "b.md"],
+			];
+			for (const [from, to] of swap) {
+				persister.carry({ from: from ?? "", to: to ?? "", folder: false });
+			}
+
+			expect(persister.state.hashCache).toEqual({ "a.md": b, "b.md": a });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});
+
 describe("StatePersister.reset", () => {
 	it("clears sync state and cancels pending debounced writes", async () => {
 		vi.useFakeTimers();

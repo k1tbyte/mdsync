@@ -121,6 +121,31 @@ describe("a read-only person's live note", () => {
 	});
 });
 
+describe("announcing while offline", () => {
+	it("seals and sends nothing when the socket cannot send", async () => {
+		const send = vi.fn();
+		let online = false;
+		const room = new RoomAwareness(new Y.Doc(), {
+			keys: live.keys,
+			docId: live.docId,
+			canSend: () => online,
+			send,
+			enqueue: () => {},
+		});
+		room.awareness.setLocalStateField("user", { name: "a" });
+		const clock = room.awareness.meta.get(room.awareness.clientID)?.clock;
+
+		await room.announce();
+		expect(send).not.toHaveBeenCalled();
+		expect(room.awareness.meta.get(room.awareness.clientID)?.clock).toBe(clock);
+
+		online = true;
+		await room.announce();
+		expect(send).toHaveBeenCalledTimes(1);
+		room.dispose();
+	});
+});
+
 describe("compaction with readers in the room", () => {
 	const room = (client: number) => {
 		const doc = new Y.Doc();

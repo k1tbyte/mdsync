@@ -158,3 +158,56 @@ describe("purging a channel", () => {
 function to(target: string, note = bytes()) {
 	return { target, note };
 }
+
+describe("the tail's byte count", () => {
+	const quarter = () => new Uint8Array(MAX_TAIL_BYTES / 4);
+	const sums = (sql: { queries: string[] }) =>
+		sql.queries.filter((query) => query.includes("sum(length")).length;
+
+	it("is summed once after a wake, however many updates follow", () => {
+		const sql = loggedSql();
+		new SqlDocStore(sql).append(VAULT, DOC, bytes(1));
+		const store = new SqlDocStore(sql);
+		for (let at = 0; at < 20; at++) store.append(VAULT, DOC, bytes(1));
+
+		expect(sums(sql)).toBe(1);
+	});
+
+	it("still caps the bytes after a compaction, which counts the tail afresh", () => {
+		const store = new SqlDocStore(memorySql());
+		for (let at = 1; at <= 4; at++) store.append(VAULT, DOC, quarter());
+		expect(store.append(VAULT, DOC, bytes(1))).toBeNull();
+
+		store.compact(VAULT, DOC, bytes(9), 4);
+		expect(store.append(VAULT, DOC, quarter())).toBe(5);
+		store.append(VAULT, DOC, quarter());
+		store.append(VAULT, DOC, quarter());
+		store.append(VAULT, DOC, quarter());
+		expect(store.append(VAULT, DOC, bytes(1))).toBeNull();
+	});
+
+	it("caps bytes in a fresh store over the same SQL, and after eviction", () => {
+		const sql = memorySql();
+		const before = new SqlDocStore(sql);
+		for (let at = 1; at <= 4; at++) before.append(VAULT, DOC, quarter());
+
+		const after = new SqlDocStore(sql);
+		expect(after.append(VAULT, DOC, bytes(1))).toBeNull();
+
+		for (let doc = 0; doc <= MOVED_CACHE_MAX; doc++) {
+			after.append(VAULT, `doc-${doc}`, bytes(1));
+		}
+		expect(after.append(VAULT, DOC, bytes(1))).toBeNull();
+	});
+
+	it("starts again after a rotation and a purge", () => {
+		const store = new SqlDocStore(memorySql());
+		for (let at = 1; at <= 4; at++) store.append(VAULT, DOC, quarter());
+		expect(store.rotate(VAULT, DOC, to(NEXT), 4, bytes(1))).toBe(true);
+		expect(store.append(VAULT, NEXT, bytes(1))).toBe(2);
+
+		for (let at = 1; at <= 4; at++) store.append(OTHER, DOC, quarter());
+		store.purge(OTHER);
+		expect(store.append(OTHER, DOC, quarter())).toBe(1);
+	});
+});

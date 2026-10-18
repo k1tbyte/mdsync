@@ -1,5 +1,5 @@
 export {
-	collectChangeHashes,
+	changeEntries,
 	contiguousLength,
 	diffManifests,
 	undoChanges,
@@ -7,7 +7,6 @@ export {
 } from "./changes";
 export {
 	clampMaxSnapshots,
-	collectHashes,
 	gcExcessBuffer,
 	shouldRunGc,
 } from "./gc";

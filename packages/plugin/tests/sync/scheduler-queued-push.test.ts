@@ -13,6 +13,7 @@ interface Harness {
 	refreshes: () => number;
 	pushes: () => ReadonlyArray<ReadonlySet<string> | undefined>;
 	sharePushes: () => ReadonlyArray<ReadonlySet<string>>;
+	goOnline: () => void;
 }
 
 const SHARES: Record<string, Space> = {
@@ -29,6 +30,7 @@ function harness(options: {
 }): Harness {
 	let refreshes = 0;
 	const pushes: Array<ReadonlySet<string> | undefined> = [];
+	const onlineListeners: Array<() => void> = [];
 	const listeners = new Map<
 		string,
 		(file: { path: string }, oldPath?: string) => void
@@ -71,6 +73,9 @@ function harness(options: {
 		spaces: { partition: () => [VAULT_SPACE, ...Object.values(SHARES)] },
 		register: () => undefined,
 		registerInterval: () => undefined,
+		registerDomEvent: (_target: unknown, _event: string, fn: () => void) => {
+			onlineListeners.push(fn);
+		},
 		registerEvent: () => undefined,
 	} as unknown as SchedulerHost;
 	const sharePushes: ReadonlySet<string>[] = [];
@@ -96,6 +101,10 @@ function harness(options: {
 		},
 		refreshes: () => refreshes,
 		pushes: () => pushes,
+		goOnline: () => {
+			vi.stubGlobal("navigator", { onLine: true });
+			for (const fn of onlineListeners) fn();
+		},
 	};
 }
 
@@ -117,7 +126,10 @@ describe("queued push after changes settle", () => {
 		await vi.advanceTimersByTimeAsync(SETTLE_MS * 3);
 		expect(h.refreshes()).toBe(0);
 
-		vi.stubGlobal("navigator", { onLine: true });
+		// Only the heartbeat interval is left: no quiet timer polls while offline.
+		expect(vi.getTimerCount()).toBe(1);
+
+		h.goOnline();
 		await vi.advanceTimersByTimeAsync(SETTLE_MS);
 		expect(h.pushes()).toEqual([new Set(["a.md"])]);
 	});

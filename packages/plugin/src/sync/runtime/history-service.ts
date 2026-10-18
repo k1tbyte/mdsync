@@ -35,7 +35,7 @@ import {
 	type HistoryDiffRequest,
 } from "@/sync/projection";
 import type { LocalSnapshot, Manifest } from "@/sync/types";
-import { runWithConcurrency, withEolOf } from "@/utils";
+import { runWithConcurrency, runWithFileConcurrency, withEolOf } from "@/utils";
 import { diskRefuses, trashPath, writeBinary } from "@/vault/io";
 import { scanVault } from "@/vault/scanner";
 
@@ -110,9 +110,10 @@ export class HistoryService {
 			const target = await this.requireSnapshot(session, snapshotId);
 			const plan = await this.planRestore(session, target);
 			if (!sameRestorePlan(plan, confirmed)) return { plan, applied: false };
-			await runWithConcurrency(
+			await runWithFileConcurrency(
 				plan.write,
 				session.concurrency ?? DEFAULT_CONCURRENCY,
+				(item) => item.entry.size,
 				async (item) => {
 					await writeRemoteObject(session, item.path, item.entry.hash);
 				},

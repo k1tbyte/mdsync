@@ -11,10 +11,16 @@ import {
 } from "@/logs/store";
 import { setDiagnosticsSink } from "@/shared";
 
+/** A push logs many lines in a burst: one file write after they settle. */
+const WRITE_QUIET_MS = 1000;
+
 export class LogService {
 	private entries: SyncLogEntry[] = [];
 	/** Append and clear share one file; serialising stops the older snapshot landing last. */
 	private writes: Promise<void> = Promise.resolve();
+	private timer: ReturnType<typeof setTimeout> | null = null;
+	/** Unloaded: a line from an operation still winding down is written at once, no timer outlives us. */
+	private disposed = false;
 
 	constructor(
 		private readonly adapter: DataAdapter,
@@ -29,7 +35,9 @@ export class LogService {
 	}
 
 	dispose(): void {
+		this.disposed = true;
 		setDiagnosticsSink(null);
+		if (this.timer !== null) void this.save();
 	}
 
 	getEntries(): readonly SyncLogEntry[] {
@@ -65,7 +73,7 @@ export class LogService {
 		return this.append(ESyncLogLevel.Error, operation, message, details);
 	}
 
-	private async append(
+	private append(
 		level: ESyncLogLevel,
 		operation: ESyncLogOperation,
 		message: string,
@@ -75,11 +83,15 @@ export class LogService {
 			this.entries,
 			createSyncLogEntry(level, operation, message, details),
 		);
-		await this.save();
+		if (this.disposed) return this.save();
+		this.timer ??= setTimeout(() => void this.save(), WRITE_QUIET_MS);
+		return Promise.resolve();
 	}
 
 	/** A failed log write goes to the console and is swallowed: callers await it mid push and pull. */
 	private save(): Promise<void> {
+		if (this.timer !== null) clearTimeout(this.timer);
+		this.timer = null;
 		const entries = this.entries;
 		const write = async (): Promise<void> => {
 			try {

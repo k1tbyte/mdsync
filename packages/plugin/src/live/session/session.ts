@@ -447,6 +447,8 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	/** Unacked before sealing: an edit is always pending or unacked until its echo. */
 	private async sendUpdate(update: Uint8Array): Promise<void> {
 		const n = this.outbox.addUnacked(update);
+		// Offline, the next State resends the unacked bytes (goOnline), sealed afresh.
+		if (!this.online) return;
 		const payload = await seal(this.deps.keys, update, this.sealedFor);
 		if (this.online) this.send({ type: EFrame.Update, n, payload });
 	}
