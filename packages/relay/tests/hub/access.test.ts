@@ -20,7 +20,11 @@ interface HubCalls {
 }
 
 /** `secret: null` models a deployment that left RELAY_SECRET unset. */
-function makeEnv(kv = new FakeKV(), secret: string | null = SECRET) {
+function makeEnv(
+	kv = new FakeKV(),
+	secret: string | null = SECRET,
+	revoked = false,
+) {
 	const calls: HubCalls = { headers: [], admissions: [], signals: [] };
 	const hub = {
 		idFromName: (name: string) => ({ name }),
@@ -31,8 +35,9 @@ function makeEnv(kv = new FakeKV(), secret: string | null = SECRET) {
 				calls.admissions.push(JSON.parse(header));
 				return new Response("hub");
 			},
-			signal: async (channel: string, device: string) => {
+			signal: async ({ channel }: { channel: string }, device: string) => {
 				calls.signals.push([channel, device]);
+				return !revoked;
 			},
 		}),
 	};
@@ -285,6 +290,18 @@ describe("hub routing", () => {
 		const granted = new URLSearchParams({ c: VAULT, t: token });
 		expect((await call(`/hub/signal?${granted}`, env)).status).toBe(405);
 		expect(calls.signals).toEqual([]);
+	});
+
+	it("refuses an HTTP signal the hub knows revoked while KV still admits it", async () => {
+		const { env } = makeEnv(new FakeKV(), SECRET, true);
+		const token = await deriveChannelGrant(SECRET, VAULT);
+		const query = new URLSearchParams({ c: VAULT, t: token, d: "laptop" });
+
+		const response = await call(`/hub/signal?${query}`, env, {
+			method: "POST",
+		});
+
+		expect(response.status).toBe(401);
 	});
 
 	it("takes no HTTP signal from a read-only participant", async () => {

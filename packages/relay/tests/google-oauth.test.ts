@@ -215,7 +215,7 @@ describe("token refresh", () => {
 		}
 	});
 
-	it("returns only the access token, never Google's raw response", async () => {
+	it("returns the tokens alone, never Google's raw response", async () => {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(async () => ({
@@ -238,6 +238,7 @@ describe("token refresh", () => {
 		expect(await response.json()).toEqual({
 			access_token: "at",
 			expires_in: 3600,
+			refresh_token: "rotated",
 		});
 	});
 
@@ -252,6 +253,27 @@ describe("token refresh", () => {
 			env,
 		);
 		expect(response.status).toBe(502);
+	});
+
+	it("answers a revoked refresh token with 401, so the plugin asks to sign in again", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => ({
+				ok: false,
+				status: 400,
+				json: async () => ({
+					error: "invalid_grant",
+					error_description: "Token has been expired or revoked.",
+				}),
+			})),
+		);
+
+		const response = await handleTokenRefresh(
+			post(JSON.stringify({ refresh_token: "rt" })),
+			env,
+		);
+		expect(response.status).toBe(401);
+		expect(await response.json()).toEqual({ error: "invalid_grant" });
 	});
 });
 

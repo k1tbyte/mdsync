@@ -125,7 +125,9 @@ async function signal(
 	if (!grant) return new Response("Unauthorized", { status: 401 });
 	// A read-only participant never pushes: its signal would only wake everyone.
 	if (grant.readOnly) return new Response("Forbidden", { status: 403 });
-	await hubStub(env).signal(channel, deviceOf(url.searchParams));
+	if (!(await hubStub(env).signal(grant, deviceOf(url.searchParams)))) {
+		return new Response("Unauthorized", { status: 401 });
+	}
 	return new Response("ok");
 }
 

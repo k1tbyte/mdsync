@@ -121,9 +121,11 @@ export class Hub extends DurableObject<HubEnv> {
 		this.core.closeChannel(channel);
 	}
 
-	/** RPC from the worker's HTTP signal route. */
-	signal(channel: string, exceptDevice: string): void {
-		this.core.signal(channel, exceptDevice);
+	/** RPC from the worker's HTTP signal route; false for a grant revoked since KV admitted it. */
+	signal(grant: Grant, exceptDevice: string): boolean {
+		if (this.revoked.refuse([grant])[0] === null) return false;
+		this.core.signal(grant.channel, exceptDevice);
+		return true;
 	}
 
 	/** A socket the hub closed stays listed, without its attachment, until the close completes. */

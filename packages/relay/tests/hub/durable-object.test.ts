@@ -88,6 +88,8 @@ function makeHub(...sockets: FakeSocket[]) {
 		message: (ws: FakeSocket, frame: ClientFrame) =>
 			hub.webSocketMessage(asSocket(ws), encodeClient(frame).slice().buffer),
 		purgeChannel: (channel: string) => hub.purgeChannel(channel),
+		dropGrant: (fingerprint: string) => hub.dropGrant(fingerprint),
+		signal: (by: Grant, device: string) => hub.signal(by, device),
 		alarm: () => hub.alarm(),
 		close: (ws: FakeSocket) => hub.webSocketClose(asSocket(ws)),
 		error: (ws: FakeSocket) => hub.webSocketError(asSocket(ws)),
@@ -184,6 +186,22 @@ describe("frames", () => {
 		expect(follower.got(EFrame.Peer)).toHaveLength(5);
 		expect(sender.attachmentReads).toBe(1);
 		expect(follower.attachmentReads).toBe(1);
+	});
+});
+
+describe("HTTP signals", () => {
+	it("refuses a grant revoked here, however long KV keeps admitting it", () => {
+		const listener = new FakeSocket(1, NOW, [grant(SHARE, "owner-token")]);
+		const hub = makeHub(listener);
+		const revoked = grant(SHARE, "p-token", "p");
+
+		expect(hub.signal(revoked, "laptop")).toBe(true);
+		hub.dropGrant("p-token");
+		expect(hub.signal(revoked, "laptop")).toBe(false);
+		hub.purgeChannel(SHARE);
+		expect(hub.signal(grant(SHARE, "owner-token"), "laptop")).toBe(false);
+
+		expect(listener.got(EFrame.Signal)).toHaveLength(1);
 	});
 });
 

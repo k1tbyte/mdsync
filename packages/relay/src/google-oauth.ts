@@ -30,6 +30,8 @@ interface GoogleTokenResponse {
 	access_token?: string;
 	refresh_token?: string;
 	expires_in?: number;
+	/** Set on a refusal instead of the tokens. */
+	error?: string;
 }
 
 export async function handleTokenRefresh(
@@ -49,13 +51,21 @@ export async function handleTokenRefresh(
 		grant_type: "refresh_token",
 		refresh_token: refreshToken,
 	});
+	// Revoked or expired: only signing in again helps, so the plugin must not retry it as an outage.
+	if (token?.error === "invalid_grant") {
+		return jsonResponse({ error: "invalid_grant" }, 401);
+	}
 	if (!token?.access_token) {
 		return jsonResponse({ error: "token_refresh_failed" }, 502);
 	}
-	// Return only what the client needs - never echo Google's raw response, which
-	// may carry a rotated refresh token or error details.
+	// Only what the client needs, never Google's raw reply. A rotated refresh token goes back: the device
+	// already holds the old one, and keeping it would leave the next refresh revoked.
 	return jsonResponse(
-		{ access_token: token.access_token, expires_in: token.expires_in },
+		{
+			access_token: token.access_token,
+			expires_in: token.expires_in,
+			refresh_token: token.refresh_token,
+		},
 		200,
 	);
 }
@@ -247,7 +257,11 @@ async function exchange(
 	// A 5xx from Google is HTML; parsing as JSON would throw before reporting failure.
 	if (!response.ok) {
 		console.error("google token exchange failed", response.status);
-		return null;
+		if (response.status !== 400) return null;
+		const refused = await response
+			.json<{ error?: unknown }>()
+			.catch(() => null);
+		return typeof refused?.error === "string" ? { error: refused.error } : null;
 	}
 	try {
 		return await response.json<GoogleTokenResponse>();
