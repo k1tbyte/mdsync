@@ -17,9 +17,11 @@ export function createStorageRefused(
 		const own =
 			space.root === VAULT_SPACE.root ||
 			plugin.spaces.get(space.id)?.access.kind === "owner";
-		const keys = JSON.stringify(activeStorage(plugin.settings), (key, value) =>
-			// Drive replaces its access token hourly; the keys are what the person set.
-			VOLATILE.has(key) ? undefined : value,
+		const keys = JSON.stringify(
+			activeStorage(plugin.settings),
+			(key, value: unknown) =>
+				// Drive replaces its access token hourly; the keys are what the person set.
+				VOLATILE.has(key) ? undefined : value,
 		);
 		if (!own || keys === askedFor) return;
 		askedFor = keys;

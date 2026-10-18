@@ -13,6 +13,10 @@ export function installElementFactories(): void {
 	};
 	Object.assign(globalThis, {
 		createEl,
+		createDiv: (options?: ElementOptions) => createEl("div", options),
 		createSpan: (options?: ElementOptions) => createEl("span", options),
 	});
+	HTMLElement.prototype.setCssStyles = function (styles) {
+		Object.assign(this.style, styles);
+	};
 }

@@ -19,18 +19,18 @@ class CaretWidget extends WidgetType {
 	}
 
 	toDOM(): HTMLElement {
-		const caret = document.createElement("span");
-		caret.className = "cm-ySelectionCaret";
-		caret.setAttribute(
-			"style",
-			`background-color: ${this.color}; border-color: ${this.color}`,
+		const caret = createSpan({ cls: "cm-ySelectionCaret" });
+		caret.setCssStyles({
+			backgroundColor: this.color,
+			borderColor: this.color,
+		});
+		caret.append(
+			"\u2060",
+			createDiv({ cls: "cm-ySelectionCaretDot" }),
+			"\u2060",
+			createDiv({ cls: "cm-ySelectionInfo", text: this.name }),
+			"\u2060",
 		);
-		const dot = document.createElement("div");
-		dot.className = "cm-ySelectionCaretDot";
-		const info = document.createElement("div");
-		info.className = "cm-ySelectionInfo";
-		info.textContent = this.name;
-		caret.append("\u2060", dot, "\u2060", info, "\u2060");
 		return caret;
 	}
 
@@ -49,6 +49,12 @@ class CaretWidget extends WidgetType {
 	ignoreEvent(): boolean {
 		return true;
 	}
+}
+
+/** What a peer publishes: awareness states are untyped. */
+interface PeerState {
+	cursor?: { anchor?: Y.RelativePosition; head?: Y.RelativePosition } | null;
+	user?: { color?: string; colorLight?: string; name?: string };
 }
 
 /**
@@ -93,7 +99,7 @@ export function remoteSelections(ytext: Y.Text, awareness: Awareness) {
 			}
 
 			private publishLocal(update: ViewUpdate): void {
-				const local = awareness.getLocalState();
+				const local = awareness.getLocalState() as PeerState | null;
 				if (local == null) return;
 				const hasFocus =
 					update.view.hasFocus && update.view.dom.ownerDocument.hasFocus();
@@ -122,7 +128,8 @@ export function remoteSelections(ytext: Y.Text, awareness: Awareness) {
 				const doc = ytext.doc;
 				const lines = view.state.doc;
 				const out: Range<Decoration>[] = [];
-				for (const [id, state] of awareness.getStates()) {
+				const states = awareness.getStates() as Map<number, PeerState>;
+				for (const [id, state] of states) {
 					const { cursor } = state;
 					if (id === awareness.doc.clientID || !doc) continue;
 					if (cursor?.anchor == null || cursor.head == null) continue;

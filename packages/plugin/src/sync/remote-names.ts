@@ -39,7 +39,7 @@ function skipRemoteCaseClashes(
 		const kept =
 			group.find((path) => path in snapshot.files) ??
 			group.find((path) => baseline?.files[path] !== undefined) ??
-			(group.sort()[0] as string);
+			group.reduce((first, path) => (path < first ? path : first));
 		for (const path of group) {
 			if (path === kept || known.has(path)) continue;
 			clashes.push({ path, reason: "case-clash", other: kept });

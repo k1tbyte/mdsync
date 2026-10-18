@@ -18,7 +18,7 @@ export class LogService {
 	private entries: SyncLogEntry[] = [];
 	/** Append and clear share one file; serialising stops the older snapshot landing last. */
 	private writes: Promise<void> = Promise.resolve();
-	private timer: ReturnType<typeof setTimeout> | null = null;
+	private timer: number | null = null;
 	/** Unloaded: a line from an operation still winding down is written at once, no timer outlives us. */
 	private disposed = false;
 
@@ -84,13 +84,13 @@ export class LogService {
 			createSyncLogEntry(level, operation, message, details),
 		);
 		if (this.disposed) return this.save();
-		this.timer ??= setTimeout(() => void this.save(), WRITE_QUIET_MS);
+		this.timer ??= window.setTimeout(() => void this.save(), WRITE_QUIET_MS);
 		return Promise.resolve();
 	}
 
 	/** A failed log write goes to the console and is swallowed: callers await it mid push and pull. */
 	private save(): Promise<void> {
-		if (this.timer !== null) clearTimeout(this.timer);
+		if (this.timer !== null) window.clearTimeout(this.timer);
 		this.timer = null;
 		const entries = this.entries;
 		const write = async (): Promise<void> => {

@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 import { EditorState } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
+import { installElementFactories } from "@tests/helpers/obsidian-dom";
 import { describe, expect, it } from "vitest";
 import { Awareness } from "y-protocols/awareness";
 import * as Y from "yjs";
 import { remoteSelections } from "@/live/text/remote-selections";
+
+installElementFactories();
 
 const FRIEND = 999;
 
