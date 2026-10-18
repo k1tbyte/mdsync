@@ -3,6 +3,40 @@
 This file is the source of truth for release notes: the section of a version becomes the notes of its GitHub release.
 The newest section must match `version` in `manifest.json`. Headings are `## [x.y.z] - YYYY-MM-DD`, then `### Important`, `### Features`, `### Improvements` and `### Fixes` as needed. Write for users, in plain sentences, not commit titles.
 
+## [1.3.0] - 2026-10-19
+
+### Important
+
+- Update the relay to get its fixes below. A device that keeps your Cloudflare token offers it on its own; elsewhere select **Update relay** in **Settings → MDSync → Connection**.
+
+### Features
+
+- **Relay updates in one click.** When the relay MDSync deployed to your Cloudflare account is older than the one this version carries, MDSync offers to update it. Its secret, shared folders and links stay.
+- **New storage keys in place.** When the storage turns this device's keys away (changed, revoked or mistyped), MDSync says so and points to where to update them. With Cloudflare R2, paste the rolled API token's new value or the new secret access key, and sync goes on in the same bucket and folder.
+
+### Improvements
+
+- Sync asks the storage for less. The history log, pinned versions and shared folders are downloaded again only when they changed. On Google Drive, an unchanged file is checked without downloading it, and many new files upload without looking each one up first.
+- Less writing to disk: the sync state is saved only when it changed, the diagnostics log once per burst of entries, and settings once you stop typing.
+- Live editing draws other people's selections only on the lines in view, so a long selection stays smooth.
+- Restoring, reverting, resolving and checking many large files keeps memory use in check.
+- History cleanup right after a push no longer leaves unused files on the storage until a deep clean.
+- The relay does less work for every live edit, and an unchanged share link page loads from the browser's cache.
+
+### Fixes
+
+- Auto-merge, revert and accepting the remote version no longer overwrite an edit made after the compare, and reverting a moved file undoes the whole move.
+- Two devices pushing at the same moment can no longer turn one device's files into deletions.
+- History cleanup no longer removes a file another device is still uploading, and a history log that fails to load is never reset.
+- Renaming a file only by letter case syncs as a rename. Where the disk ignores case, two remote files that differ only by case are skipped instead of overwriting each other.
+- On Windows and Android, files whose names hold a character the system refuses (such as `:` or `?`) are skipped instead of stopping the sync.
+- Google Drive: rate limits are retried, a full Drive is reported as such, a file another device deleted and created again is found, and a renewed sign-in is kept, so you are not asked to sign in again.
+- S3: a device clock that is off is reported as such, not as wrong keys.
+- Live editing: a note whose live history outgrew the relay's limits is rebuilt on its own, or goes back to the scheduled sync instead of failing.
+- The relay reports a revoked Google sign-in as such, and refuses pings from a device whose shared folder access was revoked.
+- The change popup in the gutter works in popout windows.
+- Gutter change marks and the live mark stay in place when switching notes.
+
 ## [1.2.0] - 2026-10-11
 
 ### Important
