@@ -4,6 +4,7 @@ import { pairedSessions, useEncryptionKey } from "@tests/helpers/session";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { ESyncLogOperation } from "@/logs/store";
 import { ShareRefusedError, StorageRequestError } from "@/storage";
+import { StorageHttpError } from "@/storage/adapters/util";
 import { SyncCancelledError } from "@/sync/cancel";
 import { ConcurrentPushError } from "@/sync/manifest";
 import { pushPathsOp } from "@/sync/operations/push";
@@ -122,6 +123,25 @@ describe("OperationRunner.runOperation", () => {
 		).toEqual({ ok: false, error: "Compare failed" });
 		expect(operation).not.toHaveBeenCalled();
 		expect(runtimeState.getSnapshot().error).toBe("Compare failed");
+	});
+
+	it("reports the vault's storage refusing its credentials, not other failures", async () => {
+		const [session] = pairedSessions();
+		const { runner, host } = createTestRunner(session);
+		const onStorageRefused = vi.fn();
+		Object.assign(host, { onStorageRefused });
+		const get = vi.spyOn(session.storage, "get");
+
+		get.mockRejectedValue(new StorageHttpError(401, "Unauthorized"));
+		await runner.runOperation(VAULT_SPACE, ESyncLogOperation.Push, unchanged);
+		expect(onStorageRefused).toHaveBeenCalledExactlyOnceWith(VAULT_SPACE);
+
+		onStorageRefused.mockClear();
+		get.mockRejectedValue(new StorageHttpError(404, "Not found"));
+		await runner.runOperation(VAULT_SPACE, ESyncLogOperation.Push, unchanged);
+		get.mockRejectedValue(new Error("Offline"));
+		await runner.runOperation(VAULT_SPACE, ESyncLogOperation.Push, unchanged);
+		expect(onStorageRefused).not.toHaveBeenCalled();
 	});
 
 	it("keeps cancellation separate from failure and success", async () => {
@@ -324,6 +344,39 @@ describe("OperationRunner.refreshNow", () => {
 		refusal = new ShareRefusedError("401", "Invite no longer valid");
 		await runner.refreshNow();
 		expect(onShareRefused).toHaveBeenCalledExactlyOnceWith(share);
+	});
+
+	it("reports a share's refused storage credentials, not other failures", async () => {
+		const [session] = pairedSessions();
+		const { runner, host } = createTestRunner(session);
+		const onStorageRefused = vi.fn();
+		Object.assign(host, { onStorageRefused });
+		const share = { id: "share", root: "Team" };
+		host.spaces = async () => [VAULT_SPACE, share];
+		const open = host.openSession.getMockImplementation();
+		let refusal: Error = new StorageHttpError(403, "Forbidden");
+		host.openSession.mockImplementation(async (space, partition) => {
+			const deps = await open?.(space, partition);
+			if (!deps || space !== share) return deps ?? null;
+			const storage = new Proxy(deps.storage, {
+				get: (_, key) =>
+					key === "identity" ? () => "s3|share" : () => Promise.reject(refusal),
+			});
+			return { ...deps, space: share, storage };
+		});
+
+		await runner.refreshNow();
+		expect(onStorageRefused).toHaveBeenCalledExactlyOnceWith(share);
+
+		onStorageRefused.mockClear();
+		for (const other of [
+			new StorageHttpError(404, "Not found"),
+			new Error("Offline"),
+		]) {
+			refusal = other;
+			await runner.refreshNow();
+		}
+		expect(onStorageRefused).not.toHaveBeenCalled();
 	});
 
 	it("forgets a share's baseline wherever it was mounted, with no storage to open", async () => {

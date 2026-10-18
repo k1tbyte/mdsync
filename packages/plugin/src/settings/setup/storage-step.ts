@@ -1,18 +1,23 @@
-import { R2NotEnabledError, r2DashboardUrl } from "@/cloudflare";
+import {
+	isRefusedToken,
+	R2NotEnabledError,
+	r2DashboardUrl,
+} from "@/cloudflare";
 import {
 	cloudflareErrorMessage,
 	cloudflareOf,
+	forgetCloudflare,
 } from "@/settings/cloudflare-login";
 import { testConnection } from "@/settings/connection-test";
 import { renderDefinitions } from "@/settings/fields";
 import { activeStorage, isStorageConfigured } from "@/settings/model";
+import { useR2 } from "@/settings/r2";
 import { backendSection } from "@/settings/sections/backend";
 import { describeStorageTarget } from "@/storage";
 import { alertLine } from "@/ui/common";
 import { choiceCard } from "./choice-card";
 import { renderTokenForm, tokenForm } from "./cloudflare-token";
 import { actionRow, callout } from "./form";
-import { useR2 } from "./r2";
 import { runAction } from "./run-action";
 import type { StepView, Wizard } from "./wizard";
 
@@ -46,7 +51,14 @@ export function createStorageStep(wizard: Wizard): StepView {
 		);
 		if (answered && mode !== "choose" && wizard.isShowing(view)) wizard.next();
 	};
-	const createR2 = () => void finish(() => useR2(plugin));
+	const createR2 = () =>
+		void finish(() =>
+			useR2(plugin).catch(async (err: unknown) => {
+				// Rolled or deleted: the token form comes back for the new one, which lands in the same prefix.
+				if (isRefusedToken(err)) await forgetCloudflare(plugin);
+				throw err;
+			}),
+		);
 
 	const renderChoice = (el: HTMLElement): void => {
 		const configured = isStorageConfigured(plugin.settings);
@@ -82,6 +94,7 @@ export function createStorageStep(wizard: Wizard): StepView {
 
 	const renderR2 = (el: HTMLElement): void => {
 		if (!cloudflareOf(plugin.settings)) {
+			if (state.error) alertLine(el).setText(state.error);
 			renderTokenForm(el, wizard, token, createR2);
 			return;
 		}

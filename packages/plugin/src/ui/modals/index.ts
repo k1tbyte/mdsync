@@ -13,3 +13,4 @@ export {
 	askSettingsTransferInput,
 	confirmSettingsTransferImport,
 } from "./settings-transfer-modal";
+export { openStorageRefusedModal } from "./storage-refused-modal";

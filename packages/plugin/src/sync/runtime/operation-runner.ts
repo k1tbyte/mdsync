@@ -1,6 +1,10 @@
 import { ESyncLogOperation } from "@/logs/store";
 import { errorMessage } from "@/shared";
-import { ShareRefusedError, StorageRequestError } from "@/storage";
+import {
+	isRefusedCredentials,
+	ShareRefusedError,
+	StorageRequestError,
+} from "@/storage";
 import { publishedByOthers, publisher } from "@/sync/authors";
 import { advanceBaselineForPaths } from "@/sync/baseline";
 import { isCancellation } from "@/sync/cancel";
@@ -117,6 +121,8 @@ export class OperationRunner {
 					this.deps.host.onSpaceRefreshed?.(space);
 				} catch (err) {
 					if (space.root === VAULT_SPACE.root) throw err;
+					if (isRefusedCredentials(err))
+						this.deps.host.onStorageRefused?.(space);
 					const message = await this.logFailure(
 						ESyncLogOperation.Compare,
 						err,
@@ -409,7 +415,7 @@ export class OperationRunner {
 				await this.deps.host.logWarn(operation, err.message);
 				return { ok: false, error: err.message };
 			}
-			const message = await this.reportError(operation, err);
+			const message = await this.reportError(operation, err, space);
 			return { ok: false, error: message };
 		} finally {
 			scope?.end();
@@ -434,7 +440,9 @@ export class OperationRunner {
 	private async reportError(
 		operation: ESyncLogOperation,
 		err: unknown,
+		space = VAULT_SPACE,
 	): Promise<string> {
+		if (isRefusedCredentials(err)) this.deps.host.onStorageRefused?.(space);
 		const message = await this.logFailure(operation, err);
 		this.deps.runtimeState.setError(message);
 		return message;

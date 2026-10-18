@@ -52,7 +52,7 @@ interface SettingsDialog {
 	openTabById(id: string): void;
 }
 
-export function openRelaySettings(app: App): void {
+export function openPluginSettings(app: App): void {
 	const { setting } = app as App & { setting?: SettingsDialog };
 	setting?.open();
 	setting?.openTabById(PLUGIN_ID);

@@ -21,7 +21,7 @@ export { openInEditor, revealInFileExplorer } from "./obsidian-helpers";
 export { openNote } from "./open-note";
 export { redrawOnPhoneChange } from "./phone-change";
 export {
-	openRelaySettings,
+	openPluginSettings,
 	RELAY_TEXT,
 	type RelayFix,
 	relayFixOf,

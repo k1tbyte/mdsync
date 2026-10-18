@@ -5,12 +5,15 @@ import {
 	type Reply,
 } from "@tests/helpers/fake-cloudflare";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import * as cloudflareModule from "@/cloudflare";
 import { R2NotEnabledError } from "@/cloudflare";
 import type { PluginHost } from "@/plugin/host";
 import * as cloudflare from "@/settings/cloudflare-login";
 import { mergeSettings } from "@/settings/model";
-import { useR2, vaultPrefix } from "@/settings/setup/r2";
+import { rekeyR2, useR2, vaultPrefix } from "@/settings/r2";
+import * as storage from "@/storage";
 import { defaultS3Config, EStorageBackend } from "@/storage";
+import { StorageHttpError } from "@/storage/adapters/util";
 
 const BUCKETS = "/accounts/acc/r2/buckets";
 const VERIFY = "/accounts/acc/tokens/verify";
@@ -230,5 +233,216 @@ describe("useR2", () => {
 		);
 		await expect(useR2(plugin)).rejects.toThrow("save failed");
 		expect(plugin.scheduleScopeRefresh).not.toHaveBeenCalled();
+	});
+});
+
+describe("useR2 prefix", () => {
+	function withS3(
+		plugin: PluginHost,
+		endpoint: string,
+		bucket: string,
+		prefix = "kept-prefix",
+	) {
+		plugin.settings.storageConfigs[EStorageBackend.S3] = {
+			...defaultS3Config(),
+			endpoint,
+			bucket,
+			prefix,
+			accessKeyId: "old-key",
+			secretAccessKey: "old-secret",
+		};
+	}
+
+	it("keeps the prefix of the same endpoint and bucket", async () => {
+		const plugin = host();
+		withS3(plugin, "https://acc.r2.cloudflarestorage.com", "mdsync-vaults");
+		connected();
+		await useR2(plugin);
+		expect(plugin.settings.storageConfigs[EStorageBackend.S3]).toMatchObject({
+			prefix: "kept-prefix",
+			accessKeyId: "token-id",
+		});
+	});
+
+	it("keeps a vault at the bucket root there", async () => {
+		const plugin = host();
+		withS3(plugin, "https://acc.r2.cloudflarestorage.com", "mdsync-vaults", "");
+		connected();
+		await useR2(plugin);
+		expect(plugin.settings.storageConfigs[EStorageBackend.S3]).toMatchObject({
+			prefix: "",
+		});
+	});
+
+	it.each([
+		["another bucket", "https://acc.r2.cloudflarestorage.com", "other-bucket"],
+		[
+			"another endpoint",
+			"https://other.r2.cloudflarestorage.com",
+			"mdsync-vaults",
+		],
+	])("derives a new prefix for %s", async (_, endpoint, bucket) => {
+		const plugin = host();
+		withS3(plugin, endpoint, bucket);
+		connected();
+		await useR2(plugin);
+		expect(plugin.settings.storageConfigs[EStorageBackend.S3]).toMatchObject({
+			prefix: `my-notes-${hash8("My Notes")}`,
+		});
+	});
+});
+
+describe("rekeyR2", () => {
+	const ACCOUNT = "0123456789abcdef0123456789abcdef";
+	const ENDPOINT = `https://${ACCOUNT}.r2.cloudflarestorage.com`;
+	const sha = (value: string) =>
+		createHash("sha256").update(value).digest("hex");
+
+	function r2host(savedToken = "old-token", storageToken = "old-token") {
+		const plugin = host();
+		plugin.settings.cloudflareToken = savedToken;
+		plugin.settings.activeStorageKind = EStorageBackend.S3;
+		plugin.settings.storageConfigs[EStorageBackend.S3] = {
+			...defaultS3Config(),
+			endpoint: ENDPOINT,
+			region: "auto",
+			bucket: "mdsync-vaults",
+			prefix: "my-notes-1234abcd",
+			accessKeyId: "old-id",
+			secretAccessKey: sha(storageToken),
+		};
+		return plugin;
+	}
+
+	function probe(result: () => Promise<boolean>) {
+		const exists = vi.fn(result);
+		vi.spyOn(storage, "createStorageAdapter").mockReturnValue({
+			exists,
+		} as unknown as ReturnType<typeof storage.createStorageAdapter>);
+		return exists;
+	}
+
+	function verifying() {
+		const cf = fakeCloudflare(
+			[
+				{
+					method: "GET",
+					path: `/accounts/${ACCOUNT}/tokens/verify`,
+					reply: () => ({ result: { id: "new-id", status: "active" } }),
+				},
+			],
+			"new-token",
+		);
+		const spy = vi
+			.spyOn(cloudflareModule, "cloudflareApi")
+			.mockReturnValue(cf.api);
+		return { cf, spy };
+	}
+
+	it("derives keys from a token value, probing the storage with them before saving", async () => {
+		const plugin = r2host();
+		const before = plugin.settings.storageConfigs[EStorageBackend.S3];
+		const { cf, spy } = verifying();
+		const exists = probe(async () => true);
+		vi.mocked(plugin.saveSettings).mockImplementation(async () => {
+			expect(exists).toHaveBeenCalledTimes(1);
+			expect(plugin.scheduleScopeRefresh).not.toHaveBeenCalled();
+		});
+
+		await rekeyR2(plugin, "new-token");
+
+		expect(spy).toHaveBeenCalledWith(expect.any(Function), "new-token");
+		expect(cf.paths()).toEqual([`GET /accounts/${ACCOUNT}/tokens/verify`]);
+		expect(storage.createStorageAdapter).toHaveBeenCalledWith(
+			expect.objectContaining({
+				accessKeyId: "new-id",
+				secretAccessKey: sha("new-token"),
+			}),
+		);
+		expect(plugin.settings.storageConfigs[EStorageBackend.S3]).toEqual({
+			...before,
+			accessKeyId: "new-id",
+			secretAccessKey: sha("new-token"),
+		});
+		expect(plugin.settings.cloudflareToken).toBe("new-token");
+		expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
+		expect(plugin.scheduleScopeRefresh).toHaveBeenCalledExactlyOnceWith(
+			"Storage backend changed.",
+		);
+	});
+
+	it("keeps the saved login when it was not the storage keys' token", async () => {
+		const plugin = r2host("other-login", "old-token");
+		verifying();
+		probe(async () => true);
+		await rekeyR2(plugin, "new-token");
+		expect(plugin.settings.cloudflareToken).toBe("other-login");
+	});
+
+	it("takes a Secret Access Key as is, asking Cloudflare nothing", async () => {
+		const plugin = r2host();
+		const { cf, spy } = verifying();
+		probe(async () => true);
+		const secret = "ABCDEF0123456789".repeat(4);
+
+		await rekeyR2(plugin, secret);
+
+		expect(spy).not.toHaveBeenCalled();
+		expect(cf.calls).toEqual([]);
+		expect(plugin.settings.storageConfigs[EStorageBackend.S3]).toMatchObject({
+			accessKeyId: "old-id",
+			secretAccessKey: secret.toLowerCase(),
+		});
+		expect(plugin.settings.cloudflareToken).toBe("old-token");
+		expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
+		expect(plugin.scheduleScopeRefresh).toHaveBeenCalledTimes(1);
+	});
+
+	it("saves nothing when R2 refuses the new keys too", async () => {
+		const plugin = r2host();
+		const before = structuredClone(plugin.settings);
+		verifying();
+		probe(() => Promise.reject(new StorageHttpError(401, "Unauthorized")));
+
+		await expect(rekeyR2(plugin, "new-token")).rejects.toThrow(
+			/R2 refuses these keys too/,
+		);
+
+		expect(plugin.settings).toEqual(before);
+		expect(plugin.saveSettings).not.toHaveBeenCalled();
+		expect(plugin.scheduleScopeRefresh).not.toHaveBeenCalled();
+	});
+
+	it("leaves storage edited during the check alone", async () => {
+		const plugin = r2host();
+		verifying();
+		probe(async () => {
+			plugin.settings.storageConfigs[EStorageBackend.S3] = {
+				...defaultS3Config(),
+				bucket: "picked-meanwhile",
+			};
+			return true;
+		});
+
+		await expect(rekeyR2(plugin, "new-token")).rejects.toThrow(
+			"The storage settings changed meanwhile.",
+		);
+
+		expect(plugin.settings.storageConfigs[EStorageBackend.S3]).toMatchObject({
+			bucket: "picked-meanwhile",
+			accessKeyId: "",
+		});
+		expect(plugin.settings.cloudflareToken).toBe("old-token");
+		expect(plugin.saveSettings).not.toHaveBeenCalled();
+	});
+
+	it("rejects a vault that is not kept in R2", async () => {
+		const plugin = host();
+		const before = structuredClone(plugin.settings);
+		await expect(rekeyR2(plugin, "new-token")).rejects.toThrow(
+			"This vault is not kept in R2.",
+		);
+		expect(plugin.settings).toEqual(before);
+		expect(plugin.saveSettings).not.toHaveBeenCalled();
 	});
 });

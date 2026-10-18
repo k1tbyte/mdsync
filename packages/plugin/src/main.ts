@@ -60,6 +60,7 @@ import { registerProtocolHandlers } from "./plugin/protocols";
 import { createRealtime, type Realtime } from "./plugin/realtime";
 import { registerShareRenames } from "./plugin/share-moves";
 import { createShareRegistration } from "./plugin/share-registration";
+import { createStorageRefused } from "./plugin/storage-refused";
 import {
 	refreshOpenHistoryViewsAfterPush,
 	refreshOpenSourceControlViews,
@@ -133,6 +134,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 			},
 			onSpaceRefreshed: (space) => void registerShare(space),
 			onShareRefused: createAccessEnded(this),
+			onStorageRefused: createStorageRefused(this),
 			onSpaceGone: createSpaceGone(this),
 			onUnindexed: (count) =>
 				notifyInfo(

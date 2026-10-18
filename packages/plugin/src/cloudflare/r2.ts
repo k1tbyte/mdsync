@@ -39,7 +39,26 @@ export type R2Storage = Pick<
 	"endpoint" | "region" | "bucket" | "accessKeyId" | "secretAccessKey"
 >;
 
+/** The account an R2 endpoint belongs to, jurisdictions (`.eu.`) included; null for any other S3. */
+export function r2AccountOf(endpoint: string): string | null {
+	return (
+		/^https:\/\/([a-z0-9]+)\.(?:[a-z]+\.)?r2\.cloudflarestorage\.com\/?$/i.exec(
+			endpoint.trim(),
+		)?.[1] ?? null
+	);
+}
+
 /** Cloudflare's S3 derivation: the token's id and the SHA-256 of its value; nothing is minted. */
+export async function r2Keys(
+	tokenId: string,
+	token: string,
+): Promise<Pick<R2Storage, "accessKeyId" | "secretAccessKey">> {
+	return {
+		accessKeyId: tokenId,
+		secretAccessKey: await sha256Hex(new TextEncoder().encode(token)),
+	};
+}
+
 export async function r2Storage(
 	accountId: string,
 	bucket: string,
@@ -50,7 +69,6 @@ export async function r2Storage(
 		endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
 		region: "auto",
 		bucket,
-		accessKeyId: tokenId,
-		secretAccessKey: await sha256Hex(new TextEncoder().encode(token)),
+		...(await r2Keys(tokenId, token)),
 	};
 }

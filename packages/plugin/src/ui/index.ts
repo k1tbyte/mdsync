@@ -43,6 +43,7 @@ export {
 	confirmSettingsTransferImport,
 	openConfirmModal,
 	openPromiseModal,
+	openStorageRefusedModal,
 	showSettingsTransferExport,
 } from "./modals";
 export { registerRibbon } from "./ribbon";

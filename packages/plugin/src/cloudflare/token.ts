@@ -1,4 +1,4 @@
-import { type CloudflareApi, hasCode } from "./api";
+import { type CloudflareApi, CloudflareError, hasCode } from "./api";
 
 const TOKEN_NAME = "MDSync";
 const INVALID_TOKEN = 1000;
@@ -49,7 +49,11 @@ export async function verifyToken(
 		verified = await api.call<Verified>("GET", "/user/tokens/verify");
 	}
 	if (verified.status !== "active") {
-		throw new Error(`The Cloudflare token is ${verified.status}.`);
+		throw new CloudflareError(
+			401,
+			[],
+			`The Cloudflare token is ${verified.status}.`,
+		);
 	}
 	return verified.id;
 }

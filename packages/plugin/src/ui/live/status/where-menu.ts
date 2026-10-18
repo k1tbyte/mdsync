@@ -7,7 +7,7 @@ import {
 	infoTitle,
 	lastEditLabel,
 	openNote,
-	openRelaySettings,
+	openPluginSettings,
 	personTitle,
 	RELAY_TEXT,
 	relayFixOf,
@@ -109,7 +109,7 @@ function addRelayFixes(
 			item
 				.setTitle("Open relay settings")
 				.setIcon("settings")
-				.onClick(() => openRelaySettings(plugin.app)),
+				.onClick(() => openPluginSettings(plugin.app)),
 		);
 	}
 }

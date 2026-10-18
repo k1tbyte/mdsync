@@ -4,7 +4,7 @@ import type { PluginHost } from "@/plugin/host";
 import {
 	infoTitle,
 	lastEditLabel,
-	openRelaySettings,
+	openPluginSettings,
 	personTitle,
 	relayFixOf,
 	showMenuAt,
@@ -61,7 +61,7 @@ export function openNoteMenu(
 	const run: Record<NoteAction, () => void> = {
 		authors: () => toggleAuthors(plugin),
 		reconnect: () => plugin.realtime.hub.reconnect(space.id),
-		"relay-settings": () => openRelaySettings(plugin.app),
+		"relay-settings": () => openPluginSettings(plugin.app),
 		manage: () => record && openShareWindow(plugin, record),
 		rebuild: () => rebuildLiveNote(plugin, file.path),
 	};

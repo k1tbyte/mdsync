@@ -3,11 +3,15 @@ import { failure, fakeCloudflare } from "@tests/helpers/fake-cloudflare";
 import { describe, expect, it } from "vitest";
 import {
 	ensureBucket,
+	isRefusedToken,
 	R2NotEnabledError,
+	r2AccountOf,
+	r2Keys,
 	r2Storage,
 	tokenTemplateUrl,
 	verifyToken,
 } from "@/cloudflare";
+import { CloudflareError } from "@/cloudflare/api";
 
 const BUCKETS = "/accounts/acc/r2/buckets";
 
@@ -60,6 +64,47 @@ describe("R2 storage", () => {
 	});
 });
 
+describe("r2AccountOf", () => {
+	it.each([
+		["https://abc123.r2.cloudflarestorage.com", "abc123"],
+		["https://abc123.eu.r2.cloudflarestorage.com", "abc123"],
+		["https://abc123.r2.cloudflarestorage.com/", "abc123"],
+	])("reads the account out of %s", (endpoint, account) => {
+		expect(r2AccountOf(endpoint)).toBe(account);
+	});
+
+	it.each([
+		"https://s3.amazonaws.com",
+		"https://minio.example:9000",
+		"http://abc123.r2.cloudflarestorage.com",
+		"",
+	])("returns null for %j", (endpoint) => {
+		expect(r2AccountOf(endpoint)).toBeNull();
+	});
+});
+
+describe("r2Keys", () => {
+	it("keeps the token's id and hashes its value", async () => {
+		expect(await r2Keys("token-id", "token-value")).toEqual({
+			accessKeyId: "token-id",
+			secretAccessKey: createHash("sha256").update("token-value").digest("hex"),
+		});
+	});
+});
+
+describe("isRefusedToken", () => {
+	it.each([401, 403])("is true for a Cloudflare %i", (status) => {
+		expect(isRefusedToken(new CloudflareError(status, [], "no"))).toBe(true);
+	});
+
+	it.each([new CloudflareError(409, [], "conflict"), new Error("401")])(
+		"is false for %s",
+		(err) => {
+			expect(isRefusedToken(err)).toBe(false);
+		},
+	);
+});
+
 describe("verifyToken", () => {
 	const ACCOUNT_VERIFY = "/accounts/acc/tokens/verify";
 	const USER_VERIFY = "/user/tokens/verify";
@@ -95,7 +140,12 @@ describe("verifyToken", () => {
 				reply: () => ({ result: { id: "t", status: "expired" } }),
 			},
 		]);
-		await expect(verifyToken(cf.api, "acc")).rejects.toThrow(/expired/);
+		const err: unknown = await verifyToken(cf.api, "acc").catch(
+			(e: unknown) => e,
+		);
+		expect(err).toBeInstanceOf(Error);
+		expect((err as Error).message).toMatch(/expired/);
+		expect(isRefusedToken(err)).toBe(true);
 	});
 });
 

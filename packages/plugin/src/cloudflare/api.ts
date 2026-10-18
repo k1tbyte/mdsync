@@ -101,3 +101,10 @@ function parseEnvelope<T>(text: string): Envelope<T> | null {
 export function hasCode(err: unknown, code: number): boolean {
 	return err instanceof CloudflareError && err.codes.includes(code);
 }
+
+/** Rolled, deleted, inactive or short of a permission: only a new token helps. */
+export function isRefusedToken(err: unknown): boolean {
+	return (
+		err instanceof CloudflareError && (err.status === 401 || err.status === 403)
+	);
+}

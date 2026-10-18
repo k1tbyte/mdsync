@@ -4,13 +4,16 @@ export {
 	type Http,
 	type HttpRequest,
 	hasCode,
+	isRefusedToken,
 } from "./api";
 export type { RelayBundle } from "./bundle";
 export {
 	ensureBucket,
 	R2NotEnabledError,
 	type R2Storage,
+	r2AccountOf,
 	r2DashboardUrl,
+	r2Keys,
 	r2Storage,
 } from "./r2";
 export {

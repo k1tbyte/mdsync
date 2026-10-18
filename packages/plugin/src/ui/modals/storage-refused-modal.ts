@@ -1,0 +1,73 @@
+import { type ButtonComponent, Modal, Setting } from "obsidian";
+
+import type { PluginHost } from "@/plugin/host";
+import { cloudflareErrorMessage } from "@/settings/cloudflare-login";
+import { r2StorageOf, rekeyR2 } from "@/settings/r2";
+import { alertLine, onEnter, openPluginSettings } from "@/ui/common";
+
+import { openPromiseModal } from "./promise-modal";
+
+const FIELD = "Token value or secret access key";
+const UPDATE = "Update keys";
+
+/** True once new keys open the storage; R2 takes them here, any other storage in the settings. */
+export function openStorageRefusedModal(plugin: PluginHost): Promise<boolean> {
+	return openPromiseModal<boolean>((answer) => {
+		const modal = new Modal(plugin.app);
+		const { contentEl } = modal;
+		modal.titleEl.setText("The storage refused this device's keys");
+		const settings = (): void => {
+			modal.close();
+			openPluginSettings(plugin.app);
+		};
+		if (!r2StorageOf(plugin.settings)) {
+			contentEl.createEl("p", {
+				text: "They were changed, revoked or mistyped. Update them under Settings → MDSync → Connection.",
+			});
+			new Setting(contentEl).addButton((b) =>
+				b.setButtonText("Open settings").setCta().onClick(settings),
+			);
+			return modal;
+		}
+		contentEl.createEl("p", {
+			text: "Cloudflare R2 no longer accepts them: the API token they come from was rolled or deleted.",
+		});
+		contentEl.createEl("p", {
+			text: "Paste its new value or the new secret access key. Sync goes on in the same bucket and folder.",
+		});
+		let value = "";
+		let update: ButtonComponent | null = null;
+		const submit = async (): Promise<void> => {
+			if (!value || update?.disabled) return;
+			update?.setDisabled(true).setButtonText("Checking…");
+			error.setText("");
+			try {
+				await rekeyR2(plugin, value);
+				answer(true);
+				modal.close();
+			} catch (err) {
+				error.setText(cloudflareErrorMessage(err));
+			} finally {
+				update?.setDisabled(false).setButtonText(UPDATE);
+			}
+		};
+		new Setting(contentEl).setName(FIELD).addText((t) => {
+			t.inputEl.type = "password";
+			t.inputEl.setAttr("aria-label", FIELD);
+			t.onChange((v) => {
+				value = v.trim();
+			});
+			onEnter(t.inputEl, () => void submit());
+		});
+		const error = alertLine(contentEl);
+		new Setting(contentEl)
+			.addButton((b) => b.setButtonText("Open settings").onClick(settings))
+			.addButton((b) => {
+				update = b
+					.setButtonText(UPDATE)
+					.setCta()
+					.onClick(() => void submit());
+			});
+		return modal;
+	}, false);
+}

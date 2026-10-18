@@ -1,8 +1,11 @@
 import { Setting } from "obsidian";
 
 import { weakPassphrase } from "@/crypto";
+import { r2StorageOf } from "@/settings/r2";
 import { errorMessage } from "@/shared";
+import { isRefusedCredentials } from "@/storage";
 import { PassphraseRotatedError } from "@/sync/keyfile";
+import { openStorageRefusedModal } from "@/ui";
 import { alertLine, focusKey, onEnter } from "@/ui/common";
 
 import { actionRow, busyLine, callout } from "./form";
@@ -19,6 +22,8 @@ export function createPassphraseStep(wizard: Wizard): StepView {
 	let phase: Phase = "checking";
 	let value = "";
 	let confirm = "";
+	/** Unreachable because the storage turned the keys away, not the network. */
+	let refused = false;
 	const state = { busy: false, error: "" };
 
 	/** A passphrase entered or saved earlier is tried first, so a set-up device just moves on. */
@@ -35,6 +40,7 @@ export function createPassphraseStep(wizard: Wizard): StepView {
 				state.error = "The passphrase saved here no longer opens the vault.";
 			} else {
 				phase = "unreachable";
+				refused = isRefusedCredentials(err);
 				state.error = errorMessage(err);
 			}
 		}
@@ -95,9 +101,24 @@ export function createPassphraseStep(wizard: Wizard): StepView {
 			}
 			if (phase === "unreachable") {
 				alertLine(el).setText(`Could not reach the storage: ${state.error}`);
-				actionRow(el).addButton((b) =>
+				const row = actionRow(el).addButton((b) =>
 					b.setButtonText("Try again").onClick(() => void check()),
 				);
+				if (refused && r2StorageOf(wizard.plugin.settings)) {
+					row.addButton((b) =>
+						b
+							.setButtonText("Update keys")
+							.setCta()
+							.onClick(async () => {
+								if (await openStorageRefusedModal(wizard.plugin)) await check();
+							}),
+					);
+				} else if (refused) {
+					el.createEl("p", {
+						cls: "setting-item-description",
+						text: "The storage refused this device's keys. Select Back to update them.",
+					});
+				}
 				return;
 			}
 			if (phase === "new") {

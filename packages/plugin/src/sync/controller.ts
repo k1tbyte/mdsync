@@ -70,6 +70,8 @@ export interface SyncControllerHost {
 	onSpaceRefreshed?(space: Space): void;
 	/** The broker refused the share's link: revoked, or too new for its KV yet. */
 	onShareRefused?(space: Space): void;
+	/** The space's storage answered 401/403: the keys it was reached with were rotated or revoked. */
+	onStorageRefused?(space: Space): void;
 	/** The share lost every file it had here; see `settleGone`. */
 	onSpaceGone?(space: Space): void;
 	/** A disk walk found files Obsidian's index lacks: synced, shown after a restart. */

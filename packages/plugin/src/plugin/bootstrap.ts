@@ -37,6 +37,7 @@ interface BootstrapPluginRuntimeOptions {
 	onPushComplete?: (space: Space) => void;
 	onSpaceRefreshed?: (space: Space) => void;
 	onShareRefused?: (space: Space) => void;
+	onStorageRefused?: (space: Space) => void;
 	onSpaceGone?: (space: Space) => void;
 	onUnindexed?: (count: number) => void;
 	onTheirsPulled?: (space: Space, paths: readonly string[]) => void;
@@ -128,6 +129,7 @@ export async function bootstrapPluginRuntime(
 		onPushComplete: options.onPushComplete,
 		onSpaceRefreshed: options.onSpaceRefreshed,
 		onShareRefused: options.onShareRefused,
+		onStorageRefused: options.onStorageRefused,
 		onSpaceGone: options.onSpaceGone,
 		onUnindexed: options.onUnindexed,
 		onTheirsPulled: options.onTheirsPulled,
