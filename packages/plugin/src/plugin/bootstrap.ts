@@ -60,6 +60,7 @@ export async function bootstrapPluginRuntime(
 		configDir,
 		settings,
 		deviceKey,
+		persistSettings,
 	);
 
 	const spaces = new SpaceRecords(settings, persistSettings);

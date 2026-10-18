@@ -1,27 +1,16 @@
-import { type RequestUrlParam, requestUrl } from "obsidian";
+import type { RequestUrlParam } from "obsidian";
 import type { GoogleDriveStorageConfig } from "@/storage/config";
 import type { ListedObject, StorageAdapter } from "@/storage/types";
-import { toArrayBuffer } from "@/utils";
 import {
 	computeExpiresAt,
 	googleAuthUrl,
 	googleDriveIdentity,
 } from "./google-drive-auth";
-import {
-	assertOk,
-	dateOf,
-	isRetryableStatus,
-	STORAGE_TIMEOUT_MS,
-	StorageHttpError,
-	withRetry,
-	withTimeout,
-} from "./util";
+import { type AuthorizedRequest, driveRequest } from "./google-drive-request";
+import { sendUpload } from "./google-drive-upload";
+import { assertOk, dateOf, StorageHttpError } from "./util";
 
 const DRIVE_API = "https://www.googleapis.com/drive/v3/files";
-const DRIVE_UPLOAD_API = "https://www.googleapis.com/upload/drive/v3/files";
-/** Multipart max; larger files go resumable. */
-const MULTIPART_MAX_BYTES = 5 * 1024 * 1024;
-const RESUMABLE_CHUNK_BYTES = 8 * 1024 * 1024;
 const DRIVE_PAGE_SIZE = "1000";
 const TOKEN_REFRESH_MARGIN_MS = 60_000;
 const PREPARE_READS_MIN = 256;
@@ -111,7 +100,7 @@ export function createGoogleDriveAdapter(
 
 	/** Drive answers 401 mid-run (not retryable); replaces the token so long syncs do not fail. */
 	const authorized: AuthorizedRequest = async (params) => {
-		const build = async (): Promise<Parameters<typeof requestUrl>[0]> => ({
+		const build = async (): Promise<RequestUrlParam> => ({
 			...params,
 			headers: { ...(await getHeaders()), ...params.headers },
 			throw: false,
@@ -187,17 +176,42 @@ export function createGoogleDriveAdapter(
 		existingId: string | null,
 	): Promise<void> => {
 		const context = { folderId: await getFolderId() };
-		const send =
-			body.length > MULTIPART_MAX_BYTES ? resumableUpload : multipartUpload;
-		const id = await send(
+		const id = await sendUpload(
 			key,
 			body,
 			contentType,
 			existingId,
 			authorized,
 			context,
-		);
+		).catch(async (err: unknown) => {
+			if (!existingId || !isNotFound(err)) throw err;
+			// The cached id may name a file another device deleted since.
+			fileIdCache.delete(key);
+			return sendUpload(
+				key,
+				body,
+				contentType,
+				await findFileId(key),
+				authorized,
+				context,
+			);
+		});
 		if (id) fileIdCache.set(key, id);
+	};
+
+	const download = async (key: string): Promise<Uint8Array | null> => {
+		const id = await findFileId(key);
+		if (!id) return null;
+		const res = await authorized({
+			url: `${DRIVE_API}/${id}?alt=media`,
+			method: "GET",
+		});
+		if (res.status === NOT_FOUND) {
+			fileIdCache.delete(key);
+			return null;
+		}
+		assertOk(res, "download", key);
+		return new Uint8Array(res.arrayBuffer);
 	};
 
 	const listObjects = async (
@@ -232,7 +246,7 @@ export function createGoogleDriveAdapter(
 			const data = res.json as GoogleDriveListResponse;
 			for (const f of data.files ?? []) {
 				if (!f.name) continue;
-				// Prime the id cache so later exists()/put() avoid a lookup.
+				// Prime the id cache so later get()/put() avoid a lookup.
 				if (f.id) fileIdCache.set(f.name, f.id);
 				if (f.name.startsWith(prefix)) {
 					objects.push({
@@ -251,7 +265,9 @@ export function createGoogleDriveAdapter(
 	return {
 		identity: () => googleDriveIdentity(config),
 
+		/** Always asks Drive: callers probe to learn whether another device deleted the file. */
 		async exists(key: string): Promise<boolean> {
+			fileIdCache.delete(key);
 			return (await findFileId(key)) !== null;
 		},
 
@@ -277,18 +293,10 @@ export function createGoogleDriveAdapter(
 				await hint.ready;
 				if (readHint === hint) readHint = null;
 			}
-			const id = await findFileId(key);
-			if (!id) return null;
-			const res = await authorized({
-				url: `${DRIVE_API}/${id}?alt=media`,
-				method: "GET",
-			});
-			if (res.status === NOT_FOUND) {
-				fileIdCache.delete(key);
-				return null;
-			}
-			assertOk(res, "download", key);
-			return new Uint8Array(res.arrayBuffer);
+			const cached = fileIdCache.has(key);
+			const body = await download(key);
+			// The cached id may name a file deleted and recreated since.
+			return body ?? (cached ? download(key) : null);
 		},
 
 		async put(key, body, contentType) {
@@ -331,137 +339,6 @@ function needsRefresh(config: GoogleDriveStorageConfig): boolean {
 	);
 }
 
-type DriveResponse = Awaited<ReturnType<typeof requestUrl>>;
-
-/**
- * Sends a request with a fresh Authorization header, replacing the token once on a 401; uploads use it too
- * since a long sync outlives a token.
- */
-type AuthorizedRequest = (
-	params: Omit<RequestUrlParam, "throw">,
-) => Promise<DriveResponse>;
-
-async function driveRequest(
-	params: Parameters<typeof requestUrl>[0],
-): Promise<DriveResponse> {
-	return withRetry(async () => {
-		const res = await withTimeout(requestUrl(params), STORAGE_TIMEOUT_MS);
-		if (isRetryableStatus(res.status)) {
-			throw new StorageHttpError(
-				res.status,
-				`Google Drive request failed (HTTP ${res.status})`,
-			);
-		}
-		return res;
-	});
-}
-
-const MULTIPART_BOUNDARY = "-------314159265358979323846";
-
-function getUploadTarget(
-	key: string,
-	existingId: string | null,
-	folderId: string,
-	uploadType: string,
-) {
-	const metadata = {
-		name: key,
-		...(existingId ? {} : { parents: [folderId] }),
-	};
-	return {
-		url: `${DRIVE_UPLOAD_API}${existingId ? `/${existingId}` : ""}?uploadType=${uploadType}`,
-		method: existingId ? "PATCH" : "POST",
-		metadata,
-	} as const;
-}
-
-async function multipartUpload(
-	key: string,
-	body: Uint8Array,
-	contentType: string | undefined,
-	existingId: string | null,
-	authorized: AuthorizedRequest,
-	context: { folderId: string },
-): Promise<string | null> {
-	const target = getUploadTarget(
-		key,
-		existingId,
-		context.folderId,
-		"multipart",
-	);
-	const delimiter = `\r\n--${MULTIPART_BOUNDARY}\r\n`;
-	const closeDelim = `\r\n--${MULTIPART_BOUNDARY}--`;
-	const metadataPart = `Content-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(target.metadata)}`;
-	const mediaPart = `Content-Type: ${contentType ?? "application/octet-stream"}\r\n\r\n`;
-
-	const encoder = new TextEncoder();
-	const top = encoder.encode(delimiter + metadataPart + delimiter + mediaPart);
-	const bottom = encoder.encode(closeDelim);
-	const payload = new Uint8Array(top.length + body.length + bottom.length);
-	payload.set(top, 0);
-	payload.set(body, top.length);
-	payload.set(bottom, top.length + body.length);
-
-	const res = await authorized({
-		url: target.url,
-		method: target.method,
-		headers: {
-			"Content-Type": `multipart/related; boundary=${MULTIPART_BOUNDARY}`,
-		},
-		body: toArrayBuffer(payload),
-	});
-	assertOk(res, "upload", key);
-	return existingId ?? (res.json as { id?: string } | null)?.id ?? null;
-}
-
-async function resumableUpload(
-	key: string,
-	body: Uint8Array,
-	contentType: string | undefined,
-	existingId: string | null,
-	authorized: AuthorizedRequest,
-	context: { folderId: string },
-): Promise<string | null> {
-	const target = getUploadTarget(
-		key,
-		existingId,
-		context.folderId,
-		"resumable",
-	);
-	const start = await authorized({
-		url: target.url,
-		method: target.method,
-		headers: {
-			"X-Upload-Content-Type": contentType ?? "application/octet-stream",
-		},
-		body: JSON.stringify(target.metadata),
-	});
-	assertOk(start, "start upload of", key);
-	const session = start.headers.location ?? start.headers.Location;
-	if (!session) {
-		throw new Error(`Google Drive did not open an upload session for "${key}"`);
-	}
-
-	let offset = 0;
-	while (offset < body.length) {
-		const end = Math.min(offset + RESUMABLE_CHUNK_BYTES, body.length);
-		const chunk = body.subarray(offset, end);
-		const res = await driveRequest({
-			url: session,
-			method: "PUT",
-			headers: {
-				"Content-Range": `bytes ${offset}-${end - 1}/${body.length}`,
-			},
-			body: toArrayBuffer(chunk),
-			throw: false,
-		});
-		// 308 means "chunk stored, send the next one".
-		if (res.status === 308) {
-			offset = end;
-			continue;
-		}
-		assertOk(res, "upload", key);
-		return existingId ?? (res.json as { id?: string } | null)?.id ?? null;
-	}
-	return existingId;
+function isNotFound(err: unknown): boolean {
+	return err instanceof StorageHttpError && err.status === NOT_FOUND;
 }

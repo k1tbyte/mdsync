@@ -6,10 +6,6 @@ import { createSpaceAccess } from "@/plugin/space-access";
 import { DEFAULT_SETTINGS, type MdsyncSettings } from "@/settings/model";
 import { VAULT_SPACE } from "@/sync/space";
 
-vi.mock("@/storage", async (importOriginal) => ({
-	...(await importOriginal<typeof import("@/storage")>()),
-	createStorageAdapter: () => ({}),
-}));
 vi.mock("@/shared/diagnostics", () => ({ reportWarning: vi.fn() }));
 
 const RETRY_MS = 30_000;
@@ -51,6 +47,7 @@ beforeEach(async () => {
 		has: () => true,
 		liveKeys: () => (unlocked ? keys : null),
 		resolveKey,
+		storage: () => ({}),
 	} as unknown as PassphraseManager;
 	access = createSpaceAccess({
 		passphrase,

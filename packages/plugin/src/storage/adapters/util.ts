@@ -52,6 +52,14 @@ export function isRetryableStatus(status: number): boolean {
 const NETWORK_FAILURE =
 	/network|failed to fetch|load failed|stream closed|socket hang up|ECONNRESET|ECONNREFUSED|ECONNABORTED|ETIMEDOUT|EPIPE|ENOTFOUND|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|ENETRESET|ERR_(?:NETWORK|CONNECTION|INTERNET|NAME_NOT_RESOLVED)/i;
 
+/** The storage turned this device's credentials away: rotated, revoked or mistyped. */
+export function isRefusedCredentials(err: unknown): boolean {
+	return (
+		err instanceof StorageHttpError &&
+		(err.status === 401 || err.status === 403)
+	);
+}
+
 export function isRetryableError(err: unknown): boolean {
 	if (err instanceof StorageTimeoutError) return true;
 	if (err instanceof StorageHttpError) return isRetryableStatus(err.status);

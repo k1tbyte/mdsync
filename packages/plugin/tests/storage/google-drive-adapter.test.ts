@@ -1,18 +1,31 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isRefusedCredentials } from "@/storage";
 import { createGoogleDriveAdapter } from "@/storage/adapters/google-drive";
 import { EStorageBackend } from "@/storage/config";
 
-const requests: { url: string }[] = [];
+const requests: { url: string; method?: string }[] = [];
 let replies: unknown[] = [];
+const STATUS = Symbol("status");
+
+/** A reply other than 200, with Drive's JSON error body. */
+const failed = (status: number, json: unknown = {}) => ({
+	[STATUS]: status,
+	json,
+});
 
 vi.mock("obsidian", async (importOriginal) => ({
 	...(await importOriginal<Record<string, unknown>>()),
-	requestUrl: (params: { url: string }) => {
+	requestUrl: (params: { url: string; method?: string }) => {
 		requests.push(params);
+		const reply = (replies.shift() ?? {}) as {
+			[STATUS]?: number;
+			json?: unknown;
+		};
+		const status = reply[STATUS];
 		return Promise.resolve({
-			status: 200,
-			json: replies.shift() ?? {},
-			text: "",
+			status: status ?? 200,
+			json: status === undefined ? reply : reply.json,
+			text: status === undefined ? "" : JSON.stringify(reply.json),
 			arrayBuffer: new ArrayBuffer(0),
 			headers: {},
 		});
@@ -123,6 +136,79 @@ describe("Google Drive bulk read IDs", () => {
 		);
 		expect(requests.some(({ url }) => url.includes("/1?alt=media"))).toBe(true);
 		expect(requests.some(({ url }) => url.includes("/2?alt=media"))).toBe(true);
+	});
+});
+
+describe("Google Drive file ids another device deleted", () => {
+	const listed = () => [FOLDER, { files: [{ id: "9", name: "objects/x" }] }];
+
+	it("are asked again by exists(), so a probe sees the deletion", async () => {
+		const drive = adapter();
+		replies = [...listed(), { files: [] }];
+		await drive.list("objects/");
+
+		expect(await drive.exists("objects/x")).toBe(false);
+	});
+
+	it("are looked up again when an upload to them answers 404", async () => {
+		const drive = adapter();
+		replies = [...listed(), failed(404), { files: [] }, { id: "10" }];
+		await drive.list("objects/");
+
+		await drive.put("objects/x", new Uint8Array([1]));
+
+		const uploads = requests.filter(({ url }) => url.includes("/upload/"));
+		expect(
+			uploads.map(({ method, url }) => [method, url.includes("/9?")]),
+		).toEqual([
+			["PATCH", true],
+			["POST", false],
+		]);
+	});
+
+	it("are looked up again when a read of them answers 404", async () => {
+		const drive = adapter();
+		replies = [...listed(), failed(404), { files: [{ id: "10" }] }, {}];
+		await drive.list("objects/");
+
+		expect(await drive.get("objects/x")).not.toBeNull();
+		expect(requests.at(-1)?.url).toContain("/10?alt=media");
+	});
+});
+
+describe("Google Drive 403s that are no refusal", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("retries a rate limit Drive sends as 403", async () => {
+		vi.useFakeTimers();
+		const limited = failed(403, {
+			error: { errors: [{ reason: "userRateLimitExceeded" }] },
+		});
+		replies = [limited, FOLDER, { files: [] }];
+
+		const probe = adapter().exists("k");
+		await vi.runAllTimersAsync();
+
+		expect(await probe).toBe(false);
+	});
+
+	it("says the Drive is full instead of refusing the keys", async () => {
+		replies = [
+			failed(403, { error: { errors: [{ reason: "storageQuotaExceeded" }] } }),
+		];
+
+		const err = await adapter()
+			.exists("k")
+			.catch((e: unknown) => e);
+
+		expect(isRefusedCredentials(err)).toBe(false);
+		expect(err).toMatchObject({
+			name: "StorageRequestError",
+			userMessage:
+				"Google Drive is full. Free up space in it, then sync again.",
+		});
 	});
 });
 

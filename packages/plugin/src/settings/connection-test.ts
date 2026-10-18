@@ -6,7 +6,12 @@ import {
 	isRelayConfigured,
 	type RelayConfig,
 } from "@/settings/model";
-import { errorMessage, isCleartextRemote, relayBase } from "@/shared";
+import {
+	errorMessage,
+	isCleartextRemote,
+	relayBase,
+	reportWarning,
+} from "@/shared";
 import {
 	createStorageAdapter,
 	describeStorageTarget,
@@ -37,7 +42,12 @@ export async function testConnection(
 	}
 	const target = describeStorageTarget(config);
 	try {
-		const adapter = createStorageAdapter(config);
+		// A test may refresh a Drive token: saved, or a rotated one is lost on restart.
+		const adapter = createStorageAdapter(config, () => {
+			plugin
+				.saveSettings()
+				.catch((err) => reportWarning("Could not save the settings.", err));
+		});
 		const found = await adapter.exists(REMOTE_MANIFEST_KEY);
 		return {
 			ok: true,

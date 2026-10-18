@@ -2,16 +2,11 @@ import { OWNER } from "@mdsync/protocol";
 
 import type { PassphraseManager } from "@/core";
 import type { LiveKeys } from "@/crypto/live-keys";
-import {
-	activeStorage,
-	isStorageConfigured,
-	type MdsyncSettings,
-} from "@/settings/model";
+import { isStorageConfigured, type MdsyncSettings } from "@/settings/model";
 import { reportWarning } from "@/shared";
 import type { SpaceRecords } from "@/spaces";
 import { shareLiveKeys } from "@/spaces/access";
 import { type SpaceRecord, shareIdentity } from "@/spaces/record";
-import { createStorageAdapter } from "@/storage";
 import type { SyncController } from "@/sync/controller";
 import { type Space, VAULT_SPACE } from "@/sync/space";
 
@@ -85,13 +80,14 @@ function createVaultKeys(
 	let failedAt = Number.NEGATIVE_INFINITY;
 	const unlock = async (settings: MdsyncSettings) => {
 		try {
-			await host.passphrase.resolveKey(
-				createStorageAdapter(activeStorage(settings)),
-			);
+			await host.passphrase.resolveKey(host.passphrase.storage(settings));
 			return host.passphrase.liveKeys();
 		} catch (err) {
 			failedAt = Date.now();
-			reportWarning("The relay could not unlock the vault key.", err);
+			reportWarning(
+				"Live editing is off: the vault key could not be read from the storage.",
+				err,
+			);
 			return null;
 		}
 	};

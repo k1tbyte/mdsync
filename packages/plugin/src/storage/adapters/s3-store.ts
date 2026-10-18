@@ -119,15 +119,6 @@ export function createS3Store(transport: S3Transport): StorageAdapter {
 					"max-keys": "1",
 				},
 			});
-			if (
-				res.status === 403 &&
-				parseErrorCode(res.text) === "SignatureDoesNotMatch"
-			) {
-				throw new StorageRequestError(
-					`S3 existence check for "${key}" failed: SignatureDoesNotMatch (HTTP 403)`,
-					"S3 rejected the request signature. Check the secret access key or re-import the storage settings.",
-				);
-			}
 			assertOk(res, "check", key);
 			return parseListObjects(res.text).objects.some(
 				(listed) => transport.relative(listed.key) === key,
@@ -186,6 +177,16 @@ function createSender(sign: S3Signer): Send {
 						}),
 						STORAGE_TIMEOUT_MS,
 					);
+					// A 403 the keys cannot fix: refused credentials would ask for new ones.
+					if (
+						res.status === 403 &&
+						parseErrorCode(res.text) === "RequestTimeTooSkewed"
+					) {
+						throw new StorageRequestError(
+							"S3 refused the request: this device's clock is off (RequestTimeTooSkewed)",
+							"This device's clock is off. Set the date and time automatically, then sync again.",
+						);
+					}
 					if (isRetryableStatus(res.status) || isRacing(input, res.status)) {
 						throw new StorageHttpError(
 							res.status,

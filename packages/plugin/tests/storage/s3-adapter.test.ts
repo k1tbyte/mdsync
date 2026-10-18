@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { isRefusedCredentials } from "@/storage";
 import { createS3Adapter } from "@/storage/adapters/s3";
 import { EStorageBackend, type S3StorageConfig } from "@/storage/config";
 
@@ -105,7 +106,7 @@ describe("S3 adapter over requestUrl", () => {
 		expect(requests[0]?.url).toContain("prefix=a.bin");
 	});
 
-	it("shows a signature error instead of treating it as absence", async () => {
+	it("reads a signature error as refused keys, never as absence", async () => {
 		const adapter = createS3Adapter(config());
 		replies = [
 			{
@@ -114,11 +115,29 @@ describe("S3 adapter over requestUrl", () => {
 			},
 		];
 
-		await expect(adapter.exists("objects/abc")).rejects.toMatchObject({
+		const err = await adapter.exists("objects/abc").catch((e: unknown) => e);
+
+		expect(isRefusedCredentials(err)).toBe(true);
+	});
+
+	it("blames a skewed clock, not the keys", async () => {
+		const adapter = createS3Adapter(config());
+		replies = [
+			{
+				status: 403,
+				text: "<Error><Code>RequestTimeTooSkewed</Code></Error>",
+			},
+		];
+
+		const err = await adapter.get("objects/abc").catch((e: unknown) => e);
+
+		expect(isRefusedCredentials(err)).toBe(false);
+		expect(err).toMatchObject({
 			name: "StorageRequestError",
 			userMessage:
-				"S3 rejected the request signature. Check the secret access key or re-import the storage settings.",
+				"This device's clock is off. Set the date and time automatically, then sync again.",
 		});
+		expect(replies).toEqual([]);
 	});
 
 	it("reports a conditional write that lost the race", async () => {

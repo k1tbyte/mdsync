@@ -21,6 +21,7 @@ export {
 	registerShareStorage,
 	revokeParticipant,
 } from "./adapters/share-broker";
+export { isRefusedCredentials } from "./adapters/util";
 export { defaultWebDAVConfig } from "./adapters/webdav";
 export {
 	EStorageBackend,

@@ -54,6 +54,8 @@ export class PassphraseManager {
 		private readonly configDir: string,
 		private readonly settings: MdsyncSettings,
 		private readonly deviceKey: DeviceKey,
+		/** Saves a Drive token the adapter refreshed (and maybe rotated) outside a sync session. */
+		private readonly persistSettings?: () => Promise<void>,
 	) {}
 
 	has(): boolean {
@@ -244,8 +246,13 @@ export class PassphraseManager {
 		return storageIdentity(activeStorage(this.settings));
 	}
 
-	private storage(): ObjectStorage {
-		return createStorageAdapter(activeStorage(this.settings));
+	/** The vault's storage outside a session, saving what its adapter refreshes. */
+	storage(settings: MdsyncSettings = this.settings): ObjectStorage {
+		return createStorageAdapter(activeStorage(settings), () => {
+			this.persistSettings?.().catch((err) =>
+				reportWarning("Could not save the settings.", err),
+			);
+		});
 	}
 
 	private async tryLoadCached(): Promise<boolean> {
