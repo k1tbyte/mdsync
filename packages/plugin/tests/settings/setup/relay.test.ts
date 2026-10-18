@@ -157,7 +157,7 @@ describe("deployOwnRelay", () => {
 		expect(metadata.bindings).toContainEqual({
 			type: "plain_text",
 			name: "RELAY_VERSION",
-			text: "test-version",
+			text: RELAY_VERSION,
 		});
 	});
 

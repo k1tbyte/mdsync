@@ -1,6 +1,6 @@
 import { Setting } from "obsidian";
 
-import { RELAY_VERSION } from "@/cloudflare";
+import { relayBehind } from "@/cloudflare";
 import { type RelayTestResult, testRelay } from "@/settings/connection-test";
 import { isRelayConfigured } from "@/settings/model";
 import { relayBase } from "@/shared";
@@ -70,7 +70,7 @@ export function createRelayStep(wizard: Wizard): StepView {
 				"warning",
 				`Relay: ${plugin.settings.relayUrl}. ${status.message}`,
 			);
-		} else if (status.version === RELAY_VERSION) {
+		} else if (status.version && !relayBehind(status.version)) {
 			callout(el, "success", "Relay connected and up to date.");
 			return;
 		} else {

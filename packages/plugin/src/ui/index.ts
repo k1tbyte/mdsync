@@ -43,6 +43,7 @@ export {
 	confirmSettingsTransferImport,
 	openConfirmModal,
 	openPromiseModal,
+	openRelayUpdateModal,
 	openStorageRefusedModal,
 	showSettingsTransferExport,
 } from "./modals";

@@ -24,6 +24,7 @@ export {
 	RELAY_NAME,
 	RELAY_VERSION,
 	type RelayTarget,
+	relayBehind,
 	relayNameError,
 	relayUrlOf,
 } from "./relay-account";

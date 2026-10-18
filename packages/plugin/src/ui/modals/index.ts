@@ -7,6 +7,7 @@ export { AcceptInviteModal } from "./invite-modal";
 export { askNewPassphrase, askPassphrase } from "./passphrase-modal";
 export { openPromiseModal } from "./promise-modal";
 export { openPromptModal, type PromptModalOptions } from "./prompt-modal";
+export { openRelayUpdateModal } from "./relay-update-modal";
 export { confirmRemoteReset } from "./reset-modal";
 export { showSettingsTransferExport } from "./settings-transfer-export-modal";
 export {

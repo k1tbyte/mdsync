@@ -58,6 +58,7 @@ import {
 import { registerLinkPaths } from "./plugin/links";
 import { registerProtocolHandlers } from "./plugin/protocols";
 import { createRealtime, type Realtime } from "./plugin/realtime";
+import { registerRelayUpdate } from "./plugin/relay-update";
 import { registerShareRenames } from "./plugin/share-moves";
 import { createShareRegistration } from "./plugin/share-registration";
 import { createStorageRefused } from "./plugin/storage-refused";
@@ -183,6 +184,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		this.ignoreState = registerIgnoreState(this);
 
 		registerVaultAdoptionPrompt(this, this.controller);
+		registerRelayUpdate(this);
 
 		const registeredUi = registerPluginUi(this, this.controller);
 		this.settingsTab = registeredUi.settingsTab;

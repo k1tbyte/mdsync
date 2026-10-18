@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const BUNDLE = fileURLToPath(
 	new URL("../relay/dist/relay-bundle.json", import.meta.url),
 );
+const PACKAGE = fileURLToPath(new URL("./package.json", import.meta.url));
 
 /**
  * Serves `mdsync:relay-bundle`: the relay built in the same run, so a release deploys the relay of
@@ -25,7 +26,11 @@ export function relayBundle() {
 					execSync("pnpm --filter mdsync-relay run bundle", {
 						stdio: ["ignore", "ignore", "inherit"],
 					});
-					contents = readFileSync(BUNDLE, "utf8");
+					const bundle = JSON.parse(readFileSync(BUNDLE, "utf8"));
+					const { version } = JSON.parse(readFileSync(PACKAGE, "utf8"));
+					// The release orders relays, so an older plugin never offers a downgrade.
+					bundle.version = `${version}+${bundle.version}`;
+					contents = JSON.stringify(bundle);
 				}
 				return { contents, loader: "json" };
 			});

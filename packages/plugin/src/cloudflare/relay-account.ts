@@ -3,9 +3,34 @@ import bundle from "mdsync:relay-bundle";
 import type { CloudflareApi } from "./api";
 import { workerNames, workersSubdomain, workerUrl } from "./relay-deploy";
 
-/** The relay build this plugin carries; `/status` of a relay running it says the same. */
+/** The relay build this plugin carries, `<release>+<hash>`; `/status` of a relay running it says the same. */
 export const RELAY_VERSION = bundle.version;
 export const RELAY_NAME = bundle.name;
+
+/** Another build that no newer release deployed: updating it is no downgrade. Null is a relay deployed outside MDSync. */
+export function relayBehind(deployed: string | null | undefined): boolean {
+	if (!deployed) return false;
+	const [release, build] = splitVersion(deployed);
+	const [ours, ourBuild] = splitVersion(RELAY_VERSION);
+	return build !== ourBuild && !newerRelease(release, ours);
+}
+
+/** A bare hash was deployed before releases were stamped. */
+function splitVersion(version: string): [string, string] {
+	const plus = version.indexOf("+");
+	return plus < 0
+		? ["0", version]
+		: [version.slice(0, plus), version.slice(plus + 1)];
+}
+
+function newerRelease(a: string, b: string): boolean {
+	const y = b.split(".").map(Number);
+	for (const [i, n] of a.split(".").map(Number).entries()) {
+		const m = y[i] ?? 0;
+		if (n !== m) return n > m;
+	}
+	return false;
+}
 
 const NAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 

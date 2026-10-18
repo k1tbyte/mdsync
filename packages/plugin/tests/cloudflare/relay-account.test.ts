@@ -4,6 +4,7 @@ import {
 	accountRelays,
 	freeRelayName,
 	ownRelayName,
+	relayBehind,
 	relayNameError,
 	relayUrlOf,
 } from "@/cloudflare";
@@ -132,5 +133,25 @@ describe("relay names and URLs", () => {
 		expect(relayNameError("other", RELAYS.taken)).toBe(
 			"A worker with this name already exists.",
 		);
+	});
+});
+
+describe("relayBehind", () => {
+	it.each([
+		["1.2.0+abc", true],
+		["abc", true],
+		["1.3.0+other", true],
+		["1.3.0+test", false],
+		["1.4.0+test", false],
+		["1.2.0+test", false],
+		["test", false],
+		["1.4.0+other", false],
+		["1.3.1+other", false],
+		["1.3+other", true],
+		[null, false],
+		[undefined, false],
+		["", false],
+	] as const)("against 1.3.0+test, %s is behind: %s", (deployed, behind) => {
+		expect(relayBehind(deployed)).toBe(behind);
 	});
 });
