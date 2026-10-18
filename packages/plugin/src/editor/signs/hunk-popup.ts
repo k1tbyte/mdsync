@@ -42,7 +42,8 @@ export function showHunkPopupAt(
 		return true;
 	}
 	const element = buildPopup(target, dismissPopup);
-	document.body.appendChild(element);
+	// The editor's own window: a popout's popup must open and close there.
+	view.dom.ownerDocument.body.appendChild(element);
 	positionPopup(element, event);
 	activePopup = {
 		element,

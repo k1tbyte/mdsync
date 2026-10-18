@@ -29,11 +29,12 @@ export function positionPopup(popup: HTMLElement, event: MouseEvent): void {
 		left: "0px",
 		top: "0px",
 	});
-	window.requestAnimationFrame(() => {
+	const win = popup.ownerDocument.defaultView ?? window;
+	win.requestAnimationFrame(() => {
 		const { x, y } = placePopup(
 			{ x: event.clientX, y: event.clientY },
 			popup.getBoundingClientRect(),
-			{ width: window.innerWidth, height: window.innerHeight },
+			{ width: win.innerWidth, height: win.innerHeight },
 		);
 		Object.assign(popup.style, {
 			left: `${x}px`,

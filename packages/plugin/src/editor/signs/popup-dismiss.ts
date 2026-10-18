@@ -11,12 +11,13 @@ export function installDismissHandlers(
 	const onKey = (event: KeyboardEvent) => {
 		if (event.key === "Escape") dismiss();
 	};
-	document.addEventListener("mousedown", onPointerDown, true);
-	document.addEventListener("keydown", onKey, true);
+	const doc = view.dom.ownerDocument;
+	doc.addEventListener("mousedown", onPointerDown, true);
+	doc.addEventListener("keydown", onKey, true);
 	view.scrollDOM.addEventListener("scroll", dismiss, true);
 	return () => {
-		document.removeEventListener("mousedown", onPointerDown, true);
-		document.removeEventListener("keydown", onKey, true);
+		doc.removeEventListener("mousedown", onPointerDown, true);
+		doc.removeEventListener("keydown", onKey, true);
 		view.scrollDOM.removeEventListener("scroll", dismiss, true);
 	};
 }
