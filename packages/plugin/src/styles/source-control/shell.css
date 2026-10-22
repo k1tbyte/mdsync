@@ -4,6 +4,7 @@
 	flex-direction: column;
 	padding: var(--size-4-3);
 	padding-bottom: 0;
+	position: relative;
 	height: 100%;
 	overflow: hidden;
 	container-type: inline-size;
@@ -15,19 +16,47 @@
 	z-index: 5;
 	display: flex;
 	flex: 0 0 auto;
+	align-items: center;
 	gap: var(--size-2-1);
 	margin-bottom: var(--size-4-2);
 }
 
 .mdsync-source-tabs {
 	display: flex;
-	flex: 1 1 auto;
+	flex: 0 1 auto;
 	gap: var(--size-2-1);
+	min-width: 0;
 	margin-bottom: 0;
-	padding: 3px;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: calc(var(--button-radius, var(--radius-m)) + 3px);
-	background: var(--background-primary);
+}
+
+.mdsync-source-tools {
+	display: flex;
+	flex: 0 0 auto;
+	gap: var(--size-2-1);
+	margin-left: auto;
+}
+
+.mdsync-icon-btn:is(.mdsync-source-tools *, .mdsync-sync-summary-tools *) {
+	width: 28px;
+	min-width: 28px;
+	height: 28px;
+	padding: 0;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+}
+
+.mdsync-icon-btn:is(
+	.mdsync-source-tools *,
+	.mdsync-sync-summary-tools *
+):hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+:is(.mdsync-source-tools, .mdsync-sync-summary-tools) svg {
+	width: var(--mdsync-icon);
+	height: var(--mdsync-icon);
 }
 
 .mdsync-mobile-back {
@@ -42,13 +71,13 @@
 
 .mdsync-source-tabs .mdsync-settings-tab-button {
 	display: flex;
-	flex: 1 1 0;
+	flex: 0 0 auto;
 	align-items: center;
 	justify-content: center;
 	gap: var(--size-2-2);
-	min-width: 0;
-	height: var(--input-height);
-	padding: 0 var(--size-4-2);
+	min-width: 30px;
+	height: 28px;
+	padding: 0 var(--size-2-3);
 	border: 0;
 	box-shadow: none;
 	background: transparent;
@@ -67,9 +96,8 @@
 }
 
 .mdsync-source-tabs .mdsync-settings-tab-button.is-active {
-	flex-grow: 1.65;
-	background: var(--interactive-accent);
-	color: var(--text-on-accent);
+	background: var(--background-modifier-hover);
+	color: var(--text-accent);
 }
 
 .mdsync-source-tab-icon {
@@ -90,18 +118,13 @@
 	white-space: nowrap;
 }
 
-.mdsync-source-tabs
-	.mdsync-settings-tab-button.is-active
-	.mdsync-source-tab-label {
-	display: inline;
-}
-
 .mdsync-source-tab-panel {
 	display: flex;
 	flex: 1 1 auto;
 	flex-direction: column;
 	gap: var(--size-4-2);
 	min-height: 0;
+	padding-right: var(--size-2-2);
 	overflow: auto;
 }
 

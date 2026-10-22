@@ -6,7 +6,7 @@ export { copyable, copyText } from "./copyable";
 export { onEnter } from "./enter-key";
 export { focusKey, renderKeepingFocus } from "./focus";
 export { appendIconButton, appendLabeledButton } from "./icon-button";
-export { lastEditLabel } from "./last-edit";
+export { lastEditLabel, lastEditor } from "./last-edit";
 export { onLongPress } from "./long-press";
 export { infoTitle, personTitle, showMenuAt } from "./menu";
 export {

@@ -1,8 +1,11 @@
+/* Rows start where the header title does; a selectable section adds the box column before them. */
 .mdsync-section {
+	--mdsync-gutter: 18px;
 	min-width: 0;
-	border: 0;
-	border-radius: 0;
-	padding: 0;
+}
+
+.mdsync-section:is(.is-local, .is-remote) {
+	--mdsync-gutter: 42px;
 }
 
 .mdsync-section-header {
@@ -28,7 +31,7 @@
 .mdsync-section-disclosure {
 	display: inline-flex;
 	flex: 0 0 auto;
-	color: var(--text-muted);
+	color: var(--text-faint);
 }
 
 .mdsync-section-disclosure svg {
@@ -39,21 +42,49 @@
 .mdsync-section-title {
 	min-width: 0;
 	overflow: hidden;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	letter-spacing: 0.02em;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	font-weight: 600;
+}
+
+.mdsync-section.is-conflicts .mdsync-section-title {
+	color: var(--color-red);
+}
+
+.mdsync-section-actions {
+	display: inline-flex;
+	gap: var(--size-2-1);
+	margin-left: auto;
+}
+
+@media (hover: hover) {
+	.mdsync-section-actions {
+		opacity: 0;
+	}
+
+	.mdsync-section-header:is(:hover, :focus-within) .mdsync-section-actions {
+		opacity: 1;
+	}
 }
 
 .mdsync-section-count {
-	margin-left: auto;
 	min-width: 1.35rem;
-	padding: 1px var(--size-2-2);
+	padding: 0 var(--size-2-3);
 	border-radius: var(--mdsync-radius-pill);
 	background: var(--background-modifier-hover);
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
 	font-variant-numeric: tabular-nums;
 	text-align: center;
+}
+
+.mdsync-section.is-conflicts .mdsync-section-count {
+	background: color-mix(in srgb, var(--color-red) 18%, transparent);
+	color: var(--color-red);
 }
 
 .mdsync-section-body {
@@ -72,31 +103,35 @@
 	gap: 0;
 }
 
-.mdsync-section-actions {
-	gap: var(--size-2-2);
-	padding: var(--size-2-1) 0 var(--size-4-1);
+/* Small transparent icon buttons: section headers, rows, the selection bar. */
+.mdsync-icon-btn.mdsync-row-action {
+	width: 22px;
+	min-width: 22px;
+	height: 22px;
+	padding: 0;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
 }
 
-.mdsync-section-actions button {
-	min-height: 24px;
-	padding: 1px var(--size-4-2);
-	font-size: var(--font-ui-smaller);
+.mdsync-icon-btn.mdsync-row-action:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
 }
 
-.mdsync-section-actions .mdsync-section-icon-action {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: var(--input-height);
-	padding-inline: 0;
-}
-
-.mdsync-selection-controls {
-	display: inline-flex;
-	gap: var(--size-2-2);
-}
-
-.mdsync-section-icon-action svg {
+.mdsync-row-action svg {
 	width: var(--mdsync-icon);
 	height: var(--mdsync-icon);
+}
+
+.mdsync-button-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mdsync-source-tab-panel.is-busy
+	:is(.mdsync-row-actions, .mdsync-section-actions) {
+	visibility: hidden;
 }

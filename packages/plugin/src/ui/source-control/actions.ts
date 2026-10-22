@@ -183,6 +183,12 @@ export class SourceControlActions {
 		);
 	}
 
+	/** Every local change as it stands now, like `batchResolve`. */
+	async revertAll(): Promise<void> {
+		const diff = this.plugin.controller.getSnapshot().result?.diff;
+		await this.revertPaths(diff?.localChanges.map(({ path }) => path) ?? []);
+	}
+
 	async revertPaths(paths: string[]): Promise<boolean> {
 		if (paths.length === 0) return false;
 		// Revert overwrites unsaved local work, so it asks first.

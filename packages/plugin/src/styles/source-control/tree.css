@@ -33,7 +33,7 @@
 }
 
 .mdsync-tree-folder-icon {
-	color: var(--text-accent);
+	color: var(--text-faint);
 }
 
 .mdsync-tree-folder-name {
@@ -49,7 +49,7 @@
 	position: absolute;
 	top: 0;
 	bottom: 0;
-	left: calc(var(--size-4-1) + 7px);
+	left: calc(var(--mdsync-gutter, var(--size-4-1)) + 7px);
 	width: calc(var(--mdsync-depth, 0) * var(--size-4-4));
 	background-image: repeating-linear-gradient(
 		to right,
@@ -65,7 +65,7 @@
 .mdsync-file-row,
 .mdsync-tree-folder {
 	padding-left: calc(
-		var(--size-4-1) +
+		var(--mdsync-gutter, var(--size-4-1)) +
 		var(--mdsync-depth, 0) *
 		var(--size-4-4)
 	);

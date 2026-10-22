@@ -46,6 +46,8 @@ interface DiffViewState {
 	historyChange?: HistoryChange;
 	/** When true and local file is missing, show read-only preview instead of deletion diff. */
 	historyPreviewIfMissing?: boolean;
+	/** Open a conflict straight in its merge; never stored. */
+	merge?: boolean;
 }
 
 export class DiffView extends ItemView {
@@ -68,6 +70,8 @@ export class DiffView extends ItemView {
 	private bodyEl: HTMLElement | null = null;
 	private rendering = false;
 	private refreshPending = false;
+	/** Merge… from source control asked for this path. */
+	private mergeRequested: string | null = null;
 	/** Monotonic generation counter; async loads discard results from older generations. */
 	private loadGeneration = 0;
 
@@ -115,6 +119,7 @@ export class DiffView extends ItemView {
 	}
 
 	async setState(state: DiffViewState, result: ViewStateResult): Promise<void> {
+		this.mergeRequested = state.merge ? (state.path ?? this.path) : null;
 		const changed =
 			(state.path && state.path !== this.path) ||
 			(state.historyHash ?? null) !== this.historyHash ||
@@ -146,7 +151,25 @@ export class DiffView extends ItemView {
 			this.destroyViews();
 			await this.refreshModel();
 		}
+		await this.enterRequestedMerge();
 		await super.setState(state, result);
+	}
+
+	/** Once the requested path's model is in: a load still queued behind another finishes later. */
+	private async enterRequestedMerge(): Promise<void> {
+		const model = this.model;
+		if (!this.path || this.mergeRequested !== this.path || !model) return;
+		this.mergeRequested = null;
+		if (
+			model.direction !== EDiffDirection.Conflict ||
+			model.isBinary ||
+			this.mergePanel.isEditing
+		) {
+			return;
+		}
+		await this.mergePanel.enter(this.plugin, this.path, () =>
+			this.renderShell(),
+		);
 	}
 
 	private unsubStatus: (() => void) | null = null;
@@ -235,6 +258,7 @@ export class DiffView extends ItemView {
 			}
 
 			this.renderShell();
+			void this.enterRequestedMerge();
 		} catch (err) {
 			if (gen !== this.loadGeneration) return;
 			if (this.model) notifyError("Refresh failed", err);

@@ -6,14 +6,28 @@ import { type Space, spaceOf, VAULT_SPACE } from "@/sync/space";
 /** "Changed by Alex, 5 minutes ago": people in a share, devices in the vault. */
 export function lastEditLabel(plugin: PluginHost, path: string): string | null {
 	const edit = plugin.controller.lastEdit(path);
-	if (!edit) return null;
+	return edit
+		? `Changed ${editorOf(plugin, path, edit.key, edit.name)}, ${formatRelativeTime(edit.at)}`
+		: null;
+}
+
+/** "on Laptop" in the vault, "by Alex" in a share. */
+export function lastEditor(plugin: PluginHost, path: string): string | null {
+	const edit = plugin.controller.lastEdit(path);
+	return edit ? editorOf(plugin, path, edit.key, edit.name) : null;
+}
+
+function editorOf(
+	plugin: PluginHost,
+	path: string,
+	key: string,
+	name: string,
+): string {
 	const space = spaceOf(plugin.spaces.partition(), path);
-	const vault = space.id === VAULT_SPACE.id;
-	const mine = isMine(plugin, space, edit.key);
-	const who = vault
-		? `on ${mine ? "this device" : edit.name}`
-		: `by ${mine ? "you" : edit.name}`;
-	return `Changed ${who}, ${formatRelativeTime(edit.at)}`;
+	const mine = isMine(plugin, space, key);
+	return space.id === VAULT_SPACE.id
+		? `on ${mine ? "this device" : name}`
+		: `by ${mine ? "you" : name}`;
 }
 
 function isMine(plugin: PluginHost, space: Space, key: string): boolean {

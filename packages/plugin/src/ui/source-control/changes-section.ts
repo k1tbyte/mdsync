@@ -1,10 +1,18 @@
-import { setIcon } from "obsidian";
+import { Menu, setIcon } from "obsidian";
 import { EConflictStrategy } from "@/sync/controller";
-import { makeActivatable } from "@/ui/common";
-import { type ActionTone, actionButton } from "./action-button";
-import type { SourceControlActions } from "./actions";
-import { type RowContext, renderFileRow, renderFolderRow } from "./change-rows";
+import { appendIconButton, makeActivatable } from "@/ui/common";
+import {
+	type CheckState,
+	type RowContext,
+	type RowSelection,
+	renderCheckbox,
+	renderConflictCard,
+	renderFileRow,
+	renderFolderRow,
+	setCheck,
+} from "./change-rows";
 import { RowPager } from "./row-pager";
+import { SECTION_ACTIONS } from "./section-actions";
 import { buildTree, flattenRows, flattenTree } from "./tree-builder";
 import { ESection, type FileRow, type VisualRow } from "./types";
 import { mountVirtualList, type VirtualListHandle } from "./virtual-list";
@@ -16,44 +24,25 @@ export interface ChangesSectionDeps
 		| "previews"
 		| "rerender"
 		| "openFileDiff"
+		| "openMerge"
 		| "isOpening"
 		| "isActive"
+		| "editLabel"
+		| "editor"
 	> {
 	scroller: () => HTMLElement | null;
 	layout: () => "tree" | "flat";
 	isBusy: () => boolean;
 	refreshLists: () => void;
+	/** The selection bar under the lists recounts. */
+	selectionChanged: () => void;
 }
 
-interface SelectionAction {
+export interface SelectionCommand {
 	text: string;
-	tone: ActionTone;
-	run: (actions: SourceControlActions, paths: string[]) => Promise<boolean>;
+	cta: boolean;
+	run: () => Promise<void>;
 }
-
-/** Buttons that act on the selection, so they stay disabled without one. */
-const SELECTION_ACTIONS: Record<ESection, ReadonlyArray<SelectionAction>> = {
-	[ESection.Conflicts]: [],
-	[ESection.Local]: [
-		{
-			text: "Push selected",
-			tone: "cta",
-			run: (actions, paths) => actions.pushPaths(paths),
-		},
-		{
-			text: "Revert selected",
-			tone: "warning",
-			run: (actions, paths) => actions.revertPaths(paths),
-		},
-	],
-	[ESection.Remote]: [
-		{
-			text: "Pull selected",
-			tone: "cta",
-			run: (actions, paths) => actions.pullPaths(paths),
-		},
-	],
-};
 
 /** Below this a list is built whole, so a row height change (an expanded conflict preview) needs no measuring. */
 const VIRTUAL_MIN_ROWS = 100;
@@ -63,12 +52,19 @@ export class ChangesSection {
 	private collapsed = false;
 	private readonly selected = new Set<string>();
 	private readonly expandedFolders = new Set<string>();
-	/** Rows as filtered, which a status-only refresh must not recount from the diff. */
-	private rowCount = 0;
-	private countsEl: HTMLElement | null = null;
-	private selectionButtons: HTMLButtonElement[] = [];
-	/** Act on the whole section: only a running operation holds them back. */
-	private batchButtons: HTMLButtonElement[] = [];
+	/** Rows as filtered: what a header or folder box selects. */
+	private rows: ReadonlyArray<FileRow> = [];
+	/** Files under each folder, "" for the section; counted once per render. */
+	private folderTotals = new Map<string, number>();
+	/** Selected files under each folder; dropped on every change, recounted when a box asks. */
+	private folderChosen: Map<string, number> | null = null;
+	/** Files in display order, for shift-click ranges. */
+	private visibleFiles: string[] = [];
+	private anchor: string | null = null;
+	private listEl: HTMLElement | null = null;
+	private countEl: HTMLElement | null = null;
+	private headerCheck: HTMLInputElement | null = null;
+	private headerButtons: HTMLButtonElement[] = [];
 	private list: VirtualListHandle | null = null;
 	/** Conflict rows grow inline previews, so they page instead of windowing. */
 	private readonly pager = new RowPager();
@@ -79,12 +75,37 @@ export class ChangesSection {
 		private readonly deps: ChangesSectionDeps,
 	) {}
 
+	private get selectable(): boolean {
+		return SECTION_ACTIONS[this.id].length > 0;
+	}
+
+	get selectedCount(): number {
+		return this.selected.size;
+	}
+
 	pruneSelection(rows: ReadonlyArray<FileRow>): void {
 		if (this.selected.size === 0) return;
 		const present = new Set(rows.map((row) => row.path));
 		for (const path of this.selected) {
 			if (!present.has(path)) this.selected.delete(path);
 		}
+	}
+
+	/** What the selection bar offers for this section; unticks what it sent only on success, so a failure leaves it to retry. */
+	selectionCommands(): SelectionCommand[] {
+		const paths = [...this.selected];
+		if (paths.length === 0) return [];
+		return SECTION_ACTIONS[this.id].map(({ text, cta, run }) => ({
+			text: text(paths.length),
+			cta,
+			run: async () => {
+				if (await run(this.deps.actions, paths)) this.setMany(paths, false);
+			},
+		}));
+	}
+
+	clearSelection(): void {
+		this.setMany(this.selected, false);
 	}
 
 	destroyList(): void {
@@ -97,14 +118,8 @@ export class ChangesSection {
 	}
 
 	updateUi(busy: boolean): void {
-		const selected = this.selected.size;
-		this.countsEl?.setText(
-			selected > 0 ? `(${selected}/${this.rowCount})` : `(${this.rowCount})`,
-		);
-		for (const button of this.selectionButtons) {
-			button.disabled = busy || selected === 0;
-		}
-		for (const button of this.batchButtons) button.disabled = busy;
+		this.countEl?.setText(this.rows.length.toLocaleString());
+		for (const button of this.headerButtons) button.disabled = busy;
 	}
 
 	render(
@@ -112,17 +127,29 @@ export class ChangesSection {
 		rows: ReadonlyArray<FileRow>,
 		busy: boolean,
 	): void {
-		this.countsEl = null;
-		this.selectionButtons = [];
-		this.batchButtons = [];
-		this.rowCount = rows.length;
+		this.rows = rows;
+		this.listEl = null;
+		this.countEl = null;
+		this.headerCheck = null;
+		this.headerButtons = [];
 		if (rows.length === 0) return;
+		this.folderTotals = countByFolder(rows);
+		this.folderChosen = null;
 
-		const sectionEl = parent.createDiv({ cls: "mdsync-section" });
+		const sectionEl = parent.createDiv({ cls: `mdsync-section is-${this.id}` });
 		const header = sectionEl.createDiv({ cls: "mdsync-section-header" });
 		const disclosure = header.createSpan({ cls: "mdsync-section-disclosure" });
+		if (this.selectable) {
+			this.headerCheck = renderCheckbox(
+				header,
+				`Select all ${this.title.toLowerCase()}`,
+				this.folderState(""),
+				() => this.toggleFolder(""),
+			);
+		}
 		header.createSpan({ cls: "mdsync-section-title", text: this.title });
-		this.countsEl = header.createSpan({ cls: "mdsync-section-count" });
+		this.renderHeaderActions(header);
+		this.countEl = header.createSpan({ cls: "mdsync-section-count" });
 		const showCollapsed = (): void => {
 			sectionEl.toggleClass("is-collapsed", this.collapsed);
 			header.setAttr("aria-expanded", String(!this.collapsed));
@@ -135,8 +162,8 @@ export class ChangesSection {
 		const buildBody = (now: boolean): void => {
 			if (built) return;
 			built = true;
-			this.renderActions(body, rows, now);
-			this.layoutList(body.createDiv({ cls: "mdsync-file-list" }), rows);
+			this.listEl = body.createDiv({ cls: "mdsync-file-list" });
+			this.layoutList(this.listEl, rows);
 			this.updateUi(now);
 		};
 		makeActivatable(header, `${this.title} section`, () => {
@@ -151,74 +178,115 @@ export class ChangesSection {
 		this.updateUi(busy);
 	}
 
-	private renderActions(
-		parent: HTMLElement,
-		rows: ReadonlyArray<FileRow>,
-		busy: boolean,
-	): void {
-		const bar = parent.createDiv({
-			cls: "mdsync-toolbar mdsync-section-actions",
-		});
+	/** Whole-section actions; Push and Pull of everything live in the summary above. */
+	private renderHeaderActions(header: HTMLElement): void {
+		const bar = header.createSpan({ cls: "mdsync-section-actions" });
 		const { actions } = this.deps;
-		this.selectionButtons = SELECTION_ACTIONS[this.id].map(
-			({ text, tone, run }) =>
-				actionButton(bar, tone)
-					.setButtonText(text)
-					.onClick(
-						() => void this.runOnSelection((paths) => run(actions, paths)),
-					).buttonEl,
-		);
-
-		if (this.id === ESection.Conflicts) {
-			this.batchButtons = [
-				actionButton(bar, "warning")
-					.setButtonText("Keep all local")
-					.setDisabled(busy)
-					.onClick(() => void actions.batchResolve(EConflictStrategy.KeepLocal))
-					.buttonEl,
-				actionButton(bar, "warning")
-					.setButtonText("Accept all remote")
-					.setDisabled(busy)
-					.onClick(
-						() => void actions.batchResolve(EConflictStrategy.AcceptRemote),
-					).buttonEl,
-			];
+		const add = (
+			icon: string,
+			label: string,
+			run: (event: MouseEvent) => void,
+		): void => {
+			const button = appendIconButton(bar, icon, label, (event) => {
+				event.stopPropagation();
+				run(event);
+			});
+			button.addClass("mdsync-row-action");
+			this.headerButtons.push(button);
+		};
+		if (this.id === ESection.Local) {
+			add(
+				"rotate-ccw",
+				"Revert all local changes",
+				() => void actions.revertAll(),
+			);
+		} else if (this.id === ESection.Conflicts) {
+			add("ellipsis", "Resolve all conflicts", (event) => {
+				const menu = new Menu();
+				menu.addItem((item) =>
+					item
+						.setTitle("Keep all local")
+						.setIcon("check")
+						.onClick(
+							() => void actions.batchResolve(EConflictStrategy.KeepLocal),
+						),
+				);
+				menu.addItem((item) =>
+					item
+						.setTitle("Accept all remote")
+						.setIcon("download")
+						.onClick(
+							() => void actions.batchResolve(EConflictStrategy.AcceptRemote),
+						),
+				);
+				menu.showAtMouseEvent(event);
+			});
 		}
-		if (this.selectionButtons.length === 0) return;
-
-		const selectionControls = bar.createDiv({
-			cls: "mdsync-selection-controls",
-		});
-		selectionControls.setAttr("role", "group");
-		selectionControls.setAttr("aria-label", "Selection");
-		const selectAll = selectionControls.createEl("button", {
-			cls: "mdsync-section-icon-action",
-		});
-		setIcon(selectAll, "list-checks");
-		selectAll.setAttr("aria-label", "Select all");
-		selectAll.addEventListener("click", () => {
-			for (const row of rows) this.selected.add(row.path);
-			this.deps.rerender();
-		});
-		const selectNone = selectionControls.createEl("button", {
-			cls: "mdsync-section-icon-action",
-		});
-		setIcon(selectNone, "x");
-		selectNone.setAttr("aria-label", "Clear selection");
-		selectNone.addEventListener("click", () => {
-			this.selected.clear();
-			this.deps.rerender();
-		});
-		// With nothing selected it reads as "dismiss these changes".
-		this.selectionButtons.push(selectNone);
 	}
 
-	/** Clears the selection only on success, so a failure leaves it to retry. */
-	private async runOnSelection(
-		run: (paths: string[]) => Promise<boolean>,
-	): Promise<void> {
-		if (this.selected.size === 0) return;
-		if (await run([...this.selected])) this.selected.clear();
+	private folderState(folder: string): CheckState {
+		const total = this.folderTotals.get(folder) ?? 0;
+		this.folderChosen ??= countByFolder(
+			this.rows.filter(({ path }) => this.selected.has(path)),
+		);
+		const chosen = this.folderChosen.get(folder) ?? 0;
+		if (chosen === 0) return "none";
+		return chosen < total ? "some" : "all";
+	}
+
+	/** A folder ticks everything under it, collapsed subfolders included; "" is the section. */
+	private toggleFolder(folder: string): void {
+		const on = this.folderState(folder) !== "all";
+		const prefix = `${folder}/`;
+		const under = this.rows
+			.map(({ path }) => path)
+			.filter((path) => folder === "" || path.startsWith(prefix));
+		this.setMany(under, on);
+	}
+
+	private toggleFile(path: string, range: boolean): void {
+		const on = !this.selected.has(path);
+		const from =
+			range && this.anchor !== null
+				? this.visibleFiles.indexOf(this.anchor)
+				: -1;
+		const to = this.visibleFiles.indexOf(path);
+		this.anchor = path;
+		if (from < 0 || to < 0) {
+			this.setMany([path], on);
+			return;
+		}
+		this.setMany(
+			this.visibleFiles.slice(Math.min(from, to), Math.max(from, to) + 1),
+			on,
+		);
+	}
+
+	private setMany(paths: Iterable<string>, on: boolean): void {
+		for (const path of [...paths]) {
+			if (on) this.selected.add(path);
+			else this.selected.delete(path);
+		}
+		this.folderChosen = null;
+		this.syncChecks();
+		this.deps.selectionChanged();
+	}
+
+	/** Rows drawn later read the selection themselves; these are the ones on screen now. */
+	private syncChecks(): void {
+		if (this.headerCheck) setCheck(this.headerCheck, this.folderState(""));
+		const boxes =
+			this.listEl?.querySelectorAll<HTMLInputElement>(
+				".mdsync-file-checkbox",
+			) ?? [];
+		for (const box of boxes) {
+			const { mdsyncFile, mdsyncFolder } = box.dataset;
+			if (mdsyncFolder !== undefined) {
+				setCheck(box, this.folderState(mdsyncFolder));
+			} else if (mdsyncFile !== undefined) {
+				setCheck(box, this.selected.has(mdsyncFile) ? "all" : "none");
+			}
+		}
 	}
 
 	/** Refills in place: expanding a folder changes which rows exist without touching the rest of the pane. */
@@ -230,45 +298,47 @@ export class ChangesSection {
 		this.destroyList();
 		list.empty();
 
-		const layout = this.deps.layout();
+		// A conflict waits on a choice, so none hides in a collapsed folder.
+		const layout = this.id === ESection.Conflicts ? "flat" : this.deps.layout();
 		const visual =
 			layout === "flat"
 				? flattenRows(rows)
 				: flattenTree(buildTree(rows), (path) =>
 						this.expandedFolders.has(path),
 					);
-		const { actions, previews, rerender, openFileDiff, isOpening, isActive } =
-			this.deps;
+		this.visibleFiles = visual.flatMap((row) =>
+			row.row ? [row.row.path] : [],
+		);
+		const selection: RowSelection | null = this.selectable
+			? {
+					isSelected: (path) => this.selected.has(path),
+					folderState: (folder) => this.folderState(folder),
+					toggleFile: (path, range) => this.toggleFile(path, range),
+					toggleFolder: (folder) => this.toggleFolder(folder),
+				}
+			: null;
 		const ctx: RowContext = {
+			...this.deps,
 			section: this.id,
 			layout,
-			actions,
-			previews,
-			rerender,
-			openFileDiff,
-			isOpening,
-			isActive,
-			isSelected: (path) => this.selected.has(path),
-			setSelected: (path, selected) => {
-				if (selected) this.selected.add(path);
-				else this.selected.delete(path);
-				this.updateUi(this.deps.isBusy());
-			},
+			selection,
 			toggleFolder: (path) => {
 				if (this.expandedFolders.has(path)) this.expandedFolders.delete(path);
 				else this.expandedFolders.add(path);
 				this.layoutList(list, rows);
 			},
 		};
-		const buildRow = (visualRow: VisualRow): HTMLElement =>
-			visualRow.row
-				? renderFileRow(list, visualRow.row, visualRow.depth, ctx)
-				: renderFolderRow(list, visualRow, ctx);
+		const buildRow = (visualRow: VisualRow): HTMLElement => {
+			const { row } = visualRow;
+			if (!row) return renderFolderRow(list, visualRow, ctx);
+			return this.id === ESection.Conflicts
+				? renderConflictCard(list, row, ctx)
+				: renderFileRow(list, row, visualRow.depth, ctx);
+		};
 		const build = (index: number): HTMLElement =>
 			buildRow(visual[index] as VisualRow);
 
-		// Conflict rows grow an inline preview, so their height is not the pitch
-		// a windowed list places them on.
+		// Conflict cards are taller than the pitch a windowed list places rows on.
 		if (this.id === ESection.Conflicts) {
 			for (const visualRow of this.pager.slice(visual)) buildRow(visualRow);
 			this.pager.render(list, visual.length, () => this.layoutList(list, rows));
@@ -286,4 +356,16 @@ export class ChangesSection {
 		// This section just changed height, which moves every section under it.
 		this.deps.refreshLists();
 	}
+}
+
+/** Rows under each folder of their paths, "" counting them all. */
+function countByFolder(rows: ReadonlyArray<FileRow>): Map<string, number> {
+	const counts = new Map<string, number>([["", rows.length]]);
+	for (const { path } of rows) {
+		for (let at = path.indexOf("/"); at > 0; at = path.indexOf("/", at + 1)) {
+			const folder = path.slice(0, at);
+			counts.set(folder, (counts.get(folder) ?? 0) + 1);
+		}
+	}
+	return counts;
 }

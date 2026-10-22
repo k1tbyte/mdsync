@@ -113,6 +113,7 @@ export class SourceControlView extends ItemView {
 			this.actions,
 			() => this.render(this.plugin.controller.getSnapshot(), true),
 			(path) => openDiffView(this.plugin, path),
+			(path) => void openDiffView(this.plugin, path, undefined, true),
 		);
 	}
 
@@ -246,9 +247,9 @@ export class SourceControlView extends ItemView {
 			root.querySelector<HTMLElement>(".mdsync-source-tab-panel")?.scrollTop ??
 			0;
 		root.empty();
-		this.renderTabBar(root);
+		const tools = this.renderTabBar(root);
 		const panel = this.renderTabPanel(root);
-		this.changes.render(panel, snapshot);
+		this.changes.render(panel, snapshot, tools, root);
 		// Emptying the pane clamped the scroll to nothing, so the lists mounted
 		// against the top. Restoring it moves them without a scroll event.
 		panel.scrollTop = scrollTop;
@@ -263,7 +264,8 @@ export class SourceControlView extends ItemView {
 		return panel;
 	}
 
-	private renderTabBar(parent: HTMLElement): void {
+	/** Returns the row's trailing slot, where the Changes tab puts its tools. */
+	private renderTabBar(parent: HTMLElement): HTMLElement {
 		const row = parent.createDiv({ cls: "mdsync-source-tabs-row" });
 		if (Platform.isPhone) {
 			const back = row.createEl("button", { cls: "mdsync-mobile-back" });
@@ -309,6 +311,7 @@ export class SourceControlView extends ItemView {
 			});
 		};
 		for (const { tab, label, icon } of SOURCE_TABS) make(tab, label, icon);
+		return row.createDiv({ cls: "mdsync-source-tools" });
 	}
 
 	private activateTab(tab: ESourceTab, restoreFocus = false): void {
@@ -335,10 +338,12 @@ export interface HistoryDiffTarget extends HistoryVersionRef {
 	previewIfMissing?: boolean;
 }
 
+/** `merge` goes straight into the conflict's merge, as the diff's Merge… does. */
 export async function openDiffView(
 	plugin: PluginHost,
 	path: string,
 	history?: HistoryDiffTarget,
+	merge = false,
 ): Promise<void> {
 	const existing = plugin.app.workspace.getLeavesOfType(DIFF_VIEW_TYPE);
 	const leaf = existing[0] ?? plugin.app.workspace.getLeaf(true);
@@ -355,6 +360,7 @@ export async function openDiffView(
 			againstSize: history?.against?.size,
 			historyChange: history?.change,
 			historyPreviewIfMissing: history?.previewIfMissing,
+			merge: merge || undefined,
 		},
 	});
 	await plugin.app.workspace.revealLeaf(leaf);

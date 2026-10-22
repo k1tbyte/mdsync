@@ -69,12 +69,6 @@
 	padding-inline: var(--size-4-2);
 }
 
-.mdsync-history-search {
-	width: 100%;
-	height: var(--input-height);
-	margin-bottom: var(--size-4-2);
-}
-
 .mdsync-history-versions-head {
 	display: flex;
 	flex-direction: column;

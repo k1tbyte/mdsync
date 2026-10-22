@@ -11,12 +11,7 @@ body.is-phone .mdsync-diff-view .mdsync-icon-btn {
 
 body.is-tablet
 	:is(.mdsync-source-control, .mdsync-diff-view)
-	:is(
-		.mdsync-toolbar-icon,
-		.mdsync-section-icon-action,
-		.mdsync-rail-btn,
-		.mdsync-icon-btn.mdsync-icon-only
-	) {
+	:is(.mdsync-rail-btn, .mdsync-icon-btn.mdsync-icon-only) {
 	padding-inline: 0;
 }
 
