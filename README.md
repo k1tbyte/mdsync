@@ -216,7 +216,7 @@ A note open on two devices edits together, keystroke by keystroke, with the othe
 
 ### Presence
 
-The note header shows who else has the note open, as coloured initials. Click one to follow that person: your tab opens the notes they open and keeps their cursor in view. The file explorer shows headcounts on shared folders and a dot on files others changed that you have not opened yet. On desktop, one status bar item shows where sync stands and the relay state; select it for a menu with Push, Pull and Compare.
+The note header shows who else has the note open, as coloured initials. Click one to follow that person: your tab opens the notes they open and keeps their cursor in view. The file explorer colours changed files with a mark for each (a dot for your changes, an arrow for ones to pull, an alert for conflicts), shows headcounts on shared folders and a dot on files others changed that you have not opened yet. On desktop, one status bar item shows where sync stands and the relay state; select it for a menu with Push, Pull and Compare.
 
 Turn off **Show my open note to others** to stay online without showing where you are.
 

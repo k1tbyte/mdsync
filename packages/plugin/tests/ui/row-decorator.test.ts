@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Person } from "@/presence/people";
 import type { SyncController } from "@/sync/controller";
 import { type Space, VAULT_SPACE } from "@/sync/space";
-import { EChangeType } from "@/sync/types";
+import { EChangeType, type Move } from "@/sync/types";
 import type { FileExplorerRows } from "@/ui/explorer/file-explorer-api";
 import {
 	clearDecoration,
@@ -32,9 +32,10 @@ function setup(people: Person[] = [ALEX], unseen: string[] = []) {
 	let statuses: ReadonlyMap<string, EChangeType> = new Map([
 		[CHANGED, EChangeType.LocalAdd],
 	]);
+	let result: object | null = null;
 	const controller = {
 		fileDiffs: { getChangedPathStatuses: () => statuses },
-		getSnapshot: () => ({ result: null }),
+		getSnapshot: () => ({ result }),
 	} as unknown as SyncController;
 
 	const folded = new Set<string>();
@@ -60,10 +61,15 @@ function setup(people: Person[] = [ALEX], unseen: string[] = []) {
 		people,
 		folded,
 		elements,
+		ignored,
 		ignoredPaths,
 		lookups,
 		setStatuses: (next: ReadonlyMap<string, EChangeType>) => {
 			statuses = next;
+		},
+		setDiff: (next: ReadonlyMap<string, EChangeType>, moves: Move[]) => {
+			statuses = next;
+			result = { diff: { moves }, snapshot: { skipped: [] } };
 		},
 		setLinks: (next: ReadonlyMap<string, string>) => {
 			links = next;
@@ -88,6 +94,14 @@ function clearedPaths(): string[] {
 	return vi
 		.mocked(clearDecoration)
 		.mock.calls.map(([target]) => (target as unknown as { path: string }).path);
+}
+
+function paintedAt(path: string) {
+	return vi
+		.mocked(renderDecoration)
+		.mock.calls.find(
+			([target]) => (target as unknown as { path: string }).path === path,
+		)?.[1];
 }
 
 function settle(): void {
@@ -172,6 +186,46 @@ describe("the tree's decoration layers", () => {
 		expect(clearDecoration).not.toHaveBeenCalled();
 	});
 
+	it("marks a move on the row on disk and a change made elsewhere as incoming", () => {
+		const { apply, setDiff } = setup([]);
+		setDiff(
+			new Map([
+				["new.md", EChangeType.LocalAdd],
+				["old.md", EChangeType.LocalDelete],
+				["gone.md", EChangeType.RemoteDelete],
+				["there.md", EChangeType.RemoteAdd],
+				[CHANGED, EChangeType.RemoteModify],
+			]),
+			[
+				{ from: "old.md", to: "new.md", side: "local" },
+				{ from: "gone.md", to: "there.md", side: "remote" },
+			],
+		);
+
+		apply(true);
+
+		expect(paintedAt("new.md")).toMatchObject({
+			change: { kind: "move", incoming: false },
+		});
+		expect(paintedAt("gone.md")).toMatchObject({
+			change: { kind: "move", incoming: true },
+		});
+		expect(paintedAt(CHANGED)).toMatchObject({
+			change: { kind: "modify", incoming: true },
+		});
+	});
+
+	it("marks only the topmost ignored row", () => {
+		const { apply, ignored } = setup([]);
+		ignored.add("drafts").add("drafts/a.md");
+
+		apply(true);
+
+		expect(paintedAt("drafts")).toMatchObject({ ignored: "root" });
+		expect(paintedAt("drafts/a.md")).toMatchObject({ ignored: "below" });
+		expect(paintedAt(IGNORED)).toMatchObject({ ignored: "root" });
+	});
+
 	it("hands people to the outermost collapsed folder without a row change", () => {
 		const { apply, folded } = setup([ALEX]);
 		apply(true);
@@ -220,7 +274,9 @@ describe("the base layer", () => {
 		expect(paintedPaths()).toEqual([CHANGED]);
 		expect(clearedPaths()).toEqual([CHANGED]);
 		const [, decoration] = vi.mocked(renderDecoration).mock.calls[0] ?? [];
-		expect(decoration).toMatchObject({ change: "mdsync-changed-deleted" });
+		expect(decoration).toMatchObject({
+			change: { kind: "delete", incoming: false },
+		});
 
 		settle();
 		setStatuses(new Map());
