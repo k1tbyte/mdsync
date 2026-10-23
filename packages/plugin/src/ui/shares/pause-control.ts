@@ -1,4 +1,5 @@
 import type { PauseKind } from "@/spaces";
+import { renderSegments } from "@/ui/common";
 
 export type Pause = Exclude<PauseKind, "off">;
 
@@ -18,35 +19,12 @@ export function renderPauseControl(
 ): void {
 	// Named by its heading: an `aria-label` would show as a tooltip over the whole bar.
 	heading.id = `${name}-heading`;
-	const group = parent.createDiv({
-		cls: "mdsync-segments",
-		attr: { role: "radiogroup", "aria-labelledby": heading.id },
-	});
-	const inputs = PAUSE.map(([pause, text]) => {
-		const label = group.createEl("label", { cls: "mdsync-segment" });
-		const input = label.createEl("input", { type: "radio", attr: { name } });
-		label.createSpan({ text });
-		input.addEventListener("change", async () => {
-			for (const each of inputs) each.disabled = true;
-			try {
-				await choose(pause);
-			} finally {
-				for (const each of inputs) each.disabled = false;
-				show();
-				// Disabling dropped the keyboard's focus to the body; focus moved elsewhere meanwhile stays.
-				if (activeDocument.activeElement === activeDocument.body) {
-					inputs.find((each) => each.checked)?.focus();
-				}
-			}
-		});
-		return input;
-	});
-	const show = (): void => {
-		const now = current();
-		PAUSE.forEach(([pause], i) => {
-			const input = inputs[i];
-			if (input) input.checked = pause === now;
-		});
-	};
-	show();
+	renderSegments(
+		parent,
+		name,
+		PAUSE.map(([value, text]) => ({ value, text })),
+		current,
+		choose,
+		heading.id,
+	);
 }

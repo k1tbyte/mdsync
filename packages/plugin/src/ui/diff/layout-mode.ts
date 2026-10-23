@@ -1,10 +1,11 @@
-import { setIcon } from "obsidian";
+import { randomId } from "@/crypto";
+import { renderSegments, type Segments } from "@/ui/common";
 
 const COMBINED_BELOW_PX = 900;
 
 /** Automatic below a width, or forced from a toolbar button while there is room for both layouts. */
 export class LayoutMode {
-	private readonly button: HTMLButtonElement;
+	private readonly control: Segments;
 	private readonly observer: ResizeObserver;
 	private forceCombined = false;
 	private current = false;
@@ -14,13 +15,20 @@ export class LayoutMode {
 		toolbar: HTMLElement,
 		private readonly onLayout: (combined: boolean, changed: boolean) => void,
 	) {
-		this.button = toolbar.createEl("button", {
-			cls: "mdsync-icon-btn mdsync-icon-only mdsync-layout-btn",
-		});
-		this.button.addEventListener("click", () => {
-			this.forceCombined = !this.current;
-			this.refresh();
-		});
+		this.control = renderSegments(
+			toolbar,
+			`layout-${randomId()}`,
+			[
+				{ value: false, text: "Side by side" },
+				{ value: true, text: "Inline" },
+			],
+			() => this.current,
+			(combined) => {
+				this.forceCombined = combined;
+				this.refresh();
+			},
+		);
+		this.control.el.addClasses(["is-compact", "mdsync-layout-btn"]);
 		this.observer = new ResizeObserver(() => this.refresh());
 		this.observer.observe(root);
 	}
@@ -33,15 +41,10 @@ export class LayoutMode {
 		const auto = this.root.clientWidth < COMBINED_BELOW_PX;
 		const combined = this.forceCombined || auto;
 		this.root.toggleClass("is-combined", combined);
-		this.button.hidden = auto;
-		this.button.empty();
-		setIcon(this.button, combined ? "columns-2" : "rows-2");
-		this.button.setAttr(
-			"aria-label",
-			combined ? "Use side-by-side layout" : "Use combined layout",
-		);
+		this.control.el.hidden = auto;
 		const changed = combined !== this.current;
 		this.current = combined;
+		this.control.refresh();
 		this.onLayout(combined, changed);
 	}
 

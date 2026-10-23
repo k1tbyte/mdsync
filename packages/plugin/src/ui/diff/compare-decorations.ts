@@ -1,6 +1,7 @@
 import {
 	type Extension,
 	type Range,
+	RangeSet,
 	StateEffect,
 	StateField,
 	type Text,
@@ -9,20 +10,20 @@ import {
 	Decoration,
 	type DecorationSet,
 	EditorView,
+	GutterMarker,
+	gutterLineClass,
+	type PluginValue,
+	ViewPlugin,
+	type ViewUpdate,
 	WidgetType,
 } from "@codemirror/view";
 import { hunkSegments, type LineRange } from "@/sync/hunks";
 import type { Span } from "@/sync/merge-model";
-import { EDiffDirection, type FileDiffModel } from "@/sync/projection";
+import type { FileDiffModel } from "@/sync/projection";
 import type { HunkChoices } from "./choices";
 import { addCodeMarks, type LineMarks, lineMarks } from "./code-lines";
 import { addCollapsedGaps, expandedGapsField, gapRow } from "./gap-widgets";
-import {
-	forEachVisibleRange,
-	rangeLabel,
-	sideSpan,
-	viewportDecorations,
-} from "./geometry";
+import { forEachVisibleRange, rangeLabel, sideSpan } from "./geometry";
 import { combinedModeField } from "./merge-decorations";
 import type { RailAction } from "./rail";
 import { type SourceBlock, SourceBlockWidget } from "./source-widget";
@@ -78,20 +79,6 @@ export function buildSegments(model: FileDiffModel): CompareSegment[] {
 	return segments;
 }
 
-/** Connector/region colour per direction; resolves `--mdsync-tone-<tone>`. */
-export function directionTone(direction: EDiffDirection): string {
-	switch (direction) {
-		case EDiffDirection.Local:
-			return "local";
-		case EDiffDirection.Remote:
-			return "remote";
-		case EDiffDirection.Conflict:
-			return "conflict";
-		default:
-			return "base";
-	}
-}
-
 /** Choices and folds live outside the editor; this only tells it to redraw. */
 export const segmentsChanged = StateEffect.define<void>();
 const segmentsVersionField = StateField.define<number>({
@@ -126,13 +113,10 @@ export function compareState(config: CompareStateConfig): Extension {
 		segmentsVersionField,
 		combinedModeField,
 		expandedGapsField,
-		viewportDecorations(
-			(view) => visibleSideLines(view, config),
-			(update) =>
-				update.docChanged ||
-				update.startState.field(segmentsVersionField) !==
-					update.state.field(segmentsVersionField),
-		),
+		gutterMarksField,
+		ViewPlugin.define((view) => new SideLines(view, config), {
+			decorations: (plugin) => plugin.decorations,
+		}),
 		// Folds and block widgets change the layout, so they cannot come from the viewport plugin.
 		EditorView.decorations.compute(
 			["doc", segmentsVersionField, combinedModeField, expandedGapsField],
@@ -160,55 +144,140 @@ export function compareState(config: CompareStateConfig): Extension {
 	];
 }
 
+/** Tints the row's gutter elements: the line decoration alone stops at the line numbers. */
+class GutterClass extends GutterMarker {
+	constructor(elementClass: string) {
+		super();
+		this.elementClass = elementClass;
+	}
+
+	eq(other: GutterMarker): boolean {
+		return other.elementClass === this.elementClass;
+	}
+}
+
+const gutterMarksChanged = StateEffect.define<RangeSet<GutterMarker>>();
+
+/** `gutterLineClass` only takes state, so the viewport plugin hands its marks over through this field. */
+const gutterMarksField = StateField.define<RangeSet<GutterMarker>>({
+	create: () => RangeSet.empty,
+	update(marks, transaction) {
+		for (const effect of transaction.effects) {
+			if (effect.is(gutterMarksChanged)) return effect.value;
+		}
+		return transaction.docChanged ? marks.map(transaction.changes) : marks;
+	},
+	provide: (field) => gutterLineClass.from(field),
+});
+
+/** Line decorations and gutter marks for the viewport alone; a big diff has far more changed lines than a screen. */
+class SideLines implements PluginValue {
+	decorations: DecorationSet = Decoration.none;
+	private gutter = RangeSet.empty as RangeSet<GutterMarker>;
+	private queued = false;
+	private destroyed = false;
+
+	constructor(
+		view: EditorView,
+		private readonly config: CompareStateConfig,
+	) {
+		this.build(view);
+	}
+
+	update(update: ViewUpdate): void {
+		if (
+			update.viewportChanged ||
+			update.docChanged ||
+			update.startState.field(segmentsVersionField) !==
+				update.state.field(segmentsVersionField)
+		) {
+			this.build(update.view);
+		}
+	}
+
+	destroy(): void {
+		this.destroyed = true;
+	}
+
+	private build(view: EditorView): void {
+		const lines: Range<Decoration>[] = [];
+		const gutter: Range<GutterMarker>[] = [];
+		visibleSideLines(view, this.config, lines, gutter);
+		this.decorations = Decoration.set(lines, true);
+		this.gutter = RangeSet.of(gutter, true);
+		if (this.queued) return;
+		this.queued = true;
+		// A plugin cannot dispatch while updating; a microtask lands before the next paint.
+		queueMicrotask(() => {
+			this.queued = false;
+			if (!this.destroyed) {
+				view.dispatch({ effects: gutterMarksChanged.of(this.gutter) });
+			}
+		});
+	}
+}
+
 function visibleSideLines(
 	view: EditorView,
 	config: CompareStateConfig,
-): DecorationSet {
+	lines: Range<Decoration>[],
+	gutter: Range<GutterMarker>[],
+): void {
 	const { doc } = view.state;
 	const { side, choices } = config;
 	const tone = side === "left" ? "removed" : "added";
-	const ranges: Range<Decoration>[] = [];
 	forEachVisibleRange(
 		view,
 		config.segments(),
 		(segment) => segment[side],
 		(segment, first, end) => {
 			const [from, to] = segment[side];
-			const chosen = choices.kindOf(segment) !== undefined;
+			const chosen = choices.kindOf(segment) !== undefined ? " is-chosen" : "";
+			const state = `is-${tone}${chosen}`;
 			if (to <= from) {
-				addMark(ranges, doc, sideSpan(doc, segment[side]).from, tone, chosen);
+				// The notch marks where the other side's lines went, so it takes their colour.
+				const other = tone === "added" ? "removed" : "added";
+				const at = sideSpan(doc, segment[side]).from;
+				addMark(lines, gutter, doc, at, `is-${other}${chosen}`);
 				return;
 			}
 			const marks = side === "left" ? segment.leftMarks : segment.rightMarks;
 			for (let n = first; n < end; n++) {
 				const line = doc.line(n + 1);
 				const last = n === to - 1 ? " is-last" : "";
-				ranges.push(
+				lines.push(
 					Decoration.line({
-						class: `mdsync-diff-line is-${tone}${chosen ? " is-chosen" : ""}${last}`,
+						class: `mdsync-diff-line ${state}${last}`,
 					}).range(line.from),
 				);
-				addCodeMarks(ranges, line, marks(n - from));
+				gutter.push(
+					new GutterClass(`mdsync-diff-gutter ${state}`).range(line.from),
+				);
+				addCodeMarks(lines, line, marks(n - from));
 			}
 		},
 	);
-	return Decoration.set(ranges, true);
 }
 
 /** An empty side still gets a visible notch where the other side's lines land. */
 function addMark(
-	ranges: Range<Decoration>[],
+	lines: Range<Decoration>[],
+	gutter: Range<GutterMarker>[],
 	doc: Text,
 	at: number,
-	tone: string,
-	chosen: boolean,
+	state: string,
 ): void {
 	const line = doc.lineAt(Math.min(at, doc.length));
 	const after = at === line.from ? "" : " is-after";
-	ranges.push(
+	lines.push(
 		Decoration.line({
-			class: `mdsync-diff-mark is-${tone}${after}${chosen ? " is-chosen" : ""}`,
+			class: `mdsync-diff-mark ${state}${after}`,
 		}).range(line.from),
+	);
+	gutter.push(
+		new GutterClass(`mdsync-diff-gutter-mark ${state}${after}`).range(
+			line.from,
+		),
 	);
 }
 

@@ -10,7 +10,7 @@
 .mdsync-compare-heads,
 .mdsync-compare-body {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) 52px minmax(0, 1fr);
+	grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr);
 }
 
 .mdsync-merge-pane-heads,
@@ -18,8 +18,21 @@
 	flex: 0 0 auto;
 }
 
-.mdsync-merge-pane-head,
 .mdsync-compare-head {
+	display: flex;
+	align-items: center;
+	height: 34px;
+	padding: 0 var(--size-4-3);
+	box-sizing: border-box;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	font-weight: 600;
+	border-bottom: 1px solid var(--background-modifier-border);
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.mdsync-merge-pane-head {
 	padding: var(--size-4-1) var(--size-4-3);
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
@@ -67,6 +80,12 @@
 	background: transparent;
 	border-right: none;
 	color: var(--text-faint);
+}
+
+.mdsync-merge-editor-host .cm-lineNumbers .cm-gutterElement,
+.mdsync-compare-host .cm-lineNumbers .cm-gutterElement {
+	padding-left: var(--size-4-3);
+	padding-right: var(--size-2-3);
 }
 
 body.is-phone .mdsync-diff-view .cm-gutters {

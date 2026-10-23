@@ -1,4 +1,4 @@
-/* The strip between two panes: connectors on a canvas, an action popup floating above. */
+/* The strip between two panes: connectors on a canvas, the selected change's buttons floating on top. */
 .mdsync-merge-divider,
 .mdsync-compare-divider {
 	position: relative;
@@ -8,6 +8,7 @@
 .mdsync-divider-actions {
 	position: absolute;
 	inset: 0;
+	overflow: hidden;
 	pointer-events: none;
 }
 
@@ -16,42 +17,31 @@
 	inset: 0;
 	width: 100%;
 	height: 100%;
-	pointer-events: auto;
 }
 
 .mdsync-divider-canvas.has-target {
 	cursor: pointer;
 }
 
-/* The selected connector shows focus. */
-.mdsync-divider-canvas:focus {
-	outline: none;
-}
-
+/* Placed by transform from the strip's top centre. */
 .mdsync-divider-action {
 	position: absolute;
 	top: 0;
-	left: 0;
-	right: 0;
+	left: 50%;
 	display: flex;
-	justify-content: center;
-	gap: var(--size-2-1);
-	padding: 1px 2px;
+	gap: 2px;
 	pointer-events: auto;
 }
 
-/* Opened by clicking a connector; wider than the strip, so the strip must not clip it. */
-.mdsync-divider-action.is-popup {
-	left: 50%;
-	right: auto;
-	transform: translateX(-50%);
-	width: auto;
-	z-index: 10;
-	padding: var(--size-4-1);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-m);
-	background: var(--background-primary);
-	box-shadow: var(--shadow-s);
+.mdsync-divider-action.is-selected {
+	z-index: 1;
+}
+
+/* The pane left of the strip hides its vertical scrollbar, which would sit between its rows and the connectors. */
+.mdsync-compare-panel:not(.is-combined)
+	.mdsync-compare-host.is-first
+	.cm-scroller::-webkit-scrollbar {
+	width: 0;
 }
 
 /* One icon button beside a change, in a divider or a source block header. */

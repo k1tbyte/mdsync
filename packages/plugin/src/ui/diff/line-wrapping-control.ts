@@ -27,14 +27,9 @@ export class LineWrappingControl {
 
 	mount(parent: HTMLElement): void {
 		if (!this.options.showLineWrappingToggle) return;
-		this.button = appendIconButton(
-			parent,
-			"wrap-text",
-			"Toggle line wrapping",
-			() => this.toggle(),
+		this.button = appendIconButton(parent, "wrap-text", "Wrap long lines", () =>
+			this.toggle(),
 		);
-		this.button.removeClass("mdsync-icon-only");
-		this.button.createSpan({ cls: "mdsync-phone-button-label", text: "Wrap" });
 		this.render();
 	}
 
@@ -57,9 +52,5 @@ export class LineWrappingControl {
 		if (!button) return;
 		button.toggleClass("is-active", this.enabled);
 		button.setAttr("aria-pressed", String(this.enabled));
-		button.setAttr(
-			"aria-label",
-			this.enabled ? "Disable line wrapping" : "Enable line wrapping",
-		);
 	}
 }

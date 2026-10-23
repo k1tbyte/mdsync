@@ -5,6 +5,7 @@
 
 @import "./tokens.css";
 @import "./base/file-path.css";
+@import "./base/segments.css";
 
 @import "./settings/tabs-and-logs.css";
 

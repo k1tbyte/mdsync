@@ -14,8 +14,7 @@
 	}
 
 	.mdsync-merge-toolbar,
-	.mdsync-merge-legend,
-	.mdsync-compare-toolbar {
+	.mdsync-merge-legend {
 		padding-inline: var(--size-4-2);
 	}
 

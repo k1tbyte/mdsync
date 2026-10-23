@@ -457,6 +457,8 @@ export class MergeEditorPanel {
 		const target = open[next];
 		if (!target) return;
 		this.lastConflict = target.index;
+		// The strips show its buttons, so the keyboard reaches them with Tab.
+		for (const side of MERGE_SIDES) this.dividers[side]?.select(target.index);
 		const combined = this.layoutMode?.combined ?? false;
 		view.dispatch({
 			selection: { anchor: target.result.from },
