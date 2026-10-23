@@ -35,6 +35,7 @@ export {
 	updateSharedLinks,
 } from "./links";
 export { createDeletedElsewhere } from "./live/deleted-elsewhere";
+export { CursorFollow } from "./live/header/cursor-follow";
 export { rebuildLiveNote, toggleAuthors } from "./live/header/live-actions";
 export { canRebuild } from "./live/header/note-menu-items";
 export { registerNotePresence } from "./live/header/note-presence";

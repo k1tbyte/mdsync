@@ -297,16 +297,18 @@ places to change later:
 - A file counts only while a tab shows it (Obsidian keeps naming a closed one
   active); away after 5 minutes without input in any window, popouts
   included, or with every window hidden.
-- The header menu's "follow" (`ui/live/header/cursor-follow.ts`) follows a
-  space's person: their presence `note` opens in the same tab (one not on
+- The header menu's "follow" and the share window's **Follow**
+  (`ui/live/header/cursor-follow.ts`, one instance on the plugin, so one tab
+  follows at a time) follow a space's person: their presence `note` opens in
+  the same tab (one not on
   this device yet waits), and there the doc awareness `user.key` cursor is
   kept in the middle half of the view, centred again once it leaves it
   (`follow-scroll.ts`). The cursor watch reads edits too, since a relative
   cursor moves without a new awareness state, and scrolls a frame later,
-  since y-codemirror changes awareness inside an editor update. Input in the
-  tab only asks (a notice with **Stop following**): a stray key would end it
-  by surprise. It ends on that button, on another note opened there by hand,
-  or once they leave the space.
+  since y-codemirror changes awareness inside an editor update. A banner under
+  the tab's header (`follow-banner.ts`) names them with **Stop following**;
+  input never ends it, a stray key would by surprise. It ends on that
+  button, on another note opened there by hand, or once they leave the space.
 - A note header shows its live mark only after the room answers or a second
   passes (`note-presence.ts`), so switching notes never blinks through
   joining. A vault note shows none unless another device is in it or the

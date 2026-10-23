@@ -43,52 +43,79 @@
 	color: var(--text-muted);
 }
 
+/* Its own button, not `clickable-icon`: themes size those to one icon. A pill in its state's tone. */
 .mdsync-note-presence {
+	--mdsync-tone: var(--text-muted);
 	display: inline-flex;
 	gap: var(--size-4-2);
 	align-items: center;
-}
-
-/* Its own button, not `clickable-icon`: themes size those to one icon. */
-.mdsync-note-presence {
-	padding: var(--size-2-2) var(--size-2-3);
-	border-radius: var(--clickable-icon-radius);
-	color: var(--icon-color);
+	height: var(--size-4-6);
+	padding: 0 var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--mdsync-radius-pill);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
 	cursor: var(--cursor);
 }
 
+.mdsync-note-presence.is-live {
+	--mdsync-tone: var(--color-green);
+}
+
+.mdsync-note-presence.is-joining {
+	--mdsync-tone: var(--color-yellow);
+}
+
+.mdsync-note-presence.is-warning {
+	--mdsync-tone: var(--color-orange);
+}
+
+.mdsync-note-presence:is(.is-live, .is-joining, .is-warning) {
+	border-color: color-mix(in srgb, var(--mdsync-tone) 35%, transparent);
+	background-color: color-mix(in srgb, var(--mdsync-tone) 10%, transparent);
+	color: color-mix(in srgb, var(--mdsync-tone) 60%, var(--text-normal));
+}
+
 .mdsync-note-presence:hover {
-	background-color: var(--background-modifier-hover);
+	background-color: color-mix(
+		in srgb,
+		var(--mdsync-tone) 18%,
+		var(--background-modifier-hover)
+	);
 }
 
 .mdsync-note-presence:focus-visible {
 	box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
 }
 
-.mdsync-follow-nudge {
-	display: flex;
-	gap: var(--size-4-2);
-	align-items: center;
-}
-
 .mdsync-note-presence.mdsync-hidden {
 	display: none;
 }
 
+/* The phone's header has no room for the word; the touch target grows past the pill, not the pill. */
+body.is-phone .mdsync-note-text {
+	display: none;
+}
+
 body.is-phone .mdsync-note-presence {
-	min-width: var(--mdsync-touch);
-	min-height: var(--mdsync-touch);
-	justify-content: center;
+	position: relative;
+	min-width: var(--size-4-8);
 }
 
-.mdsync-note-lock,
-.mdsync-note-state {
+body.is-phone .mdsync-note-presence::after {
+	content: "";
+	position: absolute;
+	top: 50%;
+	inset-inline: 0;
+	height: var(--mdsync-touch);
+	transform: translateY(-50%);
+}
+
+.mdsync-note-lock {
 	display: inline-flex;
-	color: var(--text-muted);
 }
 
-.mdsync-note-lock svg,
-.mdsync-note-state svg {
+.mdsync-note-lock svg {
 	width: var(--icon-xs);
 	height: var(--icon-xs);
 }
@@ -99,27 +126,87 @@ body.is-phone .mdsync-note-presence {
 	width: var(--size-4-2);
 	height: var(--size-4-2);
 	border-radius: 50%;
-}
-
-.mdsync-live-dot.is-live {
-	background: var(--color-green);
-}
-
-.mdsync-live-dot.is-offline {
+	/* Hollow where nothing goes live: offline, not live. */
 	border: 1px solid var(--text-muted);
 }
 
-.mdsync-note-state.is-live {
-	color: var(--color-green);
+.mdsync-live-dot.is-live {
+	border: 0;
+	background: var(--color-green);
 }
 
-.mdsync-note-state.is-joining {
-	color: var(--color-yellow);
+.mdsync-live-dot.is-joining {
+	border: 0;
+	background: var(--color-yellow);
 	animation: mdsync-pulse 0.8s ease-in-out infinite alternate;
 }
 
-.mdsync-note-state.is-warning {
-	color: var(--color-orange);
+.mdsync-live-dot.is-warning {
+	border: 0;
+	background: var(--color-orange);
+}
+
+/* A narrow pane wraps the button under the sentence, not the sentence into a column. */
+.mdsync-follow-banner {
+	display: flex;
+	flex: none;
+	flex-wrap: wrap;
+	gap: var(--size-4-2) var(--size-4-3);
+	align-items: center;
+	padding: var(--size-4-2) var(--size-4-4);
+	border-bottom: 1px solid
+		color-mix(
+			in srgb,
+			var(--mdsync-person) 25%,
+			var(--background-modifier-border)
+		);
+	background: color-mix(
+		in srgb,
+		var(--mdsync-person) 10%,
+		var(--background-primary)
+	);
+	font-size: var(--font-ui-small);
+}
+
+.mdsync-follow-text {
+	flex: 1 1 14em;
+}
+
+.mdsync-follow-banner button {
+	flex: none;
+}
+
+/* The phone's header floats over the note (`--view-header-position`); the banner floats under it, one line. */
+body.is-phone .mdsync-follow-banner {
+	position: var(--view-header-position, static);
+	top: calc(
+		var(--safe-area-inset-top) +
+		var(--view-header-height) +
+		var(--size-4-2)
+	);
+	inset-inline: var(--size-4-3);
+	z-index: 1;
+	flex-wrap: nowrap;
+	border: 1px solid
+		color-mix(
+			in srgb,
+			var(--mdsync-person) 25%,
+			var(--background-modifier-border)
+		);
+	border-radius: var(--radius-l);
+	box-shadow: var(--shadow-s);
+}
+
+body.is-phone .mdsync-follow-why {
+	display: none;
+}
+
+body.is-phone .mdsync-follow-text {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .menu-item-title .mdsync-avatar,
@@ -150,7 +237,7 @@ body:not(.is-phone) .menu-item.is-label:has(.mdsync-menu-info) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.mdsync-note-state.is-joining {
+	.mdsync-live-dot.is-joining {
 		animation: none;
 	}
 }

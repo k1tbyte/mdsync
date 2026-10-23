@@ -3,9 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import type { RelayStatus } from "@/hub/status";
 import type { Person } from "@/presence/people";
+import type { SpaceRecord } from "@/spaces/record";
 import type { Participant } from "@/storage";
 import { RELAY_TEXT, UNREADABLE_TEXT } from "@/ui/common/relay";
-import { presenceNote, shareRows } from "@/ui/shares/share-people";
+import { presenceNote, selfRow, shareRows } from "@/ui/shares/share-people";
 
 const person = (
 	key: string,
@@ -34,11 +35,12 @@ describe("shareRows with the owner's list", () => {
 		const rows = shareRows(
 			[person("a", "Alex", { note: "Team/docs/plan.md" })],
 			[participant("a", "Alex"), participant("b", "Sam", true)],
+			OWNER,
 		);
 
-		expect(rows.map(({ name, detail }) => [name, detail])).toEqual([
-			["Alex", "Can edit - In plan.md"],
-			["Sam", "Read-only"],
+		expect(rows.map(({ name, role, detail }) => [name, role, detail])).toEqual([
+			["Alex", "Can edit", "In plan.md"],
+			["Sam", "Read-only", "Not here now"],
 		]);
 	});
 
@@ -50,6 +52,7 @@ describe("shareRows with the owner's list", () => {
 				participant("c", "Zed"),
 				participant("b", "Bea"),
 			],
+			OWNER,
 		);
 
 		expect(rows.map(({ name }) => name)).toEqual(["Zed", "Alex", "Bea"]);
@@ -59,16 +62,14 @@ describe("shareRows with the owner's list", () => {
 		const rows = shareRows(
 			[person("a", "Alex", { idle: true }), person("b", "Bea")],
 			[participant("a", "Alex"), participant("b", "Bea")],
+			OWNER,
 		);
 
-		expect(rows.map(({ detail }) => detail)).toEqual([
-			"Can edit - Away",
-			"Can edit - Online",
-		]);
+		expect(rows.map(({ detail }) => detail)).toEqual(["Away", "Online"]);
 	});
 
 	it("keeps a revocable participant on every row and names the unnamed", () => {
-		const [row] = shareRows([], [participant("a", "")]);
+		const [row] = shareRows([], [participant("a", "")], OWNER);
 
 		expect(row).toMatchObject({
 			name: "Unnamed",
@@ -78,7 +79,7 @@ describe("shareRows with the owner's list", () => {
 	});
 
 	it("does not list someone here who holds no access", () => {
-		expect(shareRows([person("gone", "Ghost")], [])).toEqual([]);
+		expect(shareRows([person("gone", "Ghost")], [], OWNER)).toEqual([]);
 	});
 });
 
@@ -87,17 +88,28 @@ describe("shareRows without the owner's list", () => {
 		const rows = shareRows(
 			[person("b", "Sam", { note: "n.md" }), person(OWNER, "Owner")],
 			null,
+			"me",
 		);
 
-		expect(rows.map(({ name, detail }) => [name, detail])).toEqual([
-			["Owner", "Owner - Online"],
-			["Sam", "In n.md"],
+		expect(rows.map(({ name, role, detail }) => [name, role, detail])).toEqual([
+			["Owner", "Owner", "Online"],
+			["Sam", null, "In n.md"],
 		]);
 		expect(rows.every(({ participant }) => participant === null)).toBe(true);
 	});
 
 	it("is empty when nobody is here", () => {
-		expect(shareRows([], null)).toEqual([]);
+		expect(shareRows([], null, "me")).toEqual([]);
+	});
+
+	it("leaves this person's other devices to their own row", () => {
+		const rows = shareRows(
+			[person("me", "Kit"), person("b", "Sam")],
+			null,
+			"me",
+		);
+
+		expect(rows.map(({ name }) => name)).toEqual(["Sam"]);
 	});
 });
 
@@ -124,7 +136,7 @@ describe("presenceNote", () => {
 
 describe("shareRows as a redraw signature", () => {
 	const signature = (here: Person[]) =>
-		JSON.stringify(shareRows(here, [participant("a", "Alex")]));
+		JSON.stringify(shareRows(here, [participant("a", "Alex")], OWNER));
 
 	it("is equal for equal people and differs once someone moves", () => {
 		const alex = person("a", "Alex", { note: "Team/a.md" });
@@ -134,5 +146,39 @@ describe("shareRows as a redraw signature", () => {
 			signature([alex]),
 		);
 		expect(signature([{ ...alex, idle: true }])).not.toBe(signature([alex]));
+	});
+});
+
+describe("selfRow", () => {
+	const record = (access: object) => ({ access }) as SpaceRecord;
+
+	it("is the owner, at the open note of the share", () => {
+		const row = selfRow(record({ kind: "owner", name: "Kit" }), "Team/plan.md");
+
+		expect([row.key, row.name, row.role, row.detail]).toEqual([
+			OWNER,
+			"Kit",
+			"Owner",
+			"In plan.md",
+		]);
+	});
+
+	it("is a participant with their access, online elsewhere", () => {
+		const row = selfRow(
+			record({
+				kind: "participant",
+				participantId: "p1",
+				personName: "Sam",
+				readOnly: true,
+			}),
+			null,
+		);
+
+		expect([row.key, row.name, row.role, row.detail]).toEqual([
+			"p1",
+			"Sam",
+			"Read-only",
+			"Online",
+		]);
 	});
 });

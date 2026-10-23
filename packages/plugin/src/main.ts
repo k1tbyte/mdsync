@@ -32,6 +32,7 @@ import type { SpaceRecords } from "@/spaces";
 import type { SyncController } from "@/sync/controller";
 import { registerScheduler } from "@/sync/scheduler";
 import {
+	type CursorFollow,
 	createAccessEnded,
 	createDeletedElsewhere,
 	createSpaceGone,
@@ -50,6 +51,7 @@ import {
 	registerStatePersistenceFlush,
 	registerWorkspaceMenus,
 } from "./plugin/events";
+import { registerFollows } from "./plugin/follows";
 import type { PluginHost } from "./plugin/host";
 import {
 	type IgnoreStateHandle,
@@ -92,6 +94,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 	ignoreState!: IgnoreStateHandle;
 	spaces!: SpaceRecords;
 	unseen!: Unseen;
+	follows!: CursorFollow;
 	readonly sharedLinks = new SharedLinks({
 		settings: () => this.settings,
 		save: () => this.saveSettings(),
@@ -182,6 +185,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 			onSettingsReplaced: () => this.onSettingsReplaced(),
 		});
 		this.realtime.hub.restart();
+		this.follows = registerFollows(this);
 		this.ignoreState = registerIgnoreState(this);
 
 		registerVaultAdoptionPrompt(this, this.controller);

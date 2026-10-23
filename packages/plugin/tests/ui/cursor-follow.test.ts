@@ -3,18 +3,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PluginHost } from "@/plugin/host";
 import { CursorFollow } from "@/ui/live/header/cursor-follow";
-import { showFollowNudge } from "@/ui/live/header/follow-nudge";
+import { showFollowBanner } from "@/ui/live/header/follow-banner";
 import { trackCursor } from "@/ui/live/header/follow-scroll";
 
 vi.mock("@/ui/live/header/follow-scroll", () => ({ trackCursor: vi.fn() }));
-vi.mock("@/ui/live/header/follow-nudge", () => ({ showFollowNudge: vi.fn() }));
+vi.mock("@/ui/live/header/follow-banner", () => ({
+	showFollowBanner: vi.fn(),
+}));
 
 const ALEX = { key: "alex", name: "Alex" };
 
 function setup() {
 	const view = Object.assign(Object.create(MarkdownView.prototype) as object, {
 		file: { path: "a.md" } as { path: string } | null,
-		contentEl: new EventTarget(),
+		containerEl: { id: "view" },
 	});
 	const leaf = {
 		view,
@@ -102,29 +104,34 @@ describe("following a person", () => {
 
 	it("waits where it is for a note not on this device yet", async () => {
 		const { leaf, where, changed, following } = setup();
+		vi.mocked(showFollowBanner).mockClear();
 
 		where.note = "elsewhere.md";
 		await changed();
 
 		expect(leaf.openFile).not.toHaveBeenCalled();
 		expect(following()).toBe("alex");
+		expect(showFollowBanner).toHaveBeenCalled();
 	});
 
-	it("asks on this tab's input instead of ending, once while the question shows", () => {
-		const notice = { hide: vi.fn(), messageEl: { isConnected: true } };
-		vi.mocked(showFollowNudge).mockReturnValue(notice as never);
-		const { view, following } = setup();
+	it("names them in a banner over the tab, which stops it and goes with it", async () => {
+		const banner = { parentElement: null as unknown, remove: vi.fn() };
+		vi.mocked(showFollowBanner).mockImplementation((view) => {
+			banner.parentElement = view;
+			return banner as never;
+		});
+		const { view, changed, following } = setup();
+		await changed();
 
-		view.contentEl.dispatchEvent(new Event("keydown"));
-		view.contentEl.dispatchEvent(new Event("wheel"));
-		expect(showFollowNudge).toHaveBeenCalledOnce();
-		expect(following()).toBe("alex");
+		expect(showFollowBanner).toHaveBeenCalledOnce();
+		expect(vi.mocked(showFollowBanner).mock.calls[0]?.[0]).toBe(
+			view.containerEl,
+		);
 
-		const stop = vi.mocked(showFollowNudge).mock.calls[0]?.[1];
-		stop?.();
+		vi.mocked(showFollowBanner).mock.calls[0]?.[2]();
 		expect(following()).toBeNull();
 		expect(stopTracking).toHaveBeenCalledOnce();
-		expect(notice.hide).toHaveBeenCalled();
+		expect(banner.remove).toHaveBeenCalledOnce();
 	});
 
 	it("ends once this tab shows another note opened by hand", async () => {
