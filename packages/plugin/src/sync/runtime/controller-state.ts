@@ -22,6 +22,8 @@ export interface SyncStatusSnapshot {
 	spaceErrors: readonly SpaceError[];
 	result: CompareResult | null;
 	progressText: string | null;
+	/** Share done of a counted operation, 0 to 1. */
+	progressRatio: number | null;
 	staleReason: string | null;
 	/** An operation that can be stopped is running. */
 	cancellable: boolean;
@@ -40,6 +42,7 @@ export class SyncControllerRuntimeState {
 	private error: string | null = null;
 	private spaceErrors: readonly SpaceError[] = [];
 	private progressText: string | null = null;
+	private progressRatio: number | null = null;
 	private staleReason: string | null = null;
 	private readonly broadcaster: StatusBroadcaster<SyncStatusSnapshot>;
 	private chain: Promise<void> = Promise.resolve();
@@ -66,6 +69,7 @@ export class SyncControllerRuntimeState {
 			spaceErrors: this.spaceErrors,
 			result,
 			progressText: this.progressText,
+			progressRatio: this.progressRatio,
 			staleReason: this.staleReason,
 			cancellable: this.aborter !== null && !this.aborter.signal.aborted,
 		};
@@ -102,6 +106,7 @@ export class SyncControllerRuntimeState {
 		this.error = null;
 		this.spaceErrors = [];
 		this.progressText = null;
+		this.progressRatio = null;
 	}
 
 	/** A space that compared again is no longer failing. */
@@ -140,17 +145,21 @@ export class SyncControllerRuntimeState {
 		this.spaceErrors = errors;
 	}
 
-	setProgressText(progressText: string | null): void {
+	setProgressText(progressText: string | null, progressRatio?: number): void {
 		this.progressText = progressText;
+		this.progressRatio = progressRatio ?? null;
 	}
 
-	publishProgress(progressText: string | null): void {
-		this.progressText = progressText;
+	publishProgress(progressText: string | null, progressRatio?: number): void {
+		this.setProgressText(progressText, progressRatio);
 		this.broadcast();
 	}
 
-	publishProgressSoon(progressText: string | null): void {
-		this.progressText = progressText;
+	publishProgressSoon(
+		progressText: string | null,
+		progressRatio?: number,
+	): void {
+		this.setProgressText(progressText, progressRatio);
 		this.broadcastSoon();
 	}
 
@@ -168,6 +177,7 @@ export class SyncControllerRuntimeState {
 		this.error = null;
 		this.spaceErrors = [];
 		this.progressText = null;
+		this.progressRatio = null;
 		this.staleReason = reason;
 		this.broadcast();
 	}

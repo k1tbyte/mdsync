@@ -1,5 +1,6 @@
 import { Platform, SearchComponent } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
+import { canSync } from "@/settings/model";
 import type { SyncStatusSnapshot } from "@/sync/controller";
 import type { DiffResult, ManifestEntry } from "@/sync/types";
 import {
@@ -14,6 +15,7 @@ import type { ConflictPreviewManager } from "./conflict-preview-manager";
 import { diffEquals } from "./diff-identity";
 import { foldMoves, rowFromChange, rowFromConflict } from "./row-formatter";
 import { SelectionBar } from "./selection-bar";
+import { renderSetupPrompt } from "./setup-prompt";
 import { SummaryCard } from "./summary-card";
 import { ESection, type FileRow } from "./types";
 
@@ -27,6 +29,7 @@ export class ChangesTab {
 	 */
 	private lastDiff: DiffResult | null = null;
 	private lastError: string | null = null;
+	private setUp = false;
 	private built = false;
 	private summary: SummaryCard | null = null;
 	private selectionBar: SelectionBar | null = null;
@@ -35,6 +38,8 @@ export class ChangesTab {
 	/** The pane scrolls, not the lists; every window is computed against it. */
 	private scroller: HTMLElement | null = null;
 	private activePath: string | null = null;
+	/** What had focus in the lists when a sync locked them. */
+	private lockedFocus: HTMLElement | null = null;
 	private openingPath: string | null = null;
 	private openGeneration = 0;
 
@@ -86,6 +91,7 @@ export class ChangesTab {
 	needsRebuild(snapshot: SyncStatusSnapshot): boolean {
 		return (
 			!this.built ||
+			canSync(this.plugin.settings) !== this.setUp ||
 			(snapshot.error ?? null) !== this.lastError ||
 			!diffEquals(this.lastDiff, snapshot.result?.diff ?? null)
 		);
@@ -97,10 +103,36 @@ export class ChangesTab {
 		this.summary?.update(snapshot);
 		if (this.refreshButtonEl) this.refreshButtonEl.disabled = busy;
 		this.scroller?.toggleClass("is-busy", busy);
+		this.lockLists(snapshot.cancellable);
 		for (const section of this.sections) section.updateUi(busy);
 		this.selectionBar?.update(busy);
 		// The summary grows notes and buttons, which move the lists below it.
 		this.refreshLists();
+	}
+
+	/** While files move the lists are dimmed and inert: a click would only queue behind the sync. */
+	private lockLists(locked: boolean): void {
+		const scroller = this.scroller;
+		if (!scroller) return;
+		const sections = [
+			...scroller.querySelectorAll<HTMLElement>(".mdsync-section"),
+		];
+		const focused = activeDocument.activeElement;
+		if (locked && sections.some((section) => section.contains(focused))) {
+			// Inert drops focus to the body; the pane keeps the keyboard, and gets the row back after.
+			this.lockedFocus = focused as HTMLElement;
+			scroller.tabIndex = -1;
+			scroller.focus({ preventScroll: true });
+		}
+		for (const section of sections) section.inert = locked;
+		if (locked || !this.lockedFocus) return;
+		if (
+			this.lockedFocus.isConnected &&
+			activeDocument.activeElement === scroller
+		) {
+			this.lockedFocus.focus({ preventScroll: true });
+		}
+		this.lockedFocus = null;
 	}
 
 	/** Re-windows every list against where it now sits in the pane. */
@@ -122,8 +154,15 @@ export class ChangesTab {
 		this.lastDiff = snapshot.result?.diff ?? null;
 		this.lastError = snapshot.error ?? null;
 		this.selectionBar = null;
+		this.summary = null;
+		this.refreshButtonEl = null;
 		root.addClass("mdsync-changes-panel");
 		root.toggleClass("is-busy", snapshot.busy);
+		this.setUp = canSync(this.plugin.settings);
+		if (!this.setUp) {
+			renderSetupPrompt(root, this.plugin);
+			return;
+		}
 		// A phone's tab row has room only for the tabs' names; Push and Pull dock under the thumb.
 		const phone = Platform.isPhone;
 		this.summary = new SummaryCard(
@@ -179,6 +218,7 @@ export class ChangesTab {
 			shown += visible.length;
 			section.render(root, visible, snapshot.busy);
 		}
+		this.lockLists(snapshot.cancellable);
 		if (total > 0 && shown === 0) {
 			root.createDiv({
 				cls: "mdsync-status-line is-empty",

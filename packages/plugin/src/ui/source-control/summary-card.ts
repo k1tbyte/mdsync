@@ -2,9 +2,11 @@ import { ButtonComponent, setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { formatRelativeTime } from "@/shared";
 import type { SyncStatusSnapshot } from "@/sync/controller";
+import { deviceLabel } from "@/sync/device";
+import type { Manifest } from "@/sync/types";
 import { skippedText } from "@/ui/common";
 import { askSpaceGone } from "@/ui/shares/space-gone";
-import { actionButton } from "./action-button";
+import { actionButton, textButton } from "./action-button";
 import type { SourceControlActions } from "./actions";
 import { showFileList } from "./modals";
 
@@ -17,11 +19,16 @@ export class SummaryCard {
 	private readonly iconEl: HTMLElement;
 	private readonly titleEl: HTMLElement;
 	private readonly subtitleEl: HTMLElement;
+	private readonly progressEl: HTMLElement;
 	private readonly buttonsEl: HTMLElement;
 	private readonly pushButton: HTMLButtonElement;
 	private readonly pullButton: HTMLButtonElement;
 	private readonly cancelButton: HTMLButtonElement;
+	private readonly compareButton: HTMLButtonElement;
 	private readonly extrasEl: HTMLElement;
+	private readonly footerEl: HTMLElement;
+	/** Outside the card: the rest of the vault still syncs. */
+	private readonly spaceErrorsEl: HTMLElement;
 
 	/** Trailing slot of the head, for tools that have no room elsewhere. */
 	readonly toolsEl: HTMLElement;
@@ -43,6 +50,14 @@ export class SummaryCard {
 		this.titleEl = copy.createDiv({ cls: "mdsync-sync-summary-title" });
 		this.subtitleEl = copy.createDiv({ cls: "mdsync-sync-summary-subtitle" });
 		this.toolsEl = head.createDiv({ cls: "mdsync-sync-summary-tools" });
+		this.progressEl = this.el.createDiv({ cls: "mdsync-sync-progress" });
+		this.progressEl.setAttrs({
+			role: "progressbar",
+			"aria-label": "Sync progress",
+			"aria-valuemin": "0",
+			"aria-valuemax": "100",
+		});
+		this.progressEl.createDiv({ cls: "mdsync-sync-progress-fill" });
 		this.buttonsEl = (dock ?? this.el).createDiv({
 			cls: ["mdsync-sync-summary-buttons", ...(dock ? ["is-docked"] : [])],
 		});
@@ -58,7 +73,12 @@ export class SummaryCard {
 			.setButtonText("Cancel")
 			.onClick(() => plugin.controller.cancel()).buttonEl;
 		this.cancelButton.setAttr("aria-label", "Stop the running sync");
+		this.compareButton = textButton(this.el, "Compare again").onClick(
+			() => void plugin.controller.refreshFromDisk(),
+		).buttonEl;
 		this.extrasEl = this.el.createDiv({ cls: "mdsync-sync-summary-extras" });
+		this.footerEl = this.el.createDiv({ cls: "mdsync-sync-summary-footer" });
+		this.spaceErrorsEl = parent.createDiv({ cls: "mdsync-space-errors" });
 	}
 
 	update(snapshot: SyncStatusSnapshot): void {
@@ -67,7 +87,9 @@ export class SummaryCard {
 		// A shared folder that failed to compare may hold changes nobody sees.
 		const failed = Boolean(error) || snapshot.spaceErrors.length > 0;
 		const clean = !busy && !failed && snapshot.result !== null && pending === 0;
-		this.el.toggleClass("is-error", failed);
+		const mismatch = isVaultMismatch(snapshot);
+		this.el.toggleClass("is-error", Boolean(error));
+		this.el.toggleClass("is-warning", failed && !error);
 		this.el.toggleClass("is-busy", busy);
 		this.el.toggleClass("is-clean", clean);
 		setIcon(
@@ -81,25 +103,41 @@ export class SummaryCard {
 						: "refresh-cw",
 		);
 		this.titleEl.setText(
-			error
-				? "Sync stopped"
-				: busy
-					? (snapshot.progressText ?? "Syncing…")
-					: !snapshot.result
-						? "Not compared yet"
-						: clean
-							? "Everything is in sync"
-							: pending === 0
-								? "Some shared folders did not compare"
-								: `${pending.toLocaleString()} ${pending === 1 ? "change" : "changes"} to sync`,
+			mismatch
+				? "This storage holds another vault"
+				: error
+					? "Sync stopped"
+					: busy
+						? (snapshot.progressText ?? "Syncing…")
+						: !snapshot.result
+							? "Not compared yet"
+							: clean
+								? "Everything is in sync"
+								: pending === 0
+									? "Some shared folders did not compare"
+									: `${pending.toLocaleString()} ${pending === 1 ? "change" : "changes"} to sync`,
 		);
+		const compared = snapshot.lastCompareAt
+			? `Compared ${formatRelativeTime(snapshot.lastCompareAt)}`
+			: "Compare to see what changed";
 		this.subtitleEl.setText(
-			error ??
-				snapshot.staleReason ??
-				(snapshot.lastCompareAt
-					? `Compared ${formatRelativeTime(snapshot.lastCompareAt)}`
-					: "Compare to see what changed"),
+			mismatch
+				? "The remote vault id does not match this one. Nothing was pushed or pulled."
+				: (error ??
+						snapshot.staleReason ??
+						(clean ? `This vault matches the remote. ${compared}.` : compared)),
 		);
+		const ratio = busy ? snapshot.progressRatio : null;
+		this.progressEl.toggleClass("mdsync-hidden", ratio === null);
+		if (ratio !== null) {
+			// A variable, not a width: the fill scales without a layout per tick.
+			this.progressEl.style.setProperty("--mdsync-progress", String(ratio));
+			this.progressEl.setAttr("aria-valuenow", String(Math.round(ratio * 100)));
+		}
+		this.compareButton.toggleClass("mdsync-hidden", !clean);
+		const remote = clean ? snapshot.result?.remote : null;
+		this.footerEl.setText(remote ? this.lastPush(remote) : "");
+		this.footerEl.toggleClass("mdsync-hidden", !remote);
 
 		const cancellable = snapshot.cancellable;
 		this.setCount(this.pushButton, pendingLocal, !canPushAll(snapshot));
@@ -154,28 +192,29 @@ export class SummaryCard {
 		const plugin = this.plugin;
 		const extras = this.extrasEl;
 		extras.empty();
-		if (snapshot.error?.includes("Remote vault id does not match local")) {
+		if (isVaultMismatch(snapshot)) {
 			actionButton(extras, "warning")
 				.setButtonText("Resolve vault mismatch")
 				.onClick(() => void this.actions.adoptNewVault())
 				.buttonEl.addClass("mdsync-adopt-new-vault-btn");
 		}
+		const spaceErrors = this.spaceErrorsEl;
+		spaceErrors.empty();
 		for (const { root, message, gone } of snapshot.spaceErrors) {
-			const row = extras.createDiv({
-				cls: "mdsync-sync-summary-note is-error",
-				text: `Error in "${root}": ${message}`,
+			const card = spaceErrors.createDiv({ cls: "mdsync-space-error" });
+			card.createDiv({
+				cls: "mdsync-space-error-title",
+				text: gone ? `"${root}" is missing` : `"${root}" did not compare`,
+			});
+			card.createDiv({
+				cls: "mdsync-space-error-desc",
+				text: gone
+					? "The shared folder was moved or deleted here. The rest of the vault keeps syncing."
+					: message,
 			});
 			if (!gone) continue;
-			actionButton(row, "warning")
-				.setButtonText("Resolve…")
-				.onClick(
-					() => void askSpaceGone(plugin, plugin.controller.spaceFor(root)),
-				);
-		}
-		if (snapshot.spaceErrors.length > 0) {
-			note(
-				extras,
-				"Restore the folder, or stop sharing or leave it in MDSync settings (Sync tab).",
+			textButton(card, "Resolve…").onClick(
+				() => void askSpaceGone(plugin, plugin.controller.spaceFor(root)),
 			);
 		}
 
@@ -229,6 +268,20 @@ export class SummaryCard {
 		}
 		extras.toggleClass("mdsync-hidden", extras.childElementCount === 0);
 	}
+
+	private lastPush(remote: Manifest): string {
+		const from =
+			remote.deviceId === this.plugin.controller.currentDevice().id
+				? "this device"
+				: deviceLabel(remote.deviceId, remote.deviceName);
+		return `Last push ${formatRelativeTime(remote.createdAt)} from ${from}`;
+	}
+}
+
+function isVaultMismatch(snapshot: SyncStatusSnapshot): boolean {
+	return (
+		snapshot.error?.includes("Remote vault id does not match local") ?? false
+	);
 }
 
 function note(parent: HTMLElement, text: string): void {

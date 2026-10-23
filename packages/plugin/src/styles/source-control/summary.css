@@ -182,8 +182,154 @@
 	font-size: var(--font-ui-smaller);
 }
 
-.mdsync-sync-summary-note.is-error {
-	color: var(--color-red);
+.mdsync-sync-progress {
+	height: 6px;
+	overflow: hidden;
+	border-radius: var(--mdsync-radius-pill);
+	background: var(--background-modifier-border);
+}
+
+/* Scaled, not sized: a progress tick costs no layout. */
+.mdsync-sync-progress-fill {
+	height: 100%;
+	background: var(--interactive-accent);
+	transform: scaleX(var(--mdsync-progress, 0));
+	transform-origin: left;
+	transition: transform 0.2s ease-out;
+}
+
+.mdsync-sync-summary-footer {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.mdsync-sync-summary.is-warning .mdsync-sync-summary-icon {
+	background: color-mix(in srgb, var(--color-orange) 18%, transparent);
+	color: var(--color-orange);
+}
+
+/* Nothing to sync: the card turns into the tab's empty state, as the setup prompt is. */
+.mdsync-sync-summary.is-clean,
+.mdsync-empty-state {
+	flex: 1 0 auto;
+	align-items: center;
+	justify-content: center;
+	gap: var(--size-4-3);
+	text-align: center;
+}
+
+.mdsync-sync-summary.is-clean {
+	border-color: transparent;
+	background: transparent;
+}
+
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-head,
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-copy {
+	flex-direction: column;
+	align-items: center;
+	gap: var(--size-4-3);
+}
+
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-tools {
+	display: none;
+}
+
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-extras {
+	align-items: center;
+	padding-top: 0;
+	border-top: 0;
+}
+
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-chips {
+	justify-content: center;
+}
+
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-icon,
+.mdsync-empty-state-icon {
+	width: 52px;
+	height: 52px;
+	border-radius: var(--radius-l);
+}
+
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-icon svg,
+.mdsync-empty-state-icon svg {
+	width: 26px;
+	height: 26px;
+}
+
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-subtitle,
+.mdsync-empty-state-desc {
+	max-width: 36ch;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: 1.5;
+}
+
+.mdsync-empty-state {
+	display: flex;
+	flex-direction: column;
+	padding: var(--size-4-6) var(--size-4-4);
+}
+
+.mdsync-empty-state-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+	color: var(--text-accent);
+}
+
+.mdsync-empty-state-title {
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-semibold);
+}
+
+.mdsync-empty-state-link {
+	font-size: var(--font-ui-smaller);
+}
+
+/* Apart from the card: the rest of the vault still syncs. */
+.mdsync-space-errors {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+}
+
+.mdsync-space-errors:empty {
+	display: none;
+}
+
+.mdsync-space-error {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--size-2-3);
+	padding: var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+}
+
+.mdsync-space-error-title {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	font-weight: var(--font-medium);
+	overflow-wrap: anywhere;
+}
+
+.mdsync-space-error-title::before {
+	content: "";
+	flex: 0 0 auto;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--color-orange);
+}
+
+.mdsync-space-error-desc {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.5;
 }
 
 .mdsync-changes-filter .search-input-container {

@@ -7,12 +7,13 @@ body.is-phone .mdsync-source-control .mdsync-changes-panel {
 	padding-bottom: calc(var(--view-bottom-spacing, 0px) + 84px);
 }
 
-/* Tabs by name in a segmented control; the tools live in the summary. */
+/* A pill of icons, the active tab named; the tools live in the summary. */
 body.is-phone .mdsync-source-control .mdsync-source-tabs {
 	flex: 1 1 auto;
 	padding: 3px;
-	border-radius: var(--radius-m);
-	background: var(--background-modifier-hover);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: calc(var(--button-radius, var(--radius-m)) + 3px);
+	background: var(--background-primary);
 }
 
 body.is-phone
@@ -20,35 +21,34 @@ body.is-phone
 	.mdsync-source-tabs
 	.mdsync-settings-tab-button {
 	flex: 1 1 0;
-	min-width: 0;
-	height: 38px;
-	min-height: 38px;
-	padding: 0 var(--size-2-2);
-	border-radius: var(--radius-s);
-	font-size: var(--font-ui-small);
+	min-width: var(--mdsync-touch);
+	height: var(--input-height);
+	padding: 0 var(--size-4-2);
 }
 
 body.is-phone
 	.mdsync-source-control
 	.mdsync-source-tabs
 	.mdsync-settings-tab-button.is-active {
-	background: var(--background-primary);
-	color: var(--text-normal);
-	font-weight: var(--font-semibold);
+	flex: 1 1 auto;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
 }
 
-/* Matches the segmented tabs beside it rather than Obsidian's round phone button. */
-body.is-phone .mdsync-source-control .mdsync-mobile-back {
-	border-radius: var(--radius-m);
-	background: var(--background-modifier-hover);
-	box-shadow: none;
+body.is-phone .mdsync-source-control .mdsync-source-tab-icon svg {
+	width: var(--mdsync-icon-lg);
+	height: var(--mdsync-icon-lg);
 }
 
-body.is-phone .mdsync-source-control .mdsync-source-tab-icon {
+/* Even in a pane wide enough for every label. */
+body.is-phone .mdsync-source-control .mdsync-source-tab-label {
 	display: none;
 }
 
-body.is-phone .mdsync-source-control .mdsync-source-tab-label {
+body.is-phone
+	.mdsync-source-control
+	.mdsync-settings-tab-button.is-active
+	.mdsync-source-tab-label {
 	display: inline;
 }
 

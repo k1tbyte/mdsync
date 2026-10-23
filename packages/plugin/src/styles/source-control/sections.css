@@ -135,3 +135,7 @@
 	:is(.mdsync-row-actions, .mdsync-section-actions) {
 	visibility: hidden;
 }
+
+.mdsync-source-tab-panel .mdsync-section[inert] {
+	opacity: 0.55;
+}

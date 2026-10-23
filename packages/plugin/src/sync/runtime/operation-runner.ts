@@ -270,10 +270,11 @@ export class OperationRunner {
 			this.deps.runtimeState.clearError();
 			this.deps.runtimeState.broadcast();
 			const epoch = this.deps.runtimeState.currentEpoch();
+			let ended = false;
 			try {
 				const session = await this.openSession(VAULT_SPACE);
 				if (!session) return false;
-				const ctx = this.buildContext(session);
+				const ctx = this.buildContext(session, () => !ended);
 				const { compareResult } = await flow(session, ctx);
 				this.applyResult(VAULT_SPACE, compareResult, epoch);
 				return true;
@@ -281,6 +282,7 @@ export class OperationRunner {
 				await this.reportError(operation, err);
 				return false;
 			} finally {
+				ended = true;
 				this.deps.runtimeState.setProgressText(null);
 			}
 		});
@@ -318,6 +320,7 @@ export class OperationRunner {
 		}
 		const epoch = this.deps.runtimeState.currentEpoch();
 		let scope: { signal: AbortSignal; end: () => void } | null = null;
+		let ended = false;
 		try {
 			let session = await this.openSession(space);
 			if (!session) return { ok: false };
@@ -350,7 +353,7 @@ export class OperationRunner {
 			}
 			this.applyResult(space, result, epoch);
 			if (cancellable) scope = this.deps.runtimeState.beginCancellable();
-			const ctx = this.buildContext(session);
+			const ctx = this.buildContext(session, () => !ended);
 			const outcome = await fn(
 				scope ? { ...session, signal: scope.signal } : session,
 				result,
@@ -418,6 +421,7 @@ export class OperationRunner {
 			const message = await this.reportError(operation, err, space);
 			return { ok: false, error: message };
 		} finally {
+			ended = true;
 			scope?.end();
 			// Broadcast, not just set: a queued operation keeps pendingOps above
 			// zero, so nothing else would repaint away a stale "Cancelling…".
@@ -459,14 +463,21 @@ export class OperationRunner {
 		return err instanceof StorageRequestError ? err.userMessage : detail;
 	}
 
-	private buildContext(deps: EngineDependencies): OperationContext {
+	/** `live` turns false when the operation ends: a worker outliving a failed sibling must not repaint its progress. */
+	private buildContext(
+		deps: EngineDependencies,
+		live: () => boolean = () => true,
+	): OperationContext {
 		const identity = deps.storage.identity();
 		const { space } = deps;
 		const { root } = space;
 		return {
-			setProgress: (text) => this.deps.runtimeState.publishProgress(text),
-			reportProgressSoon: (text) =>
-				this.deps.runtimeState.publishProgressSoon(text),
+			setProgress: (text, ratio) => {
+				if (live()) this.deps.runtimeState.publishProgress(text, ratio);
+			},
+			reportProgressSoon: (text, ratio) => {
+				if (live()) this.deps.runtimeState.publishProgressSoon(text, ratio);
+			},
 			persistState: (session) =>
 				this.deps.host.persistState(
 					mergeSessionIntoLocal(

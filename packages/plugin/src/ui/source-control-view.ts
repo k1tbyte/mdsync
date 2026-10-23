@@ -7,6 +7,7 @@ import {
 } from "obsidian";
 import { DIFF_VIEW_TYPE, SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
+import { canSync } from "@/settings/model";
 import type { SyncStatusSnapshot } from "@/sync/controller";
 import type { HistoryVersionRef } from "@/sync/projection";
 import { redrawOnPhoneChange } from "@/ui/common";
@@ -173,7 +174,11 @@ export class SourceControlView extends ItemView {
 		this.unsubscribe = this.plugin.controller.subscribe((snapshot) =>
 			this.render(snapshot),
 		);
-		if (!this.plugin.controller.getSnapshot().result) {
+		// Not set up, the tab itself says so; a compare would only add a notice.
+		if (
+			!this.plugin.controller.getSnapshot().result &&
+			canSync(this.plugin.settings)
+		) {
 			void this.plugin.controller.refresh();
 		}
 	}
