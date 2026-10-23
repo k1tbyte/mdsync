@@ -12,6 +12,7 @@ export {
 } from "./modals";
 export { confirmRestore } from "./restore-modal";
 export { rowFromChange, rowFromConflict } from "./row-formatter";
+export { canPullAll, canPushAll } from "./sync-gates";
 export {
 	buildTimelineRows,
 	countsText,

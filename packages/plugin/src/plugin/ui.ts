@@ -8,7 +8,6 @@ import {
 	type IndicatorHandle,
 	registerFileContextIndicators,
 	registerFileExplorerIndicators,
-	registerLiveStatusBar,
 	registerNoteLinkActions,
 	registerNotePresence,
 	registerRibbon,
@@ -20,6 +19,8 @@ interface RegisteredPluginUi {
 	settingsTab: MdsyncSettingTab;
 	fileIndicators: IndicatorHandle;
 	openNoteMenu: (checking: boolean) => boolean;
+	/** Repaints the status bar item; a no-op when it is off. */
+	refreshStatusBar: () => void;
 }
 
 export function registerPluginUi(
@@ -35,10 +36,9 @@ export function registerPluginUi(
 	);
 	plugin.registerView(DIFF_VIEW_TYPE, (leaf) => new DiffView(leaf, plugin));
 
-	if (plugin.settings.showStatusBar) {
-		registerStatusBar(plugin, controller);
-		registerLiveStatusBar(plugin);
-	}
+	const refreshStatusBar = plugin.settings.showStatusBar
+		? registerStatusBar(plugin)
+		: () => {};
 	const openNoteMenu = registerNotePresence(plugin);
 	registerNoteLinkActions(plugin);
 	if (plugin.settings.showRibbonIcon) {
@@ -54,7 +54,7 @@ export function registerPluginUi(
 	};
 	fileIndicators.refresh(plugin.settings.showFileExplorerIndicators);
 
-	return { settingsTab, fileIndicators, openNoteMenu };
+	return { settingsTab, fileIndicators, openNoteMenu, refreshStatusBar };
 }
 
 export function refreshOpenHistoryViewsAfterPush(

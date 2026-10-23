@@ -17,7 +17,8 @@
 	border-radius: 50%;
 	background: var(--background-primary);
 	color: var(--text-normal);
-	font-size: calc(var(--mdsync-avatar) * 0.55);
+	/* Room around the initial: a half-pixel offset shows less in a small ring. */
+	font-size: calc(var(--mdsync-avatar) * 0.45);
 	font-weight: var(--font-semibold);
 	line-height: 1;
 	/* Centres the capital itself, not its line box with room for descenders. */
@@ -42,8 +43,7 @@
 	color: var(--text-muted);
 }
 
-.mdsync-note-presence,
-.mdsync-live-status {
+.mdsync-note-presence {
 	display: inline-flex;
 	gap: var(--size-4-2);
 	align-items: center;
@@ -71,14 +71,8 @@
 	align-items: center;
 }
 
-.mdsync-note-presence.mdsync-hidden,
-.mdsync-live-status.mdsync-hidden {
+.mdsync-note-presence.mdsync-hidden {
 	display: none;
-}
-
-.mdsync-live-status:focus-visible {
-	outline: 2px solid var(--interactive-accent);
-	outline-offset: -2px;
 }
 
 body.is-phone .mdsync-note-presence {

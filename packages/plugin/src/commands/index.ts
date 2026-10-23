@@ -4,12 +4,10 @@ import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import { noteLinks, onRelay } from "@/links";
 import type { PluginHost } from "@/plugin/host";
 import { spaceOf } from "@/sync/space";
-import type { DiffResult } from "@/sync/types";
 import {
 	canRebuild,
 	deepCleanOrphanedObjects,
 	isLinkable,
-	notifyError,
 	notifyInfo,
 	openDiffView,
 	openInvite,
@@ -19,10 +17,12 @@ import {
 	openSourceControlDeleted,
 	openSourceControlHistory,
 	openSourceControlView,
-	openWhereMenu,
+	openStatusMenu,
 	rebuildLiveNote,
 	resetRemoteStorage,
-	runWithNotice,
+	runCompare,
+	runPullAll,
+	runPushAll,
 	toggleAuthors,
 	updateSharedLinks,
 	verifyRemoteIntegrity,
@@ -144,8 +144,8 @@ export function registerCommands(
 
 	plugin.addCommand({
 		id: "show-live-status",
-		name: "Show relay status",
-		callback: () => openWhereMenu(plugin),
+		name: "Show sync and relay status",
+		callback: () => openStatusMenu(plugin),
 	});
 
 	plugin.addCommand({
@@ -220,82 +220,6 @@ export function registerCommands(
 			return true;
 		},
 	});
-}
-
-async function runCompare(plugin: Plugin & PluginHost): Promise<void> {
-	try {
-		await plugin.controller.refresh();
-		await openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
-	} catch (err) {
-		notifyError("Compare failed", err);
-	}
-}
-
-async function runPushAll(plugin: Plugin & PluginHost): Promise<void> {
-	try {
-		// Re-compare first: a stale diff can push a file another device changed, or miss conflicts.
-		await plugin.controller.refresh();
-		const diff = comparedDiff(plugin);
-		if (!diff || (await announceConflicts(plugin, diff.conflicts.length))) {
-			return;
-		}
-		// A read-only share's changes cannot go out; they must not hold back the rest.
-		const paths = diff.localChanges
-			.map((c) => c.path)
-			.filter((path) => !plugin.controller.spaceFor(path).readOnly);
-		if (paths.length === 0) {
-			notifyInfo("Nothing to push.");
-			return;
-		}
-		await runWithNotice(
-			() => plugin.controller.pushPaths(paths),
-			`Pushed ${paths.length} file(s).`,
-			"Push all failed",
-		);
-	} catch (err) {
-		notifyError("Push all failed", err);
-	}
-}
-
-async function runPullAll(plugin: Plugin & PluginHost): Promise<void> {
-	try {
-		await plugin.controller.refresh();
-		const diff = comparedDiff(plugin);
-		if (!diff || (await announceConflicts(plugin, diff.conflicts.length))) {
-			return;
-		}
-		const paths = diff.remoteChanges.map((c) => c.path);
-		if (paths.length === 0) {
-			notifyInfo("Nothing to pull.");
-			return;
-		}
-		await runWithNotice(
-			() => plugin.controller.pullPaths(paths),
-			`Pulled ${paths.length} file(s).`,
-			"Pull all failed",
-		);
-	} catch (err) {
-		notifyError("Pull all failed", err);
-	}
-}
-
-/** The fresh compare's diff; null, said so, when the compare did not finish. */
-function comparedDiff(plugin: PluginHost): DiffResult | null {
-	const { error, result } = plugin.controller.getSnapshot();
-	if (error) throw new Error(error);
-	if (!result) notifyInfo("The compare did not finish. Try again.");
-	return result?.diff ?? null;
-}
-
-/** Push and pull must never choose a side silently; conflicts go to the user. */
-async function announceConflicts(
-	plugin: Plugin & PluginHost,
-	count: number,
-): Promise<boolean> {
-	if (count === 0) return false;
-	notifyInfo(`Resolve ${count} conflict(s) first.`);
-	await openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
-	return true;
 }
 
 async function resetRemoteStorageCommand(
