@@ -108,6 +108,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 	private scopeRefreshTimer: number | null = null;
 	private editorSigns: SignsHandle | null = null;
 	private fileIndicators: IndicatorHandle | null = null;
+	private refreshStatusBar: (() => void) | null = null;
 	unloaded = false;
 	private freshInstall = false;
 	/** One settings write at a time: two in flight may land the older one last. */
@@ -189,6 +190,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		const registeredUi = registerPluginUi(this, this.controller);
 		this.settingsTab = registeredUi.settingsTab;
 		this.fileIndicators = registeredUi.fileIndicators;
+		this.refreshStatusBar = registeredUi.refreshStatusBar;
 		this.editorSigns = registerEditorSigns(this);
 		registerReadOnlyLock(this);
 
@@ -230,6 +232,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		safely(() => this.editorSigns?.dispose());
 		this.editorSigns = null;
 		this.fileIndicators = null;
+		this.refreshStatusBar = null;
 		safely(() => this.statePersister?.dispose());
 		safely(() => this.controller?.dispose());
 		safely(() => this.passphrase?.dispose());
@@ -279,10 +282,11 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 	}
 
 	openSetup(step?: ESetupStep): void {
-		// The settings tab under the wizard, and the Changes tab's setup prompt, would keep showing what it replaced.
+		// The settings tab under the wizard, the Changes tab's setup prompt and the status bar would keep showing what it replaced.
 		openSetupWizard(this, step, () => {
 			this.settingsTab?.update();
 			this.refreshSourceControlView();
+			this.refreshStatusBar?.();
 		});
 	}
 

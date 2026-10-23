@@ -9,6 +9,7 @@ import { askSpaceGone } from "@/ui/shares/space-gone";
 import { actionButton, textButton } from "./action-button";
 import type { SourceControlActions } from "./actions";
 import { showFileList } from "./modals";
+import { canPullAll, canPushAll } from "./sync-gates";
 
 /**
  * The head of the Changes tab: what is pending, Push and Pull, what keeps files out and what stops a sync.
@@ -316,25 +317,4 @@ function blockedHint(snapshot: SyncStatusSnapshot): string | null {
 		return "Pull first to push everything.";
 	}
 	return null;
-}
-
-function canPushAll(snapshot: SyncStatusSnapshot): boolean {
-	const diff = snapshot.result?.diff;
-	return (
-		!snapshot.busy &&
-		!!diff &&
-		diff.conflicts.length === 0 &&
-		diff.remoteChanges.length === 0 &&
-		diff.localChanges.length > 0
-	);
-}
-
-function canPullAll(snapshot: SyncStatusSnapshot): boolean {
-	const diff = snapshot.result?.diff;
-	return (
-		!snapshot.busy &&
-		!!diff &&
-		diff.conflicts.length === 0 &&
-		diff.remoteChanges.length > 0
-	);
 }

@@ -42,27 +42,30 @@ const SOURCE_TABS: ReadonlyArray<{
 	{ tab: ESourceTab.Timeline, label: "Timeline", icon: "clock-3" },
 ];
 
-export async function openSourceControlHistory(
+export function openSourceControlHistory(
 	plugin: PluginHost,
 	path?: string,
 ): Promise<void> {
-	await openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
-	const leaf = plugin.app.workspace.getLeavesOfType(
-		SOURCE_CONTROL_VIEW_TYPE,
-	)[0];
-	const view = leaf?.view;
-	if (view instanceof SourceControlView) view.showHistory(path ?? null);
+	return openSourceControlOn(plugin, (view) => view.showHistory(path ?? null));
 }
 
-export async function openSourceControlDeleted(
+export function openSourceControlDeleted(plugin: PluginHost): Promise<void> {
+	return openSourceControlOn(plugin, (view) => view.showDeleted());
+}
+
+/** An open view keeps its tab; conflicts are only on Changes. */
+export function openSourceControlChanges(plugin: PluginHost): Promise<void> {
+	return openSourceControlOn(plugin, (view) => view.showChanges());
+}
+
+async function openSourceControlOn(
 	plugin: PluginHost,
+	show: (view: SourceControlView) => void,
 ): Promise<void> {
 	await openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
-	const leaf = plugin.app.workspace.getLeavesOfType(
-		SOURCE_CONTROL_VIEW_TYPE,
-	)[0];
-	const view = leaf?.view;
-	if (view instanceof SourceControlView) view.showDeleted();
+	const view = plugin.app.workspace.getLeavesOfType(SOURCE_CONTROL_VIEW_TYPE)[0]
+		?.view;
+	if (view instanceof SourceControlView) show(view);
 }
 
 export async function openSourceControlView(
@@ -211,6 +214,10 @@ export class SourceControlView extends ItemView {
 	showDeleted(): void {
 		this.tab = ESourceTab.Deleted;
 		this.render(this.plugin.controller.getSnapshot(), true);
+	}
+
+	showChanges(): void {
+		this.activateTab(ESourceTab.Changes);
 	}
 
 	private renderActiveTab(root: HTMLElement): void {

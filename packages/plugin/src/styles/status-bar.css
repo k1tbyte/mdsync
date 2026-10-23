@@ -1,17 +1,65 @@
-.mdsync-status-bar {
-	cursor: pointer;
+.mdsync-status-bar,
+.mdsync-status-sync,
+.mdsync-status-relay {
 	display: inline-flex;
 	gap: var(--size-4-2);
 	align-items: center;
 }
 
-.mdsync-status-bar.is-error {
+.mdsync-status-bar:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: -2px;
+}
+
+.mdsync-status-sync {
+	font-variant-numeric: tabular-nums;
+}
+
+.mdsync-status-part {
+	display: inline-flex;
+	gap: var(--size-2-1);
+	align-items: center;
+}
+
+.mdsync-status-part svg {
+	width: var(--icon-xs);
+	height: var(--icon-xs);
+}
+
+.mdsync-status-sync.is-error,
+.mdsync-status-part.is-conflict {
 	color: var(--color-red);
 }
 
 /* Mutually exclusive with is-error (see status-bar.ts), so order is free. */
-.mdsync-status-bar.is-offline {
+.mdsync-status-sync.is-offline {
 	color: var(--text-muted);
+}
+
+.mdsync-status-relay {
+	--mdsync-avatar: 16px;
+}
+
+/* A hairline between where sync stands and the relay. */
+.mdsync-status-relay::before {
+	content: "";
+	width: 1px;
+	height: 12px;
+	background: var(--background-modifier-border);
+}
+
+.mdsync-status-relay.mdsync-hidden {
+	display: none;
+}
+
+.mdsync-menu-headline {
+	color: var(--text-normal);
+	font-weight: var(--font-semibold);
+}
+
+.mdsync-menu-detail {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
 }
 
 .mdsync-status-spinner,
