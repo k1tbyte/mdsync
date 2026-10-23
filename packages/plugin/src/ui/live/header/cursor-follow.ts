@@ -1,19 +1,12 @@
-import {
-	FileView,
-	ItemView,
-	MarkdownView,
-	type Notice,
-	type WorkspaceLeaf,
-} from "obsidian";
+import { FileView, MarkdownView, type WorkspaceLeaf } from "obsidian";
 
 import type { LiveSession } from "@/live";
 import type { PluginHost } from "@/plugin/host";
 import type { Person } from "@/presence";
+import { openNote } from "@/ui/common";
 
-import { showFollowNudge } from "./follow-nudge";
+import { showFollowBanner } from "./follow-banner";
 import { trackCursor } from "./follow-scroll";
-
-const NUDGED_BY = ["keydown", "pointerdown", "wheel", "touchstart"] as const;
 
 interface Following {
 	leaf: WorkspaceLeaf;
@@ -24,19 +17,28 @@ interface Following {
 	path: string;
 	opening: boolean;
 	cursor: { session: LiveSession; stop(): void } | null;
-	input: HTMLElement | null;
+	banner: HTMLElement | null;
 	unsubscribe(): void;
 }
 
 /** One tab follows one person of a space: into each note they open, then their cursor there. */
 export class CursorFollow {
 	private current: Following | null = null;
-	private nudge: Notice | null = null;
 
 	constructor(private readonly plugin: PluginHost) {}
 
 	of(leaf: WorkspaceLeaf): string | null {
 		return this.current?.leaf === leaf ? this.current.key : null;
+	}
+
+	/** From outside a note: opens theirs, then follows in that tab. */
+	async follow(
+		space: string,
+		person: Pick<Person, "key" | "name" | "note">,
+	): Promise<boolean> {
+		const leaf = person.note && (await openNote(this.plugin.app, person.note));
+		if (leaf) this.start(leaf, space, person);
+		return Boolean(leaf);
 	}
 
 	start(
@@ -62,7 +64,7 @@ export class CursorFollow {
 			path,
 			opening: false,
 			cursor: null,
-			input: null,
+			banner: null,
 			unsubscribe: () => {
 				for (const off of unsubscribe) off();
 				app.workspace.offref(opened);
@@ -75,12 +77,10 @@ export class CursorFollow {
 	stop(): void {
 		const following = this.current;
 		this.current = null;
-		this.nudge?.hide();
-		this.nudge = null;
 		if (!following) return;
 		following.unsubscribe();
 		following.cursor?.stop();
-		this.listen(following, null);
+		following.banner?.remove();
 	}
 
 	private sync(): void {
@@ -97,12 +97,11 @@ export class CursorFollow {
 			this.stop();
 			return;
 		}
+		this.showBanner(following);
 		if (person.note !== null && person.note !== following.path) {
 			void this.open(following, person.note);
 			return;
 		}
-		const { view } = following.leaf;
-		this.listen(following, view instanceof ItemView ? view.contentEl : null);
 		this.track(following);
 	}
 
@@ -122,6 +121,16 @@ export class CursorFollow {
 		if (this.current === following) this.sync();
 	}
 
+	/** Again after a note of another kind replaced the view, and the banner with it. */
+	private showBanner(following: Following): void {
+		const { containerEl } = following.leaf.view;
+		if (following.banner?.parentElement === containerEl) return;
+		following.banner?.remove();
+		following.banner = showFollowBanner(containerEl, following, () =>
+			this.stop(),
+		);
+	}
+
 	private track(following: Following): void {
 		const { view } = following.leaf;
 		const session = this.plugin.realtime.live.roomOf(following.path);
@@ -132,22 +141,6 @@ export class CursorFollow {
 				? { session, stop: trackCursor(view, session, following.key) }
 				: null;
 	}
-
-	private listen(following: Following, input: HTMLElement | null): void {
-		if (following.input === input) return;
-		for (const type of NUDGED_BY) {
-			following.input?.removeEventListener(type, this.onInput);
-			input?.addEventListener(type, this.onInput, { passive: true });
-		}
-		following.input = input;
-	}
-
-	/** A stray click or key would end following by surprise: it only asks. */
-	private readonly onInput = (): void => {
-		const following = this.current;
-		if (!following || this.nudge?.messageEl.isConnected) return;
-		this.nudge = showFollowNudge(following.name, () => this.stop());
-	};
 }
 
 function pathIn(leaf: WorkspaceLeaf): string | null {

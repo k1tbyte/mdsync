@@ -122,24 +122,12 @@
 	background: var(--background-secondary);
 }
 
-.mdsync-hunk-drawer-container {
-	align-items: flex-end;
+.modal.mdsync-hunk-drawer {
 	padding: 0;
-}
-
-.mdsync-hunk-drawer-container .mdsync-hunk-drawer {
-	width: 100%;
-	max-width: none;
-	max-height: 80dvh;
-	margin: 0;
-	padding: 0;
-	border-radius: var(--radius-l) var(--radius-l) 0 0;
 }
 
 .mdsync-hunk-drawer .modal-header,
-.mdsync-hunk-drawer .modal-header-button,
-.mdsync-hunk-drawer .modal-title,
-.mdsync-hunk-drawer .modal-close-button {
+.mdsync-hunk-drawer .modal-title {
 	display: none;
 }
 

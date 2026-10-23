@@ -1,59 +1,54 @@
-import { type ButtonComponent, Setting } from "obsidian";
+import { ButtonComponent, DropdownComponent, TextComponent } from "obsidian";
 
 import { errorMessage } from "@/shared";
 import { alertLine, copyable, onEnter, serial } from "@/ui/common";
 import type { CreatedInvite } from "./invite-action";
 
+/** Name, access and the button on one line; the link and its password appear under it, once. */
 export function renderInviteForm(
 	parent: HTMLElement,
 	invite: (person: string, readOnly: boolean) => Promise<CreatedInvite>,
 	onCreated: () => void,
 ): void {
-	let person = "";
-	let readOnly = false;
-	let create: ButtonComponent | undefined;
+	const row = parent.createDiv({ cls: "mdsync-invite-row" });
+	const name = new TextComponent(row).setPlaceholder("Their name");
+	name.inputEl.setAttr("aria-label", "Their name");
+	const access = new DropdownComponent(row).addOptions({
+		edit: "Can edit",
+		read: "Read-only",
+	});
+	access.selectEl.setAttr("aria-label", "Access");
+	const create = new ButtonComponent(row)
+		.setButtonText("Create invite")
+		.setCta();
+	parent.createDiv({
+		cls: "mdsync-share-hint",
+		text: "Inviting the same name again replaces their link, even for someone who already joined. The relay receives your storage credentials to sign this folder's requests.",
+	});
+	const status = alertLine(parent);
+	const created = parent.createDiv();
 	const submit = serial(async () => {
+		const person = name.getValue().trim();
 		status.setText(person ? "" : "Enter who it is for.");
 		if (!person) return;
-		create?.setDisabled(true);
+		create.setDisabled(true);
 		try {
-			showInvite(created, await invite(person, readOnly));
+			showInvite(created, await invite(person, access.getValue() === "read"));
 			onCreated();
 		} catch (err) {
 			status.setText(errorMessage(err));
 		} finally {
-			create?.setDisabled(false);
+			create.setDisabled(false);
 		}
 	});
-	new Setting(parent).setName("Read-only").addToggle((toggle) =>
-		toggle.onChange((value) => {
-			readOnly = value;
-		}),
-	);
-	new Setting(parent)
-		.setClass("mdsync-invite-name")
-		.setName("Name")
-		.setDesc(
-			"Who the invite is for. Inviting the same name again replaces their link: the earlier one stops working, even for someone who already joined. The relay receives your storage credentials to sign this folder's requests.",
-		)
-		.addText((text) => {
-			text.inputEl.setAttr("aria-label", "Name");
-			text.onChange((value) => {
-				person = value.trim();
-			});
-			onEnter(text.inputEl, submit);
-		})
-		.addButton((button) => {
-			create = button.setButtonText("Create invite").setCta().onClick(submit);
-		});
-	const status = alertLine(parent);
-	const created = parent.createDiv();
+	create.onClick(submit);
+	onEnter(name.inputEl, submit);
 }
 
 function showInvite(el: HTMLElement, invite: CreatedInvite): void {
 	el.empty();
-	el.createEl("p", {
-		cls: "setting-item-description",
+	el.createDiv({
+		cls: "mdsync-share-hint",
 		text: "Send the link and the password separately, for example the link by email and the password by message. You will not see this link again.",
 	});
 	copyable(el, "Link", invite.link);

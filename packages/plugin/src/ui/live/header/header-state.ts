@@ -58,6 +58,7 @@ function skippedStatus(plugin: PluginHost, file: TFile): LiveStatus | null {
 	return {
 		state: "warning",
 		label: skippedText(skipped, plugin.settings.maxFileBytes),
+		text: "Not synced",
 	};
 }
 

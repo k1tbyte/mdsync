@@ -22,11 +22,13 @@ const COLD_CAUSES: Record<ColdCause, string> = {
 export interface LiveStatus {
 	state: LiveState;
 	label: string;
+	/** The pill's word, where the state's own says less. */
+	text?: string;
 }
 
 const NOT_CARRIED: Partial<Record<RelayStatus, LiveStatus>> = {
-	paused: { state: "cold", label: RELAY_TEXT.paused },
-	full: { state: "warning", label: RELAY_TEXT.full },
+	paused: { state: "cold", label: RELAY_TEXT.paused, text: "Paused" },
+	full: { state: "warning", label: RELAY_TEXT.full, text: "Relay full" },
 };
 
 /** Null where no relay carries `space`, the file's. */
@@ -45,7 +47,7 @@ export function liveStatusOf(
 	const note = live.noteState(file.path);
 	if (note === "live") {
 		if (people.unreadable(space.id)) {
-			return { state: "warning", label: UNREADABLE_TEXT };
+			return { state: "warning", label: UNREADABLE_TEXT, text: "Live" };
 		}
 		const label = space.readOnly
 			? "Live: edits arrive as others type"

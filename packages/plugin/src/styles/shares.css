@@ -3,7 +3,10 @@
 }
 
 .mdsync-share-modal .modal-content {
+	display: flex;
 	flex: 1 1 auto;
+	flex-direction: column;
+	gap: var(--size-4-2);
 	min-height: 0;
 	overflow-y: auto;
 }
@@ -12,14 +15,88 @@
 	flex-shrink: 0;
 }
 
-.mdsync-share-modal .mdsync-share-section.setting-item {
-	margin: var(--size-4-5) 0 var(--size-4-1);
-	padding: 0;
-	border: 0;
+.modal.mdsync-share-modal .mdsync-share-head {
+	display: flex;
+	gap: var(--size-4-3);
+	align-items: center;
+	justify-content: flex-start;
+	margin-inline: 0;
+	padding-inline-end: var(--size-4-8);
+	text-align: start;
+}
+
+.mdsync-share-tile {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 40px;
+	height: 40px;
+	border-radius: var(--radius-m);
+	background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+	color: var(--text-accent);
+}
+
+.mdsync-share-head-text {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-1);
+	min-width: 0;
+}
+
+.mdsync-share-name {
+	overflow-wrap: anywhere;
+}
+
+/* Parts joined by a middle dot, wrapping whole. */
+.mdsync-share-sub {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0 var(--size-4-2);
+	align-items: center;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-normal);
+}
+
+.mdsync-share-sub > :not(:first-child)::before {
+	content: "·";
+	margin-inline-end: var(--size-4-2);
+}
+
+.mdsync-share-path {
+	overflow-wrap: anywhere;
+}
+
+.mdsync-share-relay {
+	display: inline-flex;
+	gap: var(--size-2-3);
+	align-items: center;
+}
+
+.mdsync-share-relay.mdsync-hidden {
+	display: none;
+}
+
+.mdsync-share-section {
+	margin-top: var(--size-4-3);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.mdsync-share-hint {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.mdsync-share-hint:empty {
+	display: none;
 }
 
 .mdsync-share-warning {
-	margin: var(--size-4-3) 0 0;
 	padding: var(--size-4-2) var(--size-4-3);
 	border-inline-start: var(--mdsync-bar-strong) solid var(--color-orange);
 	border-radius: var(--radius-s);
@@ -27,42 +104,76 @@
 	overflow-wrap: anywhere;
 }
 
-.modal.mdsync-share-modal .setting-item.mdsync-share-footer {
-	flex: 0 0 auto;
-	margin-top: var(--size-4-3);
-	padding: var(--size-4-3) 0 0;
+/* One card, a row per person. */
+.mdsync-share-people {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	--mdsync-avatar: 28px;
+}
+
+.mdsync-share-person {
+	display: flex;
+	gap: var(--size-4-3);
+	align-items: center;
+	padding: var(--size-4-2) var(--size-4-3);
+}
+
+.mdsync-share-person + .mdsync-share-person {
 	border-top: 1px solid var(--background-modifier-border);
 }
 
-.modal.mdsync-share-modal .mdsync-share-section + .setting-item {
-	border-top: 0;
-}
-
-.mdsync-share-modal .setting-item-description:empty {
-	display: none;
-}
-
-.mdsync-share-access .setting-item-info {
+.mdsync-share-person-text {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
 	min-width: 0;
 }
 
-.mdsync-share-access .setting-item-name {
+.mdsync-share-person-name {
+	font-weight: var(--font-medium);
 	overflow-wrap: anywhere;
 }
 
-.mdsync-share-modal .mdsync-share-section .setting-item-name {
+.mdsync-share-person-detail {
 	color: var(--text-muted);
-	font-size: var(--font-ui-small);
-	font-weight: var(--font-semibold);
+	font-size: var(--font-ui-smaller);
 }
 
-.mdsync-share-modal .setting-item.mdsync-invite-name {
-	flex-direction: column;
-	align-items: stretch;
+.mdsync-share-role {
+	flex: none;
+	padding: var(--size-2-1) var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--mdsync-radius-pill);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.mdsync-share-role.is-owner {
+	border-color: transparent;
+	background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+	color: var(--text-accent);
+}
+
+.mdsync-share-person button {
+	flex: none;
+}
+
+.mdsync-share-person .mdsync-icon-only {
+	background: transparent;
+	box-shadow: none;
+	color: var(--icon-color);
+}
+
+.mdsync-share-person .mdsync-icon-only:hover {
+	background: var(--background-modifier-hover);
+}
+
+.mdsync-invite-row {
+	display: flex;
 	gap: var(--size-4-2);
 }
 
-.mdsync-invite-name input {
+.mdsync-invite-row input {
 	flex: 1 1 auto;
 	min-width: 0;
 }
@@ -71,8 +182,73 @@
 	text-overflow: ellipsis;
 }
 
+/* The choice as one bar of segments; the radios stay focusable for the keyboard. */
+.mdsync-segments {
+	display: grid;
+	grid-auto-columns: minmax(0, 1fr);
+	grid-auto-flow: column;
+	gap: var(--size-2-1);
+	padding: var(--size-2-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.mdsync-segment {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: var(--input-height);
+	padding: 0 var(--size-4-2);
+	border-radius: var(--radius-s);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	text-align: center;
+	cursor: var(--cursor);
+}
+
+.mdsync-segment input {
+	position: absolute;
+	inset: 0;
+	margin: 0;
+	opacity: 0;
+	cursor: inherit;
+}
+
+.mdsync-segment:hover {
+	color: var(--text-normal);
+}
+
+/* Not `--interactive-normal`: on a phone it is the bar's own colour. */
+.mdsync-segment:has(input:checked) {
+	background: var(--background-modifier-border);
+	color: var(--text-normal);
+	font-weight: var(--font-medium);
+}
+
+.mdsync-segment:has(input:focus-visible) {
+	outline: 2px solid var(--background-modifier-border-focus);
+}
+
+.mdsync-segment:has(input:disabled) {
+	opacity: 0.6;
+}
+
+.modal.mdsync-share-modal .mdsync-share-footer {
+	flex: 0 0 auto;
+	margin-top: var(--size-4-3);
+	padding-top: var(--size-4-3);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.mdsync-share-footer > :first-child {
+	margin-inline-end: auto;
+}
+
 .is-phone .modal.mdsync-share-modal {
-	.setting-item.mdsync-share-footer:last-child {
+	.mdsync-share-footer {
+		margin-bottom: 0;
 		padding: var(--size-4-3) var(--size-4-4);
 		padding-bottom: max(
 			var(--size-4-3),
@@ -80,36 +256,64 @@
 		);
 	}
 
-	.mdsync-share-access .setting-item {
-		flex-direction: row;
-		align-items: center;
+	.mdsync-share-footer > :first-child {
+		margin-inline-end: 0;
 	}
 
-	.mdsync-share-access .setting-item-control {
-		flex: 0 0 auto;
-		width: auto;
+	/* Parts stacked: a narrow head would wrap them mid-list. */
+	.mdsync-share-sub {
+		flex-direction: column;
+		align-items: flex-start;
 	}
 
-	.mdsync-share-access .setting-item-control button:not(.clickable-icon) {
-		width: auto;
+	.mdsync-share-sub > ::before {
+		display: none;
 	}
 
-	.mdsync-invite-name button {
-		flex: 0 0 auto;
-		width: auto;
+	/* The role goes under the name, leaving the row to the buttons. */
+	.mdsync-share-person {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		grid-auto-columns: auto;
+		gap: var(--size-2-2) var(--size-4-2);
 	}
 
-	.mdsync-share-footer .setting-item-control button:not(.clickable-icon) {
+	.mdsync-share-person > .mdsync-avatar {
+		grid-area: 1 / 1 / span 2;
+		align-self: center;
+	}
+
+	.mdsync-share-person-text {
+		grid-area: 1 / 2;
+	}
+
+	.mdsync-share-role {
+		grid-area: 2 / 2;
+		justify-self: start;
+	}
+
+	.mdsync-share-person > button {
+		grid-row: 1 / span 2;
+	}
+
+	.mdsync-invite-row {
+		flex-wrap: wrap;
+	}
+
+	.mdsync-invite-row input {
+		flex-basis: 100%;
+	}
+
+	.mdsync-invite-row button {
 		flex: 1 1 auto;
-		width: auto;
 	}
 
-	.clickable-icon {
+	.mdsync-icon-only {
 		min-width: var(--mdsync-touch);
 		min-height: var(--mdsync-touch);
 	}
 
-	&:has(input:focus) {
+	&:has(input:not([type="radio"]):focus) {
 		overflow-y: auto;
 
 		.modal-content {

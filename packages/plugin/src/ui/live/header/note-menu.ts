@@ -10,7 +10,6 @@ import {
 	showMenuAt,
 } from "@/ui/common";
 import { openShareWindow } from "@/ui/shares/share-window";
-import type { CursorFollow } from "./cursor-follow";
 import { headerOf, showsHeader } from "./header-state";
 import { rebuildLiveNote, toggleAuthors } from "./live-actions";
 import {
@@ -24,13 +23,12 @@ import {
 
 export function openActiveNoteMenu(
 	plugin: PluginHost,
-	follows: CursorFollow,
 	checking: boolean,
 ): boolean {
 	const leaf = plugin.app.workspace.getMostRecentLeaf();
 	const header = leaf && headerOf(plugin, leaf);
 	if (!leaf || !header || !showsHeader(header.state)) return false;
-	if (!checking) openNoteMenu(plugin, leaf, follows);
+	if (!checking) openNoteMenu(plugin, leaf);
 	return true;
 }
 
@@ -38,13 +36,13 @@ export function openActiveNoteMenu(
 export function openNoteMenu(
 	plugin: PluginHost,
 	leaf: WorkspaceLeaf,
-	follows: CursorFollow,
 	anchor?: HTMLElement,
 ): void {
 	const header = headerOf(plugin, leaf);
 	if (!header) return;
 	const { view, file, space, state } = header;
 	const { status, here, locked } = state;
+	const { follows } = plugin;
 	const { live, hub } = plugin.realtime;
 	const record = plugin.spaces.shareOf(space);
 	const liveText =
