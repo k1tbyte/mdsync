@@ -9,6 +9,7 @@
 
 @import "./source-control/shell.css";
 @import "./source-control/toolbar.css";
+@import "./source-control/summary.css";
 @import "./source-control/sections.css";
 @import "./source-control/file-rows.css";
 @import "./source-control/tree.css";

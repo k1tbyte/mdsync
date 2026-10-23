@@ -1,0 +1,396 @@
+.mdsync-sync-summary {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-4);
+	padding: var(--size-4-4);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary);
+}
+
+.mdsync-sync-summary.is-error {
+	border-color: color-mix(in srgb, var(--color-red) 45%, transparent);
+	background: color-mix(
+		in srgb,
+		var(--color-red) 7%,
+		var(--background-primary)
+	);
+}
+
+.mdsync-sync-summary-head {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-3);
+}
+
+.mdsync-sync-summary-icon {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	border-radius: var(--radius-m);
+	background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+	color: var(--text-accent);
+}
+
+.mdsync-sync-summary-icon svg {
+	width: var(--mdsync-icon-lg);
+	height: var(--mdsync-icon-lg);
+}
+
+.mdsync-sync-summary.is-busy .mdsync-sync-summary-icon svg {
+	animation: mdsync-spin 1.2s linear infinite;
+}
+
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-icon {
+	background: color-mix(in srgb, var(--color-green) 18%, transparent);
+	color: var(--color-green);
+}
+
+.mdsync-sync-summary.is-error .mdsync-sync-summary-icon {
+	background: color-mix(in srgb, var(--color-red) 18%, transparent);
+	color: var(--color-red);
+}
+
+.mdsync-sync-summary-copy {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-2);
+	min-width: 0;
+}
+
+.mdsync-sync-summary-title {
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-semibold);
+	line-height: var(--line-height-tight);
+	overflow-wrap: anywhere;
+}
+
+.mdsync-sync-summary-subtitle {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	overflow-wrap: anywhere;
+}
+
+.mdsync-sync-summary-buttons {
+	display: flex;
+	gap: var(--size-4-2);
+}
+
+/* A phone's Push and Pull, docked under the thumb down to the screen edge, behind the floating toolbar. */
+.mdsync-sync-summary-buttons.is-docked {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 3;
+	padding: var(--size-4-3) var(--size-4-3)
+		calc(var(--size-4-3) + var(--view-bottom-spacing, 0px));
+	border-top: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+}
+
+.mdsync-sync-summary-tools {
+	display: flex;
+	flex: 0 0 auto;
+	gap: var(--size-2-1);
+	margin-left: auto;
+}
+
+.mdsync-sync-summary-buttons > button {
+	flex: 1 1 0;
+	gap: var(--size-2-3);
+	min-width: 0;
+}
+
+.mdsync-sync-summary-button-icon,
+.mdsync-sync-summary-count {
+	flex: 0 0 auto;
+}
+
+.mdsync-sync-summary-button-icon {
+	display: inline-flex;
+}
+
+.mdsync-sync-summary-button-icon svg {
+	width: var(--mdsync-icon);
+	height: var(--mdsync-icon);
+}
+
+.mdsync-sync-summary-count {
+	padding: 0 var(--size-2-3);
+	border-radius: var(--mdsync-radius-pill);
+	background: rgba(var(--mono-rgb-100), 0.1);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+}
+
+.mdsync-sync-summary-buttons > button.mod-cta .mdsync-sync-summary-count {
+	background: rgba(0, 0, 0, 0.2);
+}
+
+/* Set apart from the buttons: what is left out, not what to do. */
+.mdsync-sync-summary-extras {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	padding-top: var(--size-4-3);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.mdsync-sync-summary-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-2-3);
+}
+
+.mdsync-sync-summary-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-2-2);
+	height: 22px;
+	padding: 0 var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--mdsync-radius-pill);
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+}
+
+.mdsync-sync-summary-chip:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.mdsync-sync-summary-chip.is-cloud-off {
+	border-color: color-mix(in srgb, var(--color-red) 40%, transparent);
+	background: color-mix(in srgb, var(--color-red) 10%, transparent);
+	color: var(--color-red);
+}
+
+.mdsync-sync-summary-chip svg {
+	width: 0.85rem;
+	height: 0.85rem;
+}
+
+.mdsync-sync-summary-note {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.mdsync-sync-progress {
+	height: 6px;
+	overflow: hidden;
+	border-radius: var(--mdsync-radius-pill);
+	background: var(--background-modifier-border);
+}
+
+/* Scaled, not sized: a progress tick costs no layout. */
+.mdsync-sync-progress-fill {
+	height: 100%;
+	background: var(--interactive-accent);
+	transform: scaleX(var(--mdsync-progress, 0));
+	transform-origin: left;
+	transition: transform 0.2s ease-out;
+}
+
+.mdsync-sync-summary-footer {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.mdsync-sync-summary.is-warning .mdsync-sync-summary-icon {
+	background: color-mix(in srgb, var(--color-orange) 18%, transparent);
+	color: var(--color-orange);
+}
+
+/* Nothing to sync: the card turns into the tab's empty state, as the setup prompt is. */
+.mdsync-sync-summary.is-clean,
+.mdsync-empty-state {
+	flex: 1 0 auto;
+	align-items: center;
+	justify-content: center;
+	gap: var(--size-4-3);
+	text-align: center;
+}
+
+.mdsync-sync-summary.is-clean {
+	border-color: transparent;
+	background: transparent;
+}
+
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-head,
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-copy {
+	flex-direction: column;
+	align-items: center;
+	gap: var(--size-4-3);
+}
+
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-tools {
+	display: none;
+}
+
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-extras {
+	align-items: center;
+	padding-top: 0;
+	border-top: 0;
+}
+
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-chips {
+	justify-content: center;
+}
+
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-icon,
+.mdsync-empty-state-icon {
+	width: 52px;
+	height: 52px;
+	border-radius: var(--radius-l);
+}
+
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-icon svg,
+.mdsync-empty-state-icon svg {
+	width: 26px;
+	height: 26px;
+}
+
+.mdsync-sync-summary.is-clean .mdsync-sync-summary-subtitle,
+.mdsync-empty-state-desc {
+	max-width: 36ch;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: 1.5;
+}
+
+.mdsync-empty-state {
+	display: flex;
+	flex-direction: column;
+	padding: var(--size-4-6) var(--size-4-4);
+}
+
+.mdsync-empty-state-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+	color: var(--text-accent);
+}
+
+.mdsync-empty-state-title {
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-semibold);
+}
+
+.mdsync-empty-state-link {
+	font-size: var(--font-ui-smaller);
+}
+
+/* Apart from the card: the rest of the vault still syncs. */
+.mdsync-space-errors {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+}
+
+.mdsync-space-errors:empty {
+	display: none;
+}
+
+.mdsync-space-error {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--size-2-3);
+	padding: var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+}
+
+.mdsync-space-error-title {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	font-weight: var(--font-medium);
+	overflow-wrap: anywhere;
+}
+
+.mdsync-space-error-title::before {
+	content: "";
+	flex: 0 0 auto;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--color-orange);
+}
+
+.mdsync-space-error-desc {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.5;
+}
+
+.mdsync-changes-filter .search-input-container {
+	width: 100%;
+	margin: 0;
+}
+
+/* Room kept under the lists whether or not the bar shows, so ticking a box never moves them and the last row scrolls clear of the bar. */
+.mdsync-changes-panel {
+	--mdsync-bar-room: 64px;
+	padding-bottom: calc(
+		var(--mdsync-bar-room) +
+		var(--mdsync-status-bar-clearance)
+	);
+}
+
+/* Floats over the bottom of the view, outside the pane's scroll. */
+.mdsync-selection-bar {
+	position: absolute;
+	right: var(--size-4-3);
+	bottom: calc(var(--size-4-2) + var(--mdsync-status-bar-clearance));
+	left: var(--size-4-3);
+	z-index: 4;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--size-4-2);
+	padding: var(--size-2-3) var(--size-2-3) var(--size-2-3) var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary-alt);
+	box-shadow: var(--shadow-s);
+}
+
+.mdsync-selection-bar.mdsync-hidden {
+	display: none;
+}
+
+.mdsync-selection-count {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	font-size: var(--font-ui-small);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* One line in any width: buttons shrink and cut their text rather than wrap. */
+.mdsync-selection-buttons {
+	display: flex;
+	flex: 0 1 auto;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--size-2-2);
+	min-width: 0;
+}
+
+.mdsync-selection-buttons > button:not(.mdsync-row-action) {
+	flex: 0 1 auto;
+	min-width: 0;
+	height: 26px;
+	padding: 0 var(--size-4-2);
+	font-size: var(--font-ui-smaller);
+}

@@ -279,8 +279,11 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 	}
 
 	openSetup(step?: ESetupStep): void {
-		// The settings tab under the wizard would keep showing what the wizard replaced.
-		openSetupWizard(this, step, () => this.settingsTab?.update());
+		// The settings tab under the wizard, and the Changes tab's setup prompt, would keep showing what it replaced.
+		openSetupWizard(this, step, () => {
+			this.settingsTab?.update();
+			this.refreshSourceControlView();
+		});
 	}
 
 	scheduleScopeRefresh(reason = "Sync scope changed."): void {

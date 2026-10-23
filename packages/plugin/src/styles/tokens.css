@@ -20,6 +20,13 @@ body {
 
 	/* A person's ring with their initial: header, status bar, menus. */
 	--mdsync-avatar: 18px;
+
+	/* Obsidian's desktop status bar floats over the bottom right of the workspace. */
+	--mdsync-status-bar-clearance: 28px;
+}
+
+body.is-mobile {
+	--mdsync-status-bar-clearance: 0px;
 }
 
 /*

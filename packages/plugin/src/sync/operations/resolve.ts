@@ -252,7 +252,11 @@ async function resolveEach(
 		async (path) => {
 			const entry = await resolve(path);
 			if (entry !== undefined) localEntries.set(path, entry);
-			ctx.reportProgressSoon(`Resolving ${++done}/${conflictPaths.length}…`);
+			done++;
+			ctx.reportProgressSoon(
+				`Resolving ${done}/${conflictPaths.length}…`,
+				done / conflictPaths.length,
+			);
 		},
 	);
 	return {

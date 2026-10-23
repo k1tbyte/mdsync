@@ -1,18 +1,25 @@
-import { setIcon } from "obsidian";
+import { Platform, SearchComponent } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
+import { canSync } from "@/settings/model";
 import type { SyncStatusSnapshot } from "@/sync/controller";
 import type { DiffResult, ManifestEntry } from "@/sync/types";
-import { notifyError } from "@/ui/common";
-import { actionButton } from "./action-button";
+import {
+	appendIconButton,
+	lastEditLabel,
+	lastEditor,
+	notifyError,
+} from "@/ui/common";
 import type { SourceControlActions } from "./actions";
 import { ChangesSection, type ChangesSectionDeps } from "./changes-section";
 import type { ConflictPreviewManager } from "./conflict-preview-manager";
 import { diffEquals } from "./diff-identity";
 import { foldMoves, rowFromChange, rowFromConflict } from "./row-formatter";
-import { fillStatusLine, formatActionCount, hasSyncError } from "./status-line";
+import { SelectionBar } from "./selection-bar";
+import { renderSetupPrompt } from "./setup-prompt";
+import { SummaryCard } from "./summary-card";
 import { ESection, type FileRow } from "./types";
 
-/** Toolbar, filter and the three change sections; owns selection and layout so the view above only picks a tab. */
+/** Summary, filter, the three change sections and the selection bar; owns selection and layout so the view above only picks a tab. */
 export class ChangesTab {
 	private layout: "tree" | "flat";
 	private filter = "";
@@ -22,16 +29,17 @@ export class ChangesTab {
 	 */
 	private lastDiff: DiffResult | null = null;
 	private lastError: string | null = null;
+	private setUp = false;
 	private built = false;
-	private statusLineEl: HTMLElement | null = null;
+	private summary: SummaryCard | null = null;
+	private selectionBar: SelectionBar | null = null;
 	private refreshButtonEl: HTMLButtonElement | null = null;
-	private cancelButtonEl: HTMLButtonElement | null = null;
-	private pushAllButtonEl: HTMLButtonElement | null = null;
-	private pullAllButtonEl: HTMLButtonElement | null = null;
 	private readonly sections: ChangesSection[];
 	/** The pane scrolls, not the lists; every window is computed against it. */
 	private scroller: HTMLElement | null = null;
 	private activePath: string | null = null;
+	/** What had focus in the lists when a sync locked them. */
+	private lockedFocus: HTMLElement | null = null;
 	private openingPath: string | null = null;
 	private openGeneration = 0;
 
@@ -41,19 +49,25 @@ export class ChangesTab {
 		private readonly actions: SourceControlActions,
 		private readonly rerender: () => void,
 		private readonly openDiff: (path: string) => Promise<void>,
+		openMerge: (path: string) => void,
 	) {
 		this.layout = plugin.settings.uiLayout;
+		const isBusy = (): boolean => plugin.controller.getSnapshot().busy;
 		const deps: ChangesSectionDeps = {
 			scroller: () => this.scroller,
 			layout: () => this.layout,
-			isBusy: () => plugin.controller.getSnapshot().busy,
+			isBusy,
 			refreshLists: () => this.refreshLists(),
+			selectionChanged: () => this.selectionBar?.update(isBusy()),
 			actions,
 			previews,
 			rerender,
 			openFileDiff: (item, path) => this.openFileDiff(item, path),
+			openMerge,
 			isOpening: (path) => this.openingPath === path,
 			isActive: (path) => this.activePath === path,
+			editLabel: (path) => lastEditLabel(plugin, path),
+			editor: (path) => lastEditor(plugin, path),
 		};
 		this.sections = [
 			new ChangesSection(ESection.Conflicts, "Conflicts", deps),
@@ -77,6 +91,7 @@ export class ChangesTab {
 	needsRebuild(snapshot: SyncStatusSnapshot): boolean {
 		return (
 			!this.built ||
+			canSync(this.plugin.settings) !== this.setUp ||
 			(snapshot.error ?? null) !== this.lastError ||
 			!diffEquals(this.lastDiff, snapshot.result?.diff ?? null)
 		);
@@ -84,11 +99,40 @@ export class ChangesTab {
 
 	/** In-place updates to status/progress keep scrolling usable mid-push. */
 	refreshInPlace(snapshot: SyncStatusSnapshot): void {
-		this.refreshStatus(snapshot);
-		for (const section of this.sections) section.updateUi(snapshot.busy);
-		// An error line grows a button and a progress line changes length, both
-		// of which move the lists below them.
+		const { busy } = snapshot;
+		this.summary?.update(snapshot);
+		if (this.refreshButtonEl) this.refreshButtonEl.disabled = busy;
+		this.scroller?.toggleClass("is-busy", busy);
+		this.lockLists(snapshot.cancellable);
+		for (const section of this.sections) section.updateUi(busy);
+		this.selectionBar?.update(busy);
+		// The summary grows notes and buttons, which move the lists below it.
 		this.refreshLists();
+	}
+
+	/** While files move the lists are dimmed and inert: a click would only queue behind the sync. */
+	private lockLists(locked: boolean): void {
+		const scroller = this.scroller;
+		if (!scroller) return;
+		const sections = [
+			...scroller.querySelectorAll<HTMLElement>(".mdsync-section"),
+		];
+		const focused = activeDocument.activeElement;
+		if (locked && sections.some((section) => section.contains(focused))) {
+			// Inert drops focus to the body; the pane keeps the keyboard, and gets the row back after.
+			this.lockedFocus = focused as HTMLElement;
+			scroller.tabIndex = -1;
+			scroller.focus({ preventScroll: true });
+		}
+		for (const section of sections) section.inert = locked;
+		if (locked || !this.lockedFocus) return;
+		if (
+			this.lockedFocus.isConnected &&
+			activeDocument.activeElement === scroller
+		) {
+			this.lockedFocus.focus({ preventScroll: true });
+		}
+		this.lockedFocus = null;
 	}
 
 	/** Re-windows every list against where it now sits in the pane. */
@@ -96,26 +140,43 @@ export class ChangesTab {
 		for (const section of this.sections) section.refreshList();
 	}
 
-	render(root: HTMLElement, snapshot: SyncStatusSnapshot): void {
+	/** `tools` is the tab row's trailing slot; `overlay` holds the selection bar over the pane, outside its scroll. */
+	render(
+		root: HTMLElement,
+		snapshot: SyncStatusSnapshot,
+		tools: HTMLElement,
+		overlay: HTMLElement,
+	): void {
 		this.dispose();
 		this.scroller = root;
 		if (this.needsRebuild(snapshot)) this.previews.clearCache();
 		this.built = true;
 		this.lastDiff = snapshot.result?.diff ?? null;
 		this.lastError = snapshot.error ?? null;
-		this.renderToolbar(root, snapshot);
-		this.renderStatusLine(root, snapshot);
-		this.renderFilter(root);
+		this.selectionBar = null;
+		this.summary = null;
+		this.refreshButtonEl = null;
+		root.addClass("mdsync-changes-panel");
+		root.toggleClass("is-busy", snapshot.busy);
+		this.setUp = canSync(this.plugin.settings);
+		if (!this.setUp) {
+			renderSetupPrompt(root, this.plugin);
+			return;
+		}
+		// A phone's tab row has room only for the tabs' names; Push and Pull dock under the thumb.
+		const phone = Platform.isPhone;
+		this.summary = new SummaryCard(
+			root,
+			this.plugin,
+			this.actions,
+			phone ? overlay : undefined,
+		);
+		this.renderTools(phone ? this.summary.toolsEl : tools, snapshot.busy);
+		this.summary.update(snapshot);
 
 		const result = snapshot.result;
 		const diff = result?.diff;
-		if (!diff) {
-			root.createDiv({
-				cls: "mdsync-status-line is-empty",
-				text: "Run compare to see changes.",
-			});
-			return;
-		}
+		if (!diff) return;
 		const localFiles = result.snapshot.files;
 		const remoteFiles = result.remote?.files;
 		const showFileSizes = this.plugin.settings.showFileSizes;
@@ -147,6 +208,8 @@ export class ChangesTab {
 			),
 		};
 		this.previews.prune(rows[ESection.Conflicts].map((row) => row.path));
+		const total = this.sections.reduce((n, s) => n + rows[s.id].length, 0);
+		if (total > 0) this.renderFilter(root);
 		let shown = 0;
 		for (const section of this.sections) {
 			// Pruned against the unfiltered rows: a filter must not drop a selection.
@@ -155,14 +218,37 @@ export class ChangesTab {
 			shown += visible.length;
 			section.render(root, visible, snapshot.busy);
 		}
-		if (shown === 0 && !hasSyncError(snapshot)) {
+		this.lockLists(snapshot.cancellable);
+		if (total > 0 && shown === 0) {
 			root.createDiv({
 				cls: "mdsync-status-line is-empty",
-				text: this.filter.trim()
-					? "No changed files match the filter."
-					: "No changes.",
+				text: "No changed files match the filter.",
 			});
 		}
+		this.selectionBar = new SelectionBar(overlay, this.sections);
+		this.selectionBar.update(snapshot.busy);
+	}
+
+	private renderTools(tools: HTMLElement, busy: boolean): void {
+		this.refreshButtonEl = appendIconButton(
+			tools,
+			"refresh-cw",
+			"Refresh changes",
+			() => void this.plugin.controller.refreshFromDisk(),
+		);
+		this.refreshButtonEl.disabled = busy;
+		const tree = this.layout === "tree";
+		appendIconButton(
+			tools,
+			tree ? "list" : "list-tree",
+			tree ? "Show flat list" : "Show folder tree",
+			() => {
+				this.layout = tree ? "flat" : "tree";
+				this.plugin.settings.uiLayout = this.layout;
+				void this.plugin.saveSettings();
+				this.rerender();
+			},
+		);
 	}
 
 	private applyFilter(rows: ReadonlyArray<FileRow>): ReadonlyArray<FileRow> {
@@ -173,12 +259,12 @@ export class ChangesTab {
 
 	/** Narrows the lists without touching selection, so a filter never silently shrinks what an action does. */
 	private renderFilter(parent: HTMLElement): void {
-		const input = parent.createEl("input", {
-			type: "search",
-			cls: "mdsync-history-search",
-		});
-		input.placeholder = "Filter by path…";
-		input.value = this.filter;
+		const search = new SearchComponent(
+			parent.createDiv({ cls: "mdsync-changes-filter" }),
+		)
+			.setPlaceholder("Filter by path…")
+			.setValue(this.filter);
+		const input = search.inputEl;
 		input.setAttr("aria-label", "Filter changed files by path");
 		const apply = (): void => {
 			this.filter = input.value;
@@ -187,120 +273,24 @@ export class ChangesTab {
 			this.rerender();
 			// The re-render replaced this node; carry focus and caret to the new one.
 			const next = this.scroller?.querySelector<HTMLInputElement>(
-				".mdsync-history-search",
+				".mdsync-changes-filter input",
 			);
 			if (!next) return;
 			next.focus();
 			next.setSelectionRange(caret, caret);
 		};
-		input.addEventListener("input", (event) => {
-			// Replaced mid-composition, the input would drop what the IME holds.
-			if (!event.isComposing) apply();
+		// Replaced mid-composition, the input would drop what the IME holds.
+		let composing = false;
+		input.addEventListener("compositionstart", () => {
+			composing = true;
 		});
-		input.addEventListener("compositionend", apply);
-	}
-
-	private setBulkButtonState(snapshot: SyncStatusSnapshot): void {
-		if (this.pushAllButtonEl) {
-			this.pushAllButtonEl.disabled = !canPushAll(snapshot);
-		}
-		if (this.pullAllButtonEl) {
-			this.pullAllButtonEl.disabled = !canPullAll(snapshot);
-		}
-	}
-
-	private refreshStatus(snapshot: SyncStatusSnapshot): void {
-		if (this.statusLineEl) {
-			this.statusLineEl.empty();
-			this.statusLineEl.removeClass("is-error");
-			fillStatusLine(this.statusLineEl, snapshot, this.plugin, this.actions);
-		}
-		if (this.refreshButtonEl) this.refreshButtonEl.disabled = snapshot.busy;
-		this.cancelButtonEl?.toggleClass("mdsync-hidden", !snapshot.cancellable);
-		this.setBulkButtonState(snapshot);
-	}
-
-	private renderToolbar(
-		parent: HTMLElement,
-		snapshot: SyncStatusSnapshot,
-	): void {
-		const bar = parent.createDiv({
-			cls: "mdsync-toolbar mdsync-main-toolbar",
+		input.addEventListener("compositionend", () => {
+			composing = false;
+			apply();
 		});
-		const refresh = bar.createEl("button", {
-			cls: "mdsync-toolbar-icon",
+		search.onChange(() => {
+			if (!composing) apply();
 		});
-		setIcon(refresh, "refresh-cw");
-		refresh.setAttr("aria-label", "Refresh changes");
-		refresh.addEventListener(
-			"click",
-			() => void this.plugin.controller.refreshFromDisk(),
-		);
-		refresh.disabled = snapshot.busy;
-		this.refreshButtonEl = refresh;
-
-		// Always built, then shown on demand: a push starts without a full
-		// re-render, and a button that only exists after one would never appear.
-		const cancel = actionButton(bar, "warning")
-			.setButtonText("Cancel")
-			.onClick(() => this.plugin.controller.cancel()).buttonEl;
-		cancel.setAttr("aria-label", "Stop the running sync");
-		cancel.toggleClass("mdsync-hidden", !snapshot.cancellable);
-		this.cancelButtonEl = cancel;
-
-		const pushAll = actionButton(bar, "cta").buttonEl;
-		pushAll.addClass("mdsync-bulk-action");
-		pushAll.createSpan({ text: "Push" });
-		pushAll.createSpan({
-			cls: "mdsync-toolbar-count",
-			text: formatActionCount(snapshot.pendingLocal),
-		});
-		pushAll.setAttr("aria-label", `Push all ${snapshot.pendingLocal} changes`);
-		this.pushAllButtonEl = pushAll;
-		// Reads the snapshot at click time: the one captured at render is stale the
-		// moment anything syncs, and acting on it would push the wrong paths.
-		pushAll.addEventListener("click", () => {
-			const diff = this.plugin.controller.getSnapshot().result?.diff;
-			void this.actions.pushPaths(diff?.localChanges.map((c) => c.path) ?? []);
-		});
-
-		const pullAll = actionButton(bar, "cta").buttonEl;
-		pullAll.addClass("mdsync-bulk-action");
-		pullAll.createSpan({ text: "Pull" });
-		pullAll.createSpan({
-			cls: "mdsync-toolbar-count",
-			text: formatActionCount(snapshot.pendingRemote),
-		});
-		pullAll.setAttr("aria-label", `Pull all ${snapshot.pendingRemote} changes`);
-		this.pullAllButtonEl = pullAll;
-		pullAll.addEventListener("click", () => {
-			const diff = this.plugin.controller.getSnapshot().result?.diff;
-			void this.actions.pullPaths(diff?.remoteChanges.map((c) => c.path) ?? []);
-		});
-
-		this.setBulkButtonState(snapshot);
-
-		const layoutToggle = bar.createEl("button", {
-			cls: "mdsync-toolbar-icon",
-		});
-		const layoutLabel =
-			this.layout === "tree" ? "Show flat list" : "Show folder tree";
-		setIcon(layoutToggle, this.layout === "tree" ? "list" : "list-tree");
-		layoutToggle.setAttr("aria-label", layoutLabel);
-		layoutToggle.addEventListener("click", () => {
-			this.layout = this.layout === "tree" ? "flat" : "tree";
-			this.plugin.settings.uiLayout = this.layout;
-			void this.plugin.saveSettings();
-			this.rerender();
-		});
-	}
-
-	private renderStatusLine(
-		parent: HTMLElement,
-		snapshot: SyncStatusSnapshot,
-	): void {
-		this.statusLineEl = parent.createDiv({ cls: "mdsync-status-line" });
-		fillStatusLine(this.statusLineEl, snapshot, this.plugin, this.actions);
 	}
 
 	private openFileDiff(item: HTMLElement, path: string): void {
@@ -345,22 +335,4 @@ export class ChangesTab {
 		}
 		return null;
 	}
-}
-
-function canPushAll(snapshot: SyncStatusSnapshot): boolean {
-	if (snapshot.busy) return false;
-	const d = snapshot.result?.diff;
-	if (!d) return false;
-	return (
-		d.conflicts.length === 0 &&
-		d.remoteChanges.length === 0 &&
-		d.localChanges.length > 0
-	);
-}
-
-function canPullAll(snapshot: SyncStatusSnapshot): boolean {
-	if (snapshot.busy) return false;
-	const d = snapshot.result?.diff;
-	if (!d) return false;
-	return d.conflicts.length === 0 && d.remoteChanges.length > 0;
 }

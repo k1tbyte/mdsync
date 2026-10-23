@@ -25,7 +25,10 @@ export const pullPathsOp: Operation<ReadonlyArray<string>> = async (
 	const bytesDownloaded = sumBytes(paths, files);
 	// Coalesced like the push: a broadcast per file costs 0.16 ms of main thread at 20k files.
 	const pulled = await pullPaths(deps, result, paths, (done, total) => {
-		ctx.reportProgressSoon(`Pulling ${done}/${total}…`);
+		ctx.reportProgressSoon(
+			`Pulling ${done}/${total}…`,
+			total > 0 ? done / total : 0,
+		);
 	});
 	ctx.setProgress(null);
 	const hashCache = mergeWrittenIntoCache(pulled.written, result.updatedCache);
