@@ -254,6 +254,7 @@ export class TrashTab {
 		const target = await openPromptModal({
 			app: this.plugin.app,
 			title: "Restore to a different path",
+			icon: "folder-input",
 			description: `Where should "${row.path}" be written?`,
 			label: "Vault-relative path",
 			initialValue: row.path,

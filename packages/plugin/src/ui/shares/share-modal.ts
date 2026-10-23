@@ -14,6 +14,11 @@ import {
 import { isUnder } from "@/sync/space";
 import {
 	alertLine,
+	modalCard,
+	modalFooter,
+	modalHint,
+	modalSection,
+	modalWarning,
 	notifyError,
 	openNote,
 	RELAY_TEXT,
@@ -59,13 +64,14 @@ export class ShareModal extends Modal {
 
 	onOpen(): void {
 		const { contentEl, plugin, record } = this;
-		this.modalEl.addClass("mdsync-drawer", "mdsync-share-modal");
-		const relay = renderShareHead(this.titleEl, record);
+		this.modalEl.addClass("mdsync-share-modal");
+		const relay = renderShareHead(this, record);
 		this.renderWarnings();
-		const count = section(contentEl, "People");
+		const count = modalSection(contentEl, "People");
 		const failure = alertLine(contentEl);
-		const note = contentEl.createDiv({ cls: "mdsync-share-hint" });
-		const list = contentEl.createDiv({ cls: "mdsync-share-people" });
+		const note = modalHint(contentEl);
+		const list = modalCard(contentEl);
+		list.addClass("mdsync-share-people");
 		this.redraw = () => {
 			const { hub, people } = plugin.realtime;
 			const status = hub.statusOf(record.id);
@@ -124,19 +130,14 @@ export class ShareModal extends Modal {
 				`People were invited through ${stranded}, which this vault no longer uses: invite them again, and the new link takes over the folder they have.`,
 			);
 		}
-		for (const text of lines) {
-			contentEl.createDiv({ cls: "mdsync-share-warning", text });
-		}
+		for (const text of lines) modalWarning(contentEl, text);
 	}
 
 	private renderInvite(): void {
 		const { contentEl, plugin, record } = this;
-		section(contentEl, "Invite someone");
+		modalSection(contentEl, "Invite someone");
 		if (!this.admin) {
-			contentEl.createDiv({
-				cls: "mdsync-share-hint",
-				text: `${RELAY_TEXT["no-relay"]} to invite people.`,
-			});
+			modalHint(contentEl, `${RELAY_TEXT["no-relay"]} to invite people.`);
 			return;
 		}
 		renderInviteForm(
@@ -222,7 +223,7 @@ export class ShareModal extends Modal {
 		if (!mounted || spaces.pauseOf(record.id) === "off") return;
 		renderPauseControl(
 			contentEl,
-			section(contentEl, "Pause syncing"),
+			modalSection(contentEl, "Pause syncing"),
 			`mdsync-pause-${record.id}`,
 			() => spaces.pauseOf(record.id) as Pause | null,
 			async (pause) => {
@@ -240,18 +241,16 @@ export class ShareModal extends Modal {
 				void controller.refresh();
 			},
 		);
-		contentEl.createDiv({
-			cls: "mdsync-share-hint",
-			text: "Paused, the folder stays as it is and nothing of it syncs.",
-		});
+		modalHint(
+			contentEl,
+			"Paused, the folder stays as it is and nothing of it syncs.",
+		);
 	}
 
 	private renderFooter(): void {
 		const { plugin, record } = this;
 		const label = closeLabel(record);
-		const footer = this.modalEl.createDiv({
-			cls: "modal-button-container mdsync-share-footer",
-		});
+		const footer = modalFooter(this);
 		const close = new ButtonComponent(footer)
 			.setButtonText(`${label}…`)
 			.setDestructive();
@@ -271,9 +270,4 @@ export class ShareModal extends Modal {
 			.setButtonText("Done")
 			.onClick(() => this.close());
 	}
-}
-
-/** A small capitals heading; returned for a count that changes or a control it names. */
-function section(parent: HTMLElement, title: string): HTMLElement {
-	return parent.createDiv({ cls: "mdsync-share-section", text: title });
 }

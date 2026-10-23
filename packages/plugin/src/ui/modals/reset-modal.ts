@@ -1,6 +1,11 @@
-import { type App, type ButtonComponent, Modal, Setting } from "obsidian";
+import { type App, ButtonComponent, Modal, Setting } from "obsidian";
 
-import { onEnter } from "@/ui/common";
+import {
+	modalFooter,
+	modalWarning,
+	onEnter,
+	renderModalHead,
+} from "@/ui/common";
 
 import { openPromiseModal } from "./promise-modal";
 
@@ -27,11 +32,16 @@ class RemoteResetModal extends Modal {
 	}
 
 	onOpen(): void {
-		const { contentEl, titleEl } = this;
-		titleEl.setText("Reset remote storage");
-		contentEl.createEl("p", {
-			text: "This deletes the remote MDSync manifest, file contents, version history and pins on the configured backend. Local vault files are not deleted.",
+		const { contentEl } = this;
+		renderModalHead(this, {
+			icon: "alert-triangle",
+			title: "Reset remote storage",
+			tone: "danger",
 		});
+		modalWarning(
+			contentEl,
+			"This deletes the remote MDSync manifest, file contents, version history and pins on the configured backend. Local vault files are not deleted.",
+		);
 		contentEl.createEl("p", { text: this.target.description });
 		contentEl.createEl("p", { text: `Type ${CONFIRMATION_TEXT} to continue.` });
 
@@ -45,18 +55,15 @@ class RemoteResetModal extends Modal {
 			onEnter(text.inputEl, () => this.submit());
 		});
 
-		new Setting(contentEl)
-			.addButton((button) =>
-				button.setButtonText("Cancel").onClick(() => this.cancel()),
-			)
-			.addButton((button) => {
-				resetButton = button;
-				button
-					.setButtonText("Reset remote")
-					.setDestructive()
-					.setDisabled(true)
-					.onClick(() => this.submit());
-			});
+		const footer = modalFooter(this);
+		new ButtonComponent(footer)
+			.setButtonText("Cancel")
+			.onClick(() => this.cancel());
+		resetButton = new ButtonComponent(footer)
+			.setButtonText("Reset remote")
+			.setDestructive()
+			.setDisabled(true)
+			.onClick(() => this.submit());
 	}
 
 	onClose(): void {

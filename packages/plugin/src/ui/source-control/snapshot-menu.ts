@@ -47,6 +47,7 @@ export function addSnapshotPinItems(
 				const name = await openPromptModal({
 					app: plugin.app,
 					title: "Name this pin",
+					icon: "pin",
 					description: "Shown instead of the timestamp in history.",
 					label: "Pin name",
 					initialValue: snapshot.label,

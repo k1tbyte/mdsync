@@ -1,12 +1,14 @@
 import { type App, ButtonComponent, Modal } from "obsidian";
 
-import { onEnter } from "@/ui/common";
+import { modalFooter, onEnter, renderModalHead } from "@/ui/common";
 
 import { openPromiseModal } from "./promise-modal";
 
 export interface PromptModalOptions {
 	app: App;
 	title: string;
+	/** Lucide name for the head; a pencil by default. */
+	icon?: string;
 	description?: string;
 	initialValue: string;
 	confirmLabel: string;
@@ -26,7 +28,10 @@ export function openPromptModal(
 			answer(value);
 			modal.close();
 		};
-		modal.titleEl.setText(options.title);
+		renderModalHead(modal, {
+			icon: options.icon ?? "pencil",
+			title: options.title,
+		});
 		if (options.description) {
 			modal.contentEl.createEl("p", { text: options.description });
 		}
@@ -41,11 +46,11 @@ export function openPromptModal(
 			finish(value || (options.allowEmpty ? "" : null));
 		};
 		onEnter(input, submit);
-		const buttons = modal.contentEl.createDiv({ cls: "mdsync-modal-buttons" });
-		new ButtonComponent(buttons)
+		const footer = modalFooter(modal);
+		new ButtonComponent(footer)
 			.setButtonText("Cancel")
 			.onClick(() => finish(null));
-		new ButtonComponent(buttons)
+		new ButtonComponent(footer)
 			.setButtonText(options.confirmLabel)
 			.setCta()
 			.onClick(submit);

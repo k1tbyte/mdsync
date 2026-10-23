@@ -7,7 +7,12 @@
 	display: block;
 	width: min(100%, 20rem);
 	height: auto;
-	margin-bottom: var(--size-4-3);
 	background-color: white;
 	padding: var(--size-4-1);
+}
+
+.mdsync-transfer-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-4-2);
 }

@@ -1,7 +1,7 @@
 import { ButtonComponent, DropdownComponent, TextComponent } from "obsidian";
 
 import { errorMessage } from "@/shared";
-import { alertLine, copyable, onEnter, serial } from "@/ui/common";
+import { alertLine, copyable, modalHint, onEnter, serial } from "@/ui/common";
 import type { CreatedInvite } from "./invite-action";
 
 /** Name, access and the button on one line; the link and its password appear under it, once. */
@@ -21,10 +21,10 @@ export function renderInviteForm(
 	const create = new ButtonComponent(row)
 		.setButtonText("Create invite")
 		.setCta();
-	parent.createDiv({
-		cls: "mdsync-share-hint",
-		text: "Inviting the same name again replaces their link, even for someone who already joined. The relay receives your storage credentials to sign this folder's requests.",
-	});
+	modalHint(
+		parent,
+		"Inviting the same name again replaces their link, even for someone who already joined. The relay receives your storage credentials to sign this folder's requests.",
+	);
 	const status = alertLine(parent);
 	const created = parent.createDiv();
 	const submit = serial(async () => {
@@ -47,10 +47,10 @@ export function renderInviteForm(
 
 function showInvite(el: HTMLElement, invite: CreatedInvite): void {
 	el.empty();
-	el.createDiv({
-		cls: "mdsync-share-hint",
-		text: "Send the link and the password separately, for example the link by email and the password by message. You will not see this link again.",
-	});
+	modalHint(
+		el,
+		"Send the link and the password separately, for example the link by email and the password by message. You will not see this link again.",
+	);
 	copyable(el, "Link", invite.link);
 	copyable(el, "Password", invite.password);
 	el.scrollIntoView({ block: "nearest" });

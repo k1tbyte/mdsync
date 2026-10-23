@@ -1,4 +1,4 @@
-import { type App, Modal, Setting } from "obsidian";
+import { type App, ButtonComponent, Modal, Setting } from "obsidian";
 import * as QRCode from "qrcode";
 
 import {
@@ -9,7 +9,15 @@ import {
 	type SettingsTransferPackage,
 } from "@/settings/transfer";
 import { errorMessage } from "@/shared";
-import { focusKey, renderKeepingFocus, runWithNotice } from "@/ui/common";
+import {
+	focusKey,
+	modalFooter,
+	modalHint,
+	modalSection,
+	renderKeepingFocus,
+	renderModalHead,
+	runWithNotice,
+} from "@/ui/common";
 
 const QR_SIZE = 320;
 
@@ -120,8 +128,10 @@ class SettingsTransferExportModal extends Modal {
 	}
 
 	onOpen(): void {
-		const { titleEl } = this;
-		titleEl.setText("Export MDSync setup");
+		renderModalHead(this, { icon: "qr-code", title: "Export MDSync setup" });
+		new ButtonComponent(modalFooter(this))
+			.setButtonText("Close")
+			.onClick(() => this.close());
 		this.render();
 	}
 
@@ -140,10 +150,11 @@ class SettingsTransferExportModal extends Modal {
 		contentEl.createEl("p", {
 			text: "Generate an encrypted setup link for another device. The same MDSync passphrase is required to import it.",
 		});
-		contentEl.createEl("p", {
-			text: "Local-only display preferences and passphrase cache settings are never transferred.",
-		});
-		contentEl.createEl("h3", { text: "What to export" });
+		modalHint(
+			contentEl,
+			"Local-only display preferences and passphrase cache settings are never transferred.",
+		);
+		modalSection(contentEl, "What to export");
 
 		for (const toggle of EXPORT_TOGGLES) {
 			new Setting(contentEl)
@@ -161,13 +172,28 @@ class SettingsTransferExportModal extends Modal {
 				});
 		}
 
-		contentEl.createEl("h3", { text: "Export preview" });
+		modalSection(contentEl, "Export preview");
 		contentEl.createEl("p", { text: this.note });
 
+		// Beside the options they act on, not a way to finish the dialog.
+		const actions = contentEl.createDiv({ cls: "mdsync-transfer-actions" });
+		new ButtonComponent(actions)
+			.setButtonText(this.exportPackage ? "Refresh export" : "Generate export")
+			.setCta()
+			.setDisabled(
+				this.generating || !hasSettingsTransferSelection(this.options),
+			)
+			.onClick(() => void this.generateExport());
+		new ButtonComponent(actions)
+			.setButtonText("Copy link")
+			.setDisabled(this.exportPackage === null)
+			.onClick(() => void this.copyLink());
+
 		if (this.exportPackage) {
-			contentEl.createEl("p", {
-				text: `Transfer size: ${this.exportPackage.byteLength.toLocaleString()} bytes.`,
-			});
+			modalHint(
+				contentEl,
+				`Transfer size: ${this.exportPackage.byteLength.toLocaleString()} bytes.`,
+			);
 
 			if (this.exportPackage.qrEligible) {
 				const canvas = contentEl.createEl("canvas");
@@ -178,16 +204,16 @@ class SettingsTransferExportModal extends Modal {
 					width: QR_SIZE,
 				}).catch(() => {
 					canvas.remove();
-					contentEl.createEl("p", {
-						text: "QR code unavailable on this platform. Use the link below.",
-						cls: "mdsync-transfer-qr-fallback",
-					});
+					modalHint(
+						contentEl,
+						"QR code unavailable on this platform. Use the link below.",
+					);
 				});
 			} else {
-				contentEl.createEl("p", {
-					text: "This export is too large for a reliable QR code. Use the encrypted link below.",
-					cls: "mdsync-transfer-qr-fallback",
-				});
+				modalHint(
+					contentEl,
+					"This export is too large for a reliable QR code. Use the encrypted link below.",
+				);
 			}
 
 			const textarea = contentEl.createEl("textarea", {
@@ -197,30 +223,6 @@ class SettingsTransferExportModal extends Modal {
 			textarea.rows = 4;
 			textarea.readOnly = true;
 		}
-
-		const footer = new Setting(contentEl);
-		footer.settingEl.addClass("mdsync-button-row");
-		footer
-			.addButton((button) =>
-				button
-					.setButtonText(
-						this.exportPackage ? "Refresh export" : "Generate export",
-					)
-					.setCta()
-					.setDisabled(
-						this.generating || !hasSettingsTransferSelection(this.options),
-					)
-					.onClick(() => void this.generateExport()),
-			)
-			.addButton((button) =>
-				button
-					.setButtonText("Copy link")
-					.setDisabled(this.exportPackage === null)
-					.onClick(() => void this.copyLink()),
-			)
-			.addButton((button) =>
-				button.setButtonText("Close").onClick(() => this.close()),
-			);
 	}
 
 	private markSelectionChanged(): void {

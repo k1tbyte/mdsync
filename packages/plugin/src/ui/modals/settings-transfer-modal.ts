@@ -1,9 +1,14 @@
-import { type App, type ButtonComponent, Modal, Setting } from "obsidian";
+import { type App, ButtonComponent, Modal, Setting } from "obsidian";
 
 import { activeStorage, type MdsyncSettings } from "@/settings/model";
 import type { TransferSection } from "@/settings/transfer";
 import { describeStorageTarget } from "@/storage";
-import { onEnter } from "@/ui/common";
+import {
+	modalFooter,
+	modalWarning,
+	onEnter,
+	renderModalHead,
+} from "@/ui/common";
 import { openPromiseModal } from "./promise-modal";
 
 const IMPORT_CONFIRMATION_TEXT = "IMPORT";
@@ -25,8 +30,8 @@ class SettingsTransferImportModal extends Modal {
 	}
 
 	onOpen(): void {
-		const { contentEl, titleEl } = this;
-		titleEl.setText("Import MDSync setup");
+		const { contentEl } = this;
+		renderModalHead(this, { icon: "download", title: "Import MDSync setup" });
 		contentEl.createEl("p", {
 			text: "Paste an MDSync setup link or transfer token encrypted with your passphrase.",
 		});
@@ -40,16 +45,14 @@ class SettingsTransferImportModal extends Modal {
 		});
 		onEnter(textarea, () => this.submit());
 
-		new Setting(contentEl)
-			.addButton((button) =>
-				button.setButtonText("Cancel").onClick(() => this.cancel()),
-			)
-			.addButton((button) =>
-				button
-					.setButtonText("Continue")
-					.setCta()
-					.onClick(() => this.submit()),
-			);
+		const footer = modalFooter(this);
+		new ButtonComponent(footer)
+			.setButtonText("Cancel")
+			.onClick(() => this.cancel());
+		new ButtonComponent(footer)
+			.setButtonText("Continue")
+			.setCta()
+			.onClick(() => this.submit());
 	}
 
 	onClose(): void {
@@ -92,11 +95,16 @@ class SettingsTransferConfirmModal extends Modal {
 	}
 
 	onOpen(): void {
-		const { contentEl, titleEl } = this;
-		titleEl.setText("Import MDSync setup");
-		contentEl.createEl("p", {
-			text: `Replaces on this device: ${this.sections.map((section) => SECTION_NAMES[section]).join("; ")}. A setting the other device left at its default is reset to the default here.`,
+		const { contentEl } = this;
+		renderModalHead(this, {
+			icon: "alert-triangle",
+			title: "Import MDSync setup",
+			tone: "danger",
 		});
+		modalWarning(
+			contentEl,
+			`Replaces on this device: ${this.sections.map((section) => SECTION_NAMES[section]).join("; ")}. A setting the other device left at its default is reset to the default here.`,
+		);
 		contentEl.createEl("p", {
 			text: "Other sections, local-only display preferences, and passphrase cache settings stay unchanged.",
 		});
@@ -118,18 +126,15 @@ class SettingsTransferConfirmModal extends Modal {
 			});
 		});
 
-		new Setting(contentEl)
-			.addButton((button) =>
-				button.setButtonText("Cancel").onClick(() => this.cancel()),
-			)
-			.addButton((button) => {
-				importButton = button;
-				button
-					.setButtonText("Import setup")
-					.setDestructive()
-					.setDisabled(true)
-					.onClick(() => this.submit());
-			});
+		const footer = modalFooter(this);
+		new ButtonComponent(footer)
+			.setButtonText("Cancel")
+			.onClick(() => this.cancel());
+		importButton = new ButtonComponent(footer)
+			.setButtonText("Import setup")
+			.setDestructive()
+			.setDisabled(true)
+			.onClick(() => this.submit());
 	}
 
 	onClose(): void {

@@ -8,12 +8,13 @@ import {
 	makeActivatable,
 	notifyError,
 	onLongPress,
+	renderPath,
 } from "@/ui/common";
 import type { HistoryDiffTarget } from "@/ui/source-control-view";
 import { groupRows } from "./day-groups";
 import { STATUS_CLASSES, STATUS_LETTERS } from "./row-formatter";
 import { RowPager } from "./row-pager";
-import { renderPath, renderSize } from "./row-parts";
+import { renderSize } from "./row-parts";
 import { TimelineActions } from "./timeline-actions";
 import {
 	buildTimelineRows,
