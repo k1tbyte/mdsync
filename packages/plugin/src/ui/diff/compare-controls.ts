@@ -1,7 +1,12 @@
 import { ButtonComponent, setIcon } from "obsidian";
-import { EDiffDirection } from "@/sync/projection";
+import type { EDiffDirection } from "@/sync/projection";
 import { appendIconButton } from "@/ui/common";
-import { CHOICE_ICON, EChoiceKind, type HunkChoices } from "./choices";
+import {
+	CHOICE_ICON,
+	choiceVerb,
+	EChoiceKind,
+	type HunkChoices,
+} from "./choices";
 import { renderCounters } from "./source-widget";
 
 const CONTEXT: Record<EDiffDirection, string> = {
@@ -115,15 +120,11 @@ export class CompareControls {
 		for (const kind of Object.values(EChoiceKind)) {
 			const count = choices.count(kind);
 			if (count === 0) continue;
-			const verb =
-				kind === EChoiceKind.Pull && direction === EDiffDirection.Conflict
-					? "accept"
-					: kind;
 			const chip = this.pending.createSpan({
 				cls: `mdsync-pending-kind is-${kind}`,
 			});
 			setIcon(chip, CHOICE_ICON[kind]);
-			chip.appendText(`${count} to ${verb}`);
+			chip.appendText(`${count} to ${choiceVerb(direction, kind)}`);
 		}
 		if (actionable)
 			this.pending.createSpan({

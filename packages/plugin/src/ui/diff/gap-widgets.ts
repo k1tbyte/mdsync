@@ -131,6 +131,9 @@ class UnchangedWidget extends WidgetType {
 
 	toDOM(): HTMLElement {
 		const text = `${this.opened ? "Hide" : "Show"} ${this.count} unchanged lines`;
+		// Space around the bar goes on this slot: CodeMirror does not measure a widget's margins.
+		const slot = createDiv({ cls: "mdsync-gap-slot" });
+		slot.toggleClass("is-open", this.opened);
 		const row = gapRow(
 			this.opened ? "chevrons-down-up" : "chevrons-up-down",
 			text,
@@ -138,11 +141,23 @@ class UnchangedWidget extends WidgetType {
 			() => this.toggle(this.index),
 		);
 		row.toggleClass("is-fold", this.opened);
-		return row;
+		slot.appendChild(row);
+		return slot;
 	}
 
 	ignoreEvent(): boolean {
 		return true;
+	}
+}
+
+/** Inline: the space above a short run's rows, which stay shown. */
+class RunStartWidget extends WidgetType {
+	eq(): boolean {
+		return true;
+	}
+
+	toDOM(): HTMLElement {
+		return createDiv({ cls: "mdsync-gap-slot is-spacer" });
 	}
 }
 
@@ -162,56 +177,64 @@ interface UnchangedRun {
 	lines: number;
 	/** Ends at the last line's end: taking its line break would merge the next line into the fold's block. */
 	span: Span;
+	/** A shorter run costs less to show than the row that would hide it. */
+	foldable: boolean;
 }
 
-/** Unchanged runs between one side's changes (line ranges, in order) worth folding; three context lines stay by each change. */
+/** Unchanged runs between one side's changes (line ranges, in order); `context` lines stay by each change. */
 function unchangedRuns(
 	doc: Text,
 	changes: readonly LineRange[],
+	context = CONTEXT_LINES,
 ): UnchangedRun[] {
 	const runs: UnchangedRun[] = [];
 	for (let index = 0; index <= changes.length; index++) {
 		const start =
-			index === 0 ? 0 : (changes[index - 1] as LineRange)[1] + CONTEXT_LINES;
+			index === 0 ? 0 : (changes[index - 1] as LineRange)[1] + context;
 		const end =
 			index === changes.length
 				? doc.lines
-				: (changes[index] as LineRange)[0] - CONTEXT_LINES;
-		if (end - start < MIN_GAP_LINES) continue;
+				: (changes[index] as LineRange)[0] - context;
+		if (end <= start) continue;
 		const span = { from: doc.line(start + 1).from, to: doc.line(end).to };
-		runs.push({ index, lines: end - start, span });
+		const lines = end - start;
+		runs.push({ index, lines, span, foldable: lines >= MIN_GAP_LINES });
 	}
 	return runs;
 }
 
-/** Folds one pane's unchanged runs; `opened` is shared by both panes, so they fold and open together. */
+/**
+ * Folds one pane's unchanged runs; `opened` is shared by both panes, so they fold and open together.
+ * Inline keeps no context lines, and every shown run starts with a row of its own.
+ */
 export function addUnchangedGaps(
 	ranges: Range<Decoration>[],
 	doc: Text,
 	changes: readonly LineRange[],
 	opened: ReadonlySet<number>,
 	toggle: (index: number) => void,
+	inline: boolean,
 ): void {
-	for (const { index, lines, span } of unchangedRuns(doc, changes)) {
-		const widget = (open: boolean) =>
-			new UnchangedWidget(index, lines, open, toggle);
-		if (!opened.has(index)) {
+	const context = inline ? 0 : CONTEXT_LINES;
+	for (const run of unchangedRuns(doc, changes, context)) {
+		const { index, lines, span, foldable } = run;
+		if (foldable && !opened.has(index)) {
+			const widget = new UnchangedWidget(index, lines, false, toggle);
 			ranges.push(
-				Decoration.replace({ widget: widget(false), block: true }).range(
-					span.from,
-					span.to,
-				),
+				Decoration.replace({ widget, block: true }).range(span.from, span.to),
 			);
 			continue;
 		}
-		// Either end folds it back: above its first line and below its last.
-		for (const [at, side] of [
-			[span.from, -20],
-			[span.to, 20],
-		] as const) {
+		const head = foldable
+			? new UnchangedWidget(index, lines, true, toggle)
+			: inline
+				? new RunStartWidget()
+				: null;
+		// After a card standing at the same place (side -10) and its fold row (-9).
+		if (head) {
 			ranges.push(
-				Decoration.widget({ widget: widget(true), block: true, side }).range(
-					at,
+				Decoration.widget({ widget: head, block: true, side: -5 }).range(
+					span.from,
 				),
 			);
 		}
@@ -224,12 +247,14 @@ export function foldedBands(
 	far: { doc: Text; changes: readonly LineRange[] },
 	opened: ReadonlySet<number>,
 ): Array<{ near: Span; far: Span }> {
-	const farSpans = new Map(
-		unchangedRuns(far.doc, far.changes).map((run) => [run.index, run.span]),
-	);
-	return unchangedRuns(near.doc, near.changes).flatMap(({ index, span }) => {
+	const folded = (side: typeof near) =>
+		unchangedRuns(side.doc, side.changes).filter(
+			(run) => run.foldable && !opened.has(run.index),
+		);
+	const farSpans = new Map(folded(far).map((run) => [run.index, run.span]));
+	return folded(near).flatMap(({ index, span }) => {
 		const farSpan = farSpans.get(index);
-		return farSpan && !opened.has(index) ? [{ near: span, far: farSpan }] : [];
+		return farSpan ? [{ near: span, far: farSpan }] : [];
 	});
 }
 

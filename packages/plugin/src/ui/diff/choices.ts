@@ -37,6 +37,16 @@ const OFFERS: Record<
 	],
 };
 
+/** What a choice does, as a verb: a conflict's pull accepts the remote side. */
+export function choiceVerb(
+	direction: EDiffDirection,
+	kind: EChoiceKind,
+): string {
+	return kind === EChoiceKind.Pull && direction === EDiffDirection.Conflict
+		? "accept"
+		: kind;
+}
+
 /** The buttons one change offers in a view of this direction; each toggles its kind. */
 export function choiceActions(
 	direction: EDiffDirection,

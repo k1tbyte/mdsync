@@ -245,7 +245,6 @@ export class ComparePanel {
 		doc: string,
 		side: CompareSide,
 	): EditorView {
-		const model = this.model;
 		return new EditorView({
 			state: EditorState.create({
 				doc,
@@ -261,9 +260,7 @@ export class ComparePanel {
 						opened: () => this.opened,
 						toggleGap: (index) => this.toggle(this.opened, index),
 						combined: {
-							leftLabel: model?.leftLabel ?? "",
-							rightLabel: model?.rightLabel ?? "",
-							near: this.nearSide(),
+							direction: this.options.direction,
 							actions: (segment) => this.segmentActions(segment),
 						},
 					}),

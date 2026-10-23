@@ -58,12 +58,7 @@
 	box-shadow: inset 0 calc(-1 * var(--mdsync-bar)) 0 var(--interactive-accent);
 }
 
-.mdsync-compare-panel.is-combined .cm-line.mdsync-diff-line.is-last {
-	border-bottom: 1px solid rgba(var(--mdsync-tone), 0.4);
-}
-
-.mdsync-merge-panel.is-combined .cm-line.mdsync-merge-line,
-.mdsync-compare-panel.is-combined .cm-line.mdsync-diff-line {
+.mdsync-merge-panel.is-combined .cm-line.mdsync-merge-line {
 	border-right: 1px solid var(--background-modifier-border);
 }
 

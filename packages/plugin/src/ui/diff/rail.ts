@@ -34,7 +34,7 @@ export function renderRailButton(
 		button.setAttr("aria-pressed", String(action.active));
 	}
 	button.toggleClass("is-active", action.active === true);
-	setIcon(button, action.icon);
+	if (action.icon) setIcon(button, action.icon);
 	if (action.shortLabel) {
 		button.addClass("has-label");
 		button.createSpan({ cls: "mdsync-rail-label", text: action.shortLabel });
