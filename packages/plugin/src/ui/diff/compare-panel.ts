@@ -9,9 +9,11 @@ import {
 	type CompareSegment,
 	type CompareSide,
 	compareState,
+	segmentKind,
 	segmentsChanged,
 } from "./compare-decorations";
 import { Divider, type DividerItem } from "./divider";
+import { foldedBands } from "./gap-widgets";
 import { sideSpan, spanBounds, updatePaneViewportWidth } from "./geometry";
 import { LayoutMode } from "./layout-mode";
 import {
@@ -63,6 +65,8 @@ export class ComparePanel {
 	private readonly choices = new HunkChoices();
 	/** Keys of the segments folded to one row in both panes. */
 	private readonly folded = new Set<number>();
+	/** Unchanged runs opened in both panes, by index. */
+	private readonly opened = new Set<number>();
 	private segments: readonly CompareSegment[] = [];
 	private model: FileDiffModel | null = null;
 	private rootEl: HTMLElement | null = null;
@@ -121,7 +125,7 @@ export class ComparePanel {
 			[{ a: views.left, b: views.right, pairs: () => this.scrollPairs() }],
 			() => this.scheduleLayout(),
 		);
-		this.divider.update(this.dividerItems());
+		this.refreshDivider();
 		this.layoutMode?.refresh();
 		this.updateToolbar();
 		this.scheduleLayout();
@@ -148,6 +152,7 @@ export class ComparePanel {
 		// The texts moved, so segment indices no longer address what the user saw.
 		this.choices.clear();
 		this.folded.clear();
+		this.opened.clear();
 		this.current = -1;
 		this.divider?.select(null);
 		this.segments = buildSegments(model);
@@ -188,6 +193,7 @@ export class ComparePanel {
 		this.current = -1;
 		this.choices.clear();
 		this.folded.clear();
+		this.opened.clear();
 	}
 
 	mount(hosts: CompareHosts): void {
@@ -227,7 +233,9 @@ export class ComparePanel {
 			side,
 		);
 		this.overlays.push(
-			new ChangeOverlay(host, view, side, (key) => this.toggleFold(key)),
+			new ChangeOverlay(host, view, side, (key) =>
+				this.toggle(this.folded, key),
+			),
 		);
 		return view;
 	}
@@ -249,7 +257,9 @@ export class ComparePanel {
 						segments: () => this.segments,
 						choices: this.choices,
 						folded: () => this.folded,
-						toggleFold: (key) => this.toggleFold(key),
+						toggleFold: (key) => this.toggle(this.folded, key),
+						opened: () => this.opened,
+						toggleGap: (index) => this.toggle(this.opened, index),
 						combined: {
 							leftLabel: model?.leftLabel ?? "",
 							rightLabel: model?.rightLabel ?? "",
@@ -304,8 +314,8 @@ export class ComparePanel {
 		this.updateToolbar();
 	}
 
-	private toggleFold(key: number): void {
-		if (!this.folded.delete(key)) this.folded.add(key);
+	private toggle(set: Set<number>, key: number): void {
+		if (!set.delete(key)) set.add(key);
 		this.redrawSegments();
 	}
 
@@ -318,29 +328,27 @@ export class ComparePanel {
 		for (const view of [this.leftView, this.rightView]) {
 			view?.dispatch({ effects: segmentsChanged.of() });
 		}
-		this.divider?.update(this.dividerItems());
+		this.refreshDivider();
 	}
 
-	private dividerItems(): DividerItem[] {
+	private refreshDivider(): void {
 		const left = this.leftView;
 		const right = this.rightView;
-		if (!left || !right) return [];
+		if (!left || !right || !this.divider) return;
 		const near = this.nearSide();
+		const far = near === "left" ? "right" : "left";
 		const docs = { left: left.state.doc, right: right.state.doc };
-		return this.segments.map((segment) => ({
+		const side = (at: CompareSide) => ({
+			doc: docs[at],
+			changes: this.segments.map((segment) => segment[at]),
+		});
+		const bands = foldedBands(side(near), side(far), this.opened);
+		const items: DividerItem[] = this.segments.map((segment) => ({
 			key: segment.key,
 			near: sideSpan(docs[near], segment[near]),
-			far: sideSpan(
-				near === "left" ? docs.right : docs.left,
-				segment[near === "left" ? "right" : "left"],
-			),
+			far: sideSpan(docs[far], segment[far]),
 			// The change's kind, never its direction or choice.
-			tone:
-				segment.removed > 0 && segment.added > 0
-					? "modified"
-					: segment.added > 0
-						? "added"
-						: "removed",
+			tone: segmentKind(segment),
 			actions: this.segmentActions(segment),
 			pinned:
 				this.pinChosen &&
@@ -349,6 +357,7 @@ export class ComparePanel {
 					segment: segment.segment,
 				}) !== undefined,
 		}));
+		this.divider.update(items, bands);
 	}
 
 	private scrollPairs(): ScrollAnchors {
@@ -382,7 +391,7 @@ export class ComparePanel {
 			this.controls.pinToggle(this.pinChosen, (enabled) => {
 				this.pinChosen = enabled;
 				this.options.onPinChosenChange(enabled);
-				this.divider?.update(this.dividerItems());
+				this.refreshDivider();
 			});
 		}
 		this.controls.navigation((delta) => this.jump(delta));

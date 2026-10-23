@@ -65,19 +65,18 @@ export class CompareControls {
 	}
 
 	navigation(jump: (delta: number) => void): void {
-		this.controls.createSpan({ cls: "mdsync-diff-separator" });
+		// One box, so a narrow bar can drop it whole.
+		const nav = this.controls.createDiv({ cls: "mdsync-compare-nav" });
+		nav.createSpan({ cls: "mdsync-diff-separator" });
 		const previous = appendIconButton(
-			this.controls,
+			nav,
 			"chevron-up",
 			"Previous change",
 			() => jump(-1),
 		);
-		this.label = this.controls.createSpan({ cls: "mdsync-compare-position" });
-		const next = appendIconButton(
-			this.controls,
-			"chevron-down",
-			"Next change",
-			() => jump(1),
+		this.label = nav.createSpan({ cls: "mdsync-compare-position" });
+		const next = appendIconButton(nav, "chevron-down", "Next change", () =>
+			jump(1),
 		);
 		this.arrows = [previous, next];
 	}

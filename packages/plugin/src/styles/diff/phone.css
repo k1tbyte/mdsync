@@ -1,4 +1,5 @@
 body.is-phone .mdsync-diff-view .mdsync-diff-header {
+	flex-wrap: wrap;
 	padding: var(--size-4-2) var(--size-4-3) 0;
 }
 

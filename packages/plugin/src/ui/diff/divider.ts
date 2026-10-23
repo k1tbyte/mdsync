@@ -18,8 +18,14 @@ export interface DividerItem {
 	pinned?: boolean;
 }
 
-interface PlacedItem {
-	item: DividerItem;
+/** An unchanged run folded in both panes. */
+export interface DividerBand {
+	near: Span;
+	far: Span;
+}
+
+interface Placed<T> {
+	item: T;
 	near: Bounds;
 	far: Bounds;
 }
@@ -47,7 +53,8 @@ export class Divider {
 	private readonly groups = new Map<number, ActionGroup>();
 	private readonly listeners = new AbortController();
 	private items: readonly DividerItem[] = [];
-	private placed: readonly PlacedItem[] = [];
+	private bands: readonly DividerBand[] = [];
+	private placed: readonly Placed<DividerItem>[] = [];
 	private selected: number | null = null;
 	private hovered: number | null = null;
 	private groupHeight = 0;
@@ -89,8 +96,12 @@ export class Divider {
 		});
 	}
 
-	update(items: readonly DividerItem[]): void {
+	update(
+		items: readonly DividerItem[],
+		bands: readonly DividerBand[] = [],
+	): void {
 		this.items = items;
+		this.bands = bands;
 		if (!items.some((item) => item.key === this.selected)) this.selected = null;
 		this.layout();
 	}
@@ -112,8 +123,8 @@ export class Divider {
 		const rect = this.el.getBoundingClientRect();
 		// Hidden (inline layout): nothing to measure or place.
 		if (rect.width === 0 || rect.height === 0) return;
-		this.placed = this.visibleItems(rect);
-		this.draw(rect);
+		this.placed = this.visible(this.items, rect);
+		this.draw(rect, this.visible(this.bands, rect));
 		this.placeGroups(rect);
 	}
 
@@ -124,11 +135,18 @@ export class Divider {
 		this.layout();
 	}
 
-	private draw(rect: DOMRect): void {
+	private draw(rect: DOMRect, bands: readonly Placed<DividerBand>[]): void {
 		const { width, height } = rect;
 		const ctx = this.prepareCanvas(width, height);
 		if (!ctx) return;
 		const style = getComputedStyle(this.el);
+		// The strip already has the folded bars' colour: their borders crossing it make one bar.
+		ctx.strokeStyle = style.getPropertyValue("--background-modifier-border");
+		ctx.lineWidth = 1;
+		for (const { near, far } of bands) {
+			ctx.stroke(this.edgePath(width, near.top + 0.5, far.top + 0.5));
+			ctx.stroke(this.edgePath(width, near.bottom - 0.5, far.bottom - 0.5));
+		}
 		for (const { item, near, far } of this.placed) {
 			// Colour is the change's kind alone; a click or a choice must not recolour it.
 			ctx.fillStyle = `rgb(${style.getPropertyValue(`--mdsync-tone-${item.tone}`).trim()})`;
@@ -244,21 +262,24 @@ export class Divider {
 		}
 	}
 
-	private visibleItems(rect: DOMRect): PlacedItem[] {
+	private visible<T extends DividerBand>(
+		list: readonly T[],
+		rect: DOMRect,
+	): Placed<T>[] {
 		const nearShift = this.nearView.documentTop - rect.top;
 		const farShift = this.farView.documentTop - rect.top;
-		const place = (item: DividerItem) => ({
+		const place = (item: T) => ({
 			item,
 			near: shiftBounds(spanBounds(this.nearView, item.near), nearShift),
 			far: shiftBounds(spanBounds(this.farView, item.far), farShift),
 		});
-		const start = firstIndex(this.items.length, (index) => {
-			const { near, far } = place(this.items[index] as DividerItem);
+		const start = firstIndex(list.length, (index) => {
+			const { near, far } = place(list[index] as T);
 			return Math.max(near.bottom, far.bottom) >= 0;
 		});
 		const visible = [];
-		for (let index = start; index < this.items.length; index++) {
-			const placed = place(this.items[index] as DividerItem);
+		for (let index = start; index < list.length; index++) {
+			const placed = place(list[index] as T);
 			if (Math.min(placed.near.top, placed.far.top) > rect.height) break;
 			visible.push(placed);
 		}
@@ -271,9 +292,7 @@ export class Divider {
 		far: Bounds,
 		expand = 0,
 	): Path2D {
-		const [x1, x2] = this.nearEdge === "left" ? [0, width] : [width, 0];
-		const c1 = x1 + (x2 - x1) * CURVE;
-		const c2 = x2 - (x2 - x1) * CURVE;
+		const [x1, c1, c2, x2] = this.curveXs(width);
 		const [nearTop, farTop] = [near.top - expand, far.top - expand];
 		const [nearBottom, farBottom] = [near.bottom + expand, far.bottom + expand];
 		const path = new Path2D();
@@ -283,6 +302,20 @@ export class Divider {
 		path.bezierCurveTo(c2, farBottom, c1, nearBottom, x1, nearBottom);
 		path.closePath();
 		return path;
+	}
+
+	private edgePath(width: number, nearY: number, farY: number): Path2D {
+		const [x1, c1, c2, x2] = this.curveXs(width);
+		const path = new Path2D();
+		path.moveTo(x1, nearY);
+		path.bezierCurveTo(c1, nearY, c2, farY, x2, farY);
+		return path;
+	}
+
+	/** The near end, both control points and the far end along the strip. */
+	private curveXs(width: number): [number, number, number, number] {
+		const [x1, x2] = this.nearEdge === "left" ? [0, width] : [width, 0];
+		return [x1, x1 + (x2 - x1) * CURVE, x2 - (x2 - x1) * CURVE, x2];
 	}
 
 	private prepareCanvas(

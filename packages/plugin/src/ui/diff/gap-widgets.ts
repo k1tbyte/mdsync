@@ -8,9 +8,12 @@ import {
 	Decoration,
 	type DecorationSet,
 	type EditorView,
+	GutterMarker,
+	gutterWidgetClass,
 	WidgetType,
 } from "@codemirror/view";
 import { setIcon } from "obsidian";
+import type { LineRange } from "@/sync/hunks";
 import { type Span, snapToLines } from "@/sync/merge-model";
 import { rangeLabel } from "./geometry";
 
@@ -105,6 +108,129 @@ class FoldWidget extends WidgetType {
 	ignoreEvent(): boolean {
 		return true;
 	}
+}
+
+/** One unchanged run between changes; its index names it the same in both panes. */
+class UnchangedWidget extends WidgetType {
+	constructor(
+		private readonly index: number,
+		private readonly count: number,
+		readonly opened: boolean,
+		private readonly toggle: (index: number) => void,
+	) {
+		super();
+	}
+
+	eq(other: UnchangedWidget): boolean {
+		return (
+			other.index === this.index &&
+			other.count === this.count &&
+			other.opened === this.opened
+		);
+	}
+
+	toDOM(): HTMLElement {
+		const text = `${this.opened ? "Hide" : "Show"} ${this.count} unchanged lines`;
+		const row = gapRow(
+			this.opened ? "chevrons-down-up" : "chevrons-up-down",
+			text,
+			text,
+			() => this.toggle(this.index),
+		);
+		row.toggleClass("is-fold", this.opened);
+		return row;
+	}
+
+	ignoreEvent(): boolean {
+		return true;
+	}
+}
+
+class GapGutter extends GutterMarker {
+	elementClass = "mdsync-gap-gutter";
+}
+const GAP_GUTTER = new GapGutter();
+
+/** A folded run's bar runs under the line numbers too. */
+export const gapGutter = gutterWidgetClass.of((_view, widget) =>
+	widget instanceof UnchangedWidget && !widget.opened ? GAP_GUTTER : null,
+);
+
+interface UnchangedRun {
+	/** Its place among the gaps between changes, the same in both panes. */
+	index: number;
+	lines: number;
+	/** Ends at the last line's end: taking its line break would merge the next line into the fold's block. */
+	span: Span;
+}
+
+/** Unchanged runs between one side's changes (line ranges, in order) worth folding; three context lines stay by each change. */
+function unchangedRuns(
+	doc: Text,
+	changes: readonly LineRange[],
+): UnchangedRun[] {
+	const runs: UnchangedRun[] = [];
+	for (let index = 0; index <= changes.length; index++) {
+		const start =
+			index === 0 ? 0 : (changes[index - 1] as LineRange)[1] + CONTEXT_LINES;
+		const end =
+			index === changes.length
+				? doc.lines
+				: (changes[index] as LineRange)[0] - CONTEXT_LINES;
+		if (end - start < MIN_GAP_LINES) continue;
+		const span = { from: doc.line(start + 1).from, to: doc.line(end).to };
+		runs.push({ index, lines: end - start, span });
+	}
+	return runs;
+}
+
+/** Folds one pane's unchanged runs; `opened` is shared by both panes, so they fold and open together. */
+export function addUnchangedGaps(
+	ranges: Range<Decoration>[],
+	doc: Text,
+	changes: readonly LineRange[],
+	opened: ReadonlySet<number>,
+	toggle: (index: number) => void,
+): void {
+	for (const { index, lines, span } of unchangedRuns(doc, changes)) {
+		const widget = (open: boolean) =>
+			new UnchangedWidget(index, lines, open, toggle);
+		if (!opened.has(index)) {
+			ranges.push(
+				Decoration.replace({ widget: widget(false), block: true }).range(
+					span.from,
+					span.to,
+				),
+			);
+			continue;
+		}
+		// Either end folds it back: above its first line and below its last.
+		for (const [at, side] of [
+			[span.from, -20],
+			[span.to, 20],
+		] as const) {
+			ranges.push(
+				Decoration.widget({ widget: widget(true), block: true, side }).range(
+					at,
+				),
+			);
+		}
+	}
+}
+
+/** The folded runs of two panes, paired so the strip between them can join their bars. */
+export function foldedBands(
+	near: { doc: Text; changes: readonly LineRange[] },
+	far: { doc: Text; changes: readonly LineRange[] },
+	opened: ReadonlySet<number>,
+): Array<{ near: Span; far: Span }> {
+	const farSpans = new Map(
+		unchangedRuns(far.doc, far.changes).map((run) => [run.index, run.span]),
+	);
+	return unchangedRuns(near.doc, near.changes).flatMap(({ index, span }) => {
+		const farSpan = farSpans.get(index);
+		return farSpan && !opened.has(index) ? [{ near: span, far: farSpan }] : [];
+	});
 }
 
 export function gapRow(

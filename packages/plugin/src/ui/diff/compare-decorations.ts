@@ -22,7 +22,7 @@ import type { Span } from "@/sync/merge-model";
 import type { FileDiffModel } from "@/sync/projection";
 import type { HunkChoices } from "./choices";
 import { addCodeMarks, type LineMarks, lineMarks } from "./code-lines";
-import { addCollapsedGaps, expandedGapsField, gapRow } from "./gap-widgets";
+import { addUnchangedGaps, gapGutter, gapRow } from "./gap-widgets";
 import { forEachVisibleRange, rangeLabel, sideSpan } from "./geometry";
 import { combinedModeField } from "./merge-decorations";
 import type { RailAction } from "./rail";
@@ -44,6 +44,13 @@ export interface CompareSegment {
 	/** Word marks of one line, computed the first time that line is drawn. */
 	leftMarks: (offset: number) => readonly Span[];
 	rightMarks: (offset: number) => readonly Span[];
+}
+
+export function segmentKind(
+	segment: CompareSegment,
+): "added" | "removed" | "modified" {
+	if (segment.added > 0 && segment.removed > 0) return "modified";
+	return segment.added > 0 ? "added" : "removed";
 }
 
 export function buildSegments(model: FileDiffModel): CompareSegment[] {
@@ -105,6 +112,9 @@ export interface CompareStateConfig {
 	/** Keys of the segments folded to one row in both panes. */
 	folded(): ReadonlySet<number>;
 	toggleFold(key: number): void;
+	/** Indices of the unchanged runs opened in both panes. */
+	opened(): ReadonlySet<number>;
+	toggleGap(index: number): void;
 	combined: CombinedCompareConfig;
 }
 
@@ -112,14 +122,14 @@ export function compareState(config: CompareStateConfig): Extension {
 	return [
 		segmentsVersionField,
 		combinedModeField,
-		expandedGapsField,
 		gutterMarksField,
+		gapGutter,
 		ViewPlugin.define((view) => new SideLines(view, config), {
 			decorations: (plugin) => plugin.decorations,
 		}),
 		// Folds and block widgets change the layout, so they cannot come from the viewport plugin.
 		EditorView.decorations.compute(
-			["doc", segmentsVersionField, combinedModeField, expandedGapsField],
+			["doc", segmentsVersionField, combinedModeField],
 			(state) => {
 				const ranges: Range<Decoration>[] = [];
 				const segments = config.segments();
@@ -130,14 +140,15 @@ export function compareState(config: CompareStateConfig): Extension {
 					if (segment) addFold(ranges, state.doc, segment, config, combined);
 				}
 				if (combined) {
-					addCombinedWidgets(
-						ranges,
-						state.doc,
-						segments,
-						config,
-						state.field(expandedGapsField),
-					);
+					addCombinedWidgets(ranges, state.doc, segments, config);
 				}
+				addUnchangedGaps(
+					ranges,
+					state.doc,
+					segments.map((segment) => segment[config.side]),
+					config.opened(),
+					config.toggleGap,
+				);
 				return Decoration.set(ranges, true);
 			},
 		),
@@ -343,7 +354,6 @@ function addCombinedWidgets(
 	doc: Text,
 	segments: readonly CompareSegment[],
 	config: CompareStateConfig,
-	expanded: DecorationSet,
 ): void {
 	const folded = config.folded();
 	for (const segment of segments) {
@@ -357,12 +367,6 @@ function addCombinedWidgets(
 			}).range(sideSpan(doc, segment.right).from),
 		);
 	}
-	addCollapsedGaps(
-		ranges,
-		doc,
-		segments.map((segment) => sideSpan(doc, segment.right)),
-		expanded,
-	);
 }
 
 /** The left side's block above the lines it differs from; the right lines close the region. */
