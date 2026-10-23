@@ -1,4 +1,4 @@
-import { type App, type Menu, Modal, TFile, TFolder } from "obsidian";
+import { type App, type Menu, TFile, TFolder } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
 import {
@@ -8,7 +8,7 @@ import {
 } from "@/settings/ignore-rules";
 import { isUnder, spaceOf } from "@/sync/space";
 import { notifyError, notifyInfo } from "@/ui/common";
-import { openPromiseModal } from "@/ui/modals";
+import { openChoiceModal } from "@/ui/modals";
 import { ignoreHome, ignoreNoteOf, isIgnoreNote } from "@/vault/ignore";
 
 const IGNORE_RULES_CHANGED = "Ignore rules changed.";
@@ -60,35 +60,23 @@ async function chooseIgnoreLevel(
 	if (level === "global") await toggleGlobalIgnore(plugin, path, isFolder);
 }
 
-function askIgnoreLevel(
+async function askIgnoreLevel(
 	app: App,
 	path: string,
 	isFolder: boolean,
 ): Promise<IgnoreLevel | null> {
-	return openPromiseModal<IgnoreLevel | null>((answer) => {
-		const modal = new Modal(app);
-		modal.titleEl.setText(`Ignore ${isFolder ? "folder" : "file"}`);
-		modal.contentEl.createEl("p", { text: path });
-		const buttons = modal.contentEl.createDiv({
-			cls: "mdsync-modal-buttons",
-		});
-		const localBtn = buttons.createEl("button", {
-			text: "On this machine",
-		});
-		localBtn.addEventListener("click", () => {
-			answer("local");
-			modal.close();
-		});
-		const globalBtn = buttons.createEl("button", { text: "Globally" });
-		globalBtn.addClass("mod-cta");
-		globalBtn.addEventListener("click", () => {
-			answer("global");
-			modal.close();
-		});
-		const cancelBtn = buttons.createEl("button", { text: "Cancel" });
-		cancelBtn.addEventListener("click", () => modal.close());
-		return modal;
-	}, null);
+	const answer = await openChoiceModal<IgnoreLevel | "cancel">({
+		app,
+		title: `Ignore ${isFolder ? "folder" : "file"}`,
+		icon: "eye-off",
+		body: [path],
+		choices: [
+			{ key: "cancel", label: "Cancel" },
+			{ key: "local", label: "On this machine" },
+			{ key: "global", label: "Globally", cls: "mod-cta" },
+		],
+	});
+	return answer === "local" || answer === "global" ? answer : null;
 }
 
 export async function toggleLocalIgnore(

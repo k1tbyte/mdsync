@@ -2,8 +2,8 @@
 	.view-content.mdsync-source-control {
 	display: flex;
 	flex-direction: column;
-	padding: var(--size-4-3);
-	padding-bottom: 0;
+	/* The scrollbar sits at the edge; the panel keeps the gutter. */
+	padding: var(--size-4-3) 0 0 var(--size-4-3);
 	position: relative;
 	height: 100%;
 	overflow: hidden;
@@ -19,6 +19,7 @@
 	align-items: center;
 	gap: var(--size-2-1);
 	margin-bottom: var(--size-4-2);
+	padding-right: var(--size-4-3);
 }
 
 .mdsync-source-tabs {
@@ -118,6 +119,15 @@
 	white-space: nowrap;
 }
 
+/* The active tab says where you are, even where the others are icons only. */
+.mdsync-source-tabs .mdsync-settings-tab-button.is-active {
+	flex-shrink: 1;
+}
+
+.mdsync-settings-tab-button.is-active .mdsync-source-tab-label {
+	display: inline;
+}
+
 .mdsync-source-tab-panel {
 	display: flex;
 	flex: 1 1 auto;
@@ -126,6 +136,7 @@
 	min-height: 0;
 	padding-right: var(--size-2-2);
 	overflow: auto;
+	scrollbar-gutter: stable;
 }
 
 :where(.mdsync-source-tab-panel > *) {

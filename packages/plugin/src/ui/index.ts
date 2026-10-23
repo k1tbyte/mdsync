@@ -60,7 +60,6 @@ export { createSpaceGone } from "./shares/space-gone";
 export {
 	confirmAdoptNewVault,
 	confirmBatchResolve,
-	showFileList,
 } from "./source-control";
 export {
 	openDiffView,

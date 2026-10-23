@@ -4,6 +4,7 @@
  */
 
 @import "./tokens.css";
+@import "./base/file-path.css";
 
 @import "./settings/tabs-and-logs.css";
 
@@ -39,6 +40,8 @@
 @import "./status-bar.css";
 @import "./ribbon.css";
 @import "./modals.css";
+@import "./modal-frame.css";
+@import "./source-control/file-list.css";
 @import "./shares.css";
 @import "./links.css";
 

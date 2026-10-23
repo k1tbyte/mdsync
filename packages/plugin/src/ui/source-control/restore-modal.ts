@@ -2,7 +2,13 @@ import { ButtonComponent, Modal } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { errorMessage, formatBytes } from "@/shared";
 import type { FileDiffModel, HistoryVersionRef } from "@/sync/projection";
-import { alertLine } from "@/ui/common";
+import {
+	modalCard,
+	modalFooter,
+	modalWarning,
+	renderModalHead,
+	renderPath,
+} from "@/ui/common";
 import { renderHunkPreview } from "@/ui/diff";
 import { openPromiseModal } from "@/ui/modals";
 import { actionButton } from "./action-button";
@@ -38,13 +44,12 @@ export function confirmRestore(
 		};
 		const exists =
 			options.plugin.app.vault.getAbstractFileByPath(options.target) !== null;
-		modal.titleEl.setText(
-			exists
-				? `Restore "${options.target}"?`
-				: `Bring back "${options.target}"?`,
-		);
+		renderModalHead(modal, {
+			icon: exists ? "history" : "archive-restore",
+			title: exists ? "Restore this version?" : "Bring this file back?",
+			sub: options.target,
+		});
 		modal.contentEl.createEl("p", {
-			cls: "mdsync-restore-summary",
 			text: exists
 				? `Replaces what is in the vault with the version from ${options.version.label} (${formatBytes(options.version.size ?? 0)}). Nothing is pushed until you say so.`
 				: `Writes the version from ${options.version.label} (${formatBytes(options.version.size ?? 0)}) back into the vault. Nothing is pushed until you say so.`,
@@ -52,7 +57,7 @@ export function confirmRestore(
 		const body = modal.contentEl.createDiv({ cls: "mdsync-restore-diff" });
 		body.createDiv({ cls: "mdsync-status-line", text: "Loading changes…" });
 
-		const buttons = modal.contentEl.createDiv({ cls: "mdsync-modal-buttons" });
+		const buttons = modalFooter(modal);
 		const cancel = new ButtonComponent(buttons)
 			.setButtonText("Cancel")
 			.onClick(() => finish(false));
@@ -103,13 +108,14 @@ export function confirmBulkRestore(
 			answer(confirmed);
 			modal.close();
 		};
-		modal.titleEl.setText(
-			entries.length === 1
-				? `Bring back "${entries[0]?.path}"?`
-				: `Bring back ${entries.length} deleted files?`,
-		);
+		renderModalHead(modal, {
+			icon: "archive-restore",
+			title:
+				entries.length === 1
+					? "Bring this file back?"
+					: `Bring back ${entries.length} deleted files?`,
+		});
 		modal.contentEl.createEl("p", {
-			cls: "mdsync-restore-summary",
 			text: "Writes each version below back into the vault. Nothing is pushed until you say so. Use a row's Preview to inspect a file first.",
 		});
 		// A file recreated since its deletion is overwritten, as a single restore warns.
@@ -117,20 +123,28 @@ export function confirmBulkRestore(
 			(entry) => plugin.app.vault.getAbstractFileByPath(entry.path) !== null,
 		);
 		if (present.length > 0) {
-			alertLine(modal.contentEl).setText(
+			modalWarning(
+				modal.contentEl,
 				`${present.length} of them are in the vault again: their current content is replaced.`,
 			);
 		}
-		const list = modal.contentEl.createDiv({ cls: "mdsync-bulk-restore-list" });
+		const list = modalCard(modal.contentEl);
 		for (const entry of entries) {
-			const replaces = present.includes(entry)
-				? ", replaces the current file"
-				: "";
-			list.createDiv({
-				text: `${entry.path} - ${entry.label} (${formatBytes(entry.size)})${replaces}`,
+			const row = list.createDiv({ cls: "mdsync-modal-row is-compact" });
+			const text = row.createDiv({ cls: "mdsync-modal-row-text" });
+			renderPath(text, entry.path);
+			text.createDiv({
+				cls: "mdsync-modal-row-detail",
+				text: present.includes(entry)
+					? `${entry.label}, replaces the current file`
+					: entry.label,
+			});
+			row.createSpan({
+				cls: "mdsync-modal-row-aside",
+				text: formatBytes(entry.size),
 			});
 		}
-		const buttons = modal.contentEl.createDiv({ cls: "mdsync-modal-buttons" });
+		const buttons = modalFooter(modal);
 		const cancel = new ButtonComponent(buttons)
 			.setButtonText("Cancel")
 			.onClick(() => finish(false));

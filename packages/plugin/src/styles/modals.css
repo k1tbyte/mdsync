@@ -1,24 +1,9 @@
-.mdsync-modal-buttons {
-	display: flex;
-	justify-content: flex-end;
-	gap: var(--size-4-2);
-	margin-top: var(--size-4-3);
-}
-
 .modal-content p.mod-warning:empty {
 	display: none;
 }
 
-.mdsync-confirm-modal p {
-	overflow-wrap: anywhere;
-}
-
 .mdsync-prompt-input {
 	width: 100%;
-}
-
-body.is-phone .mdsync-modal-buttons button {
-	flex: 1 1 0;
 }
 
 .mdsync-button-row {
@@ -50,33 +35,4 @@ body.is-phone .mdsync-modal-buttons button {
 	margin-left: var(--size-4-3);
 	border-left: 1px solid var(--background-modifier-border);
 	padding-left: var(--size-4-2);
-}
-
-/* On a phone, a sheet rising from the bottom; closed by its buttons or the backdrop. */
-body.is-phone .modal-container:has(> .mdsync-drawer) {
-	align-items: flex-end;
-	padding: 0;
-}
-
-body.is-phone .modal.mdsync-drawer {
-	width: 100%;
-	max-width: none;
-	height: auto;
-	max-height: 85dvh;
-	margin: 0;
-	border-radius: var(--radius-l) var(--radius-l) 0 0;
-}
-
-body.is-phone .modal.mdsync-drawer::before {
-	content: "";
-	flex: none;
-	width: 36px;
-	height: 4px;
-	margin: var(--size-4-2) auto 0;
-	border-radius: var(--mdsync-radius-pill);
-	background: var(--background-modifier-border-hover);
-}
-
-body.is-phone .mdsync-drawer :is(.modal-close-button, .modal-header-button) {
-	display: none;
 }

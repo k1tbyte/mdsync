@@ -35,10 +35,6 @@
 	border-radius: var(--radius-s);
 }
 
-.mdsync-link-modal input[readonly] {
-	text-overflow: ellipsis;
-}
-
 .mdsync-link-modal .setting-item-description {
 	overflow-wrap: anywhere;
 }

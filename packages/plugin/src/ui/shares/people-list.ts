@@ -36,16 +36,16 @@ function renderRow(
 	self: boolean,
 ): HTMLElement {
 	const { key, name, person } = row;
-	const el = list.createDiv({ cls: "mdsync-share-person" });
+	const el = list.createDiv({ cls: "mdsync-modal-row mdsync-share-person" });
 	// Dimmed while not here, as their ring is everywhere else.
 	const away = !self && (person === null || person.idle);
 	renderAvatar(el, { key, name, idle: away });
-	const text = el.createDiv({ cls: "mdsync-share-person-text" });
+	const text = el.createDiv({ cls: "mdsync-modal-row-text" });
 	text.createDiv({
-		cls: "mdsync-share-person-name",
+		cls: "mdsync-modal-row-name",
 		text: self ? "You" : name,
 	});
-	text.createDiv({ cls: "mdsync-share-person-detail", text: row.detail });
+	text.createDiv({ cls: "mdsync-modal-row-detail", text: row.detail });
 	if (row.role) {
 		el.createSpan({
 			cls: `mdsync-share-role${row.role === "Owner" ? " is-owner" : ""}`,

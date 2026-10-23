@@ -1,5 +1,11 @@
 import type { LinkStatus } from "@mdsync/protocol";
-import { type EventRef, Modal, Setting, type TFile } from "obsidian";
+import {
+	ButtonComponent,
+	type EventRef,
+	Modal,
+	Setting,
+	type TFile,
+} from "obsidian";
 import {
 	isExpired,
 	isStale,
@@ -12,7 +18,15 @@ import {
 	revokeLinkRecord,
 } from "@/links";
 import type { PluginHost } from "@/plugin/host";
-import { copyText, notifyError, serial } from "@/ui/common";
+import {
+	copyText,
+	modalCard,
+	modalFooter,
+	modalHint,
+	notifyError,
+	renderModalHead,
+	serial,
+} from "@/ui/common";
 import { openConfirmModal } from "@/ui/modals";
 import { runWithConcurrency } from "@/utils";
 
@@ -43,8 +57,15 @@ export class ManageLinksModal extends Modal {
 
 	onOpen(): void {
 		this.modalEl.addClass("mdsync-link-modal");
-		this.titleEl.setText(this.path ? "Links of this note" : "Share links");
 		this.note = this.path ? this.app.vault.getFileByPath(this.path) : null;
+		renderModalHead(this, {
+			icon: "link",
+			title: this.path ? "Links of this note" : "Share links",
+			sub: this.note?.basename,
+		});
+		new ButtonComponent(modalFooter(this))
+			.setButtonText("Done")
+			.onClick(() => this.close());
 		// Rows hold their records: a rename, an update or an edit elsewhere must redraw them.
 		this.unsubscribe = this.plugin.sharedLinks.subscribe(() => this.draw());
 		this.modifyRef = this.app.vault.on("modify", (file) => {
@@ -104,13 +125,14 @@ export class ManageLinksModal extends Modal {
 		list.empty();
 		const records = this.records();
 		if (records.length === 0) {
-			list.createEl("p", {
-				cls: "setting-item-description",
-				text: "No links yet. Open a note's menu and select MDSync: Share link.",
-			});
+			modalHint(
+				list,
+				"No links yet. Open a note's menu and select MDSync: Share link.",
+			);
 			return;
 		}
-		for (const record of records) this.drawRow(list, record);
+		const card = modalCard(list);
+		for (const record of records) this.drawRow(card, record);
 	}
 
 	private drawRow(list: HTMLElement, record: LinkRecord): void {

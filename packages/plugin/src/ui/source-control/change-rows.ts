@@ -1,9 +1,14 @@
 import { Platform, setIcon } from "obsidian";
-import { appendIconButton, makeActivatable, onLongPress } from "@/ui/common";
+import {
+	appendIconButton,
+	makeActivatable,
+	onLongPress,
+	renderPath,
+} from "@/ui/common";
 import { textButton } from "./action-button";
 import type { SourceControlActions } from "./actions";
 import type { ConflictPreviewManager } from "./conflict-preview-manager";
-import { renderPath, renderSize } from "./row-parts";
+import { renderSize } from "./row-parts";
 import { SECTION_ACTIONS } from "./section-actions";
 import { ESection, type FileRow, type VisualRow } from "./types";
 

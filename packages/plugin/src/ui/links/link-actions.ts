@@ -40,6 +40,7 @@ function askPassphrase(plugin: PluginHost): Promise<string | null> {
 	return openPromptModal({
 		app: plugin.app,
 		title: "Passphrase",
+		icon: "lock",
 		description:
 			"Type the link's passphrase to publish the note again under it.",
 		initialValue: "",

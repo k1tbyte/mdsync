@@ -1,7 +1,13 @@
-import { type App, type ButtonComponent, Modal, Setting } from "obsidian";
+import { type App, ButtonComponent, Modal, Setting } from "obsidian";
 import { errorMessage, folderName } from "@/shared";
 import type { Invite } from "@/spaces";
-import { alertLine, onEnter, serial } from "@/ui/common";
+import {
+	alertLine,
+	modalFooter,
+	onEnter,
+	renderModalHead,
+	serial,
+} from "@/ui/common";
 
 const NO_LINK = "Paste the invite link.";
 const NO_PASSWORD = "Enter the password.";
@@ -10,6 +16,7 @@ const WRONG_PASSWORD = "Wrong password, or the link is damaged or unsupported.";
 export class AcceptInviteModal extends Modal {
 	private password = "";
 	private root = "";
+	private footer: HTMLElement | null = null;
 
 	constructor(
 		app: App,
@@ -32,7 +39,7 @@ export class AcceptInviteModal extends Modal {
 
 	onOpen(): void {
 		const { contentEl } = this;
-		this.titleEl.setText("Shared folder invite");
+		renderModalHead(this, { icon: "user-plus", title: "Shared folder invite" });
 		const unlock = serial(async () => {
 			if (!this.link || !this.password) {
 				status.setText(this.link ? NO_PASSWORD : NO_LINK);
@@ -72,9 +79,11 @@ export class AcceptInviteModal extends Modal {
 				onEnter(text.inputEl, unlock);
 			});
 		const status = alertLine(contentEl);
-		new Setting(contentEl).addButton((button) =>
-			button.setButtonText("Open invite").setCta().onClick(unlock),
-		);
+		this.footer = modalFooter(this);
+		new ButtonComponent(this.footer)
+			.setButtonText("Open invite")
+			.setCta()
+			.onClick(unlock);
 	}
 
 	onClose(): void {
@@ -84,6 +93,7 @@ export class AcceptInviteModal extends Modal {
 	private choose(invite: Invite): void {
 		const { contentEl } = this;
 		contentEl.empty();
+		this.footer?.empty();
 		const mounted = this.mountedAt(invite);
 		const role = invite.readOnly
 			? "You can read it, not change it."
@@ -119,12 +129,12 @@ export class AcceptInviteModal extends Modal {
 			});
 		}
 		const status = alertLine(contentEl);
-		new Setting(contentEl).addButton((button) => {
-			confirm = button
-				.setButtonText(mounted === null ? "Add shared folder" : "Use this link")
-				.setCta()
-				.onClick(submit);
-			(folder ?? button.buttonEl).focus();
-		});
+		if (!this.footer) return;
+		const button = new ButtonComponent(this.footer);
+		confirm = button
+			.setButtonText(mounted === null ? "Add shared folder" : "Use this link")
+			.setCta()
+			.onClick(submit);
+		(folder ?? button.buttonEl).focus();
 	}
 }

@@ -4,11 +4,21 @@ export { describePeople, renderAvatar, renderAvatarStack } from "./avatars";
 export { type ChangeAction, changeActionOf } from "./change-action";
 export { copyable, copyText } from "./copyable";
 export { onEnter } from "./enter-key";
+export { renderPath } from "./file-path";
 export { focusKey, renderKeepingFocus } from "./focus";
 export { appendIconButton, appendLabeledButton } from "./icon-button";
 export { lastEditLabel, lastEditor } from "./last-edit";
 export { onLongPress } from "./long-press";
 export { infoTitle, personTitle, showMenuAt } from "./menu";
+export {
+	type ModalHead,
+	modalCard,
+	modalFooter,
+	modalHint,
+	modalSection,
+	modalWarning,
+	renderModalHead,
+} from "./modal-frame";
 export {
 	attempt,
 	notifyAction,

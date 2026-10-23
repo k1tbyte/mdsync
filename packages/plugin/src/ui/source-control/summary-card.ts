@@ -4,11 +4,10 @@ import { formatRelativeTime } from "@/shared";
 import type { SyncStatusSnapshot } from "@/sync/controller";
 import { deviceLabel } from "@/sync/device";
 import type { Manifest } from "@/sync/types";
-import { skippedText } from "@/ui/common";
 import { askSpaceGone } from "@/ui/shares/space-gone";
 import { actionButton, textButton } from "./action-button";
 import type { SourceControlActions } from "./actions";
-import { showFileList } from "./modals";
+import { showIgnoredFiles, showSkippedFiles } from "./excluded-files";
 import { canPullAll, canPushAll } from "./sync-gates";
 
 /**
@@ -225,25 +224,11 @@ export class SummaryCard {
 		const chips = extras.createDiv({ cls: "mdsync-sync-summary-chips" });
 		const ignored = snapshot.result?.snapshot.ignoredPaths ?? [];
 		chip(chips, "eye-off", ignored.length, "ignored", () =>
-			showFileList(
-				plugin.app,
-				"Ignored files",
-				"These files are excluded by shared syncignore.md rules or device-local ignore settings.",
-				ignored.map((path) => ({ path })),
-			),
+			showIgnoredFiles(plugin, ignored),
 		);
 		const skipped = snapshot.result?.snapshot.skipped ?? [];
-		const max = plugin.settings.maxFileBytes;
 		chip(chips, "cloud-off", skipped.length, "not synced", () =>
-			showFileList(
-				plugin.app,
-				"Not synced",
-				"These files stay on this device only until what is named below changes.",
-				skipped.map((file) => ({
-					path: file.path,
-					detail: skippedText(file, max),
-				})),
-			),
+			showSkippedFiles(plugin, skipped),
 		);
 		if (chips.childElementCount === 0) chips.remove();
 
