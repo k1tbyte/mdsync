@@ -6,7 +6,6 @@ import type {
 } from "@/sync/projection";
 import { appendIconButton, renderPath } from "@/ui/common";
 import { renderActionBar } from "./action-bar";
-import type { ComparePanel } from "./compare-panel";
 import { type FilePosition, getFilePosition } from "./file-navigation";
 import { type HistoryChange, hunkHintText } from "./history-state";
 
@@ -20,6 +19,19 @@ export interface DiffHeaderState {
 	position: FilePosition | null;
 	/** Names the side a history restore would take, when that is ambiguous. */
 	restoreLabel?: string;
+}
+
+/** Where the open panel puts its own parts of the frame. */
+export interface PanelHosts {
+	info: HTMLElement;
+	controls: HTMLElement;
+	pending: HTMLElement;
+	/** Save and push, while merging. */
+	save: HTMLButtonElement | null;
+}
+
+export interface FramePanel {
+	mount(hosts: PanelHosts): void;
 }
 
 export interface DiffHeaderActions {
@@ -49,7 +61,7 @@ export function renderDiffFrame(
 		historyLabel: string;
 	},
 	actions: DiffHeaderActions,
-	panel: ComparePanel | null,
+	panel: FramePanel | null,
 ): void {
 	const {
 		path,
@@ -96,7 +108,7 @@ export function renderDiffHeader(
 	parent: HTMLElement,
 	state: DiffHeaderState,
 	actions: DiffHeaderActions,
-): { info: HTMLElement; controls: HTMLElement } {
+): Omit<PanelHosts, "pending"> {
 	parent.empty();
 	appendIconButton(
 		parent,
@@ -118,9 +130,10 @@ export function renderDiffHeader(
 				path.querySelector<HTMLElement>(".mdsync-file-parent") ??
 				path.createSpan({ cls: "mdsync-file-parent" });
 			folder.appendText(`${folder.textContent ? " · " : ""}${status}`);
-		} else {
+		} else if (!state.isEditing) {
+			// While merging, the panel's own status stands here.
 			parent.createSpan({
-				cls: `mdsync-diff-status is-${state.isEditing ? "merging" : state.direction}`,
+				cls: `mdsync-diff-status is-${state.direction}`,
 				text: status,
 			});
 		}
@@ -128,14 +141,16 @@ export function renderDiffHeader(
 	const info = parent.createSpan({ cls: "mdsync-diff-info" });
 	parent.createSpan({ cls: "mdsync-diff-spacer" });
 	const controls = parent.createDiv({ cls: "mdsync-diff-controls" });
+	let save: HTMLButtonElement | null = null;
 	if (state.isEditing) {
-		new ButtonComponent(controls)
+		const resolution = parent.createDiv({ cls: "mdsync-diff-resolution" });
+		new ButtonComponent(resolution)
 			.setButtonText("Cancel")
 			.onClick(actions.cancelResolution);
-		new ButtonComponent(controls)
+		save = new ButtonComponent(resolution)
 			.setButtonText("Save and push")
 			.setCta()
-			.onClick(actions.saveResolution);
+			.onClick(actions.saveResolution).buttonEl;
 	} else if (state.position) {
 		const { index, total } = state.position;
 		const nav = parent.createDiv({ cls: "mdsync-diff-file-nav" });
@@ -156,5 +171,5 @@ export function renderDiffHeader(
 			actions.goNextFile,
 		).disabled = index === total - 1;
 	}
-	return { info, controls };
+	return { info, controls, save };
 }

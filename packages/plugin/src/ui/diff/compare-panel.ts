@@ -3,7 +3,7 @@ import { EditorView, lineNumbers } from "@codemirror/view";
 import { EDiffDirection, type FileDiffModel } from "@/sync/projection";
 import { ChangeOverlay } from "./change-overlay";
 import { choiceActions, type EChoiceKind, HunkChoices } from "./choices";
-import { CompareControls, type CompareHosts } from "./compare-controls";
+import { CompareControls } from "./compare-controls";
 import {
 	buildSegments,
 	type CompareSegment,
@@ -15,6 +15,7 @@ import {
 import { Divider, type DividerItem } from "./divider";
 import { foldedBands } from "./gap-widgets";
 import { sideSpan, spanBounds, updatePaneViewportWidth } from "./geometry";
+import type { PanelHosts } from "./header";
 import { LayoutMode } from "./layout-mode";
 import {
 	LineWrappingControl,
@@ -196,7 +197,7 @@ export class ComparePanel {
 		this.opened.clear();
 	}
 
-	mount(hosts: CompareHosts): void {
+	mount(hosts: PanelHosts): void {
 		this.controls?.mount(hosts);
 		this.layoutMode?.refresh();
 	}

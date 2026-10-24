@@ -18,13 +18,10 @@ import {
 import { firstIndex } from "@/utils";
 import { addCodeMarks, type LineMarks, lineMarks } from "./code-lines";
 import { addCollapsedGaps, expandedGapsField } from "./gap-widgets";
-import { forEachVisibleRange, sideSpan, viewportDecorations } from "./geometry";
-import {
-	type MergeActions,
-	type MergeTone,
-	sideActions,
-	toneOf,
-} from "./merge-controls";
+import { forEachVisibleRange, rangeLabel, sideSpan } from "./geometry";
+import { markLine, type Tints, tintLine, viewportTints } from "./line-tints";
+import type { MergeActions } from "./merge-actions";
+import { type MergeTone, sideActions, toneOf } from "./merge-controls";
 import { mergeChangesField, rememberChangeState } from "./merge-state";
 import type { RailAction } from "./rail";
 import {
@@ -94,12 +91,13 @@ export function sideMarks(
 
 export function mergeResultState(combined?: CombinedMergeConfig): Extension {
 	const blocks = combined && combinedBlocks(combined);
+	const actions = combined?.actions;
 	return [
 		mergeChangesField,
 		combinedModeField,
 		expandedGapsField,
 		rememberChangeState,
-		viewportDecorations(
+		viewportTints(
 			resultTints,
 			(update) =>
 				update.startState.field(mergeChangesField) !==
@@ -108,23 +106,23 @@ export function mergeResultState(combined?: CombinedMergeConfig): Extension {
 		// Block widgets change the layout, so they cannot come from the viewport plugin.
 		EditorView.decorations.compute(
 			["doc", mergeChangesField, combinedModeField, expandedGapsField],
-			(state) =>
-				blocks && state.field(combinedModeField)
-					? blocks(
-							state.doc,
-							state.field(mergeChangesField),
-							state.field(expandedGapsField),
-						)
-					: Decoration.none,
+			(state) => {
+				const changes = state.field(mergeChangesField);
+				if (blocks && state.field(combinedModeField)) {
+					return blocks(state.doc, changes, state.field(expandedGapsField));
+				}
+				return actions
+					? conflictHeads(state.doc, changes, actions)
+					: Decoration.none;
+			},
 		),
 	];
 }
 
-function resultTints(view: EditorView): DecorationSet {
+function resultTints(view: EditorView, tints: Tints): void {
 	const { doc } = view.state;
 	const changes = view.state.field(mergeChangesField);
 	const { from: top, to: bottom } = view.viewport;
-	const ranges: Range<Decoration>[] = [];
 	// A span ending just above the viewport can still snap onto its first line.
 	const start = firstIndex(
 		changes.length,
@@ -133,13 +131,12 @@ function resultTints(view: EditorView): DecorationSet {
 	for (let index = start; index < changes.length; index++) {
 		const change = changes[index] as MergeChange;
 		if (change.result.from > bottom) break;
-		addResultTint(ranges, doc, change, top, bottom);
+		addResultTint(tints, doc, change, top, bottom);
 	}
-	return Decoration.set(ranges, true);
 }
 
 function addResultTint(
-	ranges: Range<Decoration>[],
+	tints: Tints,
 	doc: Text,
 	change: MergeChange,
 	top: number,
@@ -154,12 +151,8 @@ function addResultTint(
 	const rest: MergeTone = resolved ? "base" : "conflict";
 	if (span.to <= span.from) {
 		const owners = parts.filter((part) => part.span.from === span.from);
-		addMarker(
-			ranges,
-			doc,
-			span.from,
-			owners.length > 1 ? "shared" : (owners[0]?.side ?? rest),
-		);
+		const tone = owners.length > 1 ? "shared" : (owners[0]?.side ?? rest);
+		markLine(tints, doc, span.from, `is-${tone}`);
 		return;
 	}
 	const last = doc.lineAt(Math.min(span.to - 1, bottom)).number;
@@ -169,9 +162,59 @@ function addResultTint(
 			(part) => at >= part.span.from && at < part.span.to,
 		);
 		const tone = owners.length > 1 ? "shared" : (owners[0]?.side ?? rest);
-		addLine(ranges, at, tone, !resolved);
+		tintLine(tints, at, `is-${tone}`);
 	}
 }
+
+/** Side by side: each open conflict gets a head in Result that settles it in one step. */
+function conflictHeads(
+	doc: Text,
+	changes: readonly MergeChange[],
+	actions: MergeActions,
+): DecorationSet {
+	const ranges: Range<Decoration>[] = [];
+	for (const change of changes) {
+		if (isResolved(change)) continue;
+		const span = snapToLines(doc, change.result);
+		const first = doc.lineAt(span.from).number;
+		const last = doc.lineAt(Math.max(span.from, span.to - 1)).number;
+		const block: SourceBlock = {
+			key: `conflict-${change.index}`,
+			tone: "conflict",
+			head: {
+				mark: "conflict",
+				text:
+					span.to > span.from
+						? `Both changed ${last > first ? "lines" : "line"} ${rangeLabel(first, last)}`
+						: "Both added lines here",
+				actions: SETTLE.map(([label, shortLabel, sides]) => ({
+					icon: "",
+					label,
+					shortLabel,
+					cls: `is-${sides.join("-")}`,
+					run: () => actions.settle(change.index, sides),
+				})),
+			},
+			lines: [],
+			firstLine: first,
+		};
+		ranges.push(
+			Decoration.widget({
+				widget: new SourceBlockWidget(block),
+				block: true,
+				side: -1,
+			}).range(span.from),
+		);
+	}
+	return Decoration.set(ranges, true);
+}
+
+/** A conflict head's ways out: name, button text, the sides taken in order. */
+const SETTLE: readonly [string, string, readonly EMergeSide[]][] = [
+	["Take local", "Local", ["local"]],
+	["Take remote", "Remote", ["remote"]],
+	["Take both, local first", "Both", ["local", "remote"]],
+];
 
 const setSideChanges = StateEffect.define<readonly MergeChange[]>();
 
@@ -189,8 +232,8 @@ const sideChangesField = StateField.define<readonly MergeChange[]>({
 export function sideDecorations(side: EMergeSide, marks: SideMarks): Extension {
 	return [
 		sideChangesField,
-		viewportDecorations(
-			(view) => sideTints(view, side, marks),
+		viewportTints(
+			(view, tints) => sideTints(view, tints, side, marks),
 			(update) =>
 				update.startState.field(sideChangesField) !==
 				update.state.field(sideChangesField),
@@ -207,11 +250,11 @@ export function showSideChanges(
 
 function sideTints(
 	view: EditorView,
+	tints: Tints,
 	side: EMergeSide,
 	marks: SideMarks,
-): DecorationSet {
+): void {
 	const { doc } = view.state;
-	const ranges: Range<Decoration>[] = [];
 	forEachVisibleRange(
 		view,
 		view.state.field(sideChangesField),
@@ -220,18 +263,17 @@ function sideTints(
 			const tone = toneOf(change, side);
 			const [from, to] = change[side];
 			if (to <= from) {
-				addMarker(ranges, doc, sideSpan(doc, change[side]).from, tone);
+				markLine(tints, doc, sideSpan(doc, change[side]).from, `is-${tone}`);
 				return;
 			}
 			const marksAt = marks(change, side);
 			for (let n = first; n < end; n++) {
 				const line = doc.line(n + 1);
-				addLine(ranges, line.from, tone);
-				if (marksAt) addCodeMarks(ranges, line, marksAt(n - from));
+				tintLine(tints, line.from, `is-${tone}`);
+				if (marksAt) addCodeMarks(tints.lines, line, marksAt(n - from));
 			}
 		},
 	);
-	return Decoration.set(ranges, true);
 }
 
 /** Combined mode's source blocks and gaps; Result counters recompute only for changes whose result lines moved. */
@@ -318,12 +360,10 @@ function combinedActions(
 	side: EMergeSide,
 	actions: MergeActions,
 ): RailAction[] {
-	return sideActions(
-		change,
-		side,
-		actions,
-		side === "local" ? "chevrons-down" : "chevrons-up",
-	);
+	return sideActions(change, side, actions, {
+		acceptIcon: side === "local" ? "chevrons-down" : "chevrons-up",
+		rejectOpen: true,
+	});
 }
 
 /** +added/-removed of what the result currently holds for this change, against base. */
@@ -343,32 +383,4 @@ function resultText(doc: Text, span: Span): string {
 	const snapped = snapToLines(doc, span);
 	const text = doc.sliceString(snapped.from, snapped.to);
 	return text.endsWith("\n") ? text.slice(0, -1) : text;
-}
-
-function addLine(
-	ranges: Range<Decoration>[],
-	at: number,
-	tone: MergeTone,
-	pending = false,
-): void {
-	ranges.push(
-		Decoration.line({
-			class: `mdsync-merge-line is-${tone}${pending ? " is-pending" : ""}`,
-		}).range(at),
-	);
-}
-
-function addMarker(
-	ranges: Range<Decoration>[],
-	doc: Text,
-	at: number,
-	tone: MergeTone,
-): void {
-	const line = doc.lineAt(at);
-	const after = at === line.from ? "" : " is-after";
-	ranges.push(
-		Decoration.line({
-			class: `mdsync-merge-mark is-${tone}${after}`,
-		}).range(line.from),
-	);
 }

@@ -3,7 +3,7 @@
 .mdsync-merge-body {
 	display: grid;
 	grid-template-columns:
-		minmax(0, 1fr) 52px minmax(0, 1fr) 52px
+		minmax(0, 1fr) 56px minmax(0, 1fr) 56px
 		minmax(0, 1fr);
 }
 
@@ -18,7 +18,8 @@
 	flex: 0 0 auto;
 }
 
-.mdsync-compare-head {
+.mdsync-compare-head,
+.mdsync-merge-pane-head {
 	display: flex;
 	align-items: center;
 	height: 34px;
@@ -29,16 +30,6 @@
 	font-weight: 600;
 	border-bottom: 1px solid var(--background-modifier-border);
 	overflow: hidden;
-	white-space: nowrap;
-}
-
-.mdsync-merge-pane-head {
-	padding: var(--size-4-1) var(--size-4-3);
-	color: var(--text-muted);
-	font-size: var(--font-ui-smaller);
-	border-bottom: 1px solid var(--background-modifier-border);
-	overflow: hidden;
-	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 

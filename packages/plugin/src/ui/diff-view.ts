@@ -1,7 +1,6 @@
 import {
 	debounce,
 	ItemView,
-	Platform,
 	type ViewStateResult,
 	type WorkspaceLeaf,
 } from "obsidian";
@@ -338,7 +337,7 @@ export class DiffView extends ItemView {
 						if (leave) void this.returnToSourceControl();
 					}),
 			},
-			this.comparePanel,
+			this.mergePanel.isEditing ? this.mergePanel : this.comparePanel,
 		);
 	}
 
@@ -381,7 +380,6 @@ export class DiffView extends ItemView {
 		if (this.mergePanel.isEditing) {
 			this.mergePanel.render(body, {
 				lineWrapping: this.lineWrapping,
-				showLineWrappingToggle: Platform.isPhone,
 				onLineWrappingChange: (enabled) => {
 					this.lineWrapping = enabled;
 				},
@@ -397,7 +395,6 @@ export class DiffView extends ItemView {
 			direction: model.direction,
 			actionable: this.compareActionable(model),
 			lineWrapping: this.lineWrapping,
-			showLineWrappingToggle: true,
 			onLineWrappingChange: (enabled) => {
 				this.lineWrapping = enabled;
 			},

@@ -1,10 +1,5 @@
-import type { Extension, Text } from "@codemirror/state";
-import {
-	type DecorationSet,
-	type EditorView,
-	ViewPlugin,
-	type ViewUpdate,
-} from "@codemirror/view";
+import type { Text } from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
 import type { LineRange } from "@/sync/hunks";
 import type { Span } from "@/sync/merge-model";
 import { firstIndex } from "@/utils";
@@ -53,24 +48,6 @@ export function shiftBounds(bounds: Bounds, by: number): Bounds {
 
 export function docBottom(view: EditorView): number {
 	return view.lineBlockAt(view.state.doc.length).bottom;
-}
-
-/** Decorations built for the viewport alone; a big diff has far more changed lines than a screen. */
-export function viewportDecorations(
-	build: (view: EditorView) => DecorationSet,
-	stale: (update: ViewUpdate) => boolean,
-): Extension {
-	return ViewPlugin.define(
-		(view) => ({
-			decorations: build(view),
-			update(update: ViewUpdate) {
-				if (update.viewportChanged || stale(update)) {
-					this.decorations = build(update.view);
-				}
-			},
-		}),
-		{ decorations: (plugin) => plugin.decorations },
-	);
 }
 
 /** Visits items whose 0-based line range meets the viewport, clipped to it; items must run in document order. */

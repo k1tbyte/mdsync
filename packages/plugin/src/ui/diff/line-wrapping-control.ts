@@ -4,7 +4,6 @@ import { appendIconButton } from "@/ui/common";
 
 export interface LineWrappingOptions {
 	lineWrapping: boolean;
-	showLineWrappingToggle: boolean;
 	onLineWrappingChange(enabled: boolean): void;
 }
 
@@ -26,7 +25,6 @@ export class LineWrappingControl {
 	}
 
 	mount(parent: HTMLElement): void {
-		if (!this.options.showLineWrappingToggle) return;
 		this.button = appendIconButton(parent, "wrap-text", "Wrap long lines", () =>
 			this.toggle(),
 		);

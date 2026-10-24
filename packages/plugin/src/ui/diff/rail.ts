@@ -1,5 +1,6 @@
 import { keymap } from "@codemirror/view";
 import { setIcon } from "obsidian";
+import { appendIconButton } from "@/ui/common";
 
 export function changeNavigation(jump: (delta: number) => void) {
 	return keymap.of(
@@ -13,6 +14,27 @@ export function changeNavigation(jump: (delta: number) => void) {
 	);
 }
 
+/** Arrows with the position between them, in one box so a narrow bar can drop it whole. */
+export function renderChangeNav(
+	parent: HTMLElement,
+	jump: (delta: number) => void,
+): (current: number, total: number) => void {
+	const nav = parent.createDiv({ cls: "mdsync-compare-nav" });
+	nav.createSpan({ cls: "mdsync-diff-separator" });
+	const arrows = [
+		appendIconButton(nav, "chevron-up", "Previous change", () => jump(-1)),
+	];
+	const label = nav.createSpan({ cls: "mdsync-compare-position" });
+	arrows.push(
+		appendIconButton(nav, "chevron-down", "Next change", () => jump(1)),
+	);
+	return (current, total) => {
+		for (const arrow of arrows) arrow.hidden = total < 2;
+		const all = `${total} ${total === 1 ? "change" : "changes"}`;
+		label.setText(total < 2 || current < 0 ? all : `${current + 1} / ${total}`);
+	};
+}
+
 /** One icon button beside a change, in a divider or a source block header. */
 export interface RailAction {
 	icon: string;
@@ -21,13 +43,16 @@ export interface RailAction {
 	run(): void;
 	/** A pending choice that Apply will carry out. */
 	active?: boolean;
+	cls?: string;
 }
 
 export function renderRailButton(
 	parent: HTMLElement,
 	action: RailAction,
 ): HTMLButtonElement {
-	const button = parent.createEl("button", { cls: "mdsync-rail-btn" });
+	const button = parent.createEl("button", {
+		cls: ["mdsync-rail-btn", ...(action.cls ? [action.cls] : [])],
+	});
 	button.type = "button";
 	button.setAttr("aria-label", action.label);
 	if (action.active !== undefined) {

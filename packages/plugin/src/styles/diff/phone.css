@@ -115,10 +115,6 @@ body.is-phone .mdsync-diff-view .mdsync-compare-choice-actions .mod-cta {
 	flex-grow: 2;
 }
 
-body.is-phone .mdsync-diff-view .mdsync-merge-toolbar select {
-	min-height: var(--mdsync-touch);
-}
-
 body.is-phone .mdsync-diff-view .mdsync-merge-pane-head,
 body.is-phone .mdsync-diff-view .mdsync-source-head {
 	display: flex;

@@ -7,6 +7,8 @@ import {
 	EChoiceKind,
 	type HunkChoices,
 } from "./choices";
+import type { PanelHosts } from "./header";
+import { renderChangeNav } from "./rail";
 import { renderCounters } from "./source-widget";
 
 const CONTEXT: Record<EDiffDirection, string> = {
@@ -23,22 +25,16 @@ const HINT: Record<EDiffDirection, string> = {
 	history: "Select a change to restore it. Nothing changes until you apply.",
 };
 
-export interface CompareHosts {
-	info: HTMLElement;
-	controls: HTMLElement;
-	pending: HTMLElement;
-}
-
 /** Detached panel-owned content survives shell re-renders. */
 export class CompareControls {
 	readonly info = createSpan({ cls: "mdsync-compare-info" });
 	readonly controls = createDiv({ cls: "mdsync-compare-controls" });
 	readonly pending = createDiv({ cls: "mdsync-compare-pending" });
-	private label: HTMLElement | null = null;
-	private arrows: HTMLButtonElement[] = [];
+	private showPosition: ((current: number, total: number) => void) | null =
+		null;
 	private pin: HTMLButtonElement | null = null;
 
-	mount(hosts: CompareHosts): void {
+	mount(hosts: PanelHosts): void {
 		hosts.info.appendChild(this.info);
 		hosts.controls.appendChild(this.controls);
 		hosts.pending.appendChild(this.pending);
@@ -70,20 +66,7 @@ export class CompareControls {
 	}
 
 	navigation(jump: (delta: number) => void): void {
-		// One box, so a narrow bar can drop it whole.
-		const nav = this.controls.createDiv({ cls: "mdsync-compare-nav" });
-		nav.createSpan({ cls: "mdsync-diff-separator" });
-		const previous = appendIconButton(
-			nav,
-			"chevron-up",
-			"Previous change",
-			() => jump(-1),
-		);
-		this.label = nav.createSpan({ cls: "mdsync-compare-position" });
-		const next = appendIconButton(nav, "chevron-down", "Next change", () =>
-			jump(1),
-		);
-		this.arrows = [previous, next];
+		this.showPosition = renderChangeNav(this.controls, jump);
 	}
 
 	update(
@@ -107,14 +90,7 @@ export class CompareControls {
 			cls: "mdsync-compare-context",
 			text: `· ${changeText} ${CONTEXT[direction]}`,
 		});
-		for (const arrow of this.arrows) arrow.hidden = changes < 2;
-		this.label?.setText(
-			changes < 2
-				? "1 change"
-				: current < 0
-					? changeText
-					: `${current + 1} / ${changes}`,
-		);
+		this.showPosition?.(current, changes);
 		this.pending.empty();
 		this.pending.toggleClass("has-pending", choices.size > 0);
 		for (const kind of Object.values(EChoiceKind)) {

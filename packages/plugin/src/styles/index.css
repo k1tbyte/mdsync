@@ -30,6 +30,7 @@
 @import "./diff/code-lines.css";
 @import "./diff/gaps.css";
 @import "./diff/cards.css";
+@import "./diff/merge.css";
 @import "./diff/hunk-preview.css";
 
 @import "./settings/transfer.css";

@@ -4,8 +4,8 @@
 .mdsync-hunk-preview {
 	--mdsync-tone-conflict: var(--color-red-rgb, 233, 49, 71);
 	--mdsync-tone-local: var(--color-blue-rgb, 55, 136, 216);
-	--mdsync-tone-remote: var(--color-green-rgb, 44, 153, 115);
-	--mdsync-tone-shared: var(--color-purple-rgb, 157, 105, 220);
+	--mdsync-tone-remote: var(--color-purple-rgb, 157, 105, 220);
+	--mdsync-tone-shared: var(--color-cyan-rgb, 0, 191, 188);
 	--mdsync-tone-base: var(--mono-rgb-100, 0, 0, 0);
 	--mdsync-tone-added: var(--color-green-rgb, 44, 153, 115);
 	--mdsync-tone-removed: var(--color-red-rgb, 233, 49, 71);

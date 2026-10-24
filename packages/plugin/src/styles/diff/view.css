@@ -44,6 +44,7 @@
 
 .mdsync-diff-controls,
 .mdsync-diff-file-nav,
+.mdsync-diff-resolution,
 .mdsync-diff-file-actions {
 	display: flex;
 	align-items: center;
@@ -54,7 +55,8 @@
 	display: none;
 }
 
-.mdsync-diff-file-nav {
+.mdsync-diff-file-nav,
+.mdsync-diff-resolution {
 	position: relative;
 	padding-left: var(--size-4-3);
 }
@@ -66,13 +68,21 @@
 	}
 }
 
+/* Merging fills the bar with undo and saving too. */
+@container mdsync-diff (max-width: 900px) {
+	.mdsync-diff-header:has(.mdsync-diff-resolution) .mdsync-compare-nav {
+		display: none;
+	}
+}
+
 @container mdsync-diff (max-width: 640px) {
 	body:not(.is-phone) .mdsync-compare-nav {
 		display: none;
 	}
 }
 
-.mdsync-diff-file-nav::before {
+.mdsync-diff-file-nav::before,
+.mdsync-diff-resolution::before {
 	content: "";
 	position: absolute;
 	left: 0;
@@ -115,10 +125,6 @@
 
 .mdsync-diff-status.is-history {
 	--mdsync-status: var(--color-purple-rgb);
-}
-
-.mdsync-diff-status.is-merging {
-	--mdsync-status: var(--color-accent-rgb);
 }
 
 .mdsync-diff-body {
