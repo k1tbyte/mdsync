@@ -5,6 +5,7 @@
 
 @import "./tokens.css";
 @import "./base/file-path.css";
+@import "./base/segments.css";
 
 @import "./settings/tabs-and-logs.css";
 
@@ -28,6 +29,8 @@
 @import "./diff/source-blocks.css";
 @import "./diff/code-lines.css";
 @import "./diff/gaps.css";
+@import "./diff/cards.css";
+@import "./diff/merge.css";
 @import "./diff/hunk-preview.css";
 
 @import "./settings/transfer.css";

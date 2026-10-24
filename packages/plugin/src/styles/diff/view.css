@@ -1,3 +1,7 @@
+.workspace-leaf-content[data-type="mdsync-diff"] > .view-header {
+	display: none;
+}
+
 .mdsync-diff-view {
 	display: flex;
 	flex-direction: column;
@@ -12,10 +16,11 @@
 
 .mdsync-diff-header {
 	display: flex;
-	gap: var(--size-4-2);
+	gap: 10px;
 	align-items: center;
-	flex-wrap: wrap;
-	padding: var(--size-4-2) var(--size-4-3);
+	flex-shrink: 0;
+	min-height: 48px;
+	padding: 0 var(--size-4-3);
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
@@ -26,22 +31,100 @@
 .mdsync-diff-path .mdsync-file-name {
 	min-width: 3ch;
 	font-weight: 600;
+	flex: 0 1 auto;
 }
 
-.mdsync-diff-file-actions,
-.mdsync-compare-file-actions {
+.mdsync-diff-title {
+	min-width: 0;
+}
+
+.mdsync-diff-spacer {
+	flex: 1 1 auto;
+}
+
+.mdsync-diff-controls,
+.mdsync-diff-file-nav,
+.mdsync-diff-resolution,
+.mdsync-diff-file-actions {
 	display: flex;
 	align-items: center;
 	gap: var(--size-4-2);
 }
 
-.mdsync-diff-file-actions {
-	flex: 1 1 100%;
-	flex-wrap: wrap;
+.mdsync-diff-controls:empty {
+	display: none;
 }
 
-.mdsync-compare-file-actions {
-	margin-left: auto;
+.mdsync-diff-file-nav,
+.mdsync-diff-resolution {
+	position: relative;
+	padding-left: var(--size-4-3);
+}
+
+/* No room for change navigation: F7, the strip and the lines still reach every change. */
+@container mdsync-diff (max-width: 1000px) {
+	.mdsync-diff-header:has(.mdsync-segments:not([hidden])) .mdsync-compare-nav {
+		display: none;
+	}
+}
+
+/* Merging fills the bar with undo and saving too; a phone has the cards and the status to move by. */
+@container mdsync-diff (max-width: 900px) {
+	.mdsync-diff-view:has(.mdsync-diff-resolution) .mdsync-compare-nav {
+		display: none;
+	}
+}
+
+@container mdsync-diff (max-width: 640px) {
+	body:not(.is-phone) .mdsync-compare-nav {
+		display: none;
+	}
+}
+
+.mdsync-diff-file-nav::before,
+.mdsync-diff-resolution::before {
+	content: "";
+	position: absolute;
+	left: 0;
+	width: 1px;
+	height: 20px;
+	background: var(--background-modifier-border);
+}
+
+.mdsync-diff-file-position {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.mdsync-diff-status {
+	display: inline-flex;
+	align-items: center;
+	height: 22px;
+	padding: 0 var(--size-4-2);
+	border-radius: var(--mdsync-radius-pill);
+	background: rgba(var(--mdsync-status), 0.15);
+	color: rgb(var(--mdsync-status));
+	font-size: var(--font-ui-smaller);
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.mdsync-diff-status.is-local {
+	--mdsync-status: var(--color-orange-rgb);
+}
+
+.mdsync-diff-status.is-remote {
+	--mdsync-status: var(--color-blue-rgb);
+}
+
+.mdsync-diff-status.is-conflict {
+	--mdsync-status: var(--color-red-rgb);
+}
+
+.mdsync-diff-status.is-history {
+	--mdsync-status: var(--color-purple-rgb);
 }
 
 .mdsync-diff-body {
@@ -65,11 +148,43 @@
 	text-align: center;
 }
 
+.mdsync-diff-action-bar {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: var(--size-4-3);
+	min-height: 40px;
+	padding: var(--size-2-2) var(--size-4-3);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* Compact: the bar sits over the panes all the time. */
+.mdsync-diff-action-bar button {
+	height: 28px;
+	padding: 0 var(--size-4-3);
+	font-size: var(--font-ui-small);
+}
+
+.mdsync-diff-pending-host {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
 .mdsync-diff-hint {
-	flex: 0 0 auto;
-	padding: var(--size-4-3);
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
-	text-align: center;
-	border-top: 1px solid var(--background-modifier-border);
+}
+
+.mdsync-diff-file-actions {
+	margin-left: auto;
+	flex-wrap: wrap;
+	flex-shrink: 0;
+}
+
+.mdsync-diff-action-bar:not(:has(button, .mdsync-diff-hint)),
+.mdsync-diff-file-actions:empty,
+.mdsync-diff-pending-host:not(:has(.mdsync-compare-pending > *)),
+.mdsync-diff-action-bar:has(.mdsync-compare-pending.has-pending)
+	.mdsync-diff-file-actions {
+	display: none;
 }

@@ -1,4 +1,6 @@
 import type { HunkSelection } from "@/sync/hunks";
+import { EDiffDirection } from "@/sync/projection";
+import type { RailAction } from "./rail";
 
 export const EChoiceKind = {
 	Push: "push",
@@ -15,6 +17,50 @@ export const CHOICE_ICON: Record<EChoiceKind, string> = {
 	[EChoiceKind.Pull]: "download",
 	[EChoiceKind.Restore]: "history",
 };
+
+const OFFERS: Record<
+	EDiffDirection,
+	readonly (readonly [EChoiceKind, string, string])[]
+> = {
+	[EDiffDirection.Local]: [
+		[EChoiceKind.Push, "Push this change to the remote", "Push"],
+		[EChoiceKind.Revert, "Revert this change to the baseline", "Revert"],
+	],
+	[EDiffDirection.Remote]: [
+		[EChoiceKind.Pull, "Pull this change from the remote", "Pull"],
+	],
+	[EDiffDirection.Conflict]: [
+		[EChoiceKind.Pull, "Accept the remote change", "Accept"],
+	],
+	[EDiffDirection.History]: [
+		[EChoiceKind.Restore, "Restore this change", "Restore"],
+	],
+};
+
+/** What a choice does, as a verb: a conflict's pull accepts the remote side. */
+export function choiceVerb(
+	direction: EDiffDirection,
+	kind: EChoiceKind,
+): string {
+	return kind === EChoiceKind.Pull && direction === EDiffDirection.Conflict
+		? "accept"
+		: kind;
+}
+
+/** The buttons one change offers in a view of this direction; each toggles its kind. */
+export function choiceActions(
+	direction: EDiffDirection,
+	chosen: EChoiceKind | undefined,
+	toggle: (kind: EChoiceKind) => void,
+): RailAction[] {
+	return OFFERS[direction].map(([kind, label, shortLabel]) => ({
+		icon: CHOICE_ICON[kind],
+		label,
+		shortLabel,
+		active: chosen === kind,
+		run: () => toggle(kind),
+	}));
+}
 
 export interface SegmentRef {
 	hunk: number;

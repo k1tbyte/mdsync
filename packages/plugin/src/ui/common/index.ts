@@ -38,5 +38,6 @@ export {
 	relaySummary,
 	UNREADABLE_TEXT,
 } from "./relay";
+export { renderSegments, type Segments } from "./segments";
 export { serial } from "./serial";
 export { skippedFiles, skippedText } from "./skipped";

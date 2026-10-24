@@ -7,22 +7,23 @@ import {
 } from "@codemirror/state";
 import {
 	Decoration,
-	type DecorationSet,
 	EditorView,
+	type ViewUpdate,
 	WidgetType,
 } from "@codemirror/view";
 import { hunkSegments, type LineRange } from "@/sync/hunks";
 import type { Span } from "@/sync/merge-model";
-import { EDiffDirection, type FileDiffModel } from "@/sync/projection";
-import type { HunkChoices } from "./choices";
+import type { EDiffDirection, FileDiffModel } from "@/sync/projection";
+import { choiceVerb, type HunkChoices } from "./choices";
 import { addCodeMarks, type LineMarks, lineMarks } from "./code-lines";
-import { addCollapsedGaps, expandedGapsField, gapRow } from "./gap-widgets";
 import {
-	forEachVisibleRange,
-	rangeLabel,
-	sideSpan,
-	viewportDecorations,
-} from "./geometry";
+	addUnchangedGaps,
+	gapGutter,
+	gapRow,
+	numberUnchangedLines,
+} from "./gap-widgets";
+import { forEachVisibleRange, rangeLabel, sideSpan } from "./geometry";
+import { markLine, type Tints, tintLine, viewportTints } from "./line-tints";
 import { combinedModeField } from "./merge-decorations";
 import type { RailAction } from "./rail";
 import { type SourceBlock, SourceBlockWidget } from "./source-widget";
@@ -43,6 +44,13 @@ export interface CompareSegment {
 	/** Word marks of one line, computed the first time that line is drawn. */
 	leftMarks: (offset: number) => readonly Span[];
 	rightMarks: (offset: number) => readonly Span[];
+}
+
+export function segmentKind(
+	segment: CompareSegment,
+): "added" | "removed" | "modified" {
+	if (segment.added > 0 && segment.removed > 0) return "modified";
+	return segment.added > 0 ? "added" : "removed";
 }
 
 export function buildSegments(model: FileDiffModel): CompareSegment[] {
@@ -78,20 +86,6 @@ export function buildSegments(model: FileDiffModel): CompareSegment[] {
 	return segments;
 }
 
-/** Connector/region colour per direction; resolves `--mdsync-tone-<tone>`. */
-export function directionTone(direction: EDiffDirection): string {
-	switch (direction) {
-		case EDiffDirection.Local:
-			return "local";
-		case EDiffDirection.Remote:
-			return "remote";
-		case EDiffDirection.Conflict:
-			return "conflict";
-		default:
-			return "base";
-	}
-}
-
 /** Choices and folds live outside the editor; this only tells it to redraw. */
 export const segmentsChanged = StateEffect.define<void>();
 const segmentsVersionField = StateField.define<number>({
@@ -103,10 +97,7 @@ const segmentsVersionField = StateField.define<number>({
 });
 
 export interface CombinedCompareConfig {
-	leftLabel: string;
-	rightLabel: string;
-	/** The side the actions take: its row carries them. */
-	near: CompareSide;
+	direction: EDiffDirection;
 	actions(segment: CompareSegment): RailAction[];
 }
 
@@ -118,6 +109,9 @@ export interface CompareStateConfig {
 	/** Keys of the segments folded to one row in both panes. */
 	folded(): ReadonlySet<number>;
 	toggleFold(key: number): void;
+	/** Indices of the unchanged runs opened in both panes. */
+	opened(): ReadonlySet<number>;
+	toggleGap(index: number): void;
 	combined: CombinedCompareConfig;
 }
 
@@ -125,17 +119,31 @@ export function compareState(config: CompareStateConfig): Extension {
 	return [
 		segmentsVersionField,
 		combinedModeField,
-		expandedGapsField,
-		viewportDecorations(
-			(view) => visibleSideLines(view, config),
-			(update) =>
-				update.docChanged ||
-				update.startState.field(segmentsVersionField) !==
-					update.state.field(segmentsVersionField),
+		gapGutter,
+		viewportTints(
+			(view, tints) => {
+				visibleSideLines(view, config, tints);
+				if (config.side === "right" && view.state.field(combinedModeField)) {
+					numberUnchangedLines(
+						view,
+						config.segments().map((segment) => segment.right),
+						tints.lines,
+					);
+				}
+			},
+			(update: ViewUpdate) => {
+				const changed = (field: StateField<unknown>) =>
+					update.startState.field(field) !== update.state.field(field);
+				return (
+					update.docChanged ||
+					changed(segmentsVersionField) ||
+					changed(combinedModeField)
+				);
+			},
 		),
 		// Folds and block widgets change the layout, so they cannot come from the viewport plugin.
 		EditorView.decorations.compute(
-			["doc", segmentsVersionField, combinedModeField, expandedGapsField],
+			["doc", segmentsVersionField, combinedModeField],
 			(state) => {
 				const ranges: Range<Decoration>[] = [];
 				const segments = config.segments();
@@ -146,14 +154,16 @@ export function compareState(config: CompareStateConfig): Extension {
 					if (segment) addFold(ranges, state.doc, segment, config, combined);
 				}
 				if (combined) {
-					addCombinedWidgets(
-						ranges,
-						state.doc,
-						segments,
-						config,
-						state.field(expandedGapsField),
-					);
+					addCombinedWidgets(ranges, state.doc, segments, config);
 				}
+				addUnchangedGaps(
+					ranges,
+					state.doc,
+					segments.map((segment) => segment[config.side]),
+					config.opened(),
+					config.toggleGap,
+					combined,
+				);
 				return Decoration.set(ranges, true);
 			},
 		),
@@ -163,52 +173,34 @@ export function compareState(config: CompareStateConfig): Extension {
 function visibleSideLines(
 	view: EditorView,
 	config: CompareStateConfig,
-): DecorationSet {
+	tints: Tints,
+): void {
 	const { doc } = view.state;
 	const { side, choices } = config;
 	const tone = side === "left" ? "removed" : "added";
-	const ranges: Range<Decoration>[] = [];
 	forEachVisibleRange(
 		view,
 		config.segments(),
 		(segment) => segment[side],
 		(segment, first, end) => {
 			const [from, to] = segment[side];
-			const chosen = choices.kindOf(segment) !== undefined;
+			const chosen = choices.kindOf(segment) !== undefined ? " is-chosen" : "";
+			const state = `is-${tone}${chosen}`;
 			if (to <= from) {
-				addMark(ranges, doc, sideSpan(doc, segment[side]).from, tone, chosen);
+				// The notch marks where the other side's lines went, so it takes their colour.
+				const other = tone === "added" ? "removed" : "added";
+				const at = sideSpan(doc, segment[side]).from;
+				markLine(tints, doc, at, `is-${other}${chosen}`);
 				return;
 			}
 			const marks = side === "left" ? segment.leftMarks : segment.rightMarks;
 			for (let n = first; n < end; n++) {
 				const line = doc.line(n + 1);
 				const last = n === to - 1 ? " is-last" : "";
-				ranges.push(
-					Decoration.line({
-						class: `mdsync-diff-line is-${tone}${chosen ? " is-chosen" : ""}${last}`,
-					}).range(line.from),
-				);
-				addCodeMarks(ranges, line, marks(n - from));
+				tintLine(tints, line.from, state, last);
+				addCodeMarks(tints.lines, line, marks(n - from));
 			}
 		},
-	);
-	return Decoration.set(ranges, true);
-}
-
-/** An empty side still gets a visible notch where the other side's lines land. */
-function addMark(
-	ranges: Range<Decoration>[],
-	doc: Text,
-	at: number,
-	tone: string,
-	chosen: boolean,
-): void {
-	const line = doc.lineAt(Math.min(at, doc.length));
-	const after = at === line.from ? "" : " is-after";
-	ranges.push(
-		Decoration.line({
-			class: `mdsync-diff-mark is-${tone}${after}${chosen ? " is-chosen" : ""}`,
-		}).range(line.from),
 	);
 }
 
@@ -223,20 +215,26 @@ function addFold(
 	const lines = segment[config.side];
 	const span = sideSpan(doc, lines);
 	const unfold = () => config.toggleFold(segment.key);
+	// Inline: the row closes the change's card.
+	const chosen = config.choices.kindOf(segment) !== undefined;
+	const foot = combined ? `is-card-foot${chosen ? " is-chosen" : ""}` : "";
 	if (span.to > span.from) {
 		ranges.push(
 			Decoration.replace({
-				widget: new FoldedLinesWidget(lines, unfold),
+				widget: new FoldedLinesWidget(lines, unfold, foot),
 				block: true,
+				// Its end is the next line's start, whose head and decorations stay; at the file's end a
+				// non-inclusive end would leave an empty row.
+				inclusiveEnd: span.to === doc.length,
 			}).range(span.from, span.to),
 		);
 	} else if (combined) {
 		// A folded deletion has no lines here to replace, so its row stands under the source block.
 		ranges.push(
 			Decoration.widget({
-				widget: new FoldedLinesWidget(segment.left, unfold),
+				widget: new FoldedLinesWidget(segment.left, unfold, foot),
 				block: true,
-				side: -9,
+				side: cardSide(doc, segment, -9),
 			}).range(span.from),
 		);
 	}
@@ -246,22 +244,29 @@ class FoldedLinesWidget extends WidgetType {
 	constructor(
 		private readonly lines: LineRange,
 		private readonly unfold: () => void,
+		private readonly cls: string,
 	) {
 		super();
 	}
 
 	eq(other: FoldedLinesWidget): boolean {
-		return other.lines[0] === this.lines[0] && other.lines[1] === this.lines[1];
+		return (
+			other.lines[0] === this.lines[0] &&
+			other.lines[1] === this.lines[1] &&
+			other.cls === this.cls
+		);
 	}
 
 	toDOM(): HTMLElement {
 		const label = rangeLabel(this.lines[0] + 1, this.lines[1]);
-		return gapRow(
+		const row = gapRow(
 			"unfold-vertical",
 			`Changed lines ${label}`,
 			`Show changed lines ${label}`,
 			this.unfold,
 		);
+		if (this.cls) row.addClasses(this.cls.split(" "));
+		return row;
 	}
 
 	ignoreEvent(): boolean {
@@ -274,53 +279,66 @@ function addCombinedWidgets(
 	doc: Text,
 	segments: readonly CompareSegment[],
 	config: CompareStateConfig,
-	expanded: DecorationSet,
 ): void {
 	const folded = config.folded();
 	for (const segment of segments) {
 		ranges.push(
 			Decoration.widget({
 				widget: new SourceBlockWidget(
-					sourceBlock(segment, config, folded.has(segment.key)),
+					changeCard(segment, config, folded.has(segment.key)),
 				),
 				block: true,
-				side: -10,
+				side: cardSide(doc, segment, -10),
 			}).range(sideSpan(doc, segment.right).from),
 		);
 	}
-	addCollapsedGaps(
-		ranges,
-		doc,
-		segments.map((segment) => sideSpan(doc, segment.right)),
-		expanded,
-	);
 }
 
-/** The left side's block above the lines it differs from; the right lines close the region. */
-function sourceBlock(
+/** Card rows stand above their change's place; a deletion past the last line (no final newline) goes below it. */
+function cardSide(doc: Text, segment: CompareSegment, side: number): number {
+	return segment.right[0] >= doc.lines ? side + 20 : side;
+}
+
+const KIND_TEXT = { added: "added", removed: "removed", modified: "edited" };
+
+/** A change's card: its head and the left side's lines; the right lines below, in the editor, close it. */
+function changeCard(
 	segment: CompareSegment,
 	config: CompareStateConfig,
 	folded: boolean,
 ): SourceBlock {
-	const { leftLabel, rightLabel, near } = config.combined;
+	const chosen = config.choices.kindOf(segment);
+	const [from, to] =
+		segment.right[1] > segment.right[0] ? segment.right : segment.left;
+	const where = `${to - from > 1 ? "Lines" : "Line"} ${rangeLabel(from + 1, to)}`;
 	const actions = config.combined.actions(segment);
+	const kind = segmentKind(segment);
 	return {
 		key: String(segment.key),
 		tone: "removed",
-		// Actions on the baseline row read as pushing the baseline, so they go to the side they take.
-		head: { text: leftLabel, actions: near === "left" ? actions : undefined },
+		head:
+			chosen === undefined
+				? { mark: kind, text: `${where} · ${KIND_TEXT[kind]}`, actions }
+				: {
+						mark: "chosen",
+						// Regular verbs: push, revert, pull, accept, restore.
+						text: `${where} · will be ${choiceVerb(config.combined.direction, chosen).replace(/e?$/, "ed")}`,
+						actions: actions
+							.filter((action) => action.active)
+							.map((action) => ({
+								...action,
+								icon: "",
+								label: "Undo choice",
+								shortLabel: "Undo choice",
+							})),
+					},
 		lines: segment.leftText,
 		firstLine: segment.left[0] + 1,
 		marks: segment.leftMarks,
-		emptyText: "No lines on this side",
 		opens: true,
-		closes: segment.right[1] <= segment.right[0],
-		chosen: config.choices.kindOf(segment) !== undefined,
+		// A folded change's row closes it instead.
+		closes: segment.right[1] <= segment.right[0] && !folded,
+		chosen: chosen !== undefined,
 		folded,
-		trailer: {
-			text: rightLabel,
-			counters: { added: segment.added, removed: segment.removed },
-			actions: near === "right" ? actions : undefined,
-		},
 	};
 }

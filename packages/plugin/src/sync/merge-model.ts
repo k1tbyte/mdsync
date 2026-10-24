@@ -311,7 +311,12 @@ export function applyPlan(
 	);
 	return {
 		...edit,
-		result: append ? { from: span.from, to: edit.result.to } : edit.result,
+		// An emptied span at the end of the file sits before the line break the new lines bring, not at a
+		// line start: they are the whole result, or reverting would snap it onto the line above.
+		result:
+			append && doc.lineAt(span.from).from === span.from
+				? { from: span.from, to: edit.result.to }
+				: edit.result,
 		taken: { [side]: edit.result },
 	};
 }
