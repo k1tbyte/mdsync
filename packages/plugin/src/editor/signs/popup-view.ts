@@ -1,4 +1,3 @@
-import type { Chunk } from "@codemirror/merge";
 import type { Text } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { ButtonComponent, Platform } from "obsidian";
@@ -7,36 +6,32 @@ import { pluralize } from "@/shared";
 import { appendIconButton, appendLabeledButton, notifyInfo } from "@/ui/common";
 
 import {
-	type ChunkMark,
+	type ChangeMark,
 	hunkTitle,
 	markPlace,
-	presentChunk,
 	presentSyncChange,
 	type SyncChange,
 } from "./helpers";
-import { revertHunk } from "./hunk-revert";
+import { segmentRevert } from "./hunk-revert";
 import type { SignsProvider } from "./provider";
 
 const MAX_LINES = 30;
 
 export interface HunkTarget {
 	view: EditorView;
-	chunk: Chunk;
-	mark: ChunkMark;
+	change: SyncChange;
+	mark: ChangeMark;
 	baseline: Text;
 	provider: SignsProvider;
 	path: string | null;
-	syncChange: SyncChange | null;
 }
 
 export function buildPopup(
 	target: HunkTarget,
 	dismiss: () => void,
 ): HTMLElement {
-	const { view, chunk, mark, baseline, provider, path, syncChange } = target;
-	const { removedLines, addedLines } = syncChange
-		? presentSyncChange(syncChange)
-		: presentChunk(chunk, baseline, view.state.doc);
+	const { view, change, mark, baseline, provider, path } = target;
+	const { removedLines, addedLines } = presentSyncChange(change);
 	const title = hunkTitle(removedLines.length, addedLines.length);
 	const phone = Platform.isPhone;
 	const popup = createDiv({ cls: "mdsync-hunk-popup" });
@@ -100,15 +95,19 @@ export function buildPopup(
 		.setButtonText("Revert hunk")
 		.setDestructive()
 		.onClick(
-			whileUnchanged(() => revertHunk(view, baseline, chunk, syncChange)),
+			whileUnchanged(() =>
+				view.dispatch({
+					changes: segmentRevert(doc, baseline, change.segment),
+				}),
+			),
 		);
-	if (path !== null && syncChange !== null) {
+	if (path !== null) {
 		new ButtonComponent(footer)
 			.setButtonText("Push hunk")
 			.setCta()
 			.onClick(
 				whileUnchanged(() => {
-					void provider.pushHunk(path, syncChange, doc.toString());
+					void provider.pushHunk(path, change, doc.toString());
 				}),
 			);
 	}

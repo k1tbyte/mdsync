@@ -7,14 +7,14 @@ import {
 import { type EditorView, GutterMarker, gutter } from "@codemirror/view";
 
 import { focusHunk, hunkFocusField, sameMark } from "./focus";
-import { type ChunkMark, chunkMarks, findChunkForLine } from "./helpers";
+import { type ChangeMark, findChangeForLine } from "./helpers";
 import { showHunkPopupAt } from "./hunk-popup";
 import type { SignsProvider } from "./provider";
 import {
-	type ChunksData,
-	chunksField,
+	type ChangesData,
+	changesField,
 	compareTextField,
-	setChunksEffect,
+	setChangesEffect,
 	setCompareTextEffect,
 } from "./state";
 
@@ -69,19 +69,19 @@ const EMPTY_RANGE_SET = RangeSet.empty as RangeSet<GutterMarker>;
 export const signsField = StateField.define<RangeSet<GutterMarker>>({
 	create: (state) => buildMarkers(state),
 	update(prev, tr) {
-		const chunksUpdated = tr.effects.some((e) => e.is(setChunksEffect));
+		const changesUpdated = tr.effects.some((e) => e.is(setChangesEffect));
 		const baseUpdated = tr.effects.some((e) => e.is(setCompareTextEffect));
-		const prevChunks = tr.startState.field(chunksField, false);
-		const nextChunks = tr.state.field(chunksField, false);
+		const prevChanges = tr.startState.field(changesField, false);
+		const nextChanges = tr.state.field(changesField, false);
 		const prevBase = tr.startState.field(compareTextField, false);
 		const nextBase = tr.state.field(compareTextField, false);
 		if (
-			!chunksUpdated &&
+			!changesUpdated &&
 			!baseUpdated &&
-			prevChunks === nextChunks &&
+			prevChanges === nextChanges &&
 			prevBase === nextBase
 		) {
-			// The chunk set has not been recomputed yet, but the document moved:
+			// The changes have not been recomputed yet, but the document moved:
 			// unmapped ranges would point past the end and the gutter would throw.
 			if (tr.docChanged) return prev.map(tr.changes);
 			const focusMoved =
@@ -100,8 +100,8 @@ export function buildSignsGutter(provider: SignsProvider) {
 		domEventHandlers: {
 			mousedown: (view, block, event) => {
 				if (!(event instanceof MouseEvent) || event.button !== 0) return false;
-				const data = view.state.field(chunksField, false);
-				if (!data || data.chunks.length === 0) return false;
+				const data = view.state.field(changesField, false);
+				if (!data || data.changes.length === 0) return false;
 				const lineNumber = view.state.doc.lineAt(block.from).number;
 				return showHunkPopupAt(view, lineNumber, event, provider);
 			},
@@ -120,20 +120,18 @@ export function buildSignsGutter(provider: SignsProvider) {
 /** The line and diff last looked up per editor: a move within that line, against that diff, needs no lookup. */
 const hovered = new WeakMap<
 	EditorView,
-	{ line: number | null; data: ChunksData | undefined }
+	{ line: number | null; data: ChangesData | undefined }
 >();
 
 /** A whole change widens under the pointer, not just the line it is on. */
 function hover(view: EditorView, line: number | null): void {
-	const data = view.state.field(chunksField, false);
+	const data = view.state.field(changesField, false);
 	const last = hovered.get(view);
 	if (last?.line === line && last.data === data) return;
 	hovered.set(view, { line, data });
-	const baseline = view.state.field(compareTextField, false);
 	const mark =
-		line !== null && baseline && data?.doc === view.state.doc
-			? (findChunkForLine(data.chunks, baseline, view.state.doc, line)?.mark ??
-				null)
+		line !== null && data?.doc === view.state.doc
+			? (findChangeForLine(data.changes, line)?.mark ?? null)
 			: null;
 	const focus = view.state.field(hunkFocusField, false);
 	if (!focus || sameMark(focus.hover, mark)) return;
@@ -142,8 +140,8 @@ function hover(view: EditorView, line: number | null): void {
 
 function buildMarkers(state: EditorState): RangeSet<GutterMarker> {
 	const baseline = state.field(compareTextField, false);
-	const data = state.field(chunksField, false);
-	if (!baseline || !data || data.chunks.length === 0) return EMPTY_RANGE_SET;
+	const data = state.field(changesField, false);
+	if (!baseline || !data || data.changes.length === 0) return EMPTY_RANGE_SET;
 
 	const builder = new RangeSetBuilder<GutterMarker>();
 	const lastLine = state.doc.lines;
@@ -158,7 +156,7 @@ function buildMarkers(state: EditorState): RangeSet<GutterMarker> {
 		builder.add(from, from, SIGN_MARKERS[kind][wide ? 1 : 0]);
 	};
 
-	for (const { mark } of chunkMarks(data.chunks, baseline, state.doc)) {
+	for (const { mark } of data.changes) {
 		const wide =
 			!!focus && (sameMark(mark, focus.hover) || sameMark(mark, focus.open));
 		for (let line = mark.from; line <= mark.to; line++)
@@ -169,7 +167,7 @@ function buildMarkers(state: EditorState): RangeSet<GutterMarker> {
 }
 
 /** One colour down a change, so a block reads as one stroke; its last line may also mark lines removed below. */
-function signKind(mark: ChunkMark, line: number): ESignKind {
+function signKind(mark: ChangeMark, line: number): ESignKind {
 	if (mark.kind === "add") return ESignKind.Add;
 	if (mark.kind === "delete") return ESignKind.Delete;
 	if (mark.kind === "topdelete") return ESignKind.TopDelete;

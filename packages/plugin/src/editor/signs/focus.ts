@@ -5,12 +5,12 @@ import {
 	StateField,
 } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
-import type { ChunkMark } from "./helpers";
+import type { ChangeMark } from "./helpers";
 
 /** The change under the pointer and the one whose popup is open: their marks widen, the open one tints its lines. */
 export interface HunkFocus {
-	hover: ChunkMark | null;
-	open: ChunkMark | null;
+	hover: ChangeMark | null;
+	open: ChangeMark | null;
 }
 
 export const focusHunk = StateEffect.define<Partial<HunkFocus>>();
@@ -28,7 +28,7 @@ export const hunkFocusField = StateField.define<HunkFocus>({
 	},
 });
 
-export function sameMark(a: ChunkMark | null, b: ChunkMark | null): boolean {
+export function sameMark(a: ChangeMark | null, b: ChangeMark | null): boolean {
 	return a === b || (!!a && !!b && a.from === b.from && a.to === b.to);
 }
 

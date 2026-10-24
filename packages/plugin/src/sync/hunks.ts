@@ -147,26 +147,90 @@ const NO_NEWLINE_MARKER = "\\ No newline at end of file";
 export function computeHunks(left: string, right: string): ComputedHunks {
 	const normalizedLeft = toLf(left);
 	const normalizedRight = toLf(right);
+	const hunks: SyncHunk[] = diffHunks(normalizedLeft, normalizedRight).map(
+		(h, idx) =>
+			annotateHunk(
+				idx,
+				h.oldStart,
+				h.oldLines,
+				h.newStart,
+				h.newLines,
+				h.lines,
+			),
+	);
+	// Split on demand: the editor's signs never read them, and recompute on every keystroke.
+	let leftLines: string[] | undefined;
+	let rightLines: string[] | undefined;
+	return {
+		hunks,
+		get leftLines() {
+			leftLines ??= splitLines(normalizedLeft);
+			return leftLines;
+		},
+		get rightLines() {
+			rightLines ??= splitLines(normalizedRight);
+			return rightLines;
+		},
+	};
+}
+
+/**
+ * jsdiff from the first differing line less its context: it matches a common prefix before anything else, so
+ * the hunks are those of the whole texts, shifted. Not a common suffix: repeated lines align differently.
+ */
+function diffHunks(left: string, right: string): RawHunk[] {
+	if (left === right) return [];
+	const from = linesBefore(left, commonPrefix(left, right), CONTEXT_LINES);
+	const skipped = newlinesBefore(left, from);
 	const patch = structuredPatch(
 		"a",
 		"b",
-		normalizedLeft,
-		normalizedRight,
+		left.slice(from),
+		right.slice(from),
 		"",
 		"",
 		{ context: CONTEXT_LINES, maxEditLength: MAX_EDIT_LENGTH },
 	);
 	// An edit budget, unlike a timeout, is deterministic: an operation recomputing
 	// these hunks from the same texts gets the same indices the view drew.
-	const raw = patch?.hunks ?? [replacedBlock(normalizedLeft, normalizedRight)];
-	const hunks: SyncHunk[] = raw.map((h, idx) =>
-		annotateHunk(idx, h.oldStart, h.oldLines, h.newStart, h.newLines, h.lines),
-	);
-	return {
-		hunks,
-		leftLines: splitLines(normalizedLeft),
-		rightLines: splitLines(normalizedRight),
-	};
+	if (!patch) return [replacedBlock(left, right)];
+	return patch.hunks.map((hunk) => ({
+		...hunk,
+		oldStart: hunk.oldStart + skipped,
+		newStart: hunk.newStart + skipped,
+	}));
+}
+
+/** Binary search over native compares: a loop over characters costs as much as the diff it spares. */
+function commonPrefix(a: string, b: string): number {
+	let low = 0;
+	let high = Math.min(a.length, b.length);
+	while (low < high) {
+		const mid = (low + high + 1) >> 1;
+		if (a.slice(0, mid) === b.slice(0, mid)) low = mid;
+		else high = mid - 1;
+	}
+	return low;
+}
+
+/** Start of the line holding `at`, then `lines` lines further up. */
+function linesBefore(text: string, at: number, lines: number): number {
+	const newlineBefore = (pos: number) =>
+		pos < 0 ? -1 : text.lastIndexOf("\n", pos);
+	let cut = newlineBefore(at - 1);
+	for (let k = 0; k < lines && cut >= 0; k++) cut = newlineBefore(cut - 1);
+	return cut + 1;
+}
+
+function newlinesBefore(text: string, end: number): number {
+	let count = 0;
+	for (
+		let at = text.indexOf("\n");
+		at >= 0 && at < end;
+		at = text.indexOf("\n", at + 1)
+	)
+		count++;
+	return count;
 }
 
 /** Left text with the selected segments replaced by their right side. */

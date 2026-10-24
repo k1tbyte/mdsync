@@ -4,13 +4,13 @@ import { computePlugin } from "./compute";
 import { hunkFocus } from "./focus";
 import { buildSignsGutter, signsField } from "./gutter";
 import type { SignsProvider } from "./provider";
-import { chunksField, compareTextField } from "./state";
+import { changesField, compareTextField } from "./state";
 import { subscriberPlugin } from "./subscriber";
 
 export function buildSignsExtensions(provider: SignsProvider): Extension[] {
 	return [
 		compareTextField,
-		chunksField,
+		changesField,
 		hunkFocus,
 		signsField,
 		computePlugin,

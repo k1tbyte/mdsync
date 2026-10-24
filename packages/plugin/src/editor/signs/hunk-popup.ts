@@ -2,12 +2,12 @@ import type { EditorView } from "@codemirror/view";
 import { type App, Modal, Platform } from "obsidian";
 
 import { focusHunk } from "./focus";
-import { findChunkForLine, findSyncChangeForLine } from "./helpers";
+import { findChangeForLine } from "./helpers";
 import { installDismissHandlers } from "./popup-dismiss";
 import { positionPopup } from "./popup-placement";
 import { buildPopup, type HunkTarget } from "./popup-view";
 import type { SignsProvider } from "./provider";
-import { chunksField, compareTextField } from "./state";
+import { changesField, compareTextField } from "./state";
 
 let activePopup: { element: HTMLElement; cleanup: () => void } | null = null;
 let activeDrawer: HunkDrawer | null = null;
@@ -21,29 +21,18 @@ export function showHunkPopupAt(
 	provider: SignsProvider,
 ): boolean {
 	const baseline = view.state.field(compareTextField, false);
-	const data = view.state.field(chunksField, false);
-	// Chunks not yet recomputed after an edit name the lines it moved.
-	if (!baseline || data?.doc !== view.state.doc || data.chunks.length === 0)
-		return false;
-	const found = findChunkForLine(
-		data.chunks,
-		baseline,
-		view.state.doc,
-		lineNumber,
-	);
+	const data = view.state.field(changesField, false);
+	// Changes not yet recomputed after an edit name the lines it moved.
+	if (!baseline || data?.doc !== view.state.doc) return false;
+	const found = findChangeForLine(data.changes, lineNumber);
 	if (!found) return false;
 
-	const path = provider.getViewPath(view);
 	const target: HunkTarget = {
 		view,
 		...found,
 		baseline,
 		provider,
-		path,
-		syncChange:
-			path === null
-				? null
-				: findSyncChangeForLine(lineNumber, baseline, view.state.doc),
+		path: provider.getViewPath(view),
 	};
 	dismissPopup();
 	activeView = view;

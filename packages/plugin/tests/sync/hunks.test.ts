@@ -1,3 +1,4 @@
+import { structuredPatch } from "diff";
 import { describe, expect, it } from "vitest";
 import {
 	applyHunks,
@@ -10,6 +11,7 @@ import {
 	selectionSize,
 	wholeHunks,
 } from "@/sync/hunks";
+import { toLf } from "@/utils";
 
 describe("hunks", () => {
 	describe("computeHunks", () => {
@@ -91,6 +93,70 @@ describe("hunks", () => {
 			expect(result.hunks[0]).toMatchObject({
 				kind: EHunkKind.Removed,
 				removed: 1,
+			});
+		});
+
+		describe("diffs from the first differing line, yet matches a diff of the whole texts", () => {
+			const shape = ({
+				oldStart,
+				oldLines,
+				newStart,
+				newLines,
+				lines,
+			}: SyncHunk) => ({
+				oldStart,
+				oldLines,
+				newStart,
+				newLines,
+				lines,
+			});
+			const matchesWhole = (a: string, b: string) =>
+				expect(computeHunks(a, b).hunks.map(shape)).toEqual(
+					structuredPatch("a", "b", a, b, "", "", { context: 3 })?.hunks,
+				);
+
+			// Repeated lines let jsdiff align into a common suffix: cutting one off moved hunks.
+			it("keeps a common suffix of repeated lines", () => {
+				matchesWhole(`c\n${"a\n".repeat(10)}z\n`, `${"a\n".repeat(11)}z\n`);
+				const cycle = ["😀", "a", "", "ab", "a", "a", "c", "b"];
+				const left = [...Array(5).fill(cycle).flat(), "😀", "a"];
+				const right = [
+					...cycle,
+					...["😀", "a", "", "ab", "a", "a", "c", "", "ab", "a", "a", "a"],
+					...["", "ab", "a", "a", "c", "b", "😀", "a", "", "ab", "a", "a"],
+					...["c", "b", "😀", "a", "a", "c", "b", "😀", "a", "", "ab", "a"],
+					...["a", "c", "c", "b", "😀", "a"],
+				];
+				matchesWhole(`${left.join("\n")}\n`, `${right.join("\n")}\n`);
+			});
+
+			it("on random texts heavy with blank and repeated lines", () => {
+				let seed = 7;
+				const random = (n: number) => {
+					seed = (seed * 1103515245 + 12345) % 2 ** 31;
+					return seed % n;
+				};
+				const pool = ["", "", "a", "a", "a", "b", "## h", "\r", "😀"];
+				const text = (lines: readonly string[]) =>
+					lines.join(random(5) ? "\n" : "\r\n") + (random(2) ? "\n" : "");
+				for (let run = 0; run < 5000; run++) {
+					const left = Array.from(
+						{ length: random(60) },
+						() => pool[random(pool.length)] as string,
+					);
+					const right = [...left];
+					for (let edit = random(6); edit >= 0; edit--) {
+						const at = random(right.length + 1);
+						if (random(2))
+							right.splice(at, 0, pool[random(pool.length)] as string);
+						else right.splice(at, 1 + random(3));
+					}
+					const [a, b] = [text(left), text(right)];
+					expect(computeHunks(a, b).hunks.map(shape)).toEqual(
+						structuredPatch("a", "b", toLf(a), toLf(b), "", "", { context: 3 })
+							?.hunks,
+					);
+				}
 			});
 		});
 	});

@@ -1,20 +1,21 @@
-import { Chunk, type DiffConfig } from "@codemirror/merge";
 import type { ChangeDesc } from "@codemirror/state";
 import { type EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import { debounce } from "obsidian";
 
+import { markedChanges } from "./helpers";
 import {
-	chunksField,
+	changesField,
 	compareTextField,
 	pathFromState,
-	setChunksEffect,
+	setChangesEffect,
 	setCompareTextEffect,
 } from "./state";
 
 const DEBOUNCE_MS = 1000;
+/** Marks follow typing at most this often: a diff per keystroke is wasted work on a phone. */
+const TYPING_MS = 120;
 const LARGE_CHANGE_THRESHOLD = 1000;
 const SLOW_DIFF_THRESHOLD_MS = 16;
-const DIFF_CONFIG: DiffConfig = { scanLimit: 1000, timeout: 200 };
 
 type Debounced = ReturnType<typeof debounce>;
 
@@ -22,13 +23,16 @@ export const computePlugin = ViewPlugin.fromClass(
 	class {
 		private readonly view: EditorView;
 		private readonly debounced: Debounced;
+		private readonly typing: Debounced;
 		private lastChangeSize = 0;
 		private scheduled = false;
 		private destroyed = false;
 
 		constructor(view: EditorView) {
 			this.view = view;
+			// Not reset per call: they fire once per window while edits keep coming.
 			this.debounced = debounce(() => this.recompute(), DEBOUNCE_MS, false);
+			this.typing = debounce(() => this.recompute(), TYPING_MS, false);
 			this.scheduleRecompute();
 		}
 
@@ -38,13 +42,13 @@ export const computePlugin = ViewPlugin.fromClass(
 			const nextPath = pathFromState(u.state);
 
 			if (prevPath !== nextPath) {
-				this.debounced.cancel();
+				this.cancelPending();
 			}
 
 			if (u.docChanged && prevPath === nextPath) {
 				this.lastChangeSize = changeSize(u.changes.desc);
-				if (this.shouldRecomputeImmediately()) {
-					recomputeNow = true;
+				if (this.isQuickToRecompute()) {
+					this.typing();
 				} else {
 					this.debounced();
 				}
@@ -59,14 +63,19 @@ export const computePlugin = ViewPlugin.fromClass(
 			}
 
 			if (recomputeNow) {
-				this.debounced.cancel();
+				this.cancelPending();
 				this.scheduleRecompute();
 			}
 		}
 
 		destroy(): void {
 			this.destroyed = true;
+			this.cancelPending();
+		}
+
+		private cancelPending(): void {
 			this.debounced.cancel();
+			this.typing.cancel();
 		}
 
 		private scheduleRecompute(): void {
@@ -81,8 +90,8 @@ export const computePlugin = ViewPlugin.fromClass(
 			});
 		}
 
-		private shouldRecomputeImmediately(): boolean {
-			const lastDiffMs = this.view.state.field(chunksField).lastDiffMs;
+		private isQuickToRecompute(): boolean {
+			const lastDiffMs = this.view.state.field(changesField).lastDiffMs;
 			return (
 				this.lastChangeSize <= LARGE_CHANGE_THRESHOLD &&
 				lastDiffMs <= SLOW_DIFF_THRESHOLD_MS
@@ -90,13 +99,15 @@ export const computePlugin = ViewPlugin.fromClass(
 		}
 
 		private recompute(): void {
+			// It diffs the latest document, which any pending run would too.
+			this.cancelPending();
 			const state = this.view.state;
 			const baseline = state.field(compareTextField);
 			if (!baseline) {
-				if (state.field(chunksField).chunks.length > 0) {
+				if (state.field(changesField).changes.length > 0) {
 					this.view.dispatch({
-						effects: setChunksEffect.of({
-							chunks: [],
+						effects: setChangesEffect.of({
+							changes: [],
 							doc: state.doc,
 							lastDiffMs: 0,
 						}),
@@ -107,11 +118,11 @@ export const computePlugin = ViewPlugin.fromClass(
 
 			const current = state.doc;
 			const start = performance.now();
-			const chunks = Chunk.build(baseline, current, DIFF_CONFIG);
+			const changes = markedChanges(baseline, current);
 			const elapsedMs = performance.now() - start;
 			this.view.dispatch({
-				effects: setChunksEffect.of({
-					chunks,
+				effects: setChangesEffect.of({
+					changes,
 					doc: current,
 					lastDiffMs: elapsedMs,
 				}),
