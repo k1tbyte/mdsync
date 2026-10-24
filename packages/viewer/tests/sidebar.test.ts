@@ -1,23 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createSidebar } from "../src/sidebar";
+import { createSidebar, type Sidebar } from "../src/sidebar";
 
 let controller: AbortController;
-let reader: HTMLElement;
-let sidebar: HTMLElement;
-let toggle: HTMLButtonElement;
-const wideKey = "mdsync-viewer-wide";
+let sidebar: Sidebar;
 
 beforeEach(() => {
-	localStorage.clear();
 	controller = new AbortController();
-	reader = document.createElement("div");
-	document.body.replaceChildren(reader);
 });
 
 afterEach(() => {
 	controller.abort();
-	localStorage.clear();
 	document.body.replaceChildren();
 });
 
@@ -25,62 +18,49 @@ const mount = (
 	viewsLeft: number | null = null,
 	expires: number | null = null,
 	outline: HTMLElement | null = null,
-	markdown: () => string = () => "# Note\n",
 ) => {
 	sidebar = createSidebar(
-		reader,
+		document,
 		outline,
 		{ viewsLeft, expires },
-		markdown,
 		controller.signal,
 	);
-	reader.append(sidebar);
-	toggle = sidebar.querySelector(".sidebar-toggle") as HTMLButtonElement;
-	return sidebar;
+	document.body.replaceChildren(
+		sidebar.menu,
+		sidebar.aside,
+		document.createElement("main"),
+	);
+	return sidebar.aside;
 };
 
+const closeButton = () =>
+	sidebar.aside.querySelector(".menu-close") as HTMLButtonElement;
+const card = () => sidebar.aside.querySelector(".link-card");
+
 const expectOpen = (open: boolean) => {
-	expect(sidebar.classList.contains("is-open")).toBe(open);
-	expect(toggle.getAttribute("aria-expanded")).toBe(String(open));
+	expect(sidebar.aside.classList.contains("is-open")).toBe(open);
+	expect(sidebar.menu.getAttribute("aria-expanded")).toBe(String(open));
 };
 
 describe("sidebar", () => {
 	it.each([false, true])("builds the panel with outline %s", (hasOutline) => {
 		const outline = hasOutline ? document.createElement("nav") : null;
-		mount(null, null, outline);
-		expect(sidebar.tagName).toBe("ASIDE");
-		expect(sidebar.className).toBe("sidebar");
-		expect(toggle.type).toBe("button");
-		expect(toggle.getAttribute("aria-label")).toBe("Menu");
-		const panel = sidebar.querySelector(".sidebar-panel") as HTMLElement;
-		const card = panel.querySelector(".link-card");
-		expect(Array.from(sidebar.children)).toEqual([toggle, panel]);
+		const aside = mount(null, null, outline);
+		expect(aside.tagName).toBe("ASIDE");
+		expect(sidebar.menu.textContent).toBe("Menu");
+		const panel = aside.querySelector(".sidebar-panel") as HTMLElement;
+		const credit = panel.querySelector(".credit");
 		expect(Array.from(panel.children)).toEqual(
-			outline ? [card, outline] : [card],
+			outline
+				? [
+						closeButton(),
+						panel.querySelector(".outline-label"),
+						outline,
+						credit,
+					]
+				: [closeButton(), credit],
 		);
-		expect(card?.querySelector(".link-fact")).toBeNull();
-		expect(card?.querySelector(".wide-toggle")?.textContent).toBe("Wide text");
-	});
-
-	it("copies the note as Markdown and says how it went", async () => {
-		const writeText = vi.fn(async (_text: string) => {});
-		vi.stubGlobal("navigator", { clipboard: { writeText } });
-		mount();
-		const copy = sidebar.querySelector(".copy-markdown") as HTMLButtonElement;
-		expect(copy.textContent).toBe("Copy as Markdown");
-		copy.click();
-		await vi.waitFor(() => expect(copy.textContent).toBe("Copied"));
-		expect(writeText).toHaveBeenCalledExactlyOnceWith("# Note\n");
-		vi.unstubAllGlobals();
-	});
-
-	it("says so when the note cannot be copied", async () => {
-		mount(null, null, null, () => {
-			throw new Error("not convertible");
-		});
-		const copy = sidebar.querySelector(".copy-markdown") as HTMLButtonElement;
-		copy.click();
-		await vi.waitFor(() => expect(copy.textContent).toBe("Copy failed"));
+		expect(credit?.textContent).toBe("Shared with MDSync");
 	});
 
 	it.each([
@@ -95,21 +75,36 @@ describe("sidebar", () => {
 		expect(line?.textContent).toBe(text);
 	});
 
-	it("toggles the menu and expanded state", () => {
-		mount();
-		expectOpen(false);
-		toggle.click();
-		expectOpen(true);
-		toggle.click();
-		expectOpen(false);
+	it("warns once the note lives only in this tab", () => {
+		const past = Math.floor(Date.now() / 1000) - 60;
+		mount(0);
+		expect(card()?.classList.contains("is-warning")).toBe(true);
+		mount(3);
+		expect(card()?.classList.contains("is-warning")).toBe(false);
+		mount(3, past);
+		expect(card()?.classList.contains("is-warning")).toBe(true);
 	});
 
-	it("closes outside but not inside the sidebar", () => {
+	it("opens from the menu, closes from its own button and moves focus", () => {
 		mount();
-		toggle.click();
-		(sidebar.querySelector(".link-card") as HTMLElement).click();
+		expectOpen(false);
+		sidebar.menu.click();
 		expectOpen(true);
-		reader.click();
+		expect(document.activeElement).toBe(closeButton());
+		closeButton().click();
+		expectOpen(false);
+		expect(document.activeElement).toBe(sidebar.menu);
+	});
+
+	it("closes on the backdrop and outside but not inside the panel", () => {
+		const aside = mount(2);
+		sidebar.menu.click();
+		(card() as HTMLElement).click();
+		expectOpen(true);
+		aside.click();
+		expectOpen(false);
+		sidebar.menu.click();
+		(document.querySelector("main") as HTMLElement).click();
 		expectOpen(false);
 	});
 
@@ -118,14 +113,14 @@ describe("sidebar", () => {
 		outline.innerHTML =
 			'<button class="outline-item"><span>First</span></button>';
 		mount(null, null, outline);
-		toggle.click();
+		sidebar.menu.click();
 		(outline.querySelector("span") as HTMLElement).click();
 		expectOpen(false);
 	});
 
 	it("closes on Escape but not other keys", () => {
 		mount();
-		toggle.click();
+		sidebar.menu.click();
 		document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
 		expectOpen(true);
 		document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
@@ -134,29 +129,11 @@ describe("sidebar", () => {
 
 	it("stops closing outside or on Escape after abort", () => {
 		mount();
-		toggle.click();
+		sidebar.menu.click();
 		controller.abort();
-		reader.click();
+		(document.querySelector("main") as HTMLElement).click();
 		expectOpen(true);
 		document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
 		expectOpen(true);
 	});
-
-	it.each([false, true])(
-		"starts wide from storage %s and remembers changes",
-		(stored) => {
-			if (stored) localStorage.setItem(wideKey, "1");
-			const wide = mount().querySelector(".wide-toggle") as HTMLButtonElement;
-			expect(reader.classList.contains("is-wide")).toBe(stored);
-			expect(wide.getAttribute("aria-pressed")).toBe(String(stored));
-			wide.click();
-			expect(reader.classList.contains("is-wide")).toBe(!stored);
-			expect(wide.getAttribute("aria-pressed")).toBe(String(!stored));
-			expect(localStorage.getItem(wideKey)).toBe(stored ? null : "1");
-			wide.click();
-			expect(reader.classList.contains("is-wide")).toBe(stored);
-			expect(wide.getAttribute("aria-pressed")).toBe(String(stored));
-			expect(localStorage.getItem(wideKey)).toBe(stored ? "1" : null);
-		},
-	);
 });

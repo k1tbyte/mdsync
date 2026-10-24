@@ -1,15 +1,15 @@
 import { copyWithFeedback } from "./clipboard";
-import { el } from "./dom";
+import { button as iconButton } from "./icons";
 
 const LABEL = "Copy";
 
 /** Obsidian's copy button on each code block: the snapshot's own left without its script. */
 export function addCopyButtons(body: HTMLElement): void {
 	for (const code of Array.from(body.querySelectorAll("pre > code"))) {
-		const button = el(
+		const button = iconButton(
 			body.ownerDocument,
-			"button",
-			{ type: "button", class: "copy-code-button" },
+			"copy-code-button",
+			"copy",
 			LABEL,
 		);
 		button.addEventListener(
