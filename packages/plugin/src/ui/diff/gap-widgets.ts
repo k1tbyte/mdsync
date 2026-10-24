@@ -1,12 +1,6 @@
-import {
-	type Range,
-	StateEffect,
-	StateField,
-	type Text,
-} from "@codemirror/state";
+import type { Range, Text } from "@codemirror/state";
 import {
 	Decoration,
-	type DecorationSet,
 	type EditorView,
 	GutterMarker,
 	gutterWidgetClass,
@@ -14,101 +8,12 @@ import {
 } from "@codemirror/view";
 import { setIcon } from "obsidian";
 import type { LineRange } from "@/sync/hunks";
-import { type Span, snapToLines } from "@/sync/merge-model";
-import { rangeLabel } from "./geometry";
+import type { Span } from "@/sync/merge-model";
+import { firstIndex } from "@/utils";
 
 const CONTEXT_LINES = 3;
 /** A shorter run costs less to show than the row that would hide it. */
 const MIN_GAP_LINES = 3;
-
-const mapSpan = (
-	value: Span,
-	mapping: { mapPos(p: number, a: number): number },
-) => ({
-	from: mapping.mapPos(value.from, -1),
-	to: mapping.mapPos(value.to, 1),
-});
-
-export const expandGap = StateEffect.define<Span>({ map: mapSpan });
-export const collapseGap = StateEffect.define<Span>({ map: mapSpan });
-
-/** Unchanged ranges the user opened; they follow edits and can be folded again. */
-export const expandedGapsField = StateField.define<DecorationSet>({
-	create: () => Decoration.none,
-	update: (expanded, transaction) => {
-		let next = expanded.map(transaction.changes);
-		for (const effect of transaction.effects) {
-			if (effect.is(expandGap)) {
-				next = next.update({
-					add: [Decoration.mark({}).range(effect.value.from, effect.value.to)],
-				});
-			} else if (effect.is(collapseGap)) {
-				const { from, to } = effect.value;
-				next = next.update({
-					filter: (rangeFrom, rangeTo) => rangeFrom >= to || rangeTo <= from,
-				});
-			}
-		}
-		return next;
-	},
-});
-
-class GapWidget extends WidgetType {
-	constructor(
-		private readonly start: number,
-		private readonly end: number,
-		private readonly span: Span,
-	) {
-		super();
-	}
-
-	eq(other: GapWidget): boolean {
-		return other.span.from === this.span.from && other.span.to === this.span.to;
-	}
-
-	toDOM(view: EditorView): HTMLElement {
-		return gapRow(
-			"unfold-vertical",
-			`Lines ${rangeLabel(this.start, this.end)}`,
-			`Show unchanged lines ${rangeLabel(this.start, this.end)}`,
-			() => view.dispatch({ effects: expandGap.of(this.span) }),
-		);
-	}
-
-	ignoreEvent(): boolean {
-		return true;
-	}
-}
-
-/** Both ends of an expanded run can fold it back without scrolling to the start. */
-class FoldWidget extends WidgetType {
-	constructor(
-		private readonly start: number,
-		private readonly end: number,
-		private readonly span: Span,
-	) {
-		super();
-	}
-
-	eq(other: FoldWidget): boolean {
-		return other.span.from === this.span.from && other.span.to === this.span.to;
-	}
-
-	toDOM(view: EditorView): HTMLElement {
-		const row = gapRow(
-			"fold-vertical",
-			`Hide lines ${rangeLabel(this.start, this.end)}`,
-			`Hide unchanged lines ${rangeLabel(this.start, this.end)}`,
-			() => view.dispatch({ effects: collapseGap.of(this.span) }),
-		);
-		row.addClass("is-fold");
-		return row;
-	}
-
-	ignoreEvent(): boolean {
-		return true;
-	}
-}
 
 /** One unchanged run between changes; its index names it the same in both panes. */
 class UnchangedWidget extends WidgetType {
@@ -241,6 +146,38 @@ export function addUnchangedGaps(
 	}
 }
 
+/** Inline: unchanged rows on screen carry their numbers, as the cards carry none; folded rows are skipped. */
+export function numberUnchangedLines(
+	view: EditorView,
+	changes: readonly LineRange[],
+	lines: Range<Decoration>[],
+): void {
+	const { doc } = view.state;
+	let next = 0;
+	for (const { from, to } of view.visibleRanges) {
+		const start = Math.max(next, doc.lineAt(from).number - 1);
+		const end = doc.lineAt(to).number;
+		let index = firstIndex(
+			changes.length,
+			(i) => (changes[i] as LineRange)[1] > start,
+		);
+		for (let n = start; n < end; n++) {
+			while ((changes[index]?.[1] ?? Infinity) <= n) index++;
+			const nextChange = changes[index]?.[0] ?? doc.lines;
+			if (nextChange <= n) continue;
+			// The run's real end closes its frame; the rendered window's edge must not.
+			const last = n + 1 === nextChange ? " is-run-end" : "";
+			lines.push(
+				Decoration.line({
+					class: `mdsync-unchanged-line${last}`,
+					attributes: { "data-line": String(n + 1) },
+				}).range(doc.line(n + 1).from),
+			);
+		}
+		next = end;
+	}
+}
+
 /** The folded runs of two panes, paired so the strip between them can join their bars. */
 export function foldedBands(
 	near: { doc: Text; changes: readonly LineRange[] },
@@ -274,87 +211,4 @@ export function gapRow(
 	button.addEventListener("mousedown", (event) => event.preventDefault());
 	button.addEventListener("click", onClick);
 	return button;
-}
-
-/** Collapses runs of unchanged lines more than three lines from a visible span; expanded runs get a fold row. */
-export function addCollapsedGaps(
-	ranges: Range<Decoration>[],
-	doc: Text,
-	visible: readonly Span[],
-	expanded: DecorationSet,
-): void {
-	if (visible.length === 0 || doc.length === 0) return;
-	const intervals = visible
-		.map((span) => visibleLines(doc, span))
-		.sort((a, b) => a.start - b.start);
-	const merged: Array<{ start: number; end: number }> = [];
-	for (const interval of intervals) {
-		const previous = merged.at(-1);
-		if (previous && interval.start <= previous.end + 1) {
-			previous.end = Math.max(previous.end, interval.end);
-		} else {
-			merged.push({ ...interval });
-		}
-	}
-	let cursor = 1;
-	for (const interval of merged) {
-		addGap(ranges, doc, cursor, interval.start - 1, expanded);
-		cursor = interval.end + 1;
-	}
-	addGap(ranges, doc, cursor, doc.lines, expanded);
-}
-
-function visibleLines(doc: Text, span: Span): { start: number; end: number } {
-	const snapped = snapToLines(doc, span);
-	const start = doc.lineAt(snapped.from).number;
-	const end =
-		snapped.to > snapped.from ? doc.lineAt(snapped.to - 1).number : start;
-	return {
-		start: Math.max(1, start - CONTEXT_LINES),
-		end: Math.min(doc.lines, end + CONTEXT_LINES),
-	};
-}
-
-function addGap(
-	ranges: Range<Decoration>[],
-	doc: Text,
-	start: number,
-	end: number,
-	expanded: DecorationSet,
-): void {
-	if (end - start + 1 < MIN_GAP_LINES) return;
-	const from = doc.line(start).from;
-	const to = end < doc.lines ? doc.line(end + 1).from : doc.length;
-	if (from >= to) return;
-	const span = { from, to };
-	if (overlaps(expanded, from, to)) {
-		for (const at of [from, to]) {
-			ranges.push(
-				Decoration.widget({
-					widget: new FoldWidget(start, end, span),
-					block: true,
-					side: -20,
-				}).range(at),
-			);
-		}
-		return;
-	}
-	ranges.push(
-		Decoration.replace({
-			widget: new GapWidget(start, end, span),
-			block: true,
-		}).range(from, to),
-	);
-}
-
-function overlaps(
-	decorations: DecorationSet,
-	from: number,
-	to: number,
-): boolean {
-	let found = false;
-	decorations.between(0, to, (rangeFrom, rangeTo) => {
-		if (rangeFrom < to && rangeTo > from) found = true;
-	});
-	return found;
 }

@@ -14,10 +14,14 @@ import {
 import { hunkSegments, type LineRange } from "@/sync/hunks";
 import type { Span } from "@/sync/merge-model";
 import type { EDiffDirection, FileDiffModel } from "@/sync/projection";
-import { firstIndex } from "@/utils";
 import { choiceVerb, type HunkChoices } from "./choices";
 import { addCodeMarks, type LineMarks, lineMarks } from "./code-lines";
-import { addUnchangedGaps, gapGutter, gapRow } from "./gap-widgets";
+import {
+	addUnchangedGaps,
+	gapGutter,
+	gapRow,
+	numberUnchangedLines,
+} from "./gap-widgets";
 import { forEachVisibleRange, rangeLabel, sideSpan } from "./geometry";
 import { markLine, type Tints, tintLine, viewportTints } from "./line-tints";
 import { combinedModeField } from "./merge-decorations";
@@ -120,7 +124,11 @@ export function compareState(config: CompareStateConfig): Extension {
 			(view, tints) => {
 				visibleSideLines(view, config, tints);
 				if (config.side === "right" && view.state.field(combinedModeField)) {
-					numberUnchangedLines(view, config.segments(), tints.lines);
+					numberUnchangedLines(
+						view,
+						config.segments().map((segment) => segment.right),
+						tints.lines,
+					);
 				}
 			},
 			(update: ViewUpdate) => {
@@ -194,38 +202,6 @@ function visibleSideLines(
 			}
 		},
 	);
-}
-
-/** Inline: unchanged rows on screen carry their numbers, as the cards carry none; folded rows are skipped. */
-function numberUnchangedLines(
-	view: EditorView,
-	segments: readonly CompareSegment[],
-	lines: Range<Decoration>[],
-): void {
-	const { doc } = view.state;
-	let next = 0;
-	for (const { from, to } of view.visibleRanges) {
-		const start = Math.max(next, doc.lineAt(from).number - 1);
-		const end = doc.lineAt(to).number;
-		let index = firstIndex(
-			segments.length,
-			(i) => (segments[i] as CompareSegment).right[1] > start,
-		);
-		for (let n = start; n < end; n++) {
-			while ((segments[index]?.right[1] ?? Infinity) <= n) index++;
-			const nextChange = segments[index]?.right[0] ?? doc.lines;
-			if (nextChange <= n) continue;
-			// The run's real end closes its frame; the rendered window's edge must not.
-			const last = n + 1 === nextChange ? " is-run-end" : "";
-			lines.push(
-				Decoration.line({
-					class: `mdsync-unchanged-line${last}`,
-					attributes: { "data-line": String(n + 1) },
-				}).range(doc.line(n + 1).from),
-			);
-		}
-		next = end;
-	}
 }
 
 /** Folded lines of one side as a single row that unfolds them. */

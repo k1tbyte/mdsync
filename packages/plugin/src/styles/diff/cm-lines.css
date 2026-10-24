@@ -52,10 +52,6 @@
 	box-shadow: inset 0 calc(-1 * var(--mdsync-bar)) 0 var(--interactive-accent);
 }
 
-.mdsync-merge-panel.is-combined .cm-line.mdsync-diff-line {
-	border-right: 1px solid var(--background-modifier-border);
-}
-
 .mdsync-code-mark {
 	border-radius: 2px;
 	background: rgba(var(--mdsync-tone), 0.28);

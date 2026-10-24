@@ -31,15 +31,15 @@ import {
 	type LineWrappingOptions,
 } from "./line-wrapping-control";
 import { mergeActions } from "./merge-actions";
+import { toggleMergeGap } from "./merge-cards";
 import { dividerItems } from "./merge-controls";
 import {
 	mergeResultState,
-	type SideMarks,
 	setCombinedMode,
 	showSideChanges,
 	sideDecorations,
-	sideMarks,
 } from "./merge-decorations";
+import { type SideMarks, sideMarks } from "./merge-marks";
 import { initialMergeChanges, mergeChangesField } from "./merge-state";
 import { MergeToolbar } from "./merge-toolbar";
 import { changeNavigation } from "./rail";
@@ -265,6 +265,8 @@ export class MergeEditorPanel {
 						base: this.base,
 						sides: this.sides,
 						marks,
+						toggleGap: (index) =>
+							this.resultView?.dispatch({ effects: toggleMergeGap.of(index) }),
 					}),
 					history(),
 					// Labelled by the pane head: an aria-label shows Obsidian's tooltip over the whole editor.

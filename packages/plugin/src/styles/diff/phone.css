@@ -96,9 +96,18 @@ body.is-phone .mdsync-diff-view .mdsync-compare-pending {
 }
 
 body.is-phone .mdsync-diff-view .mdsync-compare-choice-actions,
-body.is-phone .mdsync-diff-view .mdsync-diff-file-actions {
+body.is-phone .mdsync-diff-view .mdsync-diff-file-actions,
+body.is-phone .mdsync-diff-view .mdsync-diff-resolution {
 	flex: 1 1 auto;
 	width: 100%;
+}
+
+body.is-phone .mdsync-diff-view .mdsync-diff-resolution {
+	padding-left: 0;
+}
+
+body.is-phone .mdsync-diff-view .mdsync-diff-resolution::before {
+	display: none;
 }
 
 body.is-phone .mdsync-diff-view .mdsync-diff-action-bar button {
@@ -111,7 +120,10 @@ body.is-phone .mdsync-diff-view .mdsync-diff-action-bar button:not(.mod-cta) {
 	background: var(--background-modifier-border);
 }
 
-body.is-phone .mdsync-diff-view .mdsync-compare-choice-actions .mod-cta {
+body.is-phone
+	.mdsync-diff-view
+	:is(.mdsync-compare-choice-actions, .mdsync-diff-resolution)
+	.mod-cta {
 	flex-grow: 2;
 }
 

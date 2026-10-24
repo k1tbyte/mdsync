@@ -10,6 +10,7 @@ import {
 	type MergeChange,
 	revertPlan,
 	type StatusPatch,
+	sameStatus,
 } from "@/sync/merge-model";
 import { fullTaken, mergeChangesField, setChangeState } from "./merge-state";
 
@@ -19,6 +20,8 @@ export interface MergeActions {
 	revert(index: number, side: EMergeSide): void;
 	/** Takes these sides in order and drops the other: a conflict settled in one step. */
 	settle(index: number, sides: readonly EMergeSide[]): void;
+	/** A settled conflict is open again: the taken sides go, text typed by hand stays. */
+	reopen(index: number): void;
 }
 
 export interface MergeSource {
@@ -29,11 +32,12 @@ export interface MergeSource {
 
 /** Every edit of Result from a button: one undo step each. */
 export function mergeActions(source: () => MergeSource): MergeActions {
-	const take = (index: number, sides: readonly EMergeSide[], settle: boolean) =>
-		takeSides(source(), index, sides, settle);
+	const take = (index: number, sides: readonly EMergeSide[], mode: TakeMode) =>
+		takeSides(source(), index, sides, mode);
 	return {
-		apply: (index, side) => take(index, [side], false),
-		settle: (index, sides) => take(index, sides, true),
+		apply: (index, side) => take(index, [side], "add"),
+		settle: (index, sides) => take(index, sides, "settle"),
+		reopen: (index) => take(index, [], "reopen"),
 		ignore: (index, side) =>
 			source().view?.dispatch({
 				effects: setChangeState.of({ index, status: { [side]: "ignored" } }),
@@ -66,6 +70,9 @@ export function mergeActions(source: () => MergeSource): MergeActions {
 	};
 }
 
+/** Adding keeps what is in; settling and reopening first take every side out. */
+type TakeMode = "add" | "settle" | "reopen";
+
 /**
  * Each step is planned on the document the previous one left, then all go out as one transaction. Settling
  * starts from the base, so the sides land in the order asked whatever was taken before.
@@ -74,7 +81,7 @@ function takeSides(
 	{ view, sides: lines, base }: MergeSource,
 	index: number,
 	sides: readonly EMergeSide[],
-	settle: boolean,
+	mode: TakeMode,
 ): void {
 	if (!view) return;
 	let state: EditorState = view.state;
@@ -91,7 +98,7 @@ function takeSides(
 		changes = changes.compose(tr.changes);
 		state = tr.state;
 	};
-	for (const side of settle ? MERGE_SIDES : []) {
+	for (const side of mode === "add" ? [] : MERGE_SIDES) {
 		step(
 			side,
 			["applied"],
@@ -111,18 +118,19 @@ function takeSides(
 	}
 	const change = state.field(mergeChangesField)[index];
 	if (!change) return;
-	const dropped: StatusPatch = {};
+	const status: Record<EMergeSide, ESideStatus> = { ...change.status };
 	for (const side of MERGE_SIDES) {
-		if (settle && change.status[side] === "open") dropped[side] = "ignored";
+		if (mode === "settle" && status[side] === "open") status[side] = "ignored";
+		if (mode === "reopen" && status[side] !== "none") status[side] = "open";
 	}
-	if (state === view.state && Object.keys(dropped).length === 0) return;
+	if (state === view.state && sameStatus(status, change.status)) return;
 	view.dispatch({
 		changes,
 		effects: setChangeState.of({
 			index,
 			result: change.result,
 			taken: fullTaken(change.taken),
-			status: { ...change.status, ...dropped },
+			status,
 		}),
 		annotations: isolateHistory.of("full"),
 	});

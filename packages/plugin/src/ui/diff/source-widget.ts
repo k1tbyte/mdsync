@@ -22,18 +22,27 @@ export interface BlockLabel {
 	actions?: RailAction[];
 }
 
-/** One side of a change shown in combined mode: a labelled block of its lines. */
-export interface SourceBlock {
-	key: string;
+interface SourceLines {
 	/** Tint of the header and the line bars. */
 	tone: string;
-	head: BlockLabel;
 	lines: readonly string[];
 	firstLine: number;
 	/** Marks of the line at `offset`; one function for as long as the lines it reads stay the same. */
 	marks?: (offset: number) => readonly Span[];
-	/** Without it, a block with no lines shows its head alone. */
+	/** Without it, no lines show nothing. */
 	emptyText?: string;
+}
+
+/** A labelled run of lines after the block's own. */
+export interface SourcePart extends SourceLines {
+	label: BlockLabel;
+}
+
+/** One change shown in combined mode: a labelled block of lines. */
+export interface SourceBlock extends SourceLines {
+	key: string;
+	head: BlockLabel;
+	parts?: readonly SourcePart[];
 	/** Optional closing row naming what follows the block in the document. */
 	trailer?: BlockLabel;
 	/** Region edges: the block that opens or closes a change's box. */
@@ -58,13 +67,18 @@ function renderSourceBlock(
 	wrap.toggleClass("is-chosen", block.chosen === true);
 	renderLabel(wrap, block.head);
 	if (!block.folded) renderBody(wrap, block, onResize);
+	for (const part of block.parts ?? []) {
+		const el = wrap.createDiv({ cls: `mdsync-source-part is-${part.tone}` });
+		renderLabel(el, part.label).addClass("is-part");
+		renderBody(el, part, onResize);
+	}
 	if (block.trailer) renderLabel(wrap, block.trailer).addClass("is-trailer");
 	return wrap;
 }
 
 function renderBody(
 	wrap: HTMLElement,
-	block: SourceBlock,
+	block: SourceLines,
 	onResize: () => void,
 ): void {
 	if (block.lines.length === 0 && !block.emptyText) return;
@@ -93,7 +107,7 @@ function renderBody(
 
 function renderLines(
 	parent: HTMLElement,
-	block: SourceBlock,
+	block: SourceLines,
 	from: number,
 	to: number,
 ): void {
@@ -156,14 +170,21 @@ export class SourceBlockWidget extends WidgetType {
 			labelKey(block.head),
 			labelKey(block.trailer),
 			String(block.firstLine),
+			...(block.parts ?? []).map(
+				(part) => `${part.tone}:${part.firstLine}:${labelKey(part.label)}`,
+			),
 		].join("\u0000");
 	}
 
 	eq(other: SourceBlockWidget): boolean {
+		const parts = this.block.parts ?? [];
 		return (
 			other.signature === this.signature &&
-			other.block.marks === this.block.marks &&
-			sameLines(other.block.lines, this.block.lines)
+			sameSourceLines(other.block, this.block) &&
+			parts.every((part, i) => {
+				const otherPart = other.block.parts?.[i];
+				return otherPart !== undefined && sameSourceLines(otherPart, part);
+			})
 		);
 	}
 
@@ -177,6 +198,10 @@ export class SourceBlockWidget extends WidgetType {
 	ignoreEvent(): boolean {
 		return true;
 	}
+}
+
+function sameSourceLines(a: SourceLines, b: SourceLines): boolean {
+	return a.marks === b.marks && sameLines(a.lines, b.lines);
 }
 
 function labelKey(label: BlockLabel | undefined): string {

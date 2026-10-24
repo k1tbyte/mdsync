@@ -45,6 +45,8 @@ function open(base: string, local: string, remote: string) {
 	return {
 		actions,
 		undoOnce,
+		type: (from: number, to: number, insert: string) =>
+			view.dispatch({ changes: { from, to, insert } }),
 		text: () => state.doc.toString(),
 		status: () => state.field(mergeChangesField)[0]?.status,
 	};
@@ -104,5 +106,24 @@ describe("settling a conflict", () => {
 		merge.undoOnce();
 		expect(merge.text()).toBe("a\nL\nc");
 		expect(merge.status()).toEqual({ local: "applied", remote: "open" });
+	});
+
+	it("reopens a settled conflict in one step", () => {
+		const merge = open("a\nb\nc", "a\nL\nc", "a\nR\nc");
+		merge.actions.settle(0, ["local", "remote"]);
+		merge.actions.reopen(0);
+		expect(merge.text()).toBe("a\nb\nc");
+		expect(merge.status()).toEqual({ local: "open", remote: "open" });
+		merge.undoOnce();
+		expect(merge.text()).toBe("a\nL\nR\nc");
+	});
+
+	it("reopens a conflict typed by hand without dropping the text", () => {
+		const merge = open("a\nb\nc", "a\nL\nc", "a\nR\nc");
+		merge.type(2, 3, "typed");
+		expect(merge.status()).toEqual({ local: "ignored", remote: "ignored" });
+		merge.actions.reopen(0);
+		expect(merge.text()).toBe("a\ntyped\nc");
+		expect(merge.status()).toEqual({ local: "open", remote: "open" });
 	});
 });

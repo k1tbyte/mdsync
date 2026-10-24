@@ -6,47 +6,29 @@ import {
 	type Text,
 } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView } from "@codemirror/view";
-import { computeHunks } from "@/sync/hunks";
 import {
 	type EMergeSide,
 	isResolved,
 	MERGE_SIDES,
 	type MergeChange,
-	type Span,
 	snapToLines,
 } from "@/sync/merge-model";
 import { firstIndex } from "@/utils";
-import { addCodeMarks, type LineMarks, lineMarks } from "./code-lines";
-import { addCollapsedGaps, expandedGapsField } from "./gap-widgets";
+import { addCodeMarks } from "./code-lines";
+import { numberUnchangedLines } from "./gap-widgets";
 import { forEachVisibleRange, rangeLabel, sideSpan } from "./geometry";
 import { markLine, type Tints, tintLine, viewportTints } from "./line-tints";
 import type { MergeActions } from "./merge-actions";
-import { type MergeTone, sideActions, toneOf } from "./merge-controls";
-import { mergeChangesField, rememberChangeState } from "./merge-state";
-import type { RailAction } from "./rail";
 import {
-	type LineCounters,
-	type SourceBlock,
-	SourceBlockWidget,
-} from "./source-widget";
-
-const SIDE_LABEL: Record<EMergeSide, string> = {
-	local: "Local",
-	remote: "Remote",
-};
-
-/** Word marks of a side's lines against the base lines of the same change; none where the side did not change. */
-export type SideMarks = (
-	change: MergeChange,
-	side: EMergeSide,
-) => ((offset: number) => readonly Span[]) | undefined;
-
-export interface CombinedMergeConfig {
-	actions: MergeActions;
-	base: readonly string[];
-	sides: Record<EMergeSide, readonly string[]>;
-	marks: SideMarks;
-}
+	type CombinedMergeConfig,
+	mergeCards,
+	openedGapsField,
+	resultLines,
+} from "./merge-cards";
+import { type MergeTone, settleActions, toneOf } from "./merge-controls";
+import type { SideMarks } from "./merge-marks";
+import { mergeChangesField, rememberChangeState } from "./merge-state";
+import { type SourceBlock, SourceBlockWidget } from "./source-widget";
 
 export const setCombinedMode = StateEffect.define<boolean>();
 export const combinedModeField = StateField.define<boolean>({
@@ -59,60 +41,26 @@ export const combinedModeField = StateField.define<boolean>({
 	},
 });
 
-/**
- * One marks function per change side for the session: ranges never move, so lines are diffed once and
- * blocks keep identity.
- */
-export function sideMarks(
-	base: readonly string[],
-	sides: Record<EMergeSide, readonly string[]>,
-): SideMarks {
-	const cache = new Map<string, (offset: number) => readonly Span[]>();
-	return (change, side) => {
-		if (change.status[side] === "none") return undefined;
-		const key = `${change.index}:${side}`;
-		let marks = cache.get(key);
-		if (!marks) {
-			const lines: LineMarks[] = [];
-			const [baseStart] = change.base;
-			const [sideStart] = change[side];
-			marks = (offset) => {
-				lines[offset] ??= lineMarks(
-					base[baseStart + offset],
-					sides[side][sideStart + offset],
-				);
-				return lines[offset].added;
-			};
-			cache.set(key, marks);
-		}
-		return marks;
-	};
-}
-
 export function mergeResultState(combined?: CombinedMergeConfig): Extension {
-	const blocks = combined && combinedBlocks(combined);
+	const cards = combined && mergeCards(combined);
 	const actions = combined?.actions;
 	return [
 		mergeChangesField,
 		combinedModeField,
-		expandedGapsField,
+		openedGapsField,
 		rememberChangeState,
-		viewportTints(
-			resultTints,
-			(update) =>
-				update.startState.field(mergeChangesField) !==
-				update.state.field(mergeChangesField),
-		),
+		viewportTints(resultTints, (update) => {
+			const changed = (field: StateField<unknown>) =>
+				update.startState.field(field) !== update.state.field(field);
+			return changed(mergeChangesField) || changed(combinedModeField);
+		}),
 		// Block widgets change the layout, so they cannot come from the viewport plugin.
 		EditorView.decorations.compute(
-			["doc", mergeChangesField, combinedModeField, expandedGapsField],
+			["doc", mergeChangesField, combinedModeField, openedGapsField],
 			(state) => {
-				const changes = state.field(mergeChangesField);
-				if (blocks && state.field(combinedModeField)) {
-					return blocks(state.doc, changes, state.field(expandedGapsField));
-				}
+				if (cards && state.field(combinedModeField)) return cards(state);
 				return actions
-					? conflictHeads(state.doc, changes, actions)
+					? conflictHeads(state.doc, state.field(mergeChangesField), actions)
 					: Decoration.none;
 			},
 		),
@@ -132,6 +80,10 @@ function resultTints(view: EditorView, tints: Tints): void {
 		const change = changes[index] as MergeChange;
 		if (change.result.from > bottom) break;
 		addResultTint(tints, doc, change, top, bottom);
+	}
+	if (view.state.field(combinedModeField)) {
+		const lines = changes.map((change) => resultLines(doc, change));
+		numberUnchangedLines(view, lines, tints.lines);
 	}
 }
 
@@ -155,6 +107,8 @@ function addResultTint(
 		markLine(tints, doc, span.from, `is-${tone}`);
 		return;
 	}
+	// Inline: an open conflict's card closes with its row of choices, any other with its last row.
+	const closing = resolved ? doc.lineAt(span.to - 1).number : -1;
 	const last = doc.lineAt(Math.min(span.to - 1, bottom)).number;
 	for (let n = doc.lineAt(Math.max(span.from, top)).number; n <= last; n++) {
 		const at = doc.line(n).from;
@@ -162,7 +116,7 @@ function addResultTint(
 			(part) => at >= part.span.from && at < part.span.to,
 		);
 		const tone = owners.length > 1 ? "shared" : (owners[0]?.side ?? rest);
-		tintLine(tints, at, `is-${tone}`);
+		tintLine(tints, at, `is-${tone}`, n === closing ? " is-last" : "");
 	}
 }
 
@@ -187,13 +141,7 @@ function conflictHeads(
 					span.to > span.from
 						? `Both changed ${last > first ? "lines" : "line"} ${rangeLabel(first, last)}`
 						: "Both added lines here",
-				actions: SETTLE.map(([label, shortLabel, sides]) => ({
-					icon: "",
-					label,
-					shortLabel,
-					cls: `is-${sides.join("-")}`,
-					run: () => actions.settle(change.index, sides),
-				})),
+				actions: settleActions(change, actions),
 			},
 			lines: [],
 			firstLine: first,
@@ -208,13 +156,6 @@ function conflictHeads(
 	}
 	return Decoration.set(ranges, true);
 }
-
-/** A conflict head's ways out: name, button text, the sides taken in order. */
-const SETTLE: readonly [string, string, readonly EMergeSide[]][] = [
-	["Take local", "Local", ["local"]],
-	["Take remote", "Remote", ["remote"]],
-	["Take both, local first", "Both", ["local", "remote"]],
-];
 
 const setSideChanges = StateEffect.define<readonly MergeChange[]>();
 
@@ -274,113 +215,4 @@ function sideTints(
 			}
 		},
 	);
-}
-
-/** Combined mode's source blocks and gaps; Result counters recompute only for changes whose result lines moved. */
-function combinedBlocks(config: CombinedMergeConfig) {
-	const counted = new Map<number, { text: string; counters: LineCounters }>();
-	const countersOf = (doc: Text, change: MergeChange): LineCounters => {
-		const text = resultText(doc, change.result);
-		const hit = counted.get(change.index);
-		if (hit?.text === text) return hit.counters;
-		const counters = resultCounters(
-			config.base.slice(change.base[0], change.base[1]).join("\n"),
-			text,
-		);
-		counted.set(change.index, { text, counters });
-		return counters;
-	};
-	return (
-		doc: Text,
-		changes: readonly MergeChange[],
-		expanded: DecorationSet,
-	): DecorationSet => {
-		const ranges: Range<Decoration>[] = [];
-		for (const change of changes) {
-			const span = snapToLines(doc, change.result);
-			ranges.push(
-				Decoration.widget({
-					widget: new SourceBlockWidget(
-						sourceBlock(change, "local", config, countersOf(doc, change)),
-					),
-					block: true,
-					side: -10,
-				}).range(span.from),
-				Decoration.widget({
-					widget: new SourceBlockWidget(sourceBlock(change, "remote", config)),
-					block: true,
-					side: -9,
-				}).range(span.to),
-			);
-		}
-		addCollapsedGaps(
-			ranges,
-			doc,
-			changes.map((change) => change.result),
-			expanded,
-		);
-		return Decoration.set(ranges, true);
-	};
-}
-
-/**
- * One side's block of a change in combined mode: LOCAL opens the region and carries the Result trailer,
- * REMOTE closes it.
- */
-function sourceBlock(
-	change: MergeChange,
-	side: EMergeSide,
-	config: CombinedMergeConfig,
-	resultCounters?: LineCounters,
-): SourceBlock {
-	const range = change[side];
-	const block: SourceBlock = {
-		key: `${change.index}-${side}`,
-		tone: side,
-		head: {
-			text: SIDE_LABEL[side],
-			actions: combinedActions(change, side, config.actions),
-		},
-		lines: config.sides[side].slice(range[0], range[1]),
-		firstLine: range[0] + 1,
-		marks: config.marks(change, side),
-		emptyText: "No lines (deleted)",
-		opens: side === "local",
-		closes: side === "remote",
-		chosen: change.status[side] === "applied",
-	};
-	if (resultCounters) {
-		block.trailer = { text: "Result", counters: resultCounters };
-	}
-	return block;
-}
-
-function combinedActions(
-	change: MergeChange,
-	side: EMergeSide,
-	actions: MergeActions,
-): RailAction[] {
-	return sideActions(change, side, actions, {
-		acceptIcon: side === "local" ? "chevrons-down" : "chevrons-up",
-		rejectOpen: true,
-	});
-}
-
-/** +added/-removed of what the result currently holds for this change, against base. */
-function resultCounters(base: string, result: string): LineCounters {
-	const { hunks } = computeHunks(base, result);
-	let added = 0;
-	let removed = 0;
-	for (const hunk of hunks) {
-		added += hunk.added;
-		removed += hunk.removed;
-	}
-	return { added, removed };
-}
-
-/** The change's whole result lines, joined without the final line break. */
-function resultText(doc: Text, span: Span): string {
-	const snapped = snapToLines(doc, span);
-	const text = doc.sliceString(snapped.from, snapped.to);
-	return text.endsWith("\n") ? text.slice(0, -1) : text;
 }

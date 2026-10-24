@@ -68,9 +68,9 @@
 	}
 }
 
-/* Merging fills the bar with undo and saving too. */
+/* Merging fills the bar with undo and saving too; a phone has the cards and the status to move by. */
 @container mdsync-diff (max-width: 900px) {
-	.mdsync-diff-header:has(.mdsync-diff-resolution) .mdsync-compare-nav {
+	.mdsync-diff-view:has(.mdsync-diff-resolution) .mdsync-compare-nav {
 		display: none;
 	}
 }

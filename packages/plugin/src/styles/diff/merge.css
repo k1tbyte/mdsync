@@ -23,6 +23,12 @@
 	cursor: default;
 }
 
+/* A phone's buttons are tall; this one stays a pill under the title. */
+body.is-phone .mdsync-diff-header button.mdsync-merge-status {
+	height: 32px;
+	min-height: 32px;
+}
+
 .mdsync-merge-status .mdsync-labeled-btn-icon {
 	width: 6px;
 	height: 6px;
@@ -121,8 +127,9 @@
 	font-weight: normal;
 }
 
-.mdsync-source-mark.is-conflict {
-	--mdsync-mark: var(--mdsync-tone-conflict);
+/* A mark's class names its tone. */
+.mdsync-merge-panel .mdsync-source-mark {
+	--mdsync-mark: var(--mdsync-tone);
 }
 
 .mdsync-merge-panel:not(.is-combined) .is-conflict .mdsync-source-label {
@@ -130,13 +137,14 @@
 	min-width: 0;
 }
 
-.mdsync-merge-panel:not(.is-combined) .is-conflict .mdsync-source-actions {
+/* A conflict's ways out: under its head side by side, closing its card inline. */
+.mdsync-merge-panel .is-conflict .mdsync-source-actions {
 	flex: 1 0 100%;
 	gap: var(--size-4-1);
 	margin: 0;
 }
 
-.mdsync-merge-panel:not(.is-combined) .is-conflict .mdsync-rail-btn {
+.mdsync-merge-panel .is-conflict .mdsync-source-actions .mdsync-rail-btn {
 	flex: 1 1 0;
 	min-width: 0;
 	width: auto;
@@ -152,24 +160,83 @@
 	font-weight: 600;
 }
 
-.mdsync-merge-panel:not(.is-combined)
+.mdsync-merge-panel
 	.is-conflict
+	.mdsync-source-actions
 	.mdsync-rail-btn:is(.is-local, .is-remote) {
 	background: rgba(var(--mdsync-tone), 0.2);
 	color: color-mix(in srgb, rgb(var(--mdsync-tone)) 60%, var(--text-normal));
 }
 
-.mdsync-merge-panel:not(.is-combined) .is-conflict .mdsync-rail-btn:hover {
+.mdsync-merge-panel .is-conflict .mdsync-source-actions .mdsync-rail-btn:hover {
 	background: var(--background-modifier-active-hover);
 	color: var(--text-normal);
 }
 
-.mdsync-merge-panel:not(.is-combined)
+.mdsync-merge-panel
 	.is-conflict
+	.mdsync-source-actions
 	.mdsync-rail-btn:is(.is-local, .is-remote):hover {
 	background: rgba(var(--mdsync-tone), 0.32);
 }
 
-.mdsync-merge-panel:not(.is-combined) .is-conflict .mdsync-rail-label {
+.mdsync-merge-panel .is-conflict .mdsync-rail-label {
 	display: inline;
+}
+
+/* Inline cards: both sides' lines, then Result's rows, then the choices. */
+.mdsync-merge-panel.is-combined .mdsync-source-head:is(.is-part, .is-trailer) {
+	min-height: 28px;
+	border-top: none;
+	background: none;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.mdsync-merge-panel.is-combined .mdsync-source-part .mdsync-code-line {
+	background: rgba(var(--mdsync-tone), 0.1);
+}
+
+.mdsync-merge-panel.is-combined .mdsync-source-part .mdsync-code-text {
+	box-shadow: inset var(--mdsync-bar) 0 rgba(var(--mdsync-tone), 0.7);
+}
+
+/* Signs only where Result differs from the base: a side's lines and rows taken from a side. */
+.mdsync-merge-panel.is-combined .mdsync-source-part .mdsync-code-text::before,
+.mdsync-merge-panel.is-combined
+	.cm-line.mdsync-diff-line:is(.is-base, .is-conflict)::before {
+	content: none;
+}
+
+.mdsync-merge-panel.is-combined .mdsync-source.is-base .mdsync-code-line {
+	color: var(--text-muted);
+}
+
+/* Base rows are not a side's: no bar. */
+.mdsync-merge-panel.is-combined .cm-line.mdsync-diff-line.is-base {
+	--mdsync-line-bar: 0 0 transparent;
+}
+
+/* The choices' row closes the card the head opened, right under its rows. */
+.mdsync-merge-panel.is-combined
+.mdsync-source-slot:has(> .is-closing:not(.is-opening)) {
+	padding-top: 0;
+}
+
+.mdsync-merge-panel.is-combined .mdsync-source.is-closing:not(.is-opening) {
+	border-top: none;
+	border-radius: 0 0 var(--mdsync-card-radius) var(--mdsync-card-radius);
+}
+
+.mdsync-merge-panel.is-combined
+	.mdsync-source.is-closing:not(.is-opening)
+	> .mdsync-source-head {
+	padding: var(--size-4-2);
+	background: none;
+}
+
+.mdsync-merge-panel.is-combined
+	.mdsync-source.is-closing:not(.is-opening)
+	.mdsync-source-label {
+	display: none;
 }

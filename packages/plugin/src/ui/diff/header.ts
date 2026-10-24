@@ -87,7 +87,11 @@ export function renderDiffFrame(
 	const hint =
 		(panel && model && hunkHintText({ model, historyChange, against })) || "";
 	const pending = renderActionBar(actionBar, { ...frame, hint }, actions);
-	panel?.mount({ ...hosts, pending });
+	// A phone keeps them at the thumb, where the conflict's own actions were.
+	const save = isEditing
+		? renderResolution(Platform.isPhone ? actionBar : header, actions)
+		: null;
+	panel?.mount({ ...hosts, pending, save });
 	if (
 		focused instanceof HTMLElement &&
 		focused.isConnected &&
@@ -108,7 +112,7 @@ export function renderDiffHeader(
 	parent: HTMLElement,
 	state: DiffHeaderState,
 	actions: DiffHeaderActions,
-): Omit<PanelHosts, "pending"> {
+): Pick<PanelHosts, "info" | "controls"> {
 	parent.empty();
 	appendIconButton(
 		parent,
@@ -141,17 +145,7 @@ export function renderDiffHeader(
 	const info = parent.createSpan({ cls: "mdsync-diff-info" });
 	parent.createSpan({ cls: "mdsync-diff-spacer" });
 	const controls = parent.createDiv({ cls: "mdsync-diff-controls" });
-	let save: HTMLButtonElement | null = null;
-	if (state.isEditing) {
-		const resolution = parent.createDiv({ cls: "mdsync-diff-resolution" });
-		new ButtonComponent(resolution)
-			.setButtonText("Cancel")
-			.onClick(actions.cancelResolution);
-		save = new ButtonComponent(resolution)
-			.setButtonText("Save and push")
-			.setCta()
-			.onClick(actions.saveResolution).buttonEl;
-	} else if (state.position) {
+	if (!state.isEditing && state.position) {
 		const { index, total } = state.position;
 		const nav = parent.createDiv({ cls: "mdsync-diff-file-nav" });
 		appendIconButton(
@@ -171,5 +165,20 @@ export function renderDiffHeader(
 			actions.goNextFile,
 		).disabled = index === total - 1;
 	}
-	return { info, controls, save };
+	return { info, controls };
+}
+
+/** Cancel and Save and push while merging; returns Save. */
+function renderResolution(
+	parent: HTMLElement,
+	actions: DiffHeaderActions,
+): HTMLButtonElement {
+	const resolution = parent.createDiv({ cls: "mdsync-diff-resolution" });
+	new ButtonComponent(resolution)
+		.setButtonText("Cancel")
+		.onClick(actions.cancelResolution);
+	return new ButtonComponent(resolution)
+		.setButtonText("Save and push")
+		.setCta()
+		.onClick(actions.saveResolution).buttonEl;
 }

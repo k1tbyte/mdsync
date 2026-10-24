@@ -1,11 +1,5 @@
-import { EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import { EChoiceKind, HunkChoices } from "@/ui/diff/choices";
-import {
-	collapseGap,
-	expandedGapsField,
-	expandGap,
-} from "@/ui/diff/gap-widgets";
 
 describe("HunkChoices", () => {
 	it("toggles a segment on, replaces its kind, and off again", () => {
@@ -48,42 +42,5 @@ describe("HunkChoices", () => {
 		choices.clear();
 		expect(choices.size).toBe(0);
 		expect(choices.selection(EChoiceKind.Pull).size).toBe(0);
-	});
-});
-
-describe("expandedGapsField", () => {
-	function open(): EditorState {
-		return EditorState.create({
-			doc: "a\nb\nc\nd\n",
-			extensions: [expandedGapsField],
-		});
-	}
-
-	function spans(state: EditorState): Array<[number, number]> {
-		const out: Array<[number, number]> = [];
-		state.field(expandedGapsField).between(0, state.doc.length, (from, to) => {
-			out.push([from, to]);
-		});
-		return out;
-	}
-
-	it("collapses an expanded range again", () => {
-		let state = open();
-		state = state.update({ effects: expandGap.of({ from: 0, to: 4 }) }).state;
-		expect(spans(state)).toEqual([[0, 4]]);
-		state = state.update({ effects: collapseGap.of({ from: 0, to: 4 }) }).state;
-		expect(spans(state)).toEqual([]);
-	});
-
-	it("collapsing one range leaves a disjoint one open", () => {
-		let state = open();
-		state = state.update({
-			effects: [
-				expandGap.of({ from: 0, to: 2 }),
-				expandGap.of({ from: 4, to: 6 }),
-			],
-		}).state;
-		state = state.update({ effects: collapseGap.of({ from: 0, to: 2 }) }).state;
-		expect(spans(state)).toEqual([[4, 6]]);
 	});
 });

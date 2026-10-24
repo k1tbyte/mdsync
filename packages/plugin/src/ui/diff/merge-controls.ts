@@ -52,6 +52,26 @@ export function sideActions(
 	return side === "local" ? [reject, accept] : [accept, reject];
 }
 
+/** A conflict's ways out: name, button text, the sides taken in order. */
+const SETTLE: readonly [string, string, readonly EMergeSide[]][] = [
+	["Take local", "Local", ["local"]],
+	["Take remote", "Remote", ["remote"]],
+	["Take both, local first", "Both", ["local", "remote"]],
+];
+
+export function settleActions(
+	change: MergeChange,
+	handlers: MergeActions,
+): RailAction[] {
+	return SETTLE.map(([label, shortLabel, sides]) => ({
+		icon: "",
+		label,
+		shortLabel,
+		cls: `is-${sides.join("-")}`,
+		run: () => handlers.settle(change.index, sides),
+	}));
+}
+
 /** The connectors between one side pane and the result: one per change that side took part in. */
 export function dividerItems(
 	changes: readonly MergeChange[],
