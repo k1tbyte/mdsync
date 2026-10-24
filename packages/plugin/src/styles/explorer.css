@@ -177,7 +177,8 @@ body.is-mobile
 	width: max(calc(100% + var(--size-4-1)), var(--mdsync-touch));
 }
 
-.mdsync-share-badge.has-people {
+/* One pill for a live share, people in it or not; the count shows only when someone is. */
+.mdsync-share-badge:not(.is-paused) {
 	padding: 0 var(--size-4-1);
 	border-radius: var(--mdsync-radius-pill);
 	background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);

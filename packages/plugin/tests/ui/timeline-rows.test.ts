@@ -320,7 +320,7 @@ describe("buildTimelineRows", () => {
 			{ now: NOW },
 		);
 		// 3072 added, 1024 lost on the edit, 1024 removed.
-		expect(row?.netSize).toBe("+1.0 KB");
+		expect(row?.netDelta).toBe(1024);
 	});
 
 	it("says nothing about size when the push broke even, or is unknown", () => {
@@ -336,11 +336,11 @@ describe("buildTimelineRows", () => {
 			],
 			{ now: NOW },
 		);
-		expect(even?.netSize).toBeNull();
+		expect(even?.netDelta).toBeNull();
 		const [unknown] = buildTimelineRows([snapshot({ files: null })], {
 			now: NOW,
 		});
-		expect(unknown?.netSize).toBeNull();
+		expect(unknown?.netDelta).toBeNull();
 	});
 });
 

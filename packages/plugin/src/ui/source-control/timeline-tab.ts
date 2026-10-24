@@ -1,6 +1,6 @@
 import { setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
-import { formatBytes, formatSizeDelta } from "@/shared";
+import { formatBytes } from "@/shared";
 import type { SnapshotListResult } from "@/sync/history";
 import {
 	appendIconButton,
@@ -15,6 +15,7 @@ import { groupRows } from "./day-groups";
 import { HistoryList } from "./history-list";
 import { STATUS_CLASSES, STATUS_LETTERS } from "./row-formatter";
 import { RowPager } from "./row-pager";
+import { renderDelta } from "./row-parts";
 import {
 	renderEmptyState,
 	renderHistoryOff,
@@ -246,8 +247,7 @@ export class TimelineTab {
 				text: `${STATUS_LETTERS[action]} ${count}`,
 			});
 		}
-		if (row.netSize)
-			meta.createSpan({ cls: "mdsync-timeline-net", text: row.netSize });
+		if (row.netDelta) renderDelta(meta, row.netDelta, "mdsync-timeline-net");
 	}
 
 	private renderFile(
@@ -270,12 +270,13 @@ export class TimelineTab {
 		makeActivatable(item, file.path, () => void this.openFile(row, file));
 		renderPath(item, file.path);
 		// What a change moved; an addition, a deletion or an even change shows its size.
-		item.createSpan({
-			cls: "mdsync-timeline-size",
-			text:
-				(file.sizeDelta !== undefined && formatSizeDelta(file.sizeDelta)) ||
-				formatBytes(file.size),
-		});
+		if (file.sizeDelta)
+			renderDelta(item, file.sizeDelta, "mdsync-timeline-size");
+		else
+			item.createSpan({
+				cls: "mdsync-timeline-size",
+				text: formatBytes(file.size),
+			});
 		item.createSpan({
 			cls: `mdsync-file-status ${STATUS_CLASSES[file.action]}`,
 			text: STATUS_LETTERS[file.action],

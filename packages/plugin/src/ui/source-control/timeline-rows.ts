@@ -1,9 +1,4 @@
-import {
-	formatRelativeTime,
-	formatSizeDelta,
-	formatTimestamp,
-	pluralize,
-} from "@/shared";
+import { formatRelativeTime, formatTimestamp, pluralize } from "@/shared";
 import type {
 	SnapshotChanges,
 	SnapshotSummary,
@@ -38,7 +33,7 @@ export interface TimelineRow {
 	/** Files per kind of change, the non-zero ones; null without a change record. */
 	tally: Array<[ChangeAction, number]> | null;
 	/** Net bytes the push moved, signed. Null when it moved none, or is unknown. */
-	netSize: string | null;
+	netDelta: number | null;
 	pinned: boolean;
 	isHead: boolean;
 	restorable: boolean;
@@ -71,9 +66,7 @@ export function buildTimelineRows(
 			tooltip: formatTimestamp(snapshot.createdAt),
 			counts: countsText(snapshot),
 			tally: snapshot.files ? tallyOf(snapshot.files) : null,
-			netSize: snapshot.files
-				? formatSizeDelta(netBytes(snapshot.files))
-				: null,
+			netDelta: (snapshot.files && netBytes(snapshot.files)) || null,
 			pinned: snapshot.pinned,
 			isHead: snapshot.isHead,
 			restorable: snapshot.restorable,
