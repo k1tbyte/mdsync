@@ -1,4 +1,15 @@
-import { structuredPatch } from "diff";
+import { fileURLToPath } from "node:url";
+import { createJiti } from "jiti";
+
+// The plugin's own hunks, so the fixture shows exactly what Push and Revert move.
+const jiti = createJiti(import.meta.url, {
+	alias: {
+		"@": fileURLToPath(new URL("../../packages/plugin/src", import.meta.url)),
+	},
+});
+const { computeHunks } = await jiti.import(
+	"../../packages/plugin/src/sync/hunks.ts",
+);
 
 // Synthetic models exercise the real renderer; controller calls are captured, never sent.
 export const base = [
@@ -33,9 +44,6 @@ export const remote = base
 	.replace("\nDelete this line remotely.", "");
 
 export function model(leftText = base, rightText = local, direction = "local") {
-	const patch = structuredPatch("left", "right", leftText, rightText, "", "", {
-		context: 3,
-	});
 	return {
 		path: "Diff UI verification.md",
 		direction,
@@ -55,19 +63,7 @@ export function model(leftText = base, rightText = local, direction = "local") {
 		hunks: {
 			leftLines: leftText.split("\n"),
 			rightLines: rightText.split("\n"),
-			hunks: patch.hunks.map((hunk, index) => {
-				const added = hunk.lines.filter((line) => line.startsWith("+")).length;
-				const removed = hunk.lines.filter((line) =>
-					line.startsWith("-"),
-				).length;
-				return {
-					...hunk,
-					index,
-					added,
-					removed,
-					kind: added && removed ? "modified" : added ? "added" : "removed",
-				};
-			}),
+			hunks: computeHunks(leftText, rightText).hunks,
 		},
 	};
 }

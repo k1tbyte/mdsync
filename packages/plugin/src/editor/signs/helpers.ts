@@ -1,12 +1,12 @@
 import { Text } from "@codemirror/state";
 
 import {
-	commonEnds,
 	computeHunks,
 	type HunkSegment,
 	hunkSegments,
 	type SyncHunk,
 } from "@/sync/hunks";
+import { commonEnds } from "@/utils";
 
 /** One change a gutter mark stands for: a segment of a sync hunk, the unit push and revert act on. */
 export interface SyncChange {
@@ -105,7 +105,7 @@ export function changeMark(change: SyncChange): ChangeMark {
 	};
 }
 
-/** The new side lost the final newline: jsdiff marks the line without one. */
+/** The new side lost the final newline: its hunk marks the line without one. */
 function closesNote({ hunk, segment }: SyncChange): boolean {
 	const lines = hunk.lines.slice(segment.from, segment.to + 1);
 	return lines.some(

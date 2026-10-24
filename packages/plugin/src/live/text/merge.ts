@@ -1,5 +1,5 @@
-import { commonEnds } from "@/sync/hunks";
 import { sameLines, threeWayRegions, toLines } from "@/sync/merge-model";
+import { commonEnds } from "@/utils";
 
 /**
  * The room's text with this device's offline changes folded in, on the regions the merge editor shows. A

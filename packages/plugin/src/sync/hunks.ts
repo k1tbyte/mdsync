@@ -1,6 +1,4 @@
-import { structuredPatch } from "diff";
-
-import { toLf } from "@/utils";
+import { changedMiddle, type DiffRange, diffRanges, toLf } from "@/utils";
 
 export const EHunkKind = {
 	Added: "added",
@@ -140,8 +138,8 @@ type RawHunk = Pick<
 >;
 
 const CONTEXT_LINES = 3;
-/** Myers time grows with the square of the edit count; past this a diff is one replaced block. */
-export const MAX_EDIT_LENGTH = 1000;
+/** Compares before a diff gives up (~35 ms on desktop); past it the differing middle is one block. */
+export const DIFF_BUDGET = 2_000_000;
 const NO_NEWLINE_MARKER = "\\ No newline at end of file";
 
 export function computeHunks(left: string, right: string): ComputedHunks {
@@ -175,30 +173,62 @@ export function computeHunks(left: string, right: string): ComputedHunks {
 }
 
 /**
- * jsdiff from the first differing line less its context: it matches a common prefix before anything else, so
- * the hunks are those of the whole texts, shifted. Not a common suffix: repeated lines align differently.
+ * Diffs from the first differing line less its context: the differ matches a common prefix before anything
+ * else, so the hunks are those of the whole texts, shifted. Not a common suffix: repeated lines align differently.
  */
 function diffHunks(left: string, right: string): RawHunk[] {
 	if (left === right) return [];
 	const from = linesBefore(left, commonPrefix(left, right), CONTEXT_LINES);
-	const skipped = newlinesBefore(left, from);
-	const patch = structuredPatch(
-		"a",
-		"b",
-		left.slice(from),
-		right.slice(from),
-		"",
-		"",
-		{ context: CONTEXT_LINES, maxEditLength: MAX_EDIT_LENGTH },
-	);
-	// An edit budget, unlike a timeout, is deterministic: an operation recomputing
+	const a = lineTokens(left.slice(from));
+	const b = lineTokens(right.slice(from));
+	// A budget, unlike a timeout, is deterministic: an operation recomputing
 	// these hunks from the same texts gets the same indices the view drew.
-	if (!patch) return [replacedBlock(left, right)];
-	return patch.hunks.map((hunk) => ({
-		...hunk,
-		oldStart: hunk.oldStart + skipped,
-		newStart: hunk.newStart + skipped,
-	}));
+	const ranges = diffRanges(a, b, DIFF_BUDGET) ?? [changedMiddle(a, b)];
+	return contextHunks(a, b, ranges, newlinesBefore(left, from));
+}
+
+/** As a unified diff: ranges at most twice the context apart share a hunk. */
+function contextHunks(
+	a: readonly string[],
+	b: readonly string[],
+	ranges: readonly DiffRange[],
+	skipped: number,
+): RawHunk[] {
+	const hunks: RawHunk[] = [];
+	for (let first = 0; first < ranges.length; ) {
+		let last = first;
+		while (
+			last + 1 < ranges.length &&
+			(ranges[last + 1] as DiffRange).a[0] - (ranges[last] as DiffRange).a[1] <=
+				2 * CONTEXT_LINES
+		) {
+			last++;
+		}
+		const { a: aFirst, b: bFirst } = ranges[first] as DiffRange;
+		const { a: aLast, b: bLast } = ranges[last] as DiffRange;
+		const aStart = Math.max(0, aFirst[0] - CONTEXT_LINES);
+		const aEnd = Math.min(a.length, aLast[1] + CONTEXT_LINES);
+		const bStart = bFirst[0] - (aFirst[0] - aStart);
+		const bEnd = bLast[1] + (aEnd - aLast[1]);
+		const lines: string[] = [];
+		let at = aStart;
+		for (const range of ranges.slice(first, last + 1)) {
+			pushLines(lines, " ", a, at, range.a[0]);
+			pushLines(lines, "-", a, ...range.a);
+			pushLines(lines, "+", b, ...range.b);
+			at = range.a[1];
+		}
+		pushLines(lines, " ", a, at, aEnd);
+		hunks.push({
+			oldStart: aStart + 1 + skipped,
+			oldLines: aEnd - aStart,
+			newStart: bStart + 1 + skipped,
+			newLines: bEnd - bStart,
+			lines,
+		});
+		first = last + 1;
+	}
+	return hunks;
 }
 
 /** Binary search over native compares: a loop over characters costs as much as the diff it spares. */
@@ -276,55 +306,19 @@ export function applyHunks(
 	return out.join("");
 }
 
-/** How many items both arrays share at the start, then at the end of what is left. */
-export function commonEnds<T>(
-	a: readonly T[],
-	b: readonly T[],
-): { head: number; tail: number } {
-	let head = 0;
-	while (head < a.length && head < b.length && a[head] === b[head]) head++;
-	let tail = 0;
-	while (
-		tail < a.length - head &&
-		tail < b.length - head &&
-		a[a.length - 1 - tail] === b[b.length - 1 - tail]
-	) {
-		tail++;
+/** One push per line: spreading a note-sized block into `push` overflows the stack. */
+function pushLines(
+	out: string[],
+	prefix: string,
+	tokens: readonly string[],
+	from: number,
+	to: number,
+): void {
+	for (let i = from; i < to; i++) {
+		const token = tokens[i] as string;
+		if (token.endsWith("\n")) out.push(prefix + token.slice(0, -1));
+		else out.push(prefix + token, NO_NEWLINE_MARKER);
 	}
-	return { head, tail };
-}
-
-/**
- * The hunk jsdiff prints when the whole differing middle is one change: common ends trimmed, up to three
- * lines kept as context.
- */
-function replacedBlock(left: string, right: string): RawHunk {
-	const a = lineTokens(left);
-	const b = lineTokens(right);
-	const { head, tail } = commonEnds(a, b);
-	const start = Math.max(0, head - CONTEXT_LINES);
-	const leftEnd = a.length - tail;
-	const end = leftEnd + Math.min(tail, CONTEXT_LINES);
-	return {
-		oldStart: start + 1,
-		oldLines: end - start,
-		newStart: start + 1,
-		newLines: end - start + b.length - a.length,
-		lines: [
-			...hunkLines(" ", a.slice(start, head)),
-			...hunkLines("-", a.slice(head, leftEnd)),
-			...hunkLines("+", b.slice(head, b.length - tail)),
-			...hunkLines(" ", a.slice(leftEnd, end)),
-		],
-	};
-}
-
-function hunkLines(prefix: string, tokens: readonly string[]): string[] {
-	return tokens.flatMap((token) =>
-		token.endsWith("\n")
-			? [prefix + token.slice(0, -1)]
-			: [prefix + token, NO_NEWLINE_MARKER],
-	);
 }
 
 /** Lines with their terminators, so a missing final newline differs like any other text. */

@@ -11,6 +11,13 @@ describe("lineMarks", () => {
 		});
 	});
 
+	it("marks whole words in any script", () => {
+		expect(lineMarks("привет мир", "привет друг")).toEqual({
+			removed: [{ from: 7, to: 10 }],
+			added: [{ from: 7, to: 11 }],
+		});
+	});
+
 	it("gives a rewritten or unpaired line no marks", () => {
 		expect(lineMarks("alpha", "beta")).toEqual(NONE);
 		expect(lineMarks("alpha", undefined)).toEqual(NONE);
@@ -23,7 +30,7 @@ describe("lineMarks", () => {
 
 	it("gives up on a pair that differs in too many words", () => {
 		const words = (tag: string) =>
-			Array.from({ length: 400 }, (_, i) => `${tag}${i}`).join(" ");
+			Array.from({ length: 1000 }, (_, i) => `${tag}${i}`).join(" ");
 		expect(lineMarks(`same ${words("a")}`, `same ${words("b")}`)).toEqual(NONE);
 	});
 });

@@ -1,11 +1,13 @@
 import type { Range } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
-import { diffWordsWithSpace } from "diff";
 import type { Span } from "@/sync/merge-model";
+import { type DiffRange, diffRanges } from "@/utils";
 
 /** Past these, word marks cost more than they tell; the line tint still shows the change. */
 const MARK_MAX_LINE_CHARS = 10_000;
-const MARK_MAX_EDIT_LENGTH = 200;
+const MARK_BUDGET = 500_000;
+/** Word runs in any script, space runs, any other character alone. */
+const WORD_TOKENS = /[\p{L}\p{M}\p{N}_]+|\s+|./gu;
 
 export interface CodeLine {
 	number?: number;
@@ -75,29 +77,35 @@ export function lineMarks(
 	) {
 		return NO_MARKS;
 	}
-	const changes = diffWordsWithSpace(removed, added, {
-		maxEditLength: MARK_MAX_EDIT_LENGTH,
-	});
-	if (!changes) return NO_MARKS;
-	const marks = { removed: [] as Span[], added: [] as Span[] };
-	let a = 0;
-	let b = 0;
+	const a = removed.match(WORD_TOKENS) ?? [];
+	const b = added.match(WORD_TOKENS) ?? [];
+	const ranges = diffRanges(a, b, MARK_BUDGET);
+	if (!ranges) return NO_MARKS;
+	const marks = {
+		removed: spansOf(a, ranges, "a"),
+		added: spansOf(b, ranges, "b"),
+	};
 	let marked = 0;
-	for (const change of changes) {
-		const length = change.value.length;
-		if (change.removed) {
-			marks.removed.push({ from: a, to: a + length });
-			a += length;
-			marked += length;
-		} else if (change.added) {
-			marks.added.push({ from: b, to: b + length });
-			b += length;
-			marked += length;
-		} else {
-			a += length;
-			b += length;
-		}
+	for (const span of [...marks.removed, ...marks.added]) {
+		marked += span.to - span.from;
 	}
 	// Whole-line marks say nothing; only lines that share something get them.
 	return marked < removed.length + added.length ? marks : NO_MARKS;
+}
+
+/** One side's token ranges as character spans, the empty ones left out. */
+function spansOf(
+	tokens: readonly string[],
+	ranges: readonly DiffRange[],
+	side: keyof DiffRange,
+): Span[] {
+	const starts = [0];
+	for (const token of tokens)
+		starts.push((starts.at(-1) as number) + token.length);
+	return ranges
+		.filter((range) => range[side][1] > range[side][0])
+		.map((range) => ({
+			from: starts[range[side][0]] as number,
+			to: starts[range[side][1]] as number,
+		}));
 }
