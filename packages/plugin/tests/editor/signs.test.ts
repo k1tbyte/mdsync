@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 import { registerEditorSigns } from "@/editor/signs";
 import { signsField } from "@/editor/signs/gutter";
 import {
+	chunkMark,
 	findSyncChangeForLine,
+	markPlace,
 	presentChunk,
 	presentSyncChange,
 	shouldRedeliverBaseline,
@@ -126,6 +128,27 @@ describe("signs helpers", () => {
 		expect(toCmText("a\nb").lines).toBe(2);
 		expect(toCmText("a\r\nb\r\n").toString()).toBe("a\nb\n");
 		expect(toCmText("").lines).toBe(1);
+	});
+
+	it("marks removed lines on the line above them, or the first line when they led the note", () => {
+		const mark = (base: string, cur: string) => {
+			const [baseline, current] = [toCmText(base), toCmText(cur)];
+			const chunk = Chunk.build(baseline, current)[0];
+			return chunk ? chunkMark(chunk, baseline, current) : null;
+		};
+		const below = mark("a\nb\nc\n", "a\nc\n");
+		expect(below).toMatchObject({ from: 1, to: 1, kind: "delete" });
+		expect(below && markPlace(below)).toBe("After line 1");
+		expect(mark("a\nb\n", "b\n")).toMatchObject({ from: 1, kind: "topdelete" });
+		// No final newline: the gap still follows the last line kept.
+		expect(mark("a\nb", "a")).toMatchObject({ from: 1, kind: "delete" });
+		expect(mark("a\nb\nc", "a\nb")).toMatchObject({ from: 2, kind: "delete" });
+		expect(mark("a\nb\nc\n", "a\nB\n")).toMatchObject({
+			from: 2,
+			to: 2,
+			kind: "change",
+			removesBelow: true,
+		});
 	});
 
 	it("maps a clicked line inside a changed run to the whole run", () => {

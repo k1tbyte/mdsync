@@ -13,7 +13,8 @@ export interface PresentedChunk {
 	addedLines: string[];
 	addedFromLine: number | null;
 	addedToLine: number | null;
-	deletionLine: number;
+	/** The line removed lines follow; 0 when they led the note. */
+	removedAfter: number;
 }
 
 /** One change a gutter mark stands for: a segment of a sync hunk, the unit push and revert act on. */
@@ -41,20 +42,59 @@ export function hunkTitle(removedCount: number, addedCount: number): string {
 	return "Removed since last sync";
 }
 
+/** The lines a chunk's mark runs down (1-based) and what it stands for. */
+export interface ChunkMark {
+	from: number;
+	to: number;
+	/** `delete` marks the line above removed lines, `topdelete` the first line when they led the note. */
+	kind: "add" | "change" | "delete" | "topdelete";
+	/** A change that removed more lines than it added: its last line marks the rest. */
+	removesBelow: boolean;
+}
+
+export function chunkMark(
+	chunk: Chunk,
+	baseline: Text,
+	current: Text,
+): ChunkMark | null {
+	const shown = presentChunk(chunk, baseline, current);
+	const removed = shown.removedLines.length;
+	const added = shown.addedLines.length;
+	if (removed === 0 && added === 0) return null;
+	if (added === 0) {
+		const after = shown.removedAfter;
+		return after < 1
+			? { from: 1, to: 1, kind: "topdelete", removesBelow: false }
+			: { from: after, to: after, kind: "delete", removesBelow: false };
+	}
+	const from = shown.addedFromLine ?? 1;
+	return {
+		from,
+		to: shown.addedToLine ?? from,
+		kind: removed === 0 ? "add" : "change",
+		removesBelow: removed > added,
+	};
+}
+
+/** Where a mark stands, for the popup: "Lines 3-4", "After line 12". */
+export function markPlace(mark: ChunkMark): string {
+	if (mark.kind === "topdelete") return "Start of file";
+	if (mark.kind === "delete") return `After line ${mark.from}`;
+	return mark.to > mark.from
+		? `Lines ${mark.from}-${mark.to}`
+		: `Line ${mark.from}`;
+}
+
 export function findChunkForLine(
 	chunks: readonly Chunk[],
+	baseline: Text,
 	current: Text,
 	lineNumber: number,
-): Chunk | null {
+): { chunk: Chunk; mark: ChunkMark } | null {
 	for (const chunk of chunks) {
-		if (chunk.fromB === chunk.toB) {
-			const at = current.lineAt(clampPos(chunk.fromB, current)).number;
-			if (at === lineNumber) return chunk;
-			continue;
-		}
-		const from = current.lineAt(chunk.fromB).number;
-		const to = current.lineAt(clampPos(chunk.endB, current)).number;
-		if (lineNumber >= from && lineNumber <= to) return chunk;
+		const mark = chunkMark(chunk, baseline, current);
+		if (mark && lineNumber >= mark.from && lineNumber <= mark.to)
+			return { chunk, mark };
 	}
 	return null;
 }
@@ -106,16 +146,17 @@ export function presentChunk(
 			: null;
 	const addedToLine =
 		addedFromLine === null ? null : addedFromLine + addedLines.length - 1;
-	const deletionLine = clampLine(
-		current.lineAt(clampPos(chunk.fromB, current)).number + commonPrefix,
-		current.lines,
-	);
+	const at = clampPos(chunk.fromB, current);
+	const start = current.lineAt(at);
+	// A chunk starts mid-line only at the end of a note without a final newline: the gap follows that line.
+	const removedAfter =
+		start.number - (start.from === at ? 1 : 0) + commonPrefix;
 	return {
 		removedLines,
 		addedLines,
 		addedFromLine,
 		addedToLine,
-		deletionLine,
+		removedAfter,
 	};
 }
 
