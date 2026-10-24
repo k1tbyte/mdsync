@@ -3,16 +3,18 @@ import {
 	type EditorState,
 	StateEffect,
 	StateField,
-	type Text,
+	Text,
 } from "@codemirror/state";
 import { editorInfoField } from "obsidian";
 
 export interface ChunksData {
 	chunks: readonly Chunk[];
+	/** What they were computed for: a large edit recomputes them only later. */
+	doc: Text;
 	lastDiffMs: number;
 }
 
-const EMPTY_CHUNKS: ChunksData = { chunks: [], lastDiffMs: 0 };
+const EMPTY_CHUNKS: ChunksData = { chunks: [], doc: Text.empty, lastDiffMs: 0 };
 
 export const setCompareTextEffect = StateEffect.define<Text | null>();
 export const setChunksEffect = StateEffect.define<ChunksData>();

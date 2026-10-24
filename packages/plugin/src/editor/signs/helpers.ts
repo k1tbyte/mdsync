@@ -46,7 +46,7 @@ export function hunkTitle(removedCount: number, addedCount: number): string {
 export interface ChunkMark {
 	from: number;
 	to: number;
-	/** `delete` marks the line above removed lines, `topdelete` the first line when they led the note. */
+	/** `delete` marks the line above removed lines, `topdelete` the line below: the first when they led the note. */
 	kind: "add" | "change" | "delete" | "topdelete";
 	/** A change that removed more lines than it added: its last line marks the rest. */
 	removesBelow: boolean;
@@ -78,11 +78,33 @@ export function chunkMark(
 
 /** Where a mark stands, for the popup: "Lines 3-4", "After line 12". */
 export function markPlace(mark: ChunkMark): string {
-	if (mark.kind === "topdelete") return "Start of file";
+	if (mark.kind === "topdelete")
+		return mark.from === 1 ? "Start of file" : `After line ${mark.from - 1}`;
 	if (mark.kind === "delete") return `After line ${mark.from}`;
 	return mark.to > mark.from
 		? `Lines ${mark.from}-${mark.to}`
 		: `Line ${mark.from}`;
+}
+
+/** Every chunk's mark, each on lines of its own so each opens alone. */
+export function chunkMarks(
+	chunks: readonly Chunk[],
+	baseline: Text,
+	current: Text,
+): { chunk: Chunk; mark: ChunkMark }[] {
+	const marks: { chunk: Chunk; mark: ChunkMark }[] = [];
+	for (const chunk of chunks) {
+		let mark = chunkMark(chunk, baseline, current);
+		if (!mark) continue;
+		const above = marks.at(-1)?.mark;
+		// The line above holds another mark: the same gap, marked from below.
+		if (mark.kind === "delete" && above && above.to >= mark.from) {
+			const below = mark.from + 1;
+			mark = { from: below, to: below, kind: "topdelete", removesBelow: false };
+		}
+		marks.push({ chunk, mark });
+	}
+	return marks;
 }
 
 export function findChunkForLine(
@@ -91,12 +113,11 @@ export function findChunkForLine(
 	current: Text,
 	lineNumber: number,
 ): { chunk: Chunk; mark: ChunkMark } | null {
-	for (const chunk of chunks) {
-		const mark = chunkMark(chunk, baseline, current);
-		if (mark && lineNumber >= mark.from && lineNumber <= mark.to)
-			return { chunk, mark };
-	}
-	return null;
+	return (
+		chunkMarks(chunks, baseline, current).find(
+			({ mark }) => lineNumber >= mark.from && lineNumber <= mark.to,
+		) ?? null
+	);
 }
 
 /** Keeps the empty last line a trailing newline implies, so the baseline shows no phantom "added line" at the end. */

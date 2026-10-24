@@ -90,13 +90,17 @@ export class MergeEditorPanel {
 		this.active = false;
 	}
 
+	/** `stillOn` says the view still shows `path` once the three versions arrive. */
 	async enter(
 		plugin: PluginHost,
 		path: string,
+		stillOn: () => boolean,
 		onEntered: () => void,
 	): Promise<void> {
 		try {
 			const texts = await plugin.controller.fileDiffs.getConflictThreeWay(path);
+			// Another file opened meanwhile, or a merge began: this one would replace it unasked.
+			if (!stillOn() || this.active) return;
 			if (!texts) {
 				notifyError(
 					"Cannot three-way merge this file (binary or no common ancestor). Use Keep local / Accept remote.",

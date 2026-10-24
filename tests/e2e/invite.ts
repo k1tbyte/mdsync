@@ -105,6 +105,10 @@ async function pushesByItself(
 	owner: Obsidian,
 	friend: Obsidian,
 ): Promise<void> {
+	// An edit waits for a push by default; this covers sending it right away.
+	await friend.evaluate(() => {
+		app.plugins.plugins.mdsync.settings.shareEditsWait = false;
+	});
 	await write(friend, `Shared/${TODO}`, EDITED);
 	await arrives(owner, TODO, EDITED);
 	const pulled = await mtime(owner, TODO);

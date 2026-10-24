@@ -59,8 +59,25 @@ export function createSidebar(
 		"keydown",
 		(event) => {
 			if (event.key === "Escape") setOpen(false);
+			// A wide screen shows the panel as a column, Close menu hidden: nothing covers the page.
+			const drawer = getComputedStyle(close).display !== "none";
+			if (event.key === "Tab" && drawer && aside.classList.contains("is-open"))
+				keepTabIn(panel, event);
 		},
 		{ signal },
 	);
 	return { aside, menu };
+}
+
+/** The open panel covers the page: Tab cycles through it. */
+function keepTabIn(panel: HTMLElement, event: KeyboardEvent): void {
+	const items = [...panel.querySelectorAll<HTMLElement>("a[href], button")];
+	const first = items[0];
+	const last = items.at(-1);
+	if (!first || !last) return;
+	const active = panel.ownerDocument.activeElement;
+	if (panel.contains(active) && active !== (event.shiftKey ? first : last))
+		return;
+	event.preventDefault();
+	(event.shiftKey ? last : first).focus();
 }

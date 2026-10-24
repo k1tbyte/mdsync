@@ -1,6 +1,6 @@
 import { setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
-import { errorMessage, formatBytes, formatSizeDelta } from "@/shared";
+import { formatBytes, formatSizeDelta } from "@/shared";
 import type { SnapshotListResult } from "@/sync/history";
 import {
 	appendIconButton,
@@ -12,6 +12,7 @@ import {
 } from "@/ui/common";
 import type { HistoryDiffTarget } from "@/ui/source-control-view";
 import { groupRows } from "./day-groups";
+import { HistoryList } from "./history-list";
 import { STATUS_CLASSES, STATUS_LETTERS } from "./row-formatter";
 import { RowPager } from "./row-pager";
 import {
@@ -29,10 +30,11 @@ import {
 } from "./timeline-rows";
 
 export class TimelineTab {
-	private snapshots: SnapshotListResult | null = null;
-	private error: string | null = null;
-	private loading = false;
-	private generation = 0;
+	private readonly snapshots = new HistoryList<SnapshotListResult>(() => {
+		const loaded = this.snapshots.value;
+		if (loaded) this.prune(loaded);
+		this.onRerender();
+	});
 	private openGeneration = 0;
 	private readonly expanded = new Set<string>();
 	private readonly pages = new Map<string, RowPager>();
@@ -63,7 +65,7 @@ export class TimelineTab {
 		if (
 			!this.list?.isConnected ||
 			this.list.hasClass("is-loading") ||
-			!this.snapshots
+			!this.snapshots.value
 		)
 			return;
 		this.scrollTop = this.list.scrollTop;
@@ -76,14 +78,11 @@ export class TimelineTab {
 
 	clear(): void {
 		this.captureState();
-		this.snapshots = null;
-		this.error = null;
-		this.loading = false;
-		this.generation++;
+		this.snapshots.clear();
 	}
 
 	dispose(): void {
-		this.generation++;
+		this.snapshots.clear();
 		this.openGeneration++;
 		this.list = null;
 	}
@@ -106,9 +105,9 @@ export class TimelineTab {
 		this.list = pane.createDiv({
 			cls: "mdsync-history-list mdsync-timeline-list",
 		});
-		this.list.toggleClass("is-loading", this.snapshots === null);
+		this.list.toggleClass("is-loading", this.snapshots.value === null);
 		this.renderBody(this.list);
-		if (this.snapshots) {
+		if (this.snapshots.value) {
 			this.list.scrollTop = this.scrollTop;
 			if (this.focusKey) {
 				const target = Array.from(
@@ -128,28 +127,29 @@ export class TimelineTab {
 	}
 
 	private renderBody(body: HTMLElement): void {
-		if (this.error) {
-			renderLoadError(body, "Could not load the timeline", this.error, () =>
+		const { value: snapshots, error } = this.snapshots;
+		if (error) {
+			renderLoadError(body, "Could not load the timeline", error, () =>
 				this.reload(),
 			);
 			return;
 		}
-		if (!this.snapshots) {
+		if (!snapshots) {
 			renderLoading(body);
-			this.load();
+			this.snapshots.load(() => this.plugin.controller.history.listSnapshots());
 			return;
 		}
-		if (this.snapshots.lagging) {
+		if (snapshots.lagging) {
 			callout(
 				body,
 				"warning",
 				"History has not caught up with the latest push yet, so the newest snapshot is missing.",
 			);
 		}
-		const rows = buildTimelineRows(this.snapshots.snapshots, {
+		const rows = buildTimelineRows(snapshots.snapshots, {
 			currentDevice: this.plugin.controller.currentDevice(),
 		});
-		if (rows.length === 0 && !this.snapshots.lagging) {
+		if (rows.length === 0 && !snapshots.lagging) {
 			renderEmptyState(body, {
 				icon: "clock-3",
 				title: "No pushes yet",
@@ -162,29 +162,11 @@ export class TimelineTab {
 		}
 	}
 
-	private load(): void {
-		if (this.loading) return;
-		this.loading = true;
-		const generation = this.generation;
-		void this.plugin.controller.history
-			.listSnapshots()
-			.then((result) => {
-				if (generation !== this.generation) return;
-				this.snapshots = result;
-				const ids = new Set(result.snapshots.map((row) => row.id));
-				for (const id of this.expanded)
-					if (!ids.has(id)) this.expanded.delete(id);
-				for (const id of this.pages.keys())
-					if (!ids.has(id)) this.pages.delete(id);
-			})
-			.catch((error: unknown) => {
-				if (generation === this.generation) this.error = errorMessage(error);
-			})
-			.finally(() => {
-				if (generation !== this.generation) return;
-				this.loading = false;
-				this.onRerender();
-			});
+	/** Rows gone from the new list take their open state with them. */
+	private prune({ snapshots }: SnapshotListResult): void {
+		const ids = new Set(snapshots.map((row) => row.id));
+		for (const id of this.expanded) if (!ids.has(id)) this.expanded.delete(id);
+		for (const id of this.pages.keys()) if (!ids.has(id)) this.pages.delete(id);
 	}
 
 	private renderRow(body: HTMLElement, row: TimelineRow): void {

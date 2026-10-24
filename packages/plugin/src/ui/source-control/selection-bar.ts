@@ -1,4 +1,4 @@
-import { appendIconButton } from "@/ui/common";
+import { appendIconButton, focusKey, renderKeepingFocus } from "@/ui/common";
 import { textButton } from "./action-button";
 
 export interface SelectionCommand {
@@ -27,7 +27,17 @@ export class SelectionBar {
 		this.el.setAttr("aria-label", "Selection");
 	}
 
+	/** Progress redraws it too: focus stays on the same button. */
 	update(busy: boolean): void {
+		const { el } = this;
+		const focused = el.contains(el.ownerDocument.activeElement);
+		renderKeepingFocus(el, () => this.render(busy));
+		// A running command locks: the focus waits on Clear selection, which stays enabled.
+		if (focused && !el.contains(el.ownerDocument.activeElement))
+			el.querySelector<HTMLElement>(".mdsync-row-action")?.focus();
+	}
+
+	private render(busy: boolean): void {
 		const { el } = this;
 		const sources = this.sources;
 		el.empty();
@@ -39,16 +49,17 @@ export class SelectionBar {
 			text: `${count.toLocaleString()} selected`,
 		});
 		const buttons = el.createDiv({ cls: "mdsync-selection-buttons" });
-		for (const { text, cta, run } of sources.flatMap((s) =>
-			s.selectionCommands(),
-		)) {
+		const commands = sources.flatMap((s) => s.selectionCommands());
+		for (const [index, { text, cta, run }] of commands.entries()) {
 			const button = textButton(buttons, text)
 				.setDisabled(busy)
 				.onClick(() => void run());
 			if (cta) button.setCta();
+			focusKey(button.buttonEl, `command-${index}`);
 		}
-		appendIconButton(buttons, "x", "Clear selection", () => {
+		const clear = appendIconButton(buttons, "x", "Clear selection", () => {
 			for (const source of sources) source.clearSelection();
-		}).addClass("mdsync-row-action");
+		});
+		focusKey(clear, "clear").addClass("mdsync-row-action");
 	}
 }

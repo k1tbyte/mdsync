@@ -1,6 +1,6 @@
 import { Menu, Platform, setIcon, TFile, TFolder } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
-import { errorMessage, pluralize } from "@/shared";
+import { pluralize } from "@/shared";
 import type { DeletedFilesResult } from "@/sync/history";
 import {
 	appendIconButton,
@@ -12,6 +12,7 @@ import {
 	renderPath,
 } from "@/ui/common";
 import { openPromptModal } from "@/ui/modals";
+import { HistoryList } from "./history-list";
 import { confirmBulkRestore, confirmRestore } from "./restore-modal";
 import { RowPager } from "./row-pager";
 import {
@@ -33,11 +34,9 @@ import {
 
 /** Files gone from the vault but still recoverable from history. */
 export class TrashTab implements SelectionSource {
-	private deleted: DeletedFilesResult | null = null;
-	private error: string | null = null;
-	private loading = false;
-	/** Invalidations race in-flight loads; only the current generation may land. */
-	private generation = 0;
+	private readonly list = new HistoryList<DeletedFilesResult>(() =>
+		this.onRerender(),
+	);
 	/** Selected row paths; pruned to the rows the latest render produced. */
 	private readonly selected = new Set<string>();
 	private rows: TrashRow[] = [];
@@ -55,10 +54,7 @@ export class TrashTab implements SelectionSource {
 	) {}
 
 	clear(): void {
-		this.deleted = null;
-		this.error = null;
-		this.loading = false;
-		this.generation++;
+		this.list.clear();
 	}
 
 	/** `overlay` holds the selection bar over the pane, outside its scroll. */
@@ -104,7 +100,8 @@ export class TrashTab implements SelectionSource {
 	}
 
 	private selectionChanged(): void {
-		this.bar?.update(false);
+		// Until a list is in, the ticked rows are the last one's and may be back.
+		this.bar?.update(this.list.value === null || this.list.error !== null);
 		const box = this.selectAll;
 		if (!box) return;
 		box.checked = this.selected.size === this.rows.length;
@@ -112,34 +109,35 @@ export class TrashTab implements SelectionSource {
 	}
 
 	private renderBody(body: HTMLElement): void {
-		if (this.error) {
-			renderLoadError(body, "Could not list deleted files", this.error, () => {
+		const { value: deleted, error } = this.list;
+		if (error) {
+			renderLoadError(body, "Could not list deleted files", error, () => {
 				this.clear();
 				this.onRerender();
 			});
 			return;
 		}
-		if (this.deleted === null) {
+		if (deleted === null) {
 			renderLoading(body);
-			this.load();
+			this.list.load(() => this.plugin.controller.history.listDeletedFiles());
 			return;
 		}
-		const incomplete = this.deleted.lagging || this.deleted.truncated;
-		if (this.deleted.lagging) {
+		const incomplete = deleted.lagging || deleted.truncated;
+		if (deleted.lagging) {
 			callout(
 				body,
 				"warning",
 				"History has not caught up with the latest push yet, so recent deletions are missing. Push again to update it.",
 			);
 		}
-		if (this.deleted.truncated) {
+		if (deleted.truncated) {
 			callout(
 				body,
 				"warning",
 				"History has a gap, so deletions older than it are missing unless a pinned snapshot still covers them.",
 			);
 		}
-		const rows = buildTrashRows(this.deleted.files, {
+		const rows = buildTrashRows(deleted.files, {
 			maxSnapshots: this.plugin.settings.fileHistoryMaxSnapshots,
 			currentDevice: this.plugin.controller.currentDevice(),
 			inVault: (path) =>
@@ -190,29 +188,6 @@ export class TrashTab implements SelectionSource {
 		for (const path of Array.from(this.selected)) {
 			if (!valid.has(path)) this.selected.delete(path);
 		}
-	}
-
-	/** Loads into state, never into a captured node: a re-render discards that node. */
-	private load(): void {
-		if (this.loading) return;
-		this.loading = true;
-		const generation = this.generation;
-		this.plugin.controller.history
-			.listDeletedFiles()
-			.then((result) => {
-				if (generation !== this.generation) return;
-				this.deleted = result;
-			})
-			.catch((err: unknown) => {
-				if (generation !== this.generation) return;
-				this.error = errorMessage(err);
-			})
-			.finally(() => {
-				// A newer load owns the flag now, so leave it to that one.
-				if (generation !== this.generation) return;
-				this.loading = false;
-				this.onRerender();
-			});
 	}
 
 	private renderRow(body: HTMLElement, row: TrashRow): void {
@@ -266,39 +241,40 @@ export class TrashTab implements SelectionSource {
 	/** Shown on hover over the row's spare column, so revealing them moves nothing. */
 	private renderActions(parent: HTMLElement, row: TrashRow): void {
 		const actions = parent.createDiv({ cls: "mdsync-row-actions" });
-		const add = (icon: string, label: string, run: () => void): void => {
+		for (const { icon, label, run } of this.actionsOf(row)) {
 			appendIconButton(actions, icon, label, run).addClass("mdsync-row-action");
-		};
-		add("eye", `Preview ${row.path}`, () => this.preview(row));
-		add("rotate-ccw", `Restore ${row.path}`, () => {
-			void this.restore(row, row.path);
-		});
-		add("folder-input", `Restore ${row.path} to another path`, () => {
-			void this.restoreTo(row);
-		});
+		}
 	}
 
 	private showMenu(event: MouseEvent, row: TrashRow): void {
 		const menu = new Menu();
-		menu.addItem((item) =>
-			item
-				.setTitle("Preview")
-				.setIcon("eye")
-				.onClick(() => this.preview(row)),
-		);
-		menu.addItem((item) =>
-			item
-				.setTitle("Restore")
-				.setIcon("rotate-ccw")
-				.onClick(() => void this.restore(row, row.path)),
-		);
-		menu.addItem((item) =>
-			item
-				.setTitle("Restore to…")
-				.setIcon("folder-input")
-				.onClick(() => void this.restoreTo(row)),
-		);
+		for (const { icon, title, run } of this.actionsOf(row)) {
+			menu.addItem((item) => item.setTitle(title).setIcon(icon).onClick(run));
+		}
 		menu.showAtMouseEvent(event);
+	}
+
+	private actionsOf(row: TrashRow) {
+		return [
+			{
+				icon: "eye",
+				title: "Preview",
+				label: `Preview ${row.path}`,
+				run: () => this.preview(row),
+			},
+			{
+				icon: "rotate-ccw",
+				title: "Restore",
+				label: `Restore ${row.path}`,
+				run: () => void this.restore(row, row.path),
+			},
+			{
+				icon: "folder-input",
+				title: "Restore to…",
+				label: `Restore ${row.path} to another path`,
+				run: () => void this.restoreTo(row),
+			},
+		];
 	}
 
 	private preview(row: TrashRow): void {

@@ -5,10 +5,10 @@
 
 import {
 	CLEAN,
-	choose,
 	clickMenuItem,
 	closeModals,
 	openSharedFolderSettings,
+	pick,
 	read,
 	sync,
 	unlock,
@@ -239,7 +239,7 @@ function vaultEntry(device: Obsidian, path: string): Promise<string | null> {
 /** Pause or resume the only share on this device, from its window in the settings. */
 async function pauseHere(device: Obsidian, paused: boolean): Promise<void> {
 	await openSharedFolderSettings(device);
-	await choose(device, "Pause", paused ? "here" : "");
+	await pick(device, paused ? "On this device" : "Off");
 	await device.waitFor(
 		`pause ${paused} saved`,
 		() => app.plugins.plugins.mdsync.settings.pausedSpaces.length,

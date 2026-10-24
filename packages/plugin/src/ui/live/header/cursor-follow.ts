@@ -97,6 +97,12 @@ export class CursorFollow {
 			this.stop();
 			return;
 		}
+		if (person.name !== following.name) {
+			// Renamed meanwhile: the banner is drawn with the name it had.
+			following.name = person.name;
+			following.banner?.remove();
+			following.banner = null;
+		}
 		this.showBanner(following);
 		if (person.note !== null && person.note !== following.path) {
 			void this.open(following, person.note);

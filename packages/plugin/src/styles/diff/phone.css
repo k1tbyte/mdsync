@@ -20,11 +20,19 @@ body.is-phone .mdsync-diff-view .mdsync-diff-path .mdsync-file-parent {
 	flex: 0 0 auto;
 }
 
-body.is-phone .mdsync-diff-view .mdsync-diff-file-nav,
 body.is-phone .mdsync-diff-view .mdsync-diff-spacer,
 body.is-phone .mdsync-diff-view .mdsync-compare-position,
 body.is-phone .mdsync-diff-view .mdsync-diff-separator,
 body.is-phone .mdsync-diff-view .mdsync-pending-kind {
+	display: none;
+}
+
+/* Its own row under the title: no divider from what stood beside it on a desktop. */
+body.is-phone .mdsync-diff-view .mdsync-diff-file-nav {
+	padding-left: 0;
+}
+
+body.is-phone .mdsync-diff-view .mdsync-diff-file-nav::before {
 	display: none;
 }
 

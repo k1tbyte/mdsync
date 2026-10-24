@@ -3,6 +3,8 @@ export interface Segments {
 	refresh(): void;
 }
 
+let groups = 0;
+
 /** Native radios keep arrow-key navigation; saving locks the whole choice. */
 export function renderSegments<T>(
 	parent: HTMLElement,
@@ -17,9 +19,14 @@ export function renderSegments<T>(
 		attr: { role: "radiogroup" },
 	});
 	if (labelledBy) group.setAttr("aria-labelledby", labelledBy);
+	// Radios of one name share a document: two windows of one choice would uncheck each other.
+	const radioName = `${name}-${++groups}`;
 	const inputs = options.map(({ value, text }) => {
 		const label = group.createEl("label", { cls: "mdsync-segment" });
-		const input = label.createEl("input", { type: "radio", attr: { name } });
+		const input = label.createEl("input", {
+			type: "radio",
+			attr: { name: radioName },
+		});
 		label.createSpan({ text });
 		input.addEventListener("change", async () => {
 			for (const each of inputs) each.disabled = true;

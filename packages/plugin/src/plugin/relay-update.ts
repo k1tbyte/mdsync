@@ -90,9 +90,11 @@ export function registerRelayUpdate(plugin: Plugin & PluginHost): RelayUpdate {
 			if (outdated.delete(key)) notify();
 			return;
 		}
-		if (outdated.has(key)) return;
-		const relays = await accountRelays(login.api, login.accountId);
-		const name = ownRelayName(relays, relayUrl);
+		// Known already: only the secret the relay just accepted is new.
+		const known = outdated.get(key);
+		const name =
+			known?.name ??
+			ownRelayName(await accountRelays(login.api, login.accountId), relayUrl);
 		// Deploying a relay switched away from meanwhile would write it back over the new one.
 		const stale =
 			plugin.unloaded ||
@@ -101,7 +103,7 @@ export function registerRelayUpdate(plugin: Plugin & PluginHost): RelayUpdate {
 		if (!name || stale) return;
 		outdated.set(key, { name, secret: relaySecret });
 		notify();
-		if (app.loadLocalStorage(SKIPPED_KEY) === RELAY_VERSION) return;
+		if (known || app.loadLocalStorage(SKIPPED_KEY) === RELAY_VERSION) return;
 		await update.offer();
 	};
 	plugin.register(

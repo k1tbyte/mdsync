@@ -127,6 +127,28 @@ describe("sidebar", () => {
 		expectOpen(false);
 	});
 
+	it("keeps Tab inside the open panel", () => {
+		mount();
+		sidebar.menu.click();
+		const link = sidebar.aside.querySelector(".credit a") as HTMLElement;
+		const tab = (shiftKey: boolean) => {
+			const event = new KeyboardEvent("keydown", {
+				key: "Tab",
+				shiftKey,
+				cancelable: true,
+			});
+			document.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+		expect(tab(true)).toBe(true);
+		expect(document.activeElement).toBe(link);
+		expect(tab(false)).toBe(true);
+		expect(document.activeElement).toBe(closeButton());
+		sidebar.menu.focus();
+		closeButton().click();
+		expect(tab(false)).toBe(false);
+	});
+
 	it("stops closing outside or on Escape after abort", () => {
 		mount();
 		sidebar.menu.click();

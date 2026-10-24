@@ -118,16 +118,16 @@ await runSharing(
 						.getLeavesOfType("markdown")[0]
 						.view.containerEl.querySelector(".mdsync-note-presence");
 					return [
-						header?.querySelector(".mdsync-note-state")?.className,
+						header?.querySelector(".mdsync-live-dot")?.className,
 						[...(header?.querySelectorAll(".mdsync-avatar") ?? [])].map(
 							(face) => face.textContent,
 						),
 					];
 				},
 				([state, faces]) =>
-					state === "mdsync-note-state is-live" && faces.length > 0,
+					state === "mdsync-live-dot is-live" && faces.length > 0,
 			),
-			["mdsync-note-state is-live", ["F"]],
+			["mdsync-live-dot is-live", ["F"]],
 		);
 		await clickMenuItem(owner, "Team", "MDSync: Manage sharing");
 		check(
@@ -135,13 +135,25 @@ await runSharing(
 			await owner.waitFor(
 				"the friend in the share window",
 				() =>
-					[...document.querySelectorAll(".mdsync-share-modal .setting-item")]
-						.map((row) => row.textContent ?? "")
-						.find((text) => text.includes("In plan.md")),
+					[
+						...document.querySelectorAll(
+							".mdsync-share-modal .mdsync-share-person",
+						),
+					]
+						// The first row is the owner's own.
+						.slice(1)
+						.map((row) =>
+							[
+								".mdsync-modal-row-name",
+								".mdsync-modal-row-detail",
+								".mdsync-share-role",
+							].map((cls) => row.querySelector(cls)?.textContent ?? ""),
+						)
+						.find(([, detail]) => detail === "In plan.md"),
 				// Present people show first; their access follows from the broker.
-				(row) => row?.endsWith("Revoke") === true,
+				(row) => row?.[2] === "Can edit",
 			),
-			"FFriendCan edit - In plan.mdRevoke",
+			["Friend", "In plan.md", "Can edit"],
 		);
 		await owner.shot("share-window", ".mdsync-share-modal");
 		await closeModals(owner);
@@ -424,18 +436,17 @@ async function follows(owner: Obsidian, friend: Obsidian): Promise<void> {
 		true,
 	);
 	check("the menu says whom the owner follows", await states(), ["following"]);
-	// The owner's own scroll only asks; its nudge ends following.
+	// The banner over the followed note ends it.
 	await owner.evaluate(() => {
-		app.workspace
-			.getLeavesOfType("markdown")[0]
-			.view.contentEl.dispatchEvent(new Event("wheel"));
-		const stop = [...activeDocument.querySelectorAll(".notice button")].find(
-			(each) => each.textContent === "Stop following",
-		) as HTMLElement | undefined;
-		if (!stop) throw new Error("no stop following nudge");
+		const stop = [
+			...activeDocument.querySelectorAll(".mdsync-follow-banner button"),
+		].find((each) => each.textContent === "Stop following") as
+			| HTMLElement
+			| undefined;
+		if (!stop) throw new Error("no Stop following in the banner");
 		stop.click();
 	});
-	check("the owner's own scroll ends it", await states(), ["follow"]);
+	check("the banner's Stop following ends it", await states(), ["follow"]);
 	await block(false);
 	await converged(owner, friend);
 }

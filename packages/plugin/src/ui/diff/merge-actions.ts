@@ -16,7 +16,6 @@ import { fullTaken, mergeChangesField, setChangeState } from "./merge-state";
 
 export interface MergeActions {
 	apply(index: number, side: EMergeSide): void;
-	ignore(index: number, side: EMergeSide): void;
 	revert(index: number, side: EMergeSide): void;
 	/** Takes these sides in order and drops the other: a conflict settled in one step. */
 	settle(index: number, sides: readonly EMergeSide[]): void;
@@ -38,11 +37,6 @@ export function mergeActions(source: () => MergeSource): MergeActions {
 		apply: (index, side) => take(index, [side], "add"),
 		settle: (index, sides) => take(index, sides, "settle"),
 		reopen: (index) => take(index, [], "reopen"),
-		ignore: (index, side) =>
-			source().view?.dispatch({
-				effects: setChangeState.of({ index, status: { [side]: "ignored" } }),
-				annotations: isolateHistory.of("full"),
-			}),
 		revert: (index, side) => {
 			const { view, base } = source();
 			const change = view?.state.field(mergeChangesField)[index];
