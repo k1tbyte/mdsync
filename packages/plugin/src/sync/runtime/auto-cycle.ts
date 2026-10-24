@@ -1,6 +1,6 @@
 import { ESyncLogOperation } from "@/logs/store";
 import { autoMergeOp } from "@/sync/auto-merge";
-import { selectAutoPushPaths } from "@/sync/auto-push";
+import type { AutoPushSelector } from "@/sync/auto-push";
 import { pullPathsOp, pushPathsOp } from "@/sync/operations";
 
 import type { SyncControllerRuntimeState } from "./controller-state";
@@ -12,6 +12,7 @@ export async function runRefreshCycle(
 	operations: OperationRunner,
 	request: RefreshRequest,
 	revision: number,
+	select: AutoPushSelector,
 ): Promise<void> {
 	const before = runtime.getSnapshot();
 	const targets =
@@ -65,14 +66,14 @@ export async function runRefreshCycle(
 		}
 		if (!request.push || space.readOnly) continue;
 		result = runtime.resultOf(space);
-		if (!result || selectAutoPushPaths(result.diff, request.only).length === 0)
+		if (!result || select(space, result.diff, request.only).length === 0)
 			continue;
 		if (
 			!(await run(ESyncLogOperation.Push, (deps, compared, ctx) =>
 				pushPathsOp(
 					deps,
 					compared,
-					selectAutoPushPaths(compared.diff, request.only),
+					select(space, compared.diff, request.only),
 					ctx,
 				),
 			))

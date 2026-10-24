@@ -5,6 +5,8 @@ import {
 	AUTO_PUSH_SETTLE_MIN_SECONDS,
 	AUTO_SYNC_MAX_MINUTES,
 	AUTO_SYNC_MIN_MINUTES,
+	BULK_DELETE_LIMIT_MAX,
+	BULK_DELETE_LIMIT_MIN,
 	FILE_HISTORY_MAX_SNAPSHOTS,
 	FILE_HISTORY_MIN_SNAPSHOTS,
 } from "@/constants";
@@ -18,7 +20,7 @@ import {
 	type SettingsField,
 	SUB_SETTING_CLASS,
 } from "@/settings/fields";
-import { isRelayConfigured } from "@/settings/model";
+import { DEFAULT_SETTINGS, isRelayConfigured } from "@/settings/model";
 import { EFieldKind } from "@/storage";
 import { clampMaxSnapshots } from "@/sync/history";
 import { VAULT_SPACE } from "@/sync/space";
@@ -70,7 +72,8 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 		when: (s) => s.autoSyncEnabled,
 		sub: true,
 		get: (s) => String(s.autoSyncIntervalMinutes),
-		parse: clampAutoSyncMinutes,
+		parse: (raw) =>
+			clampInt(raw, AUTO_SYNC_MIN_MINUTES, AUTO_SYNC_MAX_MINUTES, 0),
 		set: (v) => ({ autoSyncIntervalMinutes: v }),
 	},
 	{
@@ -110,6 +113,30 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 		sub: true,
 		get: (s) => s.autoPushChangedFilesOnly,
 		set: (v) => ({ autoPushChangedFilesOnly: v }),
+	},
+	{
+		kind: EFieldKind.Toggle,
+		name: "Ask before pushing many deletions",
+		desc: "An automatic push holds back deleting more files than the limit below and asks you to review them first. Guards against storage that briefly hides a folder. Pushing by hand is not affected.",
+		get: (s) => s.confirmBulkDeletes,
+		set: (v) => ({ confirmBulkDeletes: v }),
+		rerender: true,
+	},
+	{
+		kind: EFieldKind.Number,
+		name: "Deletion limit",
+		desc: `How many deleted files an automatic push may publish without asking (${BULK_DELETE_LIMIT_MIN}-${BULK_DELETE_LIMIT_MAX}).`,
+		when: (s) => s.confirmBulkDeletes,
+		sub: true,
+		get: (s) => String(s.bulkDeleteLimit),
+		parse: (raw) =>
+			clampInt(
+				raw,
+				BULK_DELETE_LIMIT_MIN,
+				BULK_DELETE_LIMIT_MAX,
+				DEFAULT_SETTINGS.bulkDeleteLimit,
+			),
+		set: (v) => ({ bulkDeleteLimit: v }),
 	},
 	{
 		kind: EFieldKind.Toggle,
@@ -190,11 +217,16 @@ function restartRelay(plugin: PluginHost): void {
 	plugin.realtime.hub.restart();
 }
 
-function clampAutoSyncMinutes(raw: string): number {
+function clampInt(
+	raw: string,
+	min: number,
+	max: number,
+	fallback: number,
+): number {
 	const parsed = Number.parseInt(raw, 10);
 	return Math.max(
-		AUTO_SYNC_MIN_MINUTES,
-		Math.min(AUTO_SYNC_MAX_MINUTES, Number.isFinite(parsed) ? parsed : 0),
+		min,
+		Math.min(max, Number.isFinite(parsed) ? parsed : fallback),
 	);
 }
 

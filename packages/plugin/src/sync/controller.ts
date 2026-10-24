@@ -1,7 +1,7 @@
 import { ESyncLogOperation } from "@/logs/store";
 import type { SettingsSyncCategories } from "@/settings/model";
 import { authorOf, type LastEdit } from "./authors";
-import { selectAutoPushPaths } from "./auto-push";
+import { type AutoPushSelector, createAutoPushSelector } from "./auto-push";
 import { clearRemoteTextCache } from "./content";
 import { defaultDeviceName } from "./device";
 import type { EngineDependencies } from "./engine";
@@ -76,6 +76,10 @@ export interface SyncControllerHost {
 	onSpaceGone?(space: Space): void;
 	/** A disk walk found files Obsidian's index lacks: synced, shown after a restart. */
 	onUnindexed?(count: number): void;
+	/** How many deletions one automatic push may publish; null for any number. */
+	autoDeleteLimit?(): number | null;
+	/** An automatic push left these deletions for the person: more than `autoDeleteLimit`. */
+	onDeletionsHeld?(space: Space, paths: readonly string[]): void;
 	logInfo(
 		operation: ESyncLogOperation,
 		message: string,
@@ -119,6 +123,7 @@ export class SyncController {
 	readonly fileDiffs: FileDiffService;
 	private readonly operations: OperationRunner;
 	private readonly refreshes: RefreshQueue;
+	private readonly autoPushPaths: AutoPushSelector;
 	private localRevision = 0;
 	readonly history: HistoryService;
 	readonly maintenance: MaintenanceService;
@@ -139,6 +144,17 @@ export class SyncController {
 			clearFileDiffs: () => this.fileDiffs.clear(),
 			localRevision: () => this.localRevision,
 		});
+		this.autoPushPaths = createAutoPushSelector(
+			() => host.autoDeleteLimit?.() ?? null,
+			(space, held) => {
+				void host.logWarn(
+					ESyncLogOperation.Push,
+					`Held back ${held.length} deleted files for review: more than an automatic push may publish.`,
+					held,
+				);
+				host.onDeletionsHeld?.(space, held);
+			},
+		);
 		this.refreshes = new RefreshQueue(
 			(run) => this.runtimeState.enqueue(run),
 			(request) =>
@@ -147,6 +163,7 @@ export class SyncController {
 					this.operations,
 					request,
 					this.localRevision,
+					this.autoPushPaths,
 				),
 		);
 		this.history = new HistoryService({
@@ -261,7 +278,7 @@ export class SyncController {
 				space,
 				ESyncLogOperation.Push,
 				(deps, result, ctx) => {
-					const ready = selectAutoPushPaths(result.diff, only);
+					const ready = this.autoPushPaths(space, result.diff, only);
 					return ready.length > 0
 						? pushPathsOp(deps, result, ready, ctx)
 						: Promise.resolve({

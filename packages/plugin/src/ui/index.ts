@@ -63,6 +63,7 @@ export {
 } from "./source-control";
 export {
 	openDiffView,
+	openSourceControlChanges,
 	openSourceControlDeleted,
 	openSourceControlHistory,
 	openSourceControlView,

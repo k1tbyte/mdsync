@@ -46,6 +46,8 @@ const TRANSFER_FIELDS = {
 		autoPushAfterChange: "p",
 		autoPushSettleSeconds: "g",
 		autoPushChangedFilesOnly: "c",
+		confirmBulkDeletes: "d",
+		bulkDeleteLimit: "b",
 		pushSharesRightAway: "s",
 		shareEditsWait: "w",
 		fileHistoryEnabled: "h",

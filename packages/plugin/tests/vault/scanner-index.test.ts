@@ -399,6 +399,27 @@ describe("scanVault with a vault index", () => {
 		expect(snapshot.skipped).toEqual([]);
 	});
 
+	it("keeps a folder the disk briefly reports missing out of the deletions", async () => {
+		const adapter = vault({ "a.md": "one", "notes/b.md": "two" });
+		// Obsidian's watcher met ENOENT and dropped the folder from its index.
+		const index = await indexOf(vault({ "a.md": "one" }));
+		const inner = adapter.asDataAdapter();
+		const data = Object.create(inner) as DataAdapter;
+		// The storage bridge still answers ENOENT inside it, yet lists it.
+		data.stat = (path: string) =>
+			path.startsWith("notes/") ? Promise.resolve(null) : inner.stat(path);
+
+		const { snapshot } = await scanVault(
+			data,
+			policy(),
+			{ ...options, index, expected: { "a.md": {}, "notes/b.md": {} } },
+			{},
+		);
+
+		expect(Object.keys(snapshot.files)).toEqual(["a.md"]);
+		expect(snapshot.skipped.map(({ path }) => path)).toEqual(["notes/b.md"]);
+	});
+
 	/** The test platform is Windows: any casing of a name opens the file. */
 	function caseBlind(
 		adapter: InMemoryAdapter,

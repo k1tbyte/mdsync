@@ -168,6 +168,8 @@ describe("settings transfer", () => {
 			autoPushAfterChange: !DEFAULT_SETTINGS.autoPushAfterChange,
 			autoPushSettleSeconds: DEFAULT_SETTINGS.autoPushSettleSeconds - 3,
 			autoPushChangedFilesOnly: !DEFAULT_SETTINGS.autoPushChangedFilesOnly,
+			confirmBulkDeletes: !DEFAULT_SETTINGS.confirmBulkDeletes,
+			bulkDeleteLimit: DEFAULT_SETTINGS.bulkDeleteLimit + 20,
 			fileHistoryEnabled: !DEFAULT_SETTINGS.fileHistoryEnabled,
 			fileHistoryMaxSnapshots: DEFAULT_SETTINGS.fileHistoryMaxSnapshots + 7,
 			historyAutoRefresh: !DEFAULT_SETTINGS.historyAutoRefresh,
@@ -207,6 +209,8 @@ describe("settings transfer", () => {
 		expect(imported.autoPushChangedFilesOnly).toBe(
 			settings.autoPushChangedFilesOnly,
 		);
+		expect(imported.confirmBulkDeletes).toBe(settings.confirmBulkDeletes);
+		expect(imported.bulkDeleteLimit).toBe(settings.bulkDeleteLimit);
 		expect(imported.fileHistoryEnabled).toBe(settings.fileHistoryEnabled);
 		expect(imported.fileHistoryMaxSnapshots).toBe(
 			settings.fileHistoryMaxSnapshots,
@@ -226,6 +230,7 @@ describe("settings transfer", () => {
 			...imported,
 			autoSyncIntervalMinutes: -5,
 			maxFileBytes: 0,
+			bulkDeleteLimit: -3,
 		};
 
 		const merged = mergeTransferredSettings(buildSettings({}), tampered);
@@ -234,6 +239,7 @@ describe("settings transfer", () => {
 			DEFAULT_SETTINGS.autoSyncIntervalMinutes,
 		);
 		expect(merged.maxFileBytes).toBe(DEFAULT_SETTINGS.maxFileBytes);
+		expect(merged.bulkDeleteLimit).toBe(DEFAULT_SETTINGS.bulkDeleteLimit);
 	});
 
 	it("decodes a token sealed by an earlier build", async () => {
@@ -268,6 +274,10 @@ describe("settings transfer", () => {
 		expect(imported.autoPushChangedFilesOnly).toBe(
 			!DEFAULT_SETTINGS.autoPushChangedFilesOnly,
 		);
+		expect(imported.confirmBulkDeletes).toBe(
+			DEFAULT_SETTINGS.confirmBulkDeletes,
+		);
+		expect(imported.bulkDeleteLimit).toBe(DEFAULT_SETTINGS.bulkDeleteLimit);
 		expect(imported.fileHistoryEnabled).toBe(
 			!DEFAULT_SETTINGS.fileHistoryEnabled,
 		);

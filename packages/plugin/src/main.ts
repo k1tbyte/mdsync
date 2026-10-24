@@ -39,6 +39,7 @@ import {
 	type IndicatorHandle,
 	notifyAction,
 	notifyInfo,
+	openSourceControlChanges,
 } from "@/ui";
 import { loadNodeFs } from "@/vault/symlinks";
 import {
@@ -145,6 +146,12 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 			onUnindexed: (count) =>
 				notifyInfo(
 					`Obsidian has not loaded ${count} files that are on disk. MDSync syncs them; restart Obsidian to see them.`,
+				),
+			onDeletionsHeld: (space, paths) =>
+				notifyAction(
+					`Auto-push held back ${paths.length} deleted files${space.root ? ` in "${space.root}"` : ""}. Review them before they sync.`,
+					"Review",
+					() => void openSourceControlChanges(this),
 				),
 			onTheirsPulled: (space, paths) =>
 				markTheirs(this, this.unseen, space, paths),

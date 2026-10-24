@@ -3,6 +3,8 @@ import {
 	AUTO_PUSH_SETTLE_MIN_SECONDS,
 	AUTO_SYNC_MAX_MINUTES,
 	AUTO_SYNC_MIN_MINUTES,
+	BULK_DELETE_LIMIT_MAX,
+	BULK_DELETE_LIMIT_MIN,
 	FILE_HISTORY_MAX_SNAPSHOTS,
 	FILE_HISTORY_MIN_SNAPSHOTS,
 } from "@/constants";
@@ -59,6 +61,9 @@ export interface MdsyncSettings {
 	autoPushAfterChange: boolean;
 	autoPushSettleSeconds: number;
 	autoPushChangedFilesOnly: boolean;
+	/** An automatic push publishing more than `bulkDeleteLimit` deletions holds them all for review. */
+	confirmBulkDeletes: boolean;
+	bulkDeleteLimit: number;
 	fileHistoryEnabled: boolean;
 	fileHistoryMaxSnapshots: number;
 	historyAutoRefresh: boolean;
@@ -117,6 +122,8 @@ export const DEFAULT_SETTINGS: MdsyncSettings = {
 	autoPushAfterChange: false,
 	autoPushSettleSeconds: 10,
 	autoPushChangedFilesOnly: false,
+	confirmBulkDeletes: true,
+	bulkDeleteLimit: 5,
 	fileHistoryEnabled: false,
 	fileHistoryMaxSnapshots: DEFAULT_FILE_HISTORY_MAX_SNAPSHOTS,
 	historyAutoRefresh: true,
@@ -215,6 +222,10 @@ export const NUMERIC_BOUNDS = {
 	autoPushSettleSeconds: {
 		min: AUTO_PUSH_SETTLE_MIN_SECONDS,
 		max: AUTO_PUSH_SETTLE_MAX_SECONDS,
+	},
+	bulkDeleteLimit: {
+		min: BULK_DELETE_LIMIT_MIN,
+		max: BULK_DELETE_LIMIT_MAX,
 	},
 	fileHistoryMaxSnapshots: {
 		min: FILE_HISTORY_MIN_SNAPSHOTS,

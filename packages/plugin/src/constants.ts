@@ -12,6 +12,10 @@ export const AUTO_PUSH_SETTLE_MIN_SECONDS = 3;
 
 export const AUTO_PUSH_SETTLE_MAX_SECONDS = 60;
 
+export const BULK_DELETE_LIMIT_MIN = 0;
+
+export const BULK_DELETE_LIMIT_MAX = 1000;
+
 export const FILE_HISTORY_MIN_SNAPSHOTS = 1;
 
 export const FILE_HISTORY_MAX_SNAPSHOTS = 1000;
