@@ -9,7 +9,7 @@ import {
 	type SyncLogEntry,
 } from "@/logs/store";
 import type { PluginHost } from "@/plugin/host";
-import { formatTimestamp } from "@/shared";
+import { formatTimestamp, pluralize } from "@/shared";
 import { copyText } from "@/ui/common";
 import { imperativePage } from "./page";
 
@@ -33,11 +33,25 @@ const OPERATION_LABELS: Record<ESyncLogOperation, string> = {
 	[ESyncLogOperation.Session]: "Session",
 };
 
+const RECENT_ERRORS_MS = 24 * 60 * 60 * 1000;
+
 export function logsPage(plugin: PluginHost): SettingDefinitionPage {
+	const recentErrors = (): number => {
+		const since = Date.now() - RECENT_ERRORS_MS;
+		return plugin.logs
+			.getEntries()
+			.filter((e) => e.level === ESyncLogLevel.Error && e.timestamp >= since)
+			.length;
+	};
 	return {
 		type: "page",
 		name: "Logs",
-		desc: "Local sync diagnostics and errors.",
+		desc: "Diagnostics stored on this device only.",
+		displayValue: () => {
+			const count = recentErrors();
+			return count ? pluralize(count, "error") : "";
+		},
+		status: () => (recentErrors() ? "warning" : null),
 		page: () =>
 			imperativePage("Logs", (parent, refresh) =>
 				renderLogsView(parent, plugin, refresh),

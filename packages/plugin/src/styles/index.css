@@ -36,6 +36,7 @@
 @import "./diff/hunk-preview.css";
 
 @import "./settings/transfer.css";
+@import "./settings/overview.css";
 @import "./settings/setup.css";
 @import "./settings/setup-stepper.css";
 @import "./settings/setup-cards.css";

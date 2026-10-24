@@ -6,9 +6,9 @@ import {
 } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
-import { type FieldContext, group, settleTyping } from "./fields";
+import { type FieldContext, settleTyping } from "./fields";
 import { logsPage } from "./logs-view";
-import { canSync } from "./model";
+import { overviewGroup } from "./overview";
 import {
 	advancedSection,
 	automationSection,
@@ -43,57 +43,57 @@ export class MdsyncSettingTab extends PluginSettingTab {
 			rerender: () => this.update(),
 		};
 		return [
-			group(undefined, [
-				{
-					name: "Setup wizard",
-					desc: "Storage, passphrase and relay, step by step.",
-					render: (setting) => {
-						setting.addButton((button) => {
-							button
-								.setButtonText("Open")
-								.onClick(() => this.plugin.openSetup());
-							if (!canSync(this.plugin.settings)) button.setCta();
-						});
+			overviewGroup(ctx),
+			{
+				type: "group",
+				// The row order picks each page's icon in CSS.
+				cls: "mdsync-settings-sections",
+				items: [
+					{
+						type: "page",
+						name: "Connection",
+						desc: "Storage, encryption, relay and device transfer.",
+						items: [
+							backendSection(ctx),
+							securitySection(ctx),
+							relaySection(ctx),
+							deviceTransferSection(ctx),
+							advancedSection(ctx),
+						],
 					},
-				},
-			]),
-			{
-				type: "page",
-				name: "Connection",
-				desc: "Storage, encryption, relay and device transfer.",
-				items: [
-					backendSection(ctx),
-					securitySection(ctx),
-					relaySection(ctx),
-					deviceTransferSection(ctx),
-					advancedSection(ctx),
+					{
+						type: "page",
+						name: "Sync",
+						desc: "Automation, shared folders, share links, configuration scope and exclusions.",
+						displayValue: () => {
+							const open = this.plugin.spaces
+								.list()
+								.filter((record) => !record.closed).length;
+							return open ? `${open} shared` : "";
+						},
+						items: [
+							automationSection(ctx),
+							sharesSection(ctx),
+							linksSection(ctx),
+							configurationScopeSection(ctx),
+							exclusionsSection(ctx),
+						],
+					},
+					{
+						type: "page",
+						name: "Interface",
+						desc: "Status bar, ribbon, file indicators and editor signs.",
+						items: [interfaceSection(ctx)],
+					},
+					{
+						type: "page",
+						name: "Maintenance",
+						desc: "Local state, remote integrity and storage cleanup.",
+						items: [maintenanceSection(ctx)],
+					},
+					logsPage(this.plugin),
 				],
 			},
-			{
-				type: "page",
-				name: "Sync",
-				desc: "Automation, shared folders, share links, configuration scope and exclusions.",
-				items: [
-					automationSection(ctx),
-					sharesSection(ctx),
-					linksSection(ctx),
-					configurationScopeSection(ctx),
-					exclusionsSection(ctx),
-				],
-			},
-			{
-				type: "page",
-				name: "Interface",
-				desc: "Status bar, ribbon, file indicators and editor signs.",
-				items: [interfaceSection(ctx)],
-			},
-			{
-				type: "page",
-				name: "Maintenance",
-				desc: "Local state, remote integrity and storage cleanup.",
-				items: [maintenanceSection(ctx)],
-			},
-			logsPage(this.plugin),
 		];
 	}
 }

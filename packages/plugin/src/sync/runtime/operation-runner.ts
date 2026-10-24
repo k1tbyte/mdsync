@@ -63,9 +63,13 @@ export class OperationRunner {
 		space: Space,
 		result: CompareResult,
 		epoch: number,
+		storage: string,
 	): void {
 		if (this.invalidatedSince(epoch)) return;
 		this.deps.runtimeState.setResult(space, result);
+		if (space.id === VAULT_SPACE.id) {
+			this.deps.runtimeState.setVaultChecked(storage);
+		}
 		this.settled();
 	}
 
@@ -104,6 +108,7 @@ export class OperationRunner {
 							(error) => !refreshedRoots.has(error.root),
 						);
 			let local = this.deps.host.getState();
+			let vaultStorage: string | null = null;
 			const cycle = new ScanCycle(spaces, local.hashCache);
 			const walk = targets === null && this.walkDisk;
 			for (const space of spaces) {
@@ -118,6 +123,7 @@ export class OperationRunner {
 					if (!refreshed) continue;
 					local = refreshed.local;
 					results.set(space, refreshed.result);
+					if (space.id === VAULT_SPACE.id) vaultStorage = refreshed.storage;
 					this.deps.host.onSpaceRefreshed?.(space);
 				} catch (err) {
 					if (space.root === VAULT_SPACE.root) throw err;
@@ -140,6 +146,7 @@ export class OperationRunner {
 			});
 			if (this.invalidatedSince(epoch)) return;
 			this.deps.runtimeState.setResults(results);
+			if (vaultStorage) this.deps.runtimeState.setVaultChecked(vaultStorage);
 			this.deps.runtimeState.setSpaceErrors(failed);
 			this.unindexed = new Set(
 				[...results.values()].flatMap(
@@ -166,7 +173,11 @@ export class OperationRunner {
 		local: LocalState,
 		cycle: ScanCycle,
 		walk: boolean,
-	): Promise<{ result: CompareResult; local: LocalState } | null> {
+	): Promise<{
+		result: CompareResult;
+		local: LocalState;
+		storage: string;
+	} | null> {
 		const session = await this.openSession(space);
 		if (!session) return null;
 		const depsWithProgress: EngineDependencies = {
@@ -228,6 +239,7 @@ export class OperationRunner {
 				: undefined;
 		return {
 			result,
+			storage: identity,
 			local: mergeSessionIntoLocal(
 				local,
 				nextSessionState,
@@ -276,7 +288,12 @@ export class OperationRunner {
 				if (!session) return false;
 				const ctx = this.buildContext(session, () => !ended);
 				const { compareResult } = await flow(session, ctx);
-				this.applyResult(VAULT_SPACE, compareResult, epoch);
+				this.applyResult(
+					VAULT_SPACE,
+					compareResult,
+					epoch,
+					session.storage.identity(),
+				);
 				return true;
 			} catch (err) {
 				await this.reportError(operation, err);
@@ -351,7 +368,7 @@ export class OperationRunner {
 					await this.buildContext(session).persistState(session.state);
 				}
 			}
-			this.applyResult(space, result, epoch);
+			this.applyResult(space, result, epoch, session.storage.identity());
 			if (cancellable) scope = this.deps.runtimeState.beginCancellable();
 			const ctx = this.buildContext(session, () => !ended);
 			const outcome = await fn(
@@ -370,7 +387,7 @@ export class OperationRunner {
 				outcome,
 				session.scope,
 			);
-			this.applyResult(space, recomputed, epoch);
+			this.applyResult(space, recomputed, epoch, session.storage.identity());
 			// A first sync brings everything: none of it is news.
 			if (operation === ESyncLogOperation.Pull && session.state.baseline) {
 				const theirs = publishedByOthers(
