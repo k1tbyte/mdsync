@@ -12,11 +12,18 @@ export interface SpaceError {
 	gone?: true;
 }
 
+/** The vault's last compare and the storage it ran against. */
+export interface VaultCheck {
+	storage: string;
+	at: number;
+}
+
 export interface SyncStatusSnapshot {
 	pendingLocal: number;
 	pendingRemote: number;
 	conflicts: number;
 	lastCompareAt: number | null;
+	vaultCheck: VaultCheck | null;
 	busy: boolean;
 	error: string | null;
 	spaceErrors: readonly SpaceError[];
@@ -38,6 +45,7 @@ export class SyncControllerRuntimeState {
 	/** The partition of the last refresh; operations route by it until the next. */
 	private partition: readonly Space[] = [VAULT_SPACE];
 	private resultAt: number | null = null;
+	private vaultCheck: VaultCheck | null = null;
 	private pendingOps = 0;
 	private error: string | null = null;
 	private spaceErrors: readonly SpaceError[] = [];
@@ -64,6 +72,7 @@ export class SyncControllerRuntimeState {
 			pendingRemote: diff ? changeCount(diff.remoteChanges, diff.moves) : 0,
 			conflicts: diff?.conflicts.length ?? 0,
 			lastCompareAt: this.resultAt,
+			vaultCheck: this.vaultCheck,
 			busy: this.pendingOps > 0,
 			error: this.error,
 			spaceErrors: this.spaceErrors,
@@ -126,6 +135,11 @@ export class SyncControllerRuntimeState {
 		);
 		this.merged = null;
 		this.resultAt = Date.now();
+	}
+
+	/** The vault compared against `storage` just now. */
+	setVaultChecked(storage: string): void {
+		this.vaultCheck = { storage, at: Date.now() };
 	}
 
 	clearResult(): void {
