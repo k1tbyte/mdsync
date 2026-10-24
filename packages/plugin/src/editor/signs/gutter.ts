@@ -1,4 +1,3 @@
-import type { Chunk } from "@codemirror/merge";
 import {
 	type EditorState,
 	RangeSet,
@@ -7,10 +6,12 @@ import {
 } from "@codemirror/state";
 import { type EditorView, GutterMarker, gutter } from "@codemirror/view";
 
-import { presentChunk } from "./helpers";
+import { focusHunk, hunkFocusField, sameMark } from "./focus";
+import { type ChunkMark, chunkMark, findChunkForLine } from "./helpers";
 import { showHunkPopupAt } from "./hunk-popup";
 import type { SignsProvider } from "./provider";
 import {
+	type ChunksData,
 	chunksField,
 	compareTextField,
 	setChunksEffect,
@@ -35,26 +36,33 @@ const KIND_CLASS: Record<ESignKind, string> = {
 };
 
 class SignMarker extends GutterMarker {
-	constructor(private readonly kind: ESignKind) {
+	constructor(
+		private readonly kind: ESignKind,
+		private readonly wide: boolean,
+	) {
 		super();
 	}
 
 	override eq(other: GutterMarker): boolean {
-		return other instanceof SignMarker && other.kind === this.kind;
+		return (
+			other instanceof SignMarker &&
+			other.kind === this.kind &&
+			other.wide === this.wide
+		);
 	}
 
 	override toDOM(): HTMLElement {
-		return createDiv({ cls: `mdsync-sign ${KIND_CLASS[this.kind]}` });
+		const cls = `mdsync-sign ${KIND_CLASS[this.kind]}`;
+		return createDiv({ cls: this.wide ? `${cls} is-wide` : cls });
 	}
 }
 
-const SIGN_MARKERS: Record<ESignKind, SignMarker> = {
-	[ESignKind.Add]: new SignMarker(ESignKind.Add),
-	[ESignKind.Change]: new SignMarker(ESignKind.Change),
-	[ESignKind.Delete]: new SignMarker(ESignKind.Delete),
-	[ESignKind.TopDelete]: new SignMarker(ESignKind.TopDelete),
-	[ESignKind.ChangeDelete]: new SignMarker(ESignKind.ChangeDelete),
-};
+const SIGN_MARKERS = Object.fromEntries(
+	Object.values(ESignKind).map((kind) => [
+		kind,
+		[new SignMarker(kind, false), new SignMarker(kind, true)],
+	]),
+) as Record<ESignKind, [SignMarker, SignMarker]>;
 
 const EMPTY_RANGE_SET = RangeSet.empty as RangeSet<GutterMarker>;
 
@@ -75,7 +83,11 @@ export const signsField = StateField.define<RangeSet<GutterMarker>>({
 		) {
 			// The chunk set has not been recomputed yet, but the document moved:
 			// unmapped ranges would point past the end and the gutter would throw.
-			return tr.docChanged ? prev.map(tr.changes) : prev;
+			if (tr.docChanged) return prev.map(tr.changes);
+			const focusMoved =
+				tr.startState.field(hunkFocusField, false) !==
+				tr.state.field(hunkFocusField, false);
+			if (!focusMoved) return prev;
 		}
 		return buildMarkers(tr.state);
 	},
@@ -93,8 +105,39 @@ export function buildSignsGutter(provider: SignsProvider) {
 				const lineNumber = view.state.doc.lineAt(block.from).number;
 				return showHunkPopupAt(view, lineNumber, event, provider);
 			},
+			mousemove: (view, block) => {
+				hover(view, view.state.doc.lineAt(block.from).number);
+				return false;
+			},
+			mouseleave: (view) => {
+				hover(view, null);
+				return false;
+			},
 		},
 	});
+}
+
+/** The line and diff last looked up per editor: a move within that line, against that diff, needs no lookup. */
+const hovered = new WeakMap<
+	EditorView,
+	{ line: number | null; data: ChunksData | undefined }
+>();
+
+/** A whole change widens under the pointer, not just the line it is on. */
+function hover(view: EditorView, line: number | null): void {
+	const data = view.state.field(chunksField, false);
+	const last = hovered.get(view);
+	if (last?.line === line && last.data === data) return;
+	hovered.set(view, { line, data });
+	const baseline = view.state.field(compareTextField, false);
+	const mark =
+		line !== null && baseline && data
+			? (findChunkForLine(data.chunks, baseline, view.state.doc, line)?.mark ??
+				null)
+			: null;
+	const focus = view.state.field(hunkFocusField, false);
+	if (!focus || sameMark(focus.hover, mark)) return;
+	view.dispatch({ effects: focusHunk.of({ hover: mark }) });
 }
 
 function buildMarkers(state: EditorState): RangeSet<GutterMarker> {
@@ -106,62 +149,33 @@ function buildMarkers(state: EditorState): RangeSet<GutterMarker> {
 	const lastLine = state.doc.lines;
 	let lastLineAdded = -1;
 
-	const addSign = (line: number, kind: ESignKind) => {
+	const focus = state.field(hunkFocusField, false);
+	const addSign = (line: number, kind: ESignKind, wide: boolean) => {
 		if (line < 1 || line > lastLine) return;
 		if (line <= lastLineAdded) return;
 		lastLineAdded = line;
 		const from = state.doc.line(line).from;
-		builder.add(from, from, SIGN_MARKERS[kind]);
+		builder.add(from, from, SIGN_MARKERS[kind][wide ? 1 : 0]);
 	};
 
 	for (const chunk of data.chunks) {
-		appendSignsForChunk(chunk, baseline, state.doc, addSign);
+		const mark = chunkMark(chunk, baseline, state.doc);
+		if (!mark) continue;
+		const wide =
+			!!focus && (sameMark(mark, focus.hover) || sameMark(mark, focus.open));
+		for (let line = mark.from; line <= mark.to; line++)
+			addSign(line, signKind(mark, line), wide);
 	}
 
 	return lastLineAdded > -1 ? builder.finish() : EMPTY_RANGE_SET;
 }
 
-function appendSignsForChunk(
-	chunk: Chunk,
-	baseline: import("@codemirror/state").Text,
-	current: import("@codemirror/state").Text,
-	addSign: (line: number, kind: ESignKind) => void,
-): void {
-	const presentation = presentChunk(chunk, baseline, current);
-	const removedCount = presentation.removedLines.length;
-	const addedCount = presentation.addedLines.length;
-	if (removedCount === 0 && addedCount === 0) return;
-
-	if (addedCount === 0) {
-		const kind = chunk.fromB === 0 ? ESignKind.TopDelete : ESignKind.Delete;
-		const line = presentation.deletionLine;
-		addSign(line, kind);
-		return;
-	}
-
-	const bFromLine = presentation.addedFromLine ?? 1;
-	const bEndLine = presentation.addedToLine ?? bFromLine;
-	if (removedCount === 0) {
-		for (let line = bFromLine; line <= bEndLine; line++) {
-			addSign(line, ESignKind.Add);
-		}
-		return;
-	}
-
-	const changeCount = Math.min(addedCount, removedCount);
-	const changeEnd = bFromLine + changeCount - 1;
-	const hasExtraDeletes = removedCount > addedCount;
-
-	for (let line = bFromLine; line <= changeEnd; line++) {
-		const isLast = line === changeEnd;
-		const kind =
-			isLast && hasExtraDeletes ? ESignKind.ChangeDelete : ESignKind.Change;
-		addSign(line, kind);
-	}
-
-	if (addedCount > removedCount) {
-		for (let line = changeEnd + 1; line <= bEndLine; line++) {
-			addSign(line, ESignKind.Add);
-		}
-	}
+/** One colour down a change, so a block reads as one stroke; its last line may also mark lines removed below. */
+function signKind(mark: ChunkMark, line: number): ESignKind {
+	if (mark.kind === "add") return ESignKind.Add;
+	if (mark.kind === "delete") return ESignKind.Delete;
+	if (mark.kind === "topdelete") return ESignKind.TopDelete;
+	return mark.removesBelow && line === mark.to
+		? ESignKind.ChangeDelete
+		: ESignKind.Change;
 }

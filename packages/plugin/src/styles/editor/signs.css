@@ -11,26 +11,22 @@
 	width: 4px;
 }
 
+/* Square ends, so a block of changed lines reads as one stroke. */
 .mdsync-sign {
+	--mdsync-sign-change: var(--color-orange, #e9973f);
+	--mdsync-sign-delete: var(--color-red, #d04a4a);
 	position: absolute;
 	top: 0;
 	bottom: 0;
 	left: 0;
 	width: 3px;
-	border-radius: var(--mdsync-radius-pill);
 	pointer-events: none;
-	transform-origin: center;
-	transition:
-		transform 120ms ease,
-		filter 120ms ease,
-		box-shadow 120ms ease;
-	will-change: transform;
+	transition: width 120ms ease;
 }
 
-.cm-gutter.mdsync-sign-gutter .cm-gutterElement:hover .mdsync-sign {
-	transform: scaleX(1.75);
-	filter: saturate(1.08);
-	box-shadow: 0 0 0 1px var(--background-modifier-border);
+/* The change under the pointer, or the one open. */
+.mdsync-sign.is-wide {
+	width: 5px;
 }
 
 .mdsync-sign-add {
@@ -38,35 +34,49 @@
 }
 
 .mdsync-sign-change {
-	background-color: var(--color-yellow, #d6a700);
+	background-color: var(--mdsync-sign-change);
 }
 
 .mdsync-sign-delete {
 	background: linear-gradient(
 		to bottom,
-		transparent 0%,
 		transparent 70%,
-		var(--color-red, #d04a4a) 70%,
-		var(--color-red, #d04a4a) 100%
+		var(--mdsync-sign-delete) 70%
 	);
 }
 
 .mdsync-sign-topdelete {
 	background: linear-gradient(
 		to bottom,
-		var(--color-red, #d04a4a) 0%,
-		var(--color-red, #d04a4a) 30%,
-		transparent 30%,
-		transparent 100%
+		var(--mdsync-sign-delete) 30%,
+		transparent 30%
 	);
 }
 
 .mdsync-sign-changedelete {
 	background: linear-gradient(
 		to bottom,
-		var(--color-yellow, #d6a700) 0%,
-		var(--color-yellow, #d6a700) 70%,
-		var(--color-red, #d04a4a) 70%,
-		var(--color-red, #d04a4a) 100%
+		var(--mdsync-sign-change) 70%,
+		var(--mdsync-sign-delete) 70%
 	);
+}
+
+/* The lines of the change whose popup is open. */
+.cm-line.mdsync-hunk-open {
+	--mdsync-hunk: var(--color-orange, #e9973f);
+	background-color: color-mix(in srgb, var(--mdsync-hunk) 8%, transparent);
+}
+
+.cm-line.mdsync-hunk-open.is-add {
+	--mdsync-hunk: var(--color-green, #2bb673);
+}
+
+.cm-line.mdsync-hunk-open:is(.is-delete, .is-topdelete) {
+	--mdsync-hunk: var(--color-red, #d04a4a);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.mdsync-sign {
+		transition: none;
+	}
 }

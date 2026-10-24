@@ -1,6 +1,7 @@
 import type { EditorView } from "@codemirror/view";
 import { type App, Modal, Platform } from "obsidian";
 
+import { focusHunk } from "./focus";
 import { findChunkForLine, findSyncChangeForLine } from "./helpers";
 import { installDismissHandlers } from "./popup-dismiss";
 import { positionPopup } from "./popup-placement";
@@ -10,6 +11,8 @@ import { chunksField, compareTextField } from "./state";
 
 let activePopup: { element: HTMLElement; cleanup: () => void } | null = null;
 let activeDrawer: HunkDrawer | null = null;
+/** The editor whose change is open, so closing clears its tint. */
+let activeView: EditorView | null = null;
 
 export function showHunkPopupAt(
 	view: EditorView,
@@ -20,13 +23,18 @@ export function showHunkPopupAt(
 	const baseline = view.state.field(compareTextField, false);
 	const data = view.state.field(chunksField, false);
 	if (!baseline || !data || data.chunks.length === 0) return false;
-	const chunk = findChunkForLine(data.chunks, view.state.doc, lineNumber);
-	if (!chunk) return false;
+	const found = findChunkForLine(
+		data.chunks,
+		baseline,
+		view.state.doc,
+		lineNumber,
+	);
+	if (!found) return false;
 
 	const path = provider.getViewPath(view);
 	const target: HunkTarget = {
 		view,
-		chunk,
+		...found,
 		baseline,
 		provider,
 		path,
@@ -36,6 +44,8 @@ export function showHunkPopupAt(
 				: findSyncChangeForLine(lineNumber, baseline, view.state.doc),
 	};
 	dismissPopup();
+	activeView = view;
+	view.dispatch({ effects: focusHunk.of({ open: found.mark }) });
 	if (Platform.isPhone) {
 		activeDrawer = new HunkDrawer(provider.app, target);
 		activeDrawer.open();
@@ -53,6 +63,10 @@ export function showHunkPopupAt(
 }
 
 export function dismissPopup(): void {
+	const view = activeView;
+	activeView = null;
+	if (view?.dom.isConnected)
+		view.dispatch({ effects: focusHunk.of({ open: null }) });
 	const drawer = activeDrawer;
 	activeDrawer = null;
 	drawer?.close();
@@ -77,7 +91,11 @@ class HunkDrawer extends Modal {
 	}
 
 	onClose(): void {
-		if (activeDrawer === this) activeDrawer = null;
+		// Closed by a swipe or the backdrop: the rest of the popup state goes too.
+		if (activeDrawer === this) {
+			activeDrawer = null;
+			dismissPopup();
+		}
 		this.contentEl.empty();
 	}
 }
