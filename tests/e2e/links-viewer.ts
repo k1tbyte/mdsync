@@ -112,7 +112,7 @@ async function recipient(base: string, browser: Browser): Promise<void> {
 	await outlineAndFolds(page);
 	check(
 		"external links open in a new tab, safely",
-		await page.locator("a").getAttribute("rel"),
+		await page.locator(".markdown-rendered a").getAttribute("rel"),
 		"noopener noreferrer nofollow",
 	);
 	check("the page is titled by the note", await page.title(), "Trip notes");
@@ -202,7 +202,7 @@ async function outlineAndFolds(page: Page): Promise<void> {
 			() => false,
 		);
 	const hidden = await settles("hidden");
-	await page.locator(".sidebar-toggle").click();
+	await page.locator(".menu-button").click();
 	check(
 		"on a phone the outline waits behind a menu button",
 		[hidden, await settles("visible")],
@@ -231,7 +231,8 @@ async function anchors(page: Page): Promise<void> {
 	check(
 		"opening that link lands on the heading",
 		await porto.evaluate((h) => Math.round(h.getBoundingClientRect().top)),
-		24,
+		// The sticky bar's 56 px and a gap.
+		80,
 	);
 	await page.locator(".wide-toggle").click();
 	await page.reload();
@@ -345,7 +346,7 @@ async function hostile(base: string, browser: Browser): Promise<void> {
 	);
 	check(
 		"its javascript link goes nowhere",
-		await page.locator("a").getAttribute("href"),
+		await page.locator(".markdown-rendered a").getAttribute("href"),
 		null,
 	);
 	await context.close();

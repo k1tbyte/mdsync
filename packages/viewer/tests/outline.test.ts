@@ -83,6 +83,10 @@ describe("outline", () => {
 	});
 
 	it.each(["scroll", "click"])("tracks headings after a %s", async (event) => {
+		// The reading line sits 16 px under where a jump leaves a heading.
+		vi.spyOn(window, "getComputedStyle").mockReturnValue({
+			scrollMarginTop: "80px",
+		} as CSSStyleDeclaration);
 		let tops = [40, 120, 200];
 		for (const [index, heading] of headings.entries()) {
 			vi.spyOn(heading, "getClientRects").mockReturnValue({
