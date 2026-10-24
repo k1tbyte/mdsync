@@ -29,7 +29,11 @@ function setup() {
 		listeners.add(listener);
 		return () => listeners.delete(listener);
 	};
-	const where = { note: "a.md" as string | null, online: true };
+	const where = {
+		note: "a.md" as string | null,
+		online: true,
+		name: ALEX.name,
+	};
 	const rooms = new Map([
 		["a.md", { id: "room-a" }],
 		["b.md", { id: "room-b" }],
@@ -45,7 +49,9 @@ function setup() {
 			people: {
 				subscribe,
 				online: () =>
-					where.online ? [{ ...ALEX, note: where.note, idle: false }] : [],
+					where.online
+						? [{ ...ALEX, name: where.name, note: where.note, idle: false }]
+						: [],
 			},
 			live: { subscribe, roomOf: (path: string) => rooms.get(path) ?? null },
 		},
@@ -132,6 +138,25 @@ describe("following a person", () => {
 		expect(following()).toBeNull();
 		expect(stopTracking).toHaveBeenCalledOnce();
 		expect(banner.remove).toHaveBeenCalledOnce();
+	});
+
+	it("names them anew in the banner once they rename", async () => {
+		const banner = { parentElement: null as unknown, remove: vi.fn() };
+		vi.mocked(showFollowBanner).mockImplementation((view) => {
+			banner.parentElement = view;
+			return banner as never;
+		});
+		const { where, changed } = setup();
+		vi.mocked(showFollowBanner).mockClear();
+
+		where.name = "Sam";
+		await changed();
+
+		expect(banner.remove).toHaveBeenCalledOnce();
+		expect(showFollowBanner).toHaveBeenCalledOnce();
+		expect(vi.mocked(showFollowBanner).mock.calls[0]?.[1]).toMatchObject({
+			name: "Sam",
+		});
 	});
 
 	it("ends once this tab shows another note opened by hand", async () => {

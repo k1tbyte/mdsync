@@ -1,6 +1,6 @@
 import { Menu, setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
-import { errorMessage, pluralize } from "@/shared";
+import { pluralize } from "@/shared";
 import type { FileVersion } from "@/sync/history";
 import {
 	appendIconButton,
@@ -11,8 +11,8 @@ import {
 	notifyInfo,
 } from "@/ui/common";
 import type { HistoryDiffTarget } from "@/ui/source-control-view";
-
 import { groupRows } from "./day-groups";
+import { HistoryList } from "./history-list";
 import { buildHistoryRows, type HistoryRow } from "./history-rows";
 import { confirmRestore } from "./restore-modal";
 import { renderSize } from "./row-parts";
@@ -26,14 +26,12 @@ import {
 
 export class HistoryTab {
 	private explicitPath: string | null = null;
-	private historyVersions: FileVersion[] | null = null;
+	private readonly versions = new HistoryList<FileVersion[]>(() =>
+		this.onRerender(),
+	);
 	/** The version whose diff was opened last. */
 	private selected: string | null = null;
-	private error: string | null = null;
 	private loadedPath: string | null = null;
-	private loading = false;
-	/** Invalidations race in-flight loads; only the current generation may land. */
-	private generation = 0;
 
 	constructor(
 		private readonly plugin: PluginHost,
@@ -60,11 +58,8 @@ export class HistoryTab {
 	}
 
 	clearVersions(): void {
-		this.historyVersions = null;
-		this.error = null;
+		this.versions.clear();
 		this.loadedPath = null;
-		this.loading = false;
-		this.generation++;
 	}
 
 	render(parent: HTMLElement, tools: HTMLElement): void {
@@ -109,18 +104,21 @@ export class HistoryTab {
 		}
 		this.renderFileCard(parent, path);
 		const body = parent.createDiv({ cls: "mdsync-history-list" });
-		if (this.error) {
-			renderLoadError(body, "Could not load history", this.error, () =>
+		const { value: versions, error } = this.versions;
+		if (error) {
+			renderLoadError(body, "Could not load history", error, () =>
 				this.reload(),
 			);
 			return;
 		}
-		if (this.historyVersions === null) {
+		if (versions === null) {
 			renderLoading(body);
-			this.load(path);
+			this.versions.load(() =>
+				this.plugin.controller.history.getFileHistory(path),
+			);
 			return;
 		}
-		if (this.historyVersions.length === 0) {
+		if (versions.length === 0) {
 			renderEmptyState(body, {
 				icon: "history",
 				title: "No versions yet",
@@ -128,7 +126,7 @@ export class HistoryTab {
 			});
 			return;
 		}
-		const rows = buildHistoryRows(this.historyVersions, {
+		const rows = buildHistoryRows(versions, {
 			currentDevice: this.plugin.controller.currentDevice(),
 		});
 		for (const group of groupRows(rows)) {
@@ -147,7 +145,7 @@ export class HistoryTab {
 			cls: "mdsync-history-file-name",
 			text: path.slice(slash + 1),
 		});
-		const count = this.historyVersions?.length;
+		const count = this.versions.value?.length;
 		const meta = [
 			slash > 0 ? path.slice(0, slash) : "",
 			count ? pluralize(count, "version") : "",
@@ -156,29 +154,6 @@ export class HistoryTab {
 			copy.createDiv({
 				cls: "mdsync-history-row-meta",
 				text: meta.join(" · "),
-			});
-	}
-
-	/** Loads into state, never into a captured node: a re-render discards that node. */
-	private load(path: string): void {
-		if (this.loading) return;
-		this.loading = true;
-		const generation = this.generation;
-		this.plugin.controller.history
-			.getFileHistory(path)
-			.then((versions) => {
-				if (generation !== this.generation) return;
-				this.historyVersions = versions;
-			})
-			.catch((err: unknown) => {
-				if (generation !== this.generation) return;
-				this.error = errorMessage(err);
-			})
-			.finally(() => {
-				// A newer load owns the flag now, so leave it to that one.
-				if (generation !== this.generation) return;
-				this.loading = false;
-				this.onRerender();
 			});
 	}
 
@@ -281,7 +256,8 @@ export class HistoryTab {
 			plugin: this.plugin,
 			path,
 			target: path,
-			version: { ...row.version, label: row.title },
+			// The title is a clock time under its day; the dialog has no day.
+			version: { ...row.version, label: row.label || row.version.label },
 		});
 		if (!confirmed) return;
 		try {

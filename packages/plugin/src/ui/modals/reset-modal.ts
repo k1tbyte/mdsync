@@ -16,19 +16,14 @@ export interface RemoteResetTarget {
 }
 
 class RemoteResetModal extends Modal {
-	private readonly target: RemoteResetTarget;
-	private readonly resolveValue: (confirmed: boolean) => void;
-	private settled = false;
 	private value = "";
 
 	constructor(
 		app: App,
-		target: RemoteResetTarget,
-		resolveValue: (confirmed: boolean) => void,
+		private readonly target: RemoteResetTarget,
+		private readonly answer: (confirmed: boolean) => void,
 	) {
 		super(app);
-		this.target = target;
-		this.resolveValue = resolveValue;
 	}
 
 	onOpen(): void {
@@ -58,7 +53,7 @@ class RemoteResetModal extends Modal {
 		const footer = modalFooter(this);
 		new ButtonComponent(footer)
 			.setButtonText("Cancel")
-			.onClick(() => this.cancel());
+			.onClick(() => this.close());
 		resetButton = new ButtonComponent(footer)
 			.setButtonText("Reset remote")
 			.setDestructive()
@@ -68,24 +63,12 @@ class RemoteResetModal extends Modal {
 
 	onClose(): void {
 		this.contentEl.empty();
-		this.resolveOnce(false);
 	}
 
 	private submit(): void {
 		if (this.value !== CONFIRMATION_TEXT) return;
-		this.resolveOnce(true);
+		this.answer(true);
 		this.close();
-	}
-
-	private cancel(): void {
-		this.resolveOnce(false);
-		this.close();
-	}
-
-	private resolveOnce(confirmed: boolean): void {
-		if (this.settled) return;
-		this.settled = true;
-		this.resolveValue(confirmed);
 	}
 }
 

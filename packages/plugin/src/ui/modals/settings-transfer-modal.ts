@@ -20,13 +20,13 @@ const SECTION_NAMES: Record<TransferSection, string> = {
 };
 
 class SettingsTransferImportModal extends Modal {
-	private readonly resolveValue: (value: string | null) => void;
 	private value = "";
-	private settled = false;
 
-	constructor(app: App, resolveValue: (value: string | null) => void) {
+	constructor(
+		app: App,
+		private readonly answer: (value: string) => void,
+	) {
 		super(app);
-		this.resolveValue = resolveValue;
 	}
 
 	onOpen(): void {
@@ -48,7 +48,7 @@ class SettingsTransferImportModal extends Modal {
 		const footer = modalFooter(this);
 		new ButtonComponent(footer)
 			.setButtonText("Cancel")
-			.onClick(() => this.cancel());
+			.onClick(() => this.close());
 		new ButtonComponent(footer)
 			.setButtonText("Continue")
 			.setCta()
@@ -57,41 +57,26 @@ class SettingsTransferImportModal extends Modal {
 
 	onClose(): void {
 		this.contentEl.empty();
-		this.resolveOnce(null);
 	}
 
 	private submit(): void {
 		const value = this.value.trim();
 		if (!value) return;
-		this.resolveOnce(value);
+		this.answer(value);
 		this.close();
-	}
-
-	private cancel(): void {
-		this.resolveOnce(null);
-		this.close();
-	}
-
-	private resolveOnce(value: string | null): void {
-		if (this.settled) return;
-		this.settled = true;
-		this.resolveValue(value);
 	}
 }
 
 class SettingsTransferConfirmModal extends Modal {
-	private readonly resolveValue: (confirmed: boolean) => void;
-	private settled = false;
 	private value = "";
 
 	constructor(
 		app: App,
 		private readonly settings: MdsyncSettings,
 		private readonly sections: readonly TransferSection[],
-		resolveValue: (confirmed: boolean) => void,
+		private readonly answer: (confirmed: boolean) => void,
 	) {
 		super(app);
-		this.resolveValue = resolveValue;
 	}
 
 	onOpen(): void {
@@ -129,7 +114,7 @@ class SettingsTransferConfirmModal extends Modal {
 		const footer = modalFooter(this);
 		new ButtonComponent(footer)
 			.setButtonText("Cancel")
-			.onClick(() => this.cancel());
+			.onClick(() => this.close());
 		importButton = new ButtonComponent(footer)
 			.setButtonText("Import setup")
 			.setDestructive()
@@ -139,24 +124,12 @@ class SettingsTransferConfirmModal extends Modal {
 
 	onClose(): void {
 		this.contentEl.empty();
-		this.resolveOnce(false);
 	}
 
 	private submit(): void {
 		if (this.value !== IMPORT_CONFIRMATION_TEXT) return;
-		this.resolveOnce(true);
+		this.answer(true);
 		this.close();
-	}
-
-	private cancel(): void {
-		this.resolveOnce(false);
-		this.close();
-	}
-
-	private resolveOnce(confirmed: boolean): void {
-		if (this.settled) return;
-		this.settled = true;
-		this.resolveValue(confirmed);
 	}
 }
 

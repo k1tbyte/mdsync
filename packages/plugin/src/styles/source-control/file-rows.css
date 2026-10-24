@@ -81,15 +81,15 @@
 	font-weight: var(--font-semibold);
 }
 
-.mdsync-file-size-delta.is-positive {
+.mdsync-size-delta.is-positive {
 	color: var(--color-green);
 }
 
-.mdsync-file-size-delta.is-negative {
+.mdsync-size-delta.is-negative {
 	color: var(--color-red);
 }
 
-.mdsync-file-size-delta.is-neutral {
+.mdsync-size-delta.is-neutral {
 	color: var(--text-muted);
 }
 

@@ -153,9 +153,18 @@ export class DiffView extends ItemView {
 		) {
 			return;
 		}
-		await this.mergePanel.enter(this.plugin, this.path, () =>
-			this.renderShell(),
+		await this.mergePanel.enter(
+			this.plugin,
+			this.path,
+			this.stillShowing(),
+			() => this.renderShell(),
 		);
+	}
+
+	/** A file opened since, even this one again, makes what was asked for it stale. */
+	private stillShowing(): () => boolean {
+		const gen = this.loadGeneration;
+		return () => gen === this.loadGeneration;
 	}
 
 	private unsubStatus: (() => void) | null = null;
@@ -327,8 +336,11 @@ export class DiffView extends ItemView {
 				acceptRemote: () => void this.operations.acceptRemote(),
 				keepBothVersions: () => void this.operations.keepBoth(),
 				startMerge: () =>
-					void this.mergePanel.enter(this.plugin, path, () =>
-						this.renderShell(),
+					void this.mergePanel.enter(
+						this.plugin,
+						path,
+						this.stillShowing(),
+						() => this.renderShell(),
 					),
 				goPrevFile: () => void this.navigateFile(-1),
 				goNextFile: () => void this.navigateFile(1),

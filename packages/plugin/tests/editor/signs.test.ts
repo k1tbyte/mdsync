@@ -5,7 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 import { registerEditorSigns } from "@/editor/signs";
 import { signsField } from "@/editor/signs/gutter";
 import {
+	type ChunkMark,
 	chunkMark,
+	chunkMarks,
+	findChunkForLine,
 	findSyncChangeForLine,
 	markPlace,
 	presentChunk,
@@ -151,6 +154,27 @@ describe("signs helpers", () => {
 		});
 	});
 
+	it("marks a removal from below when the line above already holds a mark", () => {
+		const [baseline, current] = [
+			toCmText("a\nmiddle\nc\n"),
+			toCmText("middle\n"),
+		];
+		const chunks = Chunk.build(baseline, current);
+		const marks = chunkMarks(chunks, baseline, current).map(({ mark }) => mark);
+		expect(marks).toMatchObject([
+			{ from: 1, kind: "topdelete" },
+			{ from: 2, kind: "topdelete" },
+		]);
+		expect(markPlace(marks[1] as ChunkMark)).toBe("After line 1");
+		// Each opens its own change, here and in what a push would send.
+		expect(findChunkForLine(chunks, baseline, current, 2)?.chunk).toBe(
+			chunks[1],
+		);
+		expect(findSyncChangeForLine(2, baseline, current)?.segment.left).toEqual([
+			2, 3,
+		]);
+	});
+
 	it("maps a clicked line inside a changed run to the whole run", () => {
 		const baseline = Text.of(["one", "two", "three", "four", ""]);
 		const current = Text.of(["one", "TWO", "THREE", "four", ""]);
@@ -180,6 +204,7 @@ describe("signs gutter field", () => {
 		return withBaseline.update({
 			effects: setChunksEffect.of({
 				chunks: Chunk.build(toCmText(baseline), withBaseline.doc),
+				doc: withBaseline.doc,
 				lastDiffMs: 0,
 			}),
 		}).state;

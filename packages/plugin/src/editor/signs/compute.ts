@@ -95,7 +95,11 @@ export const computePlugin = ViewPlugin.fromClass(
 			if (!baseline) {
 				if (state.field(chunksField).chunks.length > 0) {
 					this.view.dispatch({
-						effects: setChunksEffect.of({ chunks: [], lastDiffMs: 0 }),
+						effects: setChunksEffect.of({
+							chunks: [],
+							doc: state.doc,
+							lastDiffMs: 0,
+						}),
 					});
 				}
 				return;
@@ -108,6 +112,7 @@ export const computePlugin = ViewPlugin.fromClass(
 			this.view.dispatch({
 				effects: setChunksEffect.of({
 					chunks,
+					doc: current,
 					lastDiffMs: elapsedMs,
 				}),
 			});

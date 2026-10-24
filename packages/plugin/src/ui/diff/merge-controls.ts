@@ -11,17 +11,11 @@ import type { RailAction } from "./rail";
 
 export type MergeTone = "conflict" | EMergeSide | "base" | "shared";
 
-interface SideActionStyle {
-	acceptIcon: string;
-	/** Off on the strips: there an open conflict is settled from its head in Result. */
-	rejectOpen: boolean;
-}
-
+/** On the strips an open conflict is only taken: it is settled from its head in Result. */
 export function sideActions(
 	change: MergeChange,
 	side: EMergeSide,
 	handlers: MergeActions,
-	style: SideActionStyle,
 ): RailAction[] {
 	const status = change.status[side];
 	if (status === "none") return [];
@@ -31,25 +25,25 @@ export function sideActions(
 			: change.base[0] === change.base[1]
 				? "addition"
 				: "change";
-	const accept = {
-		icon: style.acceptIcon,
-		label: `Take ${side} ${kind}`,
-		shortLabel: "Take",
-		cls: "is-take",
-		run: () => handlers.apply(change.index, side),
-	};
-	const reject = {
-		icon: "x",
-		label: `Reject ${side} ${kind}`,
-		shortLabel: "Reject",
-		run: () =>
-			status === "applied"
-				? handlers.revert(change.index, side)
-				: handlers.ignore(change.index, side),
-	};
-	if (status === "applied") return [reject];
-	if (status === "ignored" || !style.rejectOpen) return [accept];
-	return side === "local" ? [reject, accept] : [accept, reject];
+	if (status === "applied") {
+		return [
+			{
+				icon: "x",
+				label: `Reject ${side} ${kind}`,
+				shortLabel: "Reject",
+				run: () => handlers.revert(change.index, side),
+			},
+		];
+	}
+	return [
+		{
+			icon: side === "local" ? "chevrons-right" : "chevrons-left",
+			label: `Take ${side} ${kind}`,
+			shortLabel: "Take",
+			cls: "is-take",
+			run: () => handlers.apply(change.index, side),
+		},
+	];
 }
 
 /** A conflict's ways out: name, button text, the sides taken in order. */
@@ -81,7 +75,6 @@ export function dividerItems(
 	handlers: MergeActions,
 ): DividerItem[] {
 	const items: DividerItem[] = [];
-	const acceptIcon = side === "local" ? "chevrons-right" : "chevrons-left";
 	for (const change of changes) {
 		const status = change.status[side];
 		if (status === "none") continue;
@@ -90,10 +83,7 @@ export function dividerItems(
 			near: sideSpan(sideDoc, change[side]),
 			far: snapToLines(resultDoc, change.taken[side] ?? change.result),
 			tone: toneOf(change, side),
-			actions: sideActions(change, side, handlers, {
-				acceptIcon,
-				rejectOpen: false,
-			}),
+			actions: sideActions(change, side, handlers),
 			// Few enough to keep every change's buttons in reach, as IntelliJ does.
 			pinned: true,
 		});

@@ -132,8 +132,6 @@ function renderShareBadge(target: HTMLElement, share: ShareMark): void {
 		badge.createSpan({ cls: "mdsync-share-icon" }),
 		SHARE_ICONS[share.kind],
 	);
-	if (share.here > 0) {
-		badge.addClass("has-people");
+	if (share.here > 0)
 		badge.createSpan({ cls: "mdsync-share-count", text: String(share.here) });
-	}
 }

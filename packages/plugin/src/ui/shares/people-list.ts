@@ -92,7 +92,8 @@ function renderActions(
 				showMenuAt(menu, more, el);
 			},
 		);
-		focusKey(more, `more-${key}`);
+		// One key with Revoke: arriving at a note swaps one for the other, and the focus moves along.
+		focusKey(more, `manage-${key}`);
 		return;
 	}
 	if (!canRevoke) return;
@@ -100,5 +101,5 @@ function renderActions(
 		.setButtonText("Revoke")
 		.setDestructive()
 		.onClick(canRevoke);
-	focusKey(button.buttonEl, `revoke-${key}`);
+	focusKey(button.buttonEl, `manage-${key}`);
 }

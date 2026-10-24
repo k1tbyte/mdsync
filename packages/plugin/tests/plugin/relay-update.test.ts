@@ -121,6 +121,17 @@ describe("registerRelayUpdate", () => {
 		expect(update.ready()).toBe(false);
 	});
 
+	it("takes a new secret the outdated relay accepted on reconnect", async () => {
+		relayRuns("1.2.0+old");
+		const { connect, update, settings } = launch(new Map());
+		await connect();
+		settings.relaySecret = "rotated";
+		expect(update.ready()).toBe(false);
+		await connect();
+		expect(update.ready()).toBe(true);
+		expect(openRelayUpdateModal).toHaveBeenCalledTimes(1);
+	});
+
 	it("offers nothing once the Cloudflare token is forgotten", async () => {
 		relayRuns("1.2.0+old");
 		const { connect, update, settings } = launch(new Map());

@@ -30,8 +30,10 @@
 	margin-top: var(--size-4-2);
 }
 
+/* The last card scrolls clear of the list's end and of the status bar over it. */
 .mdsync-timeline-list {
 	gap: var(--size-2-2);
+	padding-bottom: calc(var(--size-4-2) + var(--mdsync-status-bar-clearance));
 }
 
 .mdsync-timeline-card {

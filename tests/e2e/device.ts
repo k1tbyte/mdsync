@@ -106,7 +106,7 @@ export function clickMenuItem(
 	);
 }
 
-/** Types into the open modal's setting named `name`, once it shows up. */
+/** Types into the open modal's setting, or field, named `name`, once it shows up. */
 export function fill(
 	device: Obsidian,
 	name: string,
@@ -117,17 +117,24 @@ export function fill(
 			new Promise<void>((resolve, reject) => {
 				const deadline = Date.now() + wait;
 				const look = () => {
-					const input = [
-						...activeDocument.querySelectorAll(".modal .setting-item"),
-					]
-						.reverse()
-						.find(
-							(row) =>
-								row.querySelector(".setting-item-name")?.textContent === label,
-						)
-						?.querySelector<HTMLInputElement | HTMLTextAreaElement>(
-							"input, textarea",
-						);
+					const input =
+						[...activeDocument.querySelectorAll(".modal .setting-item")]
+							.reverse()
+							.find(
+								(row) =>
+									row.querySelector(".setting-item-name")?.textContent ===
+									label,
+							)
+							?.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+								"input, textarea",
+							) ??
+						[
+							...activeDocument.querySelectorAll<
+								HTMLInputElement | HTMLTextAreaElement
+							>(".modal input, .modal textarea"),
+						]
+							.reverse()
+							.find((field) => field.getAttribute("aria-label") === label);
 					if (input) {
 						input.value = text;
 						input.dispatchEvent(new Event("input"));
@@ -214,7 +221,7 @@ export function field(device: Obsidian, name: string): Promise<string> {
 	);
 }
 
-/** Picks `value` in the open modal's dropdown named `name`, once it shows up. */
+/** Picks `value` in the open modal's dropdown, by its setting's name or its own, once it shows up. */
 export async function choose(
 	device: Obsidian,
 	name: string,
@@ -223,15 +230,21 @@ export async function choose(
 	await poll(`"${name}" dropdown`, () =>
 		device.evaluate(
 			({ label, wanted }) => {
-				const select = [
-					...activeDocument.querySelectorAll(".modal .setting-item"),
-				]
-					.reverse()
-					.find(
-						(row) =>
-							row.querySelector(".setting-item-name")?.textContent === label,
-					)
-					?.querySelector("select");
+				const select =
+					[...activeDocument.querySelectorAll(".modal .setting-item")]
+						.reverse()
+						.find(
+							(row) =>
+								row.querySelector(".setting-item-name")?.textContent === label,
+						)
+						?.querySelector("select") ??
+					[
+						...activeDocument.querySelectorAll<HTMLSelectElement>(
+							".modal select",
+						),
+					]
+						.reverse()
+						.find((each) => each.getAttribute("aria-label") === label);
 				if (!select) throw new Error(`no "${label}" dropdown`);
 				select.value = wanted;
 				select.dispatchEvent(new Event("change"));
@@ -239,6 +252,23 @@ export async function choose(
 			},
 			{ label: name, wanted: value },
 		),
+	);
+}
+
+/** Picks the open modal's segment reading `text`, once it shows up. */
+export async function pick(device: Obsidian, text: string): Promise<void> {
+	await poll(`"${text}" segment`, () =>
+		device.evaluate((wanted) => {
+			const input = [
+				...activeDocument.querySelectorAll(".modal .mdsync-segment"),
+			]
+				.reverse()
+				.find((segment) => segment.textContent === wanted)
+				?.querySelector("input");
+			if (!input) throw new Error(`no "${wanted}" segment`);
+			input.click();
+			return true;
+		}, text),
 	);
 }
 

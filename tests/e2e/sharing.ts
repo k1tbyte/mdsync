@@ -5,6 +5,7 @@
 
 import {
 	CLEAN,
+	choose,
 	clickMenuItem,
 	closeModals,
 	closeSettings,
@@ -16,7 +17,6 @@ import {
 	press,
 	read,
 	sync,
-	toggle,
 	unlock,
 } from "./device";
 import { check, poll, runScenario } from "./harness";
@@ -137,8 +137,8 @@ export async function invite(
 	readOnly = false,
 ): Promise<SentInvite> {
 	await clickMenuItem(owner, folder, "MDSync: Manage sharing");
-	await fill(owner, "Name", person);
-	if (readOnly) await toggle(owner, "Read-only");
+	await fill(owner, "Their name", person);
+	if (readOnly) await choose(owner, "Access", "read");
 	await press(owner, "Create invite");
 	const link = await field(owner, "Link");
 	const password = await field(owner, "Password");
@@ -191,7 +191,7 @@ export async function closeFromSettings(
 	action: string,
 ): Promise<void> {
 	await openSharedFolderSettings(device);
-	await press(device, action);
+	await press(device, `${action}…`);
 	await confirm(device, action);
 	await device.waitFor(
 		"the record closed",

@@ -22,7 +22,9 @@ export function showHunkPopupAt(
 ): boolean {
 	const baseline = view.state.field(compareTextField, false);
 	const data = view.state.field(chunksField, false);
-	if (!baseline || !data || data.chunks.length === 0) return false;
+	// Chunks not yet recomputed after an edit name the lines it moved.
+	if (!baseline || data?.doc !== view.state.doc || data.chunks.length === 0)
+		return false;
 	const found = findChunkForLine(
 		data.chunks,
 		baseline,
@@ -60,6 +62,10 @@ export function showHunkPopupAt(
 		cleanup: installDismissHandlers(view, element, dismissPopup),
 	};
 	return true;
+}
+
+export function dismissPopupIn(view: EditorView): void {
+	if (activeView === view) dismissPopup();
 }
 
 export function dismissPopup(): void {

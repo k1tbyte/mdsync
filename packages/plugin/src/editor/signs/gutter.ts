@@ -7,7 +7,7 @@ import {
 import { type EditorView, GutterMarker, gutter } from "@codemirror/view";
 
 import { focusHunk, hunkFocusField, sameMark } from "./focus";
-import { type ChunkMark, chunkMark, findChunkForLine } from "./helpers";
+import { type ChunkMark, chunkMarks, findChunkForLine } from "./helpers";
 import { showHunkPopupAt } from "./hunk-popup";
 import type { SignsProvider } from "./provider";
 import {
@@ -131,7 +131,7 @@ function hover(view: EditorView, line: number | null): void {
 	hovered.set(view, { line, data });
 	const baseline = view.state.field(compareTextField, false);
 	const mark =
-		line !== null && baseline && data
+		line !== null && baseline && data?.doc === view.state.doc
 			? (findChunkForLine(data.chunks, baseline, view.state.doc, line)?.mark ??
 				null)
 			: null;
@@ -158,9 +158,7 @@ function buildMarkers(state: EditorState): RangeSet<GutterMarker> {
 		builder.add(from, from, SIGN_MARKERS[kind][wide ? 1 : 0]);
 	};
 
-	for (const chunk of data.chunks) {
-		const mark = chunkMark(chunk, baseline, state.doc);
-		if (!mark) continue;
+	for (const { mark } of chunkMarks(data.chunks, baseline, state.doc)) {
 		const wide =
 			!!focus && (sameMark(mark, focus.hover) || sameMark(mark, focus.open));
 		for (let line = mark.from; line <= mark.to; line++)

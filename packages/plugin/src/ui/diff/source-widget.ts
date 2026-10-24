@@ -65,14 +65,16 @@ function renderSourceBlock(
 	wrap.toggleClass("is-opening", block.opens === true);
 	wrap.toggleClass("is-closing", block.closes === true);
 	wrap.toggleClass("is-chosen", block.chosen === true);
-	renderLabel(wrap, block.head);
+	renderLabel(wrap, block.key, block.head);
 	if (!block.folded) renderBody(wrap, block, onResize);
 	for (const part of block.parts ?? []) {
 		const el = wrap.createDiv({ cls: `mdsync-source-part is-${part.tone}` });
-		renderLabel(el, part.label).addClass("is-part");
+		renderLabel(el, block.key, part.label).addClass("is-part");
 		renderBody(el, part, onResize);
 	}
-	if (block.trailer) renderLabel(wrap, block.trailer).addClass("is-trailer");
+	if (block.trailer) {
+		renderLabel(wrap, block.key, block.trailer).addClass("is-trailer");
+	}
 	return wrap;
 }
 
@@ -124,7 +126,17 @@ function renderLines(
 	}
 }
 
-function renderLabel(parent: HTMLElement, label: BlockLabel): HTMLElement {
+/** The change a key press acted on: its redrawn actions take the focus back, so the keyboard keeps its place. */
+let refocusChange: string | null = null;
+
+/** Keys are `<part>-<change index>`: settling moves the actions from a change's foot to its card. */
+const changeOf = (key: string): string => key.slice(key.indexOf("-") + 1);
+
+function renderLabel(
+	parent: HTMLElement,
+	key: string,
+	label: BlockLabel,
+): HTMLElement {
 	const head = parent.createDiv({ cls: "mdsync-source-head" });
 	if (label.mark) {
 		const mark = head.createSpan({
@@ -136,7 +148,21 @@ function renderLabel(parent: HTMLElement, label: BlockLabel): HTMLElement {
 	if (label.counters) renderCounters(head, label.counters);
 	if (!label.actions || label.actions.length === 0) return head;
 	const actions = head.createDiv({ cls: "mdsync-source-actions" });
-	for (const action of label.actions) renderRailButton(actions, action);
+	for (const action of label.actions) {
+		renderRailButton(actions, {
+			...action,
+			run: () => {
+				// A mouse press never focuses these: only the keyboard's place is kept.
+				const focused = actions.contains(actions.ownerDocument.activeElement);
+				refocusChange = focused ? changeOf(key) : null;
+				try {
+					action.run();
+				} finally {
+					refocusChange = null;
+				}
+			},
+		});
+	}
 	return head;
 }
 
@@ -192,6 +218,14 @@ export class SourceBlockWidget extends WidgetType {
 		// Space around the block goes on this slot: CodeMirror does not measure a widget's margins.
 		const slot = createDiv({ cls: "mdsync-source-slot" });
 		renderSourceBlock(slot, this.block, () => view.requestMeasure());
+		if (refocusChange === changeOf(this.block.key)) {
+			// Mounted once the dispatch that drew it returns.
+			queueMicrotask(() =>
+				slot
+					.querySelector<HTMLElement>(".mdsync-source-actions button")
+					?.focus(),
+			);
+		}
 		return slot;
 	}
 
