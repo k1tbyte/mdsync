@@ -1,14 +1,26 @@
 import { appendIconButton } from "@/ui/common";
 import { textButton } from "./action-button";
-import type { ChangesSection } from "./changes-section";
 
-/** Sticks under the lists while anything is ticked, with what can be done to it in every section at once. */
+export interface SelectionCommand {
+	text: string;
+	cta?: boolean;
+	run: () => unknown;
+}
+
+/** A list whose rows can be ticked. */
+export interface SelectionSource {
+	readonly selectedCount: number;
+	selectionCommands(): SelectionCommand[];
+	clearSelection(): void;
+}
+
+/** Sticks under the lists while anything is ticked, with what can be done to it in every list at once. */
 export class SelectionBar {
 	private readonly el: HTMLElement;
 
 	constructor(
 		parent: HTMLElement,
-		private readonly sections: ReadonlyArray<ChangesSection>,
+		private readonly sources: ReadonlyArray<SelectionSource>,
 	) {
 		this.el = parent.createDiv({ cls: "mdsync-selection-bar" });
 		this.el.setAttr("role", "toolbar");
@@ -17,9 +29,9 @@ export class SelectionBar {
 
 	update(busy: boolean): void {
 		const { el } = this;
-		const sections = this.sections;
+		const sources = this.sources;
 		el.empty();
-		const count = sections.reduce((sum, s) => sum + s.selectedCount, 0);
+		const count = sources.reduce((sum, s) => sum + s.selectedCount, 0);
 		el.toggleClass("mdsync-hidden", count === 0);
 		if (count === 0) return;
 		el.createSpan({
@@ -27,7 +39,7 @@ export class SelectionBar {
 			text: `${count.toLocaleString()} selected`,
 		});
 		const buttons = el.createDiv({ cls: "mdsync-selection-buttons" });
-		for (const { text, cta, run } of sections.flatMap((s) =>
+		for (const { text, cta, run } of sources.flatMap((s) =>
 			s.selectionCommands(),
 		)) {
 			const button = textButton(buttons, text)
@@ -36,7 +48,7 @@ export class SelectionBar {
 			if (cta) button.setCta();
 		}
 		appendIconButton(buttons, "x", "Clear selection", () => {
-			for (const section of sections) section.clearSelection();
+			for (const source of sources) source.clearSelection();
 		}).addClass("mdsync-row-action");
 	}
 }

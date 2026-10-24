@@ -1,8 +1,8 @@
 .mdsync-timeline-files {
 	display: flex;
 	flex-direction: column;
-	margin: 0 var(--size-4-1) var(--size-4-1) 10px;
-	padding-left: var(--size-4-1);
+	margin: 0 var(--size-4-2) var(--size-4-2) 15px;
+	padding-left: 6px;
 	border-left: 1px solid var(--background-modifier-border);
 }
 
@@ -31,23 +31,24 @@
 }
 
 .mdsync-timeline-list {
-	gap: var(--size-2-1);
+	gap: var(--size-2-2);
 }
 
 .mdsync-timeline-card {
 	flex: 0 0 auto;
 	min-width: 0;
-	border-radius: var(--radius-s);
-	background: var(--background-primary-alt);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary);
 }
 
 .mdsync-timeline-head {
 	position: relative;
 	display: flex;
 	align-items: center;
-	gap: var(--size-2-2);
-	padding: var(--size-4-2) var(--size-4-1);
-	border-radius: var(--radius-s);
+	gap: var(--size-4-2);
+	padding: var(--size-4-2) 6px var(--size-4-2) var(--size-4-2);
+	border-radius: var(--radius-m);
 	cursor: pointer;
 }
 
@@ -61,18 +62,22 @@
 }
 
 .mdsync-timeline-copy {
+	display: flex;
 	flex: 1;
+	flex-direction: column;
+	gap: 2px;
 	min-width: 0;
+}
+
+.mdsync-timeline-head .mdsync-timeline-copy {
+	gap: var(--size-2-2);
 }
 
 .mdsync-timeline-title {
 	display: flex;
 	align-items: center;
-	gap: var(--size-2-2);
-}
-
-.mdsync-timeline-title .mdsync-history-row-title {
-	font-size: var(--font-ui-small);
+	gap: 6px;
+	min-width: 0;
 }
 
 .mdsync-timeline-icon {
@@ -86,9 +91,42 @@
 	height: var(--mdsync-icon);
 }
 
-.mdsync-timeline-current {
-	font-size: var(--font-ui-smaller);
-	color: var(--text-accent);
+/* Who pushed, a chip per kind of change, the net size at the end. */
+.mdsync-timeline-meta {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.mdsync-timeline-device {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.mdsync-timeline-chips {
+	display: inline-flex;
+	flex: 0 0 auto;
+	gap: var(--size-2-2);
+}
+
+.mdsync-count-chip {
+	display: inline-flex;
+	align-items: center;
+	height: 16px;
+	padding: 0 5px;
+	border-radius: var(--radius-s);
+	background: color-mix(in srgb, currentColor 16%, transparent);
+	font-family: var(--font-monospace);
+	font-size: 10px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.mdsync-timeline-net {
+	flex: 0 0 auto;
+	margin-left: auto;
+	font-variant-numeric: tabular-nums;
 }
 
 .mdsync-timeline-file {
@@ -98,6 +136,18 @@
 /* Cards hover as one, so a row inside one uses the same tint as its head. */
 .mdsync-timeline-file:hover {
 	background: var(--background-modifier-hover);
+}
+
+.mdsync-timeline-size {
+	flex: 0 0 auto;
+	margin-left: auto;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+}
+
+.mdsync-timeline-file .mdsync-file-status {
+	margin-left: 0;
 }
 
 /* A card keeps its menu in the layout, so it is reachable without hovering. */
@@ -153,7 +203,7 @@
 	/* Clamped, so the wide hit area never grows the row it floats over. */
 	padding: var(--size-4-3);
 	max-height: 100%;
-	background-color: var(--background-primary-alt);
+	background-color: var(--background-primary);
 	background-image: linear-gradient(
 		var(--background-modifier-hover),
 		var(--background-modifier-hover)
@@ -162,7 +212,7 @@
 
 /* Its own hover stacks a second tint over the row's. */
 .mdsync-timeline-file .mdsync-timeline-actions .mdsync-icon-btn:hover {
-	background-color: var(--background-primary-alt);
+	background-color: var(--background-primary);
 	background-image:
 		linear-gradient(
 			var(--background-modifier-hover),

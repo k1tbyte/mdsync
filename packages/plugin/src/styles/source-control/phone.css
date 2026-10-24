@@ -5,7 +5,9 @@ body.is-phone .mdsync-source-control .mdsync-source-tab-panel {
 }
 
 /* Phone buttons are touch height, so the bar is taller. */
-body.is-phone .mdsync-source-control .mdsync-changes-panel {
+body.is-phone
+	.mdsync-source-control
+	:is(.mdsync-changes-panel, .mdsync-deleted-panel) {
 	padding-bottom: calc(var(--view-bottom-spacing, 0px) + 84px);
 }
 
@@ -169,4 +171,46 @@ body.is-phone .mdsync-source-control .mdsync-tree-folder-toggle svg,
 body.is-phone .mdsync-source-control .mdsync-tree-folder-icon svg {
 	width: var(--mdsync-icon-lg);
 	height: var(--mdsync-icon-lg);
+}
+
+body.is-phone .mdsync-source-control .mdsync-source-tools .mdsync-icon-btn {
+	min-width: var(--mdsync-touch);
+	height: var(--mdsync-touch);
+}
+
+body.is-phone .mdsync-source-control .mdsync-source-tools svg {
+	width: var(--mdsync-icon-lg);
+	height: var(--mdsync-icon-lg);
+}
+
+/* History, Deleted and Timeline rows: touch height, their menus a touch target. */
+body.is-phone .mdsync-source-control .mdsync-history-row {
+	grid-template-columns: 20px minmax(0, 1fr) auto 36px;
+	gap: 10px;
+	min-height: 56px;
+	padding-left: var(--size-4-2);
+}
+
+body.is-phone .mdsync-source-control .mdsync-timeline-actions .mdsync-icon-btn {
+	width: 36px;
+	height: var(--mdsync-touch);
+}
+
+body.is-phone .mdsync-source-control .mdsync-deleted-row {
+	grid-template-columns: var(--mdsync-touch) minmax(0, 1fr) 36px;
+	align-items: center;
+	gap: var(--size-2-2);
+	padding: 6px 0;
+}
+
+body.is-phone
+	.mdsync-source-control
+	.mdsync-deleted-row
+	.mdsync-file-selection {
+	width: var(--mdsync-touch);
+	height: var(--mdsync-touch);
+}
+
+body.is-phone .mdsync-source-control .mdsync-timeline-file {
+	min-height: 48px;
 }

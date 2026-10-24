@@ -1,10 +1,10 @@
 import { setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
-import { errorMessage } from "@/shared";
+import { errorMessage, formatBytes, formatSizeDelta } from "@/shared";
 import type { SnapshotListResult } from "@/sync/history";
 import {
 	appendIconButton,
-	appendLabeledButton,
+	callout,
 	makeActivatable,
 	notifyError,
 	onLongPress,
@@ -14,7 +14,12 @@ import type { HistoryDiffTarget } from "@/ui/source-control-view";
 import { groupRows } from "./day-groups";
 import { STATUS_CLASSES, STATUS_LETTERS } from "./row-formatter";
 import { RowPager } from "./row-pager";
-import { renderSize } from "./row-parts";
+import {
+	renderEmptyState,
+	renderHistoryOff,
+	renderLoadError,
+	renderLoading,
+} from "./tab-states";
 import { TimelineActions } from "./timeline-actions";
 import {
 	buildTimelineRows,
@@ -83,23 +88,21 @@ export class TimelineTab {
 		this.list = null;
 	}
 
-	render(parent: HTMLElement): void {
+	render(parent: HTMLElement, tools: HTMLElement): void {
 		const pane = parent.createDiv({
 			cls: "mdsync-history-pane mdsync-timeline",
 		});
 		if (!this.plugin.settings.fileHistoryEnabled) {
-			pane.createDiv({
-				cls: "mdsync-status-line",
-				text: "File version history is disabled. Enable it in settings to see the timeline.",
-			});
+			renderHistoryOff(
+				pane,
+				this.plugin.app,
+				"File version history is disabled. Enable it in settings to see the timeline.",
+			);
 			return;
 		}
-		const head = pane.createDiv({ cls: "mdsync-history-versions-head" });
-		const bar = head.createDiv({ cls: "mdsync-history-head-actions" });
-		appendLabeledButton(bar, "refresh-cw", "Refresh timeline", () => {
-			this.clear();
-			this.onRerender();
-		});
+		appendIconButton(tools, "refresh-cw", "Refresh timeline", () =>
+			this.reload(),
+		);
 		this.list = pane.createDiv({
 			cls: "mdsync-history-list mdsync-timeline-list",
 		});
@@ -119,31 +122,37 @@ export class TimelineTab {
 		}
 	}
 
+	private reload(): void {
+		this.clear();
+		this.onRerender();
+	}
+
 	private renderBody(body: HTMLElement): void {
 		if (this.error) {
-			body.createDiv({
-				cls: "mdsync-history-error",
-				text: `Could not load the timeline: ${this.error}`,
-			});
+			renderLoadError(body, "Could not load the timeline", this.error, () =>
+				this.reload(),
+			);
 			return;
 		}
 		if (!this.snapshots) {
-			body.createDiv({ cls: "mdsync-status-line", text: "Loading…" });
+			renderLoading(body);
 			this.load();
 			return;
 		}
 		if (this.snapshots.lagging) {
-			body.createDiv({
-				cls: "mdsync-status-line",
-				text: "History has not caught up with the latest push yet, so the newest snapshot is missing.",
-			});
+			callout(
+				body,
+				"warning",
+				"History has not caught up with the latest push yet, so the newest snapshot is missing.",
+			);
 		}
 		const rows = buildTimelineRows(this.snapshots.snapshots, {
 			currentDevice: this.plugin.controller.currentDevice(),
 		});
-		if (rows.length === 0) {
-			body.createDiv({
-				cls: "mdsync-status-line is-empty",
+		if (rows.length === 0 && !this.snapshots.lagging) {
+			renderEmptyState(body, {
+				icon: "clock-3",
+				title: "No pushes yet",
 				text: "No pushes recorded yet. The timeline fills up as you push.",
 			});
 		}
@@ -195,20 +204,13 @@ export class TimelineTab {
 		const title = copy.createDiv({ cls: "mdsync-timeline-title" });
 		title.createSpan({ cls: "mdsync-history-row-title", text: row.title });
 		if (row.isHead)
-			title.createSpan({ cls: "mdsync-timeline-current", text: "Latest push" });
+			title.createSpan({ cls: "mdsync-pill", text: "Latest push" });
 		if (row.pinned) {
-			const pin = title.createSpan({
-				cls: "mdsync-timeline-icon mdsync-history-pinned-badge",
-			});
+			const pin = title.createSpan({ cls: "mdsync-history-pin" });
 			setIcon(pin, "pin");
 			pin.setAttr("aria-label", "Pinned snapshot");
 		}
-		copy.createDiv({
-			cls: "mdsync-history-row-meta",
-			text: [row.meta, row.counts ?? "Change record unavailable", row.netSize]
-				.filter((part): part is string => part !== null)
-				.join(" · "),
-		});
+		this.renderMeta(copy, row);
 		const actions = head.createDiv({ cls: "mdsync-timeline-actions" });
 		const more = appendIconButton(
 			actions,
@@ -244,6 +246,28 @@ export class TimelineTab {
 		pager.render(list, row.files.length, this.onRerender);
 	}
 
+	/** Who pushed, a chip per kind of change and the net size. */
+	private renderMeta(parent: HTMLElement, row: TimelineRow): void {
+		const meta = parent.createDiv({
+			cls: "mdsync-history-row-meta mdsync-timeline-meta",
+		});
+		meta.createSpan({ cls: "mdsync-timeline-device", text: row.meta });
+		if (!row.tally) {
+			meta.createSpan({ text: "Change record unavailable" });
+			return;
+		}
+		const chips = meta.createSpan({ cls: "mdsync-timeline-chips" });
+		if (row.counts) chips.setAttr("aria-label", row.counts);
+		for (const [action, count] of row.tally) {
+			chips.createSpan({
+				cls: `mdsync-count-chip ${STATUS_CLASSES[action]}`,
+				text: `${STATUS_LETTERS[action]} ${count}`,
+			});
+		}
+		if (row.netSize)
+			meta.createSpan({ cls: "mdsync-timeline-net", text: row.netSize });
+	}
+
 	private renderFile(
 		parent: HTMLElement,
 		row: TimelineRow,
@@ -253,6 +277,7 @@ export class TimelineTab {
 		const item = parent.createDiv({
 			cls: "mdsync-file-row mdsync-timeline-file",
 		});
+		item.toggleClass("is-deleted", file.action === "delete");
 		item.setAttr("data-timeline-focus", key);
 		item.toggleClass("is-active", this.selected === key);
 		item.toggleClass("is-opening", this.opening === key);
@@ -261,10 +286,14 @@ export class TimelineTab {
 		// Before makeActivatable: the hold has to swallow its own trailing click.
 		onLongPress(item, (event) => this.actions.showFileMenu(event, row, file));
 		makeActivatable(item, file.path, () => void this.openFile(row, file));
-		const icon = item.createSpan({ cls: "mdsync-timeline-icon" });
-		setIcon(icon, "file-text");
 		renderPath(item, file.path);
-		renderSize(item, file.size, file.sizeDelta);
+		// What a change moved; an addition, a deletion or an even change shows its size.
+		item.createSpan({
+			cls: "mdsync-timeline-size",
+			text:
+				(file.sizeDelta !== undefined && formatSizeDelta(file.sizeDelta)) ||
+				formatBytes(file.size),
+		});
 		item.createSpan({
 			cls: `mdsync-file-status ${STATUS_CLASSES[file.action]}`,
 			text: STATUS_LETTERS[file.action],

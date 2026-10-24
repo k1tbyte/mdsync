@@ -18,10 +18,9 @@ import {
 } from "@/settings/cloudflare-login";
 import { testRelay } from "@/settings/connection-test";
 import { isRelayConfigured } from "@/settings/model";
-import { alertLine, focusKey, serial } from "@/ui/common";
-
+import { alertLine, callout, focusKey, serial } from "@/ui/common";
 import { renderTokenForm, tokenForm } from "./cloudflare-token";
-import { actionRow, busyLine, callout } from "./form";
+import { actionRow, busyLine } from "./form";
 import {
 	activateRelay,
 	deployOwnRelay,

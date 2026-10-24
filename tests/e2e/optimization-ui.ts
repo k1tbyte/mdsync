@@ -110,34 +110,29 @@ await runScenario("optimization UI e2e", async () => {
 		);
 		await device.waitFor(
 			"deleted-file rows",
-			() => document.querySelectorAll(".mdsync-history-row").length,
+			() => document.querySelectorAll(".mdsync-deleted-row").length,
 			(count: number) => count === PAGE_SIZE,
 		);
 		check(
 			"Trash mounts one page",
 			await device.evaluate(
-				() => document.querySelectorAll(".mdsync-history-row").length,
+				() => document.querySelectorAll(".mdsync-deleted-row").length,
 			),
 			PAGE_SIZE,
 		);
-		await device.evaluate(() => {
-			const select = [
-				...document.querySelectorAll<HTMLButtonElement>(
-					".mdsync-history-head-actions button",
-				),
-			].find((button) => button.textContent === "Select all");
-			select?.click();
-		});
+		await device.evaluate(() =>
+			document
+				.querySelector<HTMLInputElement>(".mdsync-deleted-all input")
+				?.click(),
+		);
 		check(
 			"Select all includes files on other pages",
 			await device.evaluate(() =>
-				[
-					...document.querySelectorAll<HTMLButtonElement>(
-						".mdsync-history-head-actions button",
-					),
-				].some((button) => button.textContent === "Restore selected (20000)"),
+				document
+					.querySelector(".mdsync-selection-count")
+					?.textContent?.replace(/\D/g, ""),
 			),
-			true,
+			"20000",
 		);
 		await device.evaluate(() => {
 			const next = [
@@ -150,16 +145,19 @@ await runScenario("optimization UI e2e", async () => {
 		check(
 			"Trash retains selection on the next page",
 			await device.evaluate(
-				() => document.querySelectorAll(".mdsync-file-checkbox:checked").length,
+				() =>
+					document.querySelectorAll(".mdsync-deleted-row input:checked").length,
 			),
 			PAGE_SIZE,
 		);
 		check(
 			"the next Trash page starts at file 101",
-			await device.evaluate(
-				() => document.querySelector(".mdsync-history-row-title")?.textContent,
+			await device.evaluate(() =>
+				document
+					.querySelector(".mdsync-deleted-row input")
+					?.getAttribute("aria-label"),
 			),
-			"Notes/n00100.md",
+			"Select Notes/n00100.md",
 		);
 		console.log(`Expanded snapshot render: ${Math.round(timelineMs)} ms`);
 	} finally {

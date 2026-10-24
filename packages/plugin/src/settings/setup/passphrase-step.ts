@@ -6,9 +6,8 @@ import { errorMessage } from "@/shared";
 import { isRefusedCredentials } from "@/storage";
 import { PassphraseRotatedError } from "@/sync/keyfile";
 import { openStorageRefusedModal } from "@/ui";
-import { alertLine, focusKey, onEnter } from "@/ui/common";
-
-import { actionRow, busyLine, callout } from "./form";
+import { alertLine, callout, focusKey, onEnter } from "@/ui/common";
+import { actionRow, busyLine } from "./form";
 import { passphraseMeter } from "./passphrase-meter";
 import { runAction } from "./run-action";
 import type { StepView, Wizard } from "./wizard";

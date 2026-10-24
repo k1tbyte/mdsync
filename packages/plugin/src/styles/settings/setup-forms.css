@@ -5,39 +5,6 @@
 	font-size: var(--font-ui-small);
 }
 
-.mdsync-callout {
-	--mdsync-callout-tone: var(--interactive-accent);
-	display: flex;
-	align-items: flex-start;
-	gap: var(--size-4-3);
-	margin: var(--size-4-3) 0;
-	padding: var(--size-4-3);
-	border-radius: var(--radius-m);
-	background: color-mix(in srgb, var(--mdsync-callout-tone) 10%, transparent);
-	color: var(--text-muted);
-	font-size: var(--font-ui-small);
-	line-height: var(--line-height-tight);
-}
-
-.mdsync-callout.is-warning {
-	--mdsync-callout-tone: var(--text-warning);
-}
-
-.mdsync-callout.is-success {
-	--mdsync-callout-tone: var(--text-success);
-}
-
-.mdsync-callout-icon {
-	display: grid;
-	flex: none;
-	color: var(--mdsync-callout-tone);
-}
-
-.mdsync-callout-icon .svg-icon {
-	width: var(--mdsync-icon-lg);
-	height: var(--mdsync-icon-lg);
-}
-
 .mdsync-setup-busy {
 	display: flex;
 	align-items: center;

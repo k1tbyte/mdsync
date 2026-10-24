@@ -13,6 +13,7 @@ import type { HistoryVersionRef } from "@/sync/projection";
 import type { ManifestEntry } from "@/sync/types";
 import type { ChangeAction } from "@/ui/common";
 import type { HistoryDiffTarget } from "@/ui/source-control-view";
+import { timeInDay } from "./day-groups";
 import { deviceText } from "./row-formatter";
 
 export interface TimelineFileRow {
@@ -34,6 +35,8 @@ export interface TimelineRow {
 	meta: string;
 	tooltip: string;
 	counts: string | null;
+	/** Files per kind of change, the non-zero ones; null without a change record. */
+	tally: Array<[ChangeAction, number]> | null;
 	/** Net bytes the push moved, signed. Null when it moved none, or is unknown. */
 	netSize: string | null;
 	pinned: boolean;
@@ -60,11 +63,14 @@ export function buildTimelineRows(
 		return {
 			snapshotId: snapshot.id,
 			createdAt: snapshot.createdAt,
-			title: label || relative,
+			title:
+				label ||
+				(snapshot.pinned ? relative : timeInDay(snapshot.createdAt, now)),
 			// A pin's name replaces the age in the title, and pins sit apart from their day.
 			meta: label ? `${relative} · ${device}` : device,
 			tooltip: formatTimestamp(snapshot.createdAt),
 			counts: countsText(snapshot),
+			tally: snapshot.files ? tallyOf(snapshot.files) : null,
 			netSize: snapshot.files
 				? formatSizeDelta(netBytes(snapshot.files))
 				: null,
@@ -161,20 +167,29 @@ function versionRef(
 	};
 }
 
+function tallyOf(changes: SnapshotChanges): Array<[ChangeAction, number]> {
+	const tally: Array<[ChangeAction, number]> = [
+		["add", Object.keys(changes.added).length],
+		["modify", Object.keys(changes.modified).length],
+		["delete", Object.keys(changes.deleted).length],
+	];
+	return tally.filter(([, count]) => count > 0);
+}
+
 /** "+3 new · 2 changed · 1 removed", dropping the parts that are zero. */
 export function countsText(snapshot: SnapshotSummary): string | null {
 	if (!snapshot.files) return null;
-	const { added, modified, deleted } = snapshot.files;
-	const addedCount = Object.keys(added).length;
-	const modifiedCount = Object.keys(modified).length;
-	const deletedCount = Object.keys(deleted).length;
-	const parts = [
-		addedCount > 0 ? `+${addedCount} new` : null,
-		modifiedCount > 0 ? `${modifiedCount} changed` : null,
-		deletedCount > 0 ? `${deletedCount} removed` : null,
-	].filter((part): part is string => part !== null);
+	const parts = tallyOf(snapshot.files).map(([action, count]) =>
+		COUNT_WORDS[action](count),
+	);
 	return parts.length > 0 ? parts.join(" · ") : "no file changes";
 }
+
+const COUNT_WORDS: Record<ChangeAction, (count: number) => string> = {
+	add: (count) => `+${count} new`,
+	modify: (count) => `${count} changed`,
+	delete: (count) => `${count} removed`,
+};
 
 export function timelineDiffTarget(
 	file: TimelineFileRow,

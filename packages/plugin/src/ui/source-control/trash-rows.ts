@@ -12,12 +12,19 @@ export interface TrashRow {
 	/** Short enough to head a diff pane: "deleted 3 days ago". */
 	label: string;
 	meta: string;
-	/** How much longer the record survives; null only when nothing can be said. */
-	retention: string | null;
+	/** Back in the vault but unpushed, else how much longer the record survives. */
+	note: TrashNote | null;
 	pinned: boolean;
-	/** Back in the vault but not pushed, so the remote still lists it as deleted. */
-	restored: boolean;
 }
+
+export interface TrashNote {
+	text: string;
+	tone: "plain" | "soon" | "pinned" | "restored";
+	icon: string;
+}
+
+/** Pushes left at which a record's end is worth a colour. */
+const SOON_PUSHES = 3;
 
 export interface TrashRowOptions {
 	/** Non-pinned snapshots kept before eviction, from settings. */
@@ -53,11 +60,27 @@ export function buildTrashRows(
 				deviceText(file, options.currentDevice),
 				formatBytes(file.entry.size),
 			].join(" · "),
-			retention: retentionText(file.rank, options.maxSnapshots),
+			note: options.inVault?.(file.path)
+				? {
+						text: "Restored here, not pushed yet",
+						tone: "restored",
+						icon: "check",
+					}
+				: retentionNote(file.rank, options.maxSnapshots),
 			pinned: file.rank === null,
-			restored: options.inVault?.(file.path) ?? false,
 		};
 	});
+}
+
+function retentionNote(
+	rank: number | null,
+	maxSnapshots: number,
+): TrashNote | null {
+	const text = retentionText(rank, maxSnapshots);
+	if (text === null) return null;
+	if (rank === null) return { text, tone: "pinned", icon: "pin" };
+	const soon = maxSnapshots - rank <= SOON_PUSHES;
+	return { text, tone: soon ? "soon" : "plain", icon: "hourglass" };
 }
 
 /**

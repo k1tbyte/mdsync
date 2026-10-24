@@ -1,9 +1,8 @@
 import { Setting } from "obsidian";
 
 import { canSync } from "@/settings/model";
-import { alertLine, focusKey, onEnter } from "@/ui/common";
-
-import { actionRow, callout } from "./form";
+import { alertLine, callout, focusKey, onEnter } from "@/ui/common";
+import { actionRow } from "./form";
 import { runAction } from "./run-action";
 import type { StepView, Wizard } from "./wizard";
 

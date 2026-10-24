@@ -1,6 +1,7 @@
 export { makeActivatable } from "./activatable";
 export { alertLine } from "./alert-line";
 export { describePeople, renderAvatar, renderAvatarStack } from "./avatars";
+export { type CalloutTone, callout } from "./callout";
 export { type ChangeAction, changeActionOf } from "./change-action";
 export { copyable, copyText } from "./copyable";
 export { onEnter } from "./enter-key";

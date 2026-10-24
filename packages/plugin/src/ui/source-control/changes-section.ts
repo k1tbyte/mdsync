@@ -13,6 +13,7 @@ import {
 } from "./change-rows";
 import { RowPager } from "./row-pager";
 import { SECTION_ACTIONS } from "./section-actions";
+import type { SelectionCommand, SelectionSource } from "./selection-bar";
 import { buildTree, flattenRows, flattenTree } from "./tree-builder";
 import { ESection, type FileRow, type VisualRow } from "./types";
 import { mountVirtualList, type VirtualListHandle } from "./virtual-list";
@@ -38,17 +39,11 @@ export interface ChangesSectionDeps
 	selectionChanged: () => void;
 }
 
-export interface SelectionCommand {
-	text: string;
-	cta: boolean;
-	run: () => Promise<void>;
-}
-
 /** Below this a list is built whole, so a row height change (an expanded conflict preview) needs no measuring. */
 const VIRTUAL_MIN_ROWS = 100;
 
 /** One section of the Changes pane: its header, selection, folders and list. */
-export class ChangesSection {
+export class ChangesSection implements SelectionSource {
 	private collapsed = false;
 	private readonly selected = new Set<string>();
 	private readonly expandedFolders = new Set<string>();
