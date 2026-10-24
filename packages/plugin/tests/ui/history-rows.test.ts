@@ -22,11 +22,23 @@ function version(overrides: Partial<FileVersion> = {}): FileVersion {
 }
 
 describe("buildHistoryRows", () => {
-	it("titles a row by relative age and keeps the exact time in the tooltip", () => {
+	it("titles a row from an older day by its clock time and keeps the exact time in the tooltip", () => {
 		const [row] = buildHistoryRows([version()], { now: NOW });
-		expect(row?.title).toBe("1 day ago");
+		expect(row?.title).toBe(
+			new Date(NOW - DAY).toLocaleTimeString(undefined, {
+				hour: "2-digit",
+				minute: "2-digit",
+			}),
+		);
 		expect(row?.isLatest).toBe(true);
 		expect(row?.tooltip).toBe(new Date(NOW - DAY).toLocaleString());
+	});
+
+	it("titles a row from today by its age", () => {
+		const [row] = buildHistoryRows([version({ createdAt: NOW - 60_000 })], {
+			now: NOW,
+		});
+		expect(row?.title).toBe("1 minute ago");
 	});
 
 	it("measures the size against the next older version", () => {

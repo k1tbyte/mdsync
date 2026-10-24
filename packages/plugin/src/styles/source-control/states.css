@@ -1,0 +1,78 @@
+.mdsync-empty-state.is-muted .mdsync-empty-state-icon {
+	background: var(--background-modifier-hover);
+	color: var(--text-muted);
+}
+
+.mdsync-empty-state.is-success .mdsync-empty-state-icon {
+	background: color-mix(in srgb, var(--color-green) 18%, transparent);
+	color: var(--color-green);
+}
+
+/* The list's own gap spaces it. */
+.mdsync-history-list > .mdsync-callout {
+	flex: 0 0 auto;
+	margin: 0 0 var(--size-2-2);
+}
+
+/* A spinner over rows shaped like the ones coming. */
+.mdsync-tab-loading {
+	display: flex;
+	flex-direction: column;
+	padding: 0 var(--size-4-1);
+}
+
+.mdsync-tab-loading-line {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: 6px 0;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.mdsync-tab-loading-line::before {
+	content: "";
+	width: 12px;
+	height: 12px;
+	box-sizing: border-box;
+	border: 2px solid var(--background-modifier-border);
+	border-top-color: var(--interactive-accent);
+	border-radius: 50%;
+	animation: mdsync-spin 0.8s linear infinite;
+}
+
+.mdsync-skeleton-row {
+	--mdsync-skeleton: 55%;
+	height: 44px;
+	background:
+		radial-gradient(
+			circle at 12px 50%,
+			var(--background-modifier-border) 4.5px,
+			transparent 5px
+		)
+		no-repeat,
+		linear-gradient(
+			var(--background-modifier-hover),
+			var(--background-modifier-hover)
+		)
+		32px 13px / var(--mdsync-skeleton) 10px no-repeat,
+		linear-gradient(
+			var(--background-modifier-hover),
+			var(--background-modifier-hover)
+		)
+		32px 28px / 30% 8px no-repeat;
+}
+
+.mdsync-skeleton-row:nth-child(3n) {
+	--mdsync-skeleton: 42%;
+}
+
+.mdsync-skeleton-row:nth-child(3n + 1) {
+	--mdsync-skeleton: 60%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.mdsync-tab-loading-line::before {
+		animation: none;
+	}
+}

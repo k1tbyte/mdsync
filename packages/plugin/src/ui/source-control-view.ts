@@ -220,10 +220,15 @@ export class SourceControlView extends ItemView {
 		this.activateTab(ESourceTab.Changes);
 	}
 
-	private renderActiveTab(root: HTMLElement): void {
-		if (this.tab === ESourceTab.History) this.historyTab.render(root);
-		else if (this.tab === ESourceTab.Deleted) this.trashTab.render(root);
-		else this.timelineTab.render(root);
+	private renderActiveTab(
+		panel: HTMLElement,
+		tools: HTMLElement,
+		overlay: HTMLElement,
+	): void {
+		if (this.tab === ESourceTab.History) this.historyTab.render(panel, tools);
+		else if (this.tab === ESourceTab.Deleted)
+			this.trashTab.render(panel, tools, overlay);
+		else this.timelineTab.render(panel, tools);
 	}
 
 	refreshHistory(): void {
@@ -247,8 +252,8 @@ export class SourceControlView extends ItemView {
 			this.changes.dispose();
 			this.changes.invalidate();
 			root.empty();
-			this.renderTabBar(root);
-			this.renderActiveTab(this.renderTabPanel(root));
+			const tools = this.renderTabBar(root);
+			this.renderActiveTab(this.renderTabPanel(root), tools, root);
 			return;
 		}
 		if (!force && !this.changes.needsRebuild(snapshot)) {

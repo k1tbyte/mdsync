@@ -338,7 +338,8 @@
 }
 
 /* Room kept under the lists whether or not the bar shows, so ticking a box never moves them and the last row scrolls clear of the bar. */
-.mdsync-changes-panel {
+.mdsync-changes-panel,
+.mdsync-deleted-panel {
 	--mdsync-bar-room: 64px;
 	padding-bottom: calc(
 		var(--mdsync-bar-room) +
