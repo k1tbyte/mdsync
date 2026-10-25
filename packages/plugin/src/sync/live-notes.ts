@@ -137,7 +137,7 @@ export async function writeIncoming(
 	/** False after the download leaves the file be, and returns null. */
 	ready?: () => Promise<boolean>,
 ): Promise<ManifestEntry | null> {
-	const bytes = await loadRemoteBytes(deps, entry.hash);
+	const bytes = await loadRemoteBytes(deps, entry.hash, entry.size);
 	if (!bytes) throw new Error(`Missing remote object for ${path}`);
 	if (ready && !(await ready())) return null;
 	const written = await writeFetched(deps.adapter, path, entry, bytes);

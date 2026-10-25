@@ -112,7 +112,7 @@ function renderLogsView(
 	}
 }
 
-function renderLogEntry(parent: HTMLElement, entry: SyncLogEntry): void {
+export function renderLogEntry(parent: HTMLElement, entry: SyncLogEntry): void {
 	const item = parent.createDiv({
 		cls: `mdsync-log-entry ${LOG_LEVEL_CLASSES[entry.level]}`,
 	});
@@ -128,10 +128,17 @@ function renderLogEntry(parent: HTMLElement, entry: SyncLogEntry): void {
 	}
 	const details = item.createEl("details", { cls: "mdsync-log-details" });
 	details.createEl("summary", { text: `Details (${entry.details.length})` });
-	const list = details.createEl("ul");
-	for (const detail of entry.details) {
-		list.createEl("li", { text: detail });
-	}
+	// Up to 200 entries x 50 details stay unbuilt until someone opens one.
+	details.addEventListener(
+		"toggle",
+		() => {
+			const list = details.createEl("ul");
+			for (const detail of entry.details) {
+				list.createEl("li", { text: detail });
+			}
+		},
+		{ once: true },
+	);
 }
 
 function logMeta(entry: SyncLogEntry): string {

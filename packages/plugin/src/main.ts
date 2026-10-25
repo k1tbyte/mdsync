@@ -48,7 +48,6 @@ import {
 } from "./plugin/bootstrap";
 import {
 	registerHashCarry,
-	registerIgnoreFileRefresh,
 	registerStatePersistenceFlush,
 	registerWorkspaceMenus,
 } from "./plugin/events";
@@ -212,7 +211,6 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		registerWorkspaceMenus(this);
 		registerShareRenames(this);
 		registerLinkPaths(this);
-		registerIgnoreFileRefresh(this);
 		registerStatePersistenceFlush(this, this.statePersister);
 
 		// Re-render the open Settings tab so auth status updates live.

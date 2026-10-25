@@ -1,12 +1,8 @@
-import {
-	debounce,
-	ItemView,
-	type ViewStateResult,
-	type WorkspaceLeaf,
-} from "obsidian";
+import { ItemView, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { DIFF_VIEW_TYPE, SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
 import { errorMessage } from "@/shared";
+import type { CompareResult } from "@/sync/engine";
 import {
 	EDiffDirection,
 	type FileDiffModel,
@@ -168,7 +164,10 @@ export class DiffView extends ItemView {
 	}
 
 	private unsubStatus: (() => void) | null = null;
-	private cancelStatusDebounce: (() => void) | null = null;
+	/** Only a compare or a finished operation changes what a diff reads; progress broadcasts change neither. */
+	private seenResult: CompareResult | null = null;
+	private seenBusy = false;
+	private stale = false;
 
 	async onOpen(): Promise<void> {
 		this.contentEl.empty();
@@ -178,19 +177,30 @@ export class DiffView extends ItemView {
 			cls: "mdsync-diff-action-bar",
 		});
 		this.bodyEl = this.contentEl.createDiv({ cls: "mdsync-diff-body" });
-		const handleStatus = debounce(
-			() => {
-				if (this.path && !this.mergePanel.isEditing) void this.refreshModel();
-			},
-			200,
-			true,
-		);
-
-		this.unsubStatus = this.plugin.controller.subscribe(handleStatus);
-		this.cancelStatusDebounce = () => handleStatus.cancel();
+		({ result: this.seenResult, busy: this.seenBusy } =
+			this.plugin.controller.getSnapshot());
+		this.unsubStatus = this.plugin.controller.subscribe(({ result, busy }) => {
+			// A failed operation can write files and keep the result it started from.
+			const settled = this.seenBusy && !busy;
+			this.seenBusy = busy;
+			if (result === this.seenResult && !settled) return;
+			this.seenResult = result;
+			// Stored versions are immutable: a compare cannot change them.
+			if (this.against || this.historyChange) return;
+			this.stale = true;
+			this.onResize();
+		});
 
 		this.renderShell();
 		redrawOnPhoneChange(this, () => this.redrawForPlatform());
+	}
+
+	/** Obsidian resizes a tab when it is shown again: the reload a hidden tab skipped. */
+	onResize(): void {
+		if (!this.stale || !this.path || this.mergePanel.isEditing) return;
+		if (!this.containerEl.isShown()) return;
+		this.stale = false;
+		void this.refreshModel();
 	}
 
 	async onClose(): Promise<void> {
@@ -198,8 +208,6 @@ export class DiffView extends ItemView {
 			this.unsubStatus();
 			this.unsubStatus = null;
 		}
-		this.cancelStatusDebounce?.();
-		this.cancelStatusDebounce = null;
 		this.loadGeneration++;
 		this.refreshPending = false;
 		this.destroyViews();

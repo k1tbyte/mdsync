@@ -1,7 +1,7 @@
 import type { App } from "obsidian";
 
 import {
-	createSessionOpener,
+	createSessionOpeners,
 	LogService,
 	PassphraseManager,
 	StatePersister,
@@ -66,7 +66,7 @@ export async function bootstrapPluginRuntime(
 	);
 
 	const spaces = new SpaceRecords(settings, persistSettings);
-	const openSession = createSessionOpener({
+	const { openSession, openLocal } = createSessionOpeners({
 		app,
 		settings,
 		spaces,
@@ -122,6 +122,7 @@ export async function bootstrapPluginRuntime(
 			return spaces.partition();
 		},
 		openSession,
+		openLocal,
 		persistState: (state) => statePersister.persist(state),
 		getState: () => statePersister.state,
 		logInfo: (op, msg, details) => logs.info(op, msg, details),

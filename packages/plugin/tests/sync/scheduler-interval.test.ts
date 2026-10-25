@@ -80,6 +80,7 @@ function harness(settings: {
 			pushes++;
 		},
 		noteLocalChange: () => undefined,
+		refreshSaved: () => undefined,
 		getSnapshot: () => ({ error: snapshotError }),
 		subscribe: (
 			listener: (snapshot: { busy: boolean; error?: string | null }) => void,

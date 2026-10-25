@@ -1,7 +1,5 @@
 import type { DataAdapter } from "obsidian";
 import { DEFAULT_CONCURRENCY } from "@/constants";
-import { sha256Hex } from "@/crypto";
-import { sceneOfBytes } from "@/drawing";
 import { hasDotSegment, sortedByPath, stripTrailingSlash } from "@/shared";
 import type {
 	HashCacheEntry,
@@ -14,6 +12,7 @@ import {
 	LARGE_FILE_BYTES,
 	runWithConcurrency,
 } from "@/utils";
+import { buildEntry } from "./entry";
 import type { VaultIndex } from "./file-index";
 import { confirmGone } from "./gone";
 import { caseInsensitiveDisk } from "./io";
@@ -229,26 +228,6 @@ function unindexedOf(
 	return here.length > 0 ? { unindexed: here } : {};
 }
 
-async function buildEntry(
-	adapter: DataAdapter,
-	path: string,
-	size: number,
-	mtime: number,
-	kind: ManifestEntry["kind"],
-	/** A hit the caller settled; re-testing can disagree once a future mtime turns racy. */
-	hit: HashCacheEntry | undefined,
-	/** Present for large files, to keep several of them out of memory at once. */
-	gate?: <T>(run: () => Promise<T>) => Promise<T>,
-): Promise<ManifestEntry> {
-	if (hit) return { hash: hit.hash, size, mtime, kind, scene: hit.scene };
-	const build = async (): Promise<ManifestEntry> => {
-		const bytes = new Uint8Array(await adapter.readBinary(path));
-		const hash = await sha256Hex(bytes);
-		return { hash, size, mtime, kind, scene: await sceneOfBytes(path, bytes) };
-	};
-	return gate ? gate(build) : build();
-}
-
 function isCacheHit(
 	cached: HashCacheEntry | undefined,
 	size: number,
@@ -353,7 +332,9 @@ async function collectFromIndex(
 		if (scope.includes(path)) unstated.add(path);
 	}
 
-	const onDisk = known ?? (await listAllFiles(adapter, scope, ROOT)).files;
+	const walkedRoot =
+		known === null ? await listAllFiles(adapter, scope, ROOT) : null;
+	const onDisk = walkedRoot?.files ?? known ?? [];
 	// The index hides dot-paths, so the walk does too.
 	const unindexed = [...onDisk].filter(
 		(path) =>
@@ -380,7 +361,19 @@ async function collectFromIndex(
 	});
 
 	if (configDir && scope.canDescend(configDir)) {
-		const walked = await listAllFiles(adapter, scope, configDir);
+		// A root listing that failed never reached the config directory, so it is walked on its own.
+		const walked =
+			walkedRoot && !walkedRoot.unreadable.includes(ROOT)
+				? {
+						files: walkedRoot.files.filter(isConfigPath),
+						ignored: walkedRoot.ignored.filter(isConfigPath),
+						// The config root itself is never an empty folder of its own walk.
+						emptyFolders: walkedRoot.emptyFolders.filter(
+							(path) => path !== configDir && isConfigPath(path),
+						),
+						unreadable: walkedRoot.unreadable.filter(isConfigPath),
+					}
+				: await listAllFiles(adapter, scope, configDir);
 		for (const path of walked.files) files.push({ path });
 		ignored.push(...walked.ignored);
 		emptyFolders.push(...walked.emptyFolders);

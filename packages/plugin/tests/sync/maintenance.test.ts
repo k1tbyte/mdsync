@@ -47,6 +47,31 @@ describe("verifyRemote", () => {
 		const bad = await verifyRemote(storage, key, "", false);
 		expect(bad.missing).toEqual(["H1"]);
 	});
+
+	it("announces every object read before the first get", async () => {
+		const calls: string[] = [];
+		class PreparingStorage extends FakeStorage {
+			prepareReads(keys: string[]): void {
+				calls.push(`prepare:${[...keys].sort().join(",")}`);
+			}
+			override get(path: string): Promise<Uint8Array | null> {
+				if (path.startsWith(REMOTE_OBJECTS_PREFIX)) calls.push("get");
+				return super.get(path);
+			}
+		}
+		const storage = new PreparingStorage();
+		await publishManifest(
+			storage,
+			key,
+			manifest("s1", { "a.md": "H1", "b.md": "H2" }),
+		);
+		await storage.put(objectKey("H1"), new Uint8Array([1]));
+		await storage.put(objectKey("H2"), new Uint8Array([1]));
+
+		await verifyRemote(storage, key, "", false);
+		expect(calls[0]).toBe(`prepare:${objectKey("H1")},${objectKey("H2")}`);
+		expect(calls.filter((c) => c === "get")).toHaveLength(2);
+	});
 });
 
 describe("deepCleanOrphans", () => {

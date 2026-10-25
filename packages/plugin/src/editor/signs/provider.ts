@@ -188,9 +188,11 @@ export class SignsProvider {
 		const views = this.pathToViews.get(path);
 		if (!views) return;
 		for (const view of views) {
-			const shown = view.state.field(compareTextField, false);
+			const shown = view.state.field(compareTextField, false) ?? null;
+			// Every dispatch makes the view recompute its marks.
+			if (text ? shown?.eq(text) : !shown) continue;
 			// A pushed or pulled change leaves its open popup acting on the old baseline.
-			if (!(shown && text?.eq(shown))) dismissPopupIn(view);
+			dismissPopupIn(view);
 			safeDispatch(view, text, () => this.isViewPath(view, path));
 		}
 	}

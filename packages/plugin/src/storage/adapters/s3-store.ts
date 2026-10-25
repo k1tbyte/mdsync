@@ -15,10 +15,10 @@ import {
 	headerValue,
 	isRetryableError,
 	isRetryableStatus,
-	STORAGE_TIMEOUT_MS,
 	StorageHttpError,
+	transferBytes,
+	withDeadline,
 	withRetry,
-	withTimeout,
 } from "./util";
 
 const HTTP_NOT_FOUND = 404;
@@ -43,17 +43,22 @@ export function createS3Store(transport: S3Transport): StorageAdapter {
 	const readObject = async (
 		key: string,
 		etag: string | null,
+		size?: number,
 	): Promise<ConditionalRead> => {
-		const res = await send({
-			method: "GET",
-			key: transport.key(key),
-			// The manifest moves under us, and a revalidated read is what the stale-read reconciliation in
-			// sync/manifest.ts assumes.
-			headers: {
-				"Cache-Control": "no-cache",
-				...(etag ? { "If-None-Match": etag } : {}),
+		const res = await send(
+			{
+				method: "GET",
+				key: transport.key(key),
+				// The manifest moves under us, and a revalidated read is what the stale-read reconciliation in
+				// sync/manifest.ts assumes.
+				headers: {
+					"Cache-Control": "no-cache",
+					...(etag ? { "If-None-Match": etag } : {}),
+				},
 			},
-		});
+			undefined,
+			size,
+		);
 		if (res.status === HTTP_NOT_MODIFIED) {
 			// Only ever an answer about the validator we sent: unsolicited it describes nothing, and a
 			// plain read's caller would take it for an absent object.
@@ -124,11 +129,11 @@ export function createS3Store(transport: S3Transport): StorageAdapter {
 				(listed) => transport.relative(listed.key) === key,
 			);
 		},
-		async get(key) {
-			const read = await readObject(key, null);
+		async get(key, size) {
+			const read = await readObject(key, null, size);
 			return read.status === "found" ? read.body : null;
 		},
-		getIfChanged: readObject,
+		getIfChanged: (key, etag) => readObject(key, etag),
 		async put(key, body, contentType) {
 			const res = await sendPut(send, transport.key(key), body, contentType);
 			assertOk(res, "write", key);
@@ -155,19 +160,24 @@ export function createS3Store(transport: S3Transport): StorageAdapter {
 }
 
 type S3Response = Awaited<ReturnType<typeof requestUrl>>;
-type Send = (input: S3RequestInput, body?: Uint8Array) => Promise<S3Response>;
+type Send = (
+	input: S3RequestInput,
+	body?: Uint8Array,
+	/** Bytes a body-less request is expected to receive. */
+	expected?: number,
+) => Promise<S3Response>;
 
 /**
  * Signs and sends under the shared timeout and retry policy. Signing happens inside the retry: a signature
  * carries the minute it was made, and a request replayed after a backoff would be refused for skew.
  */
 function createSender(sign: S3Signer): Send {
-	return async (input, body) => {
+	return async (input, body, expected) => {
 		try {
 			return await withRetry(
 				async () => {
 					const signed = await sign({ ...input, body });
-					const res = await withTimeout(
+					const res = await withDeadline(
 						requestUrl({
 							url: signed.url,
 							method: input.method,
@@ -175,7 +185,7 @@ function createSender(sign: S3Signer): Send {
 							...(body ? { body: toArrayBuffer(body) } : {}),
 							throw: false,
 						}),
-						STORAGE_TIMEOUT_MS,
+						transferBytes(body, expected),
 					);
 					// A 403 the keys cannot fix: refused credentials would ask for new ones.
 					if (

@@ -27,19 +27,21 @@ const pinCache = new WeakMap<
 	{ key: EncryptionKey; root: string; manifests: Map<string, Manifest> }
 >();
 
-async function readPins(
+/** Keeps only what `pick` takes from each pin, so no more than the cache's manifests are held at once. */
+async function readPins<T>(
 	storage: ObjectStorage,
 	key: EncryptionKey,
 	root: string,
 	ids: readonly string[],
-): Promise<(Manifest | null)[]> {
+	pick: (manifest: Manifest) => T,
+): Promise<(T | null)[]> {
 	let cache = pinCache.get(storage);
 	if (cache?.key !== key || cache.root !== root) {
 		cache = { key, root, manifests: new Map() };
 		pinCache.set(storage, cache);
 	}
 	const { manifests } = cache;
-	const out: (Manifest | null)[] = [];
+	const out: (T | null)[] = [];
 	await runWithConcurrency(ids, PIN_READ_CONCURRENCY, async (id, index) => {
 		let manifest = manifests.get(id) ?? null;
 		if (!manifest) {
@@ -51,7 +53,7 @@ async function readPins(
 				manifests.delete(oldest);
 			}
 		}
-		out[index] = manifest;
+		out[index] = pick(manifest);
 	});
 	return ids.map((_, index) => out[index] ?? null);
 }
@@ -152,11 +154,11 @@ async function pinnedVersions(
 		key,
 		root,
 		pins.map((m) => m.id),
+		(manifest) => entryAt(manifest.files, path),
 	);
 	const versions: FileVersion[] = [];
 	for (const [index, meta] of pins.entries()) {
-		const manifest = manifests[index];
-		const entry = manifest ? entryAt(manifest.files, path) : undefined;
+		const entry = manifests[index];
 		if (entry) versions.push(toVersion(meta, entry));
 	}
 	return versions;
@@ -267,13 +269,14 @@ async function applyPins(
 		key,
 		root,
 		pinned.map((meta) => meta.id),
+		(manifest) =>
+			Object.entries(manifest.files).filter(
+				([path]) => !entryAt(head.files, path),
+			),
 	);
 	// Newest first, so the freshest pinned version of a path wins.
 	for (const [index, meta] of pinned.entries()) {
-		const manifest = manifests[index];
-		if (!manifest) continue;
-		for (const [path, entry] of Object.entries(manifest.files)) {
-			if (entryAt(head.files, path)) continue;
+		for (const [path, entry] of manifests[index] ?? []) {
 			const existing = found.get(path);
 			if (existing) {
 				// The pin only holds its own hash reachable; a newer death still ages out.

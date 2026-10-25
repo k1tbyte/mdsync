@@ -7,6 +7,8 @@ import { type Space, VAULT_SPACE } from "@/sync/space";
 /** Paths ending in "/" are folders. */
 function setup(notes: Record<string, string>, paths: string[]) {
 	let spaces: Space[] = [VAULT_SPACE];
+	const handlers: Record<string, (file: TFile, oldPath?: string) => void> = {};
+	const scheduleScopeRefresh = vi.fn();
 	const files = paths.map((path) =>
 		path.endsWith("/")
 			? Object.assign(new TFolder(), { path: path.slice(0, -1) })
@@ -15,11 +17,18 @@ function setup(notes: Record<string, string>, paths: string[]) {
 	const plugin = {
 		settings: { ignorePatterns: "" },
 		spaces: { partition: () => spaces },
+		scheduleScopeRefresh,
 		registerEvent: () => {},
 		app: {
 			workspace: { onLayoutReady: () => {} },
 			vault: {
-				on: () => ({}),
+				on: (
+					name: string,
+					handler: (file: TFile, oldPath?: string) => void,
+				) => {
+					handlers[name] = handler;
+					return {};
+				},
 				getAllLoadedFiles: () => files,
 				getAbstractFileByPath: (path: string) =>
 					files.find((file) => file.path === path) ??
@@ -31,7 +40,13 @@ function setup(notes: Record<string, string>, paths: string[]) {
 	const state = registerIgnoreState(
 		plugin as unknown as Parameters<typeof registerIgnoreState>[0],
 	);
-	return { state, mount: (next: Space[]) => (spaces = next) };
+	return {
+		state,
+		mount: (next: Space[]) => (spaces = next),
+		emit: (name: string, path: string, oldPath?: string) =>
+			handlers[name]?.(Object.assign(new TFile(), { path }), oldPath),
+		scheduleScopeRefresh,
+	};
 }
 
 describe("ignore state", () => {
@@ -51,6 +66,44 @@ describe("ignore state", () => {
 			"Team/drafts",
 			"Team/drafts/x.md",
 		]);
+	});
+
+	it("notifies only when a modified path becomes newly ignored", async () => {
+		const { state, emit } = setup({ "syncignore.md": "*.pdf" }, [
+			"a.pdf",
+			"b.md",
+		]);
+		await state.refresh();
+		const notified = vi.fn();
+		state.subscribe(notified);
+
+		emit("modify", "a.pdf");
+		emit("modify", "b.md");
+		expect(notified).not.toHaveBeenCalled();
+
+		emit("create", "c.pdf");
+		expect(notified).toHaveBeenCalledOnce();
+		emit("modify", "c.pdf");
+		expect(notified).toHaveBeenCalledOnce();
+
+		emit("rename", "a.pdf", "old.pdf");
+		expect(notified).toHaveBeenCalledOnce();
+	});
+
+	it("schedules a scope refresh and reloads when an ignore file changes", async () => {
+		const { state, emit, scheduleScopeRefresh } = setup({}, ["a.md"]);
+		await state.refresh();
+		const notified = vi.fn();
+		state.subscribe(notified);
+
+		emit("modify", "a.md");
+		expect(scheduleScopeRefresh).not.toHaveBeenCalled();
+
+		emit("modify", "syncignore.md");
+		expect(scheduleScopeRefresh).toHaveBeenCalledExactlyOnceWith(
+			"Ignore rules changed.",
+		);
+		await vi.waitFor(() => expect(notified).toHaveBeenCalled());
 	});
 
 	it("catches up once a share mounts after the last refresh", async () => {

@@ -251,17 +251,17 @@ async function addPinnedHashes(
 	into: Set<string>,
 ): Promise<boolean> {
 	let complete = true;
-	for (const entry of pinned) {
+	await runWithConcurrency(pinned, GC_CONCURRENCY, async (entry) => {
 		const manifest = await readPinManifest(storage, key, root, entry.id);
 		if (!manifest) {
 			reportWarning(
 				`Pinned snapshot "${entry.id}" has no stored manifest, so old file contents cannot be cleaned up. Unpin and pin it again to repair it.`,
 			);
 			complete = false;
-			continue;
+			return;
 		}
 		collectHashes(manifest, into);
-	}
+	});
 	return complete;
 }
 

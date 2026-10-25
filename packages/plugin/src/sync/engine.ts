@@ -13,9 +13,8 @@ import type { ScopePolicy } from "@/vault/scope";
 import { attribute, publisher } from "./authors";
 import { advanceBaselineForPaths, foldersToPublish } from "./baseline";
 import { throwIfCancelled } from "./cancel";
-import { reconcileBaselineResetGenerations } from "./config-reset";
 import { untouchedSince } from "./content";
-import { diff } from "./diff";
+import { diffWithin } from "./diff";
 import { ownedFiles } from "./foreign";
 import { type HistoryConfig, publishManifestWithHistory } from "./history";
 import { type LiveNotes, settleLive, writeIncoming } from "./live-notes";
@@ -71,6 +70,8 @@ export interface CompareResult {
 	remote: Manifest | null;
 	diff: DiffResult;
 	updatedCache: Record<string, HashCacheEntry>;
+	/** The storage identity it compared against. */
+	storage?: string;
 }
 
 export async function compare(
@@ -121,19 +122,13 @@ export async function compare(
 			],
 		);
 	}
-	const result = diff({
-		local: snapshot,
+	return {
+		snapshot,
 		remote,
-		baseline: remote
-			? reconcileBaselineResetGenerations(
-					deps.state.baseline,
-					remote,
-					deps.scope,
-				)
-			: null,
-		includes: (path) => deps.scope.includes(path),
-	});
-	return { snapshot, remote, diff: result, updatedCache };
+		diff: diffWithin(snapshot, remote, deps.state.baseline, deps.scope),
+		updatedCache,
+		storage: deps.storage.identity(),
+	};
 }
 
 export async function pushPaths(

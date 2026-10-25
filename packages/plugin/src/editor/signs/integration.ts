@@ -3,7 +3,6 @@ import type { Plugin, TAbstractFile } from "obsidian";
 import { TFile } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
-import type { SyncStatusSnapshot } from "@/sync/controller";
 
 import { buildSignsExtensions } from "./extension";
 import { dismissPopup } from "./hunk-popup";
@@ -56,18 +55,16 @@ export function registerEditorSigns(plugin: Plugin & PluginHost): SignsHandle {
 function createActiveRuntime(plugin: Plugin & PluginHost): ActiveSignsRuntime {
 	const provider = new SignsProvider(plugin.controller, plugin.app);
 	// Progress broadcasts arrive every frame during an operation; invalidating on each re-downloads every
-	// open baseline. Also invalidate on settle: a scan-progress frame can deliver the result before its
-	// baseline is persisted.
-	let seen = false;
-	let lastResult: SyncStatusSnapshot["result"] = null;
+	// open baseline. A baseline moves only with an installed or cleared result, which a saved-file patch is
+	// not; settling covers a result delivered before its baseline was persisted.
+	let seen: number | null = null;
 	let lastBusy = false;
 	const unsubControllerStatus = plugin.controller.subscribe((snapshot) => {
 		const settled = lastBusy && !snapshot.busy;
-		const changed = !seen || snapshot.result !== lastResult;
-		seen = true;
-		lastResult = snapshot.result;
+		const moved = snapshot.resultRevision !== seen;
+		seen = snapshot.resultRevision;
 		lastBusy = snapshot.busy;
-		if (!changed && !settled) return;
+		if (!moved && !settled) return;
 		provider.invalidateAll();
 	});
 	const unsubRename = onRename(plugin, (oldPath, newPath) => {

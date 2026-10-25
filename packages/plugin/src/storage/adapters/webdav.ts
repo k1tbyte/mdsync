@@ -1,4 +1,4 @@
-import { requestUrl } from "obsidian";
+import { type RequestUrlParam, requestUrl } from "obsidian";
 
 import { DEFAULT_CONCURRENCY } from "@/constants";
 import { normalizeKeyPrefix } from "@/shared";
@@ -19,10 +19,10 @@ import {
 	dateOf,
 	headerValue,
 	isRetryableStatus,
-	STORAGE_TIMEOUT_MS,
 	StorageHttpError,
+	transferBytes,
+	withDeadline,
 	withRetry,
-	withTimeout,
 } from "./util";
 
 const PROPFIND_BODY =
@@ -104,13 +104,17 @@ export function createWebDAVAdapter(
 	const readObject = async (
 		key: string,
 		etag: string | null,
+		size?: number,
 	): Promise<ConditionalRead> => {
-		const res = await davRequest({
-			url: urlForKey(key),
-			method: "GET",
-			headers: buildHeaders(etag ? { "If-None-Match": etag } : {}),
-			throw: false,
-		});
+		const res = await davRequest(
+			{
+				url: urlForKey(key),
+				method: "GET",
+				headers: buildHeaders(etag ? { "If-None-Match": etag } : {}),
+				throw: false,
+			},
+			size,
+		);
 		// A server ignoring the precondition answers 200: an unconditional read. A 304 to a read with no
 		// validator describes nothing, and a plain read's caller would take it for an absent object.
 		if (res.status === HTTP_NOT_MODIFIED) {
@@ -212,11 +216,11 @@ export function createWebDAVAdapter(
 			assertOk(res, "check", key);
 			return true;
 		},
-		async get(key) {
-			const read = await readObject(key, null);
+		async get(key, size) {
+			const read = await readObject(key, null, size);
 			return read.status === "found" ? read.body : null;
 		},
-		getIfChanged: readObject,
+		getIfChanged: (key, etag) => readObject(key, etag),
 		async put(key, body, contentType) {
 			const res = await sendPut(key, body, contentType);
 			assertOk(res, "write", key);
@@ -270,10 +274,15 @@ export function createWebDAVAdapter(
  * retrying transport failures or "try later" statuses is safe; other statuses go to the caller.
  */
 async function davRequest(
-	params: Parameters<typeof requestUrl>[0],
+	params: RequestUrlParam,
+	/** Bytes a body-less request is expected to receive. */
+	expected?: number,
 ): Promise<Awaited<ReturnType<typeof requestUrl>>> {
 	return withRetry(async () => {
-		const res = await withTimeout(requestUrl(params), STORAGE_TIMEOUT_MS);
+		const res = await withDeadline(
+			requestUrl(params),
+			transferBytes(params.body, expected),
+		);
 		if (isRetryableStatus(res.status)) {
 			throw new StorageHttpError(
 				res.status,

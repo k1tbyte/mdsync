@@ -3,8 +3,10 @@
  * and no compare-and-set is needed.
  */
 
+import { DEFAULT_CONCURRENCY } from "@/constants";
 import { decryptJson, type EncryptionKey, encryptJson } from "@/crypto";
 import { reportWarning } from "@/shared";
+import { runWithConcurrency } from "@/utils";
 
 import type { ListedObject, ObjectStorage } from "./types";
 
@@ -43,19 +45,25 @@ export async function readRecords<T extends { id: string }>(
 		if (!names.has(name)) cache.delete(name);
 	}
 	const unreadable = new Set<string>();
-	const records = await Promise.all(
-		listed.map(async ({ key: name, etag }) => {
+	const records: Array<T | null> = [];
+	await runWithConcurrency(
+		listed,
+		DEFAULT_CONCURRENCY,
+		async ({ key: name, etag }, index) => {
 			const held = cache.get(name);
-			if (etag !== null && held?.etag === etag) return held.record as T;
+			if (etag !== null && held?.etag === etag) {
+				records[index] = held.record as T;
+				return;
+			}
 			const read = await readObject(storage, name, etag);
-			if (!read) return null;
+			if (!read) return;
 			const record = await decodeRecord(key, kind, name, read.body);
 			if (!record) unreadable.add(idOf(kind, name));
 			else if (read.etag !== null) {
 				cache.set(name, { etag: read.etag, record });
 			}
-			return record;
-		}),
+			records[index] = record;
+		},
 	);
 	return {
 		records: records.filter((record) => record !== null),

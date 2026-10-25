@@ -49,6 +49,7 @@ export function recomputeAfterWrite(
 		remote: outcome.newRemote,
 		diff: result,
 		updatedCache: freshState.hashCache,
+		storage: prevResult.storage,
 	};
 }
 

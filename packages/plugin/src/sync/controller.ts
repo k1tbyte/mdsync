@@ -1,3 +1,4 @@
+import type { LocalOpener } from "@/core/session-factory";
 import { ESyncLogOperation } from "@/logs/store";
 import type { SettingsSyncCategories } from "@/settings/model";
 import { authorOf, type LastEdit } from "./authors";
@@ -39,6 +40,7 @@ import {
 	type SpaceOperation,
 } from "./runtime/operation-runner";
 import { RefreshQueue } from "./runtime/refresh-queue";
+import { SavedRefresh } from "./runtime/saved-refresh";
 import { pathsBySpace, type Space, spaceOf, VAULT_SPACE } from "./space";
 import type { LocalState } from "./types";
 
@@ -60,6 +62,8 @@ export interface SyncControllerHost {
 		space: Space,
 		partition: readonly Space[],
 	): Promise<EngineDependencies | null>;
+	/** A quick local look at the space's files; null where a session would need a prompt. Never reaches the network. */
+	openLocal?: LocalOpener;
 	persistState(state: LocalState): Promise<void>;
 	getState(): LocalState;
 	/** Another device may want the space now: its channel is signalled. */
@@ -123,6 +127,7 @@ export class SyncController {
 	readonly fileDiffs: FileDiffService;
 	private readonly operations: OperationRunner;
 	private readonly refreshes: RefreshQueue;
+	private readonly saved: SavedRefresh;
 	private readonly autoPushPaths: AutoPushSelector;
 	private localRevision = 0;
 	readonly history: HistoryService;
@@ -166,6 +171,7 @@ export class SyncController {
 					this.autoPushPaths,
 				),
 		);
+		this.saved = new SavedRefresh({ runtimeState: this.runtimeState, host });
 		this.history = new HistoryService({
 			openSession: (path) =>
 				open(path === undefined ? VAULT_SPACE : this.spaceFor(path)),
@@ -212,6 +218,7 @@ export class SyncController {
 	}
 
 	dispose(): void {
+		this.saved.dispose();
 		this.runtimeState.dispose();
 		this.fileDiffs.clear();
 		clearRemoteTextCache();
@@ -229,6 +236,11 @@ export class SyncController {
 
 	noteLocalChange(): void {
 		this.localRevision++;
+	}
+
+	/** A saved file's change state, patched into the last compare: local only, no push, no `busy`. */
+	refreshSaved(path: string): void {
+		this.saved.request(path);
 	}
 
 	/** Before a share mounts into an empty folder, or once it closes; see `OperationRunner.forget`. */

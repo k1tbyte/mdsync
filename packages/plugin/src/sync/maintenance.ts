@@ -97,6 +97,7 @@ export async function verifyRemote(
 	const missing: string[] = [];
 	const corrupt: string[] = [];
 	let done = 0;
+	storage.prepareReads?.(list.map(objectKey));
 	await runWithFileConcurrency(
 		list,
 		concurrency,

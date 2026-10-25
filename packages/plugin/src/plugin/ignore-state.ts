@@ -103,6 +103,7 @@ export function registerIgnoreState(
 		if (!isTrackable(file.path) || !ignoredIn(spaces, probeOf(file))) {
 			return false;
 		}
+		if (ignored.has(file.path)) return false;
 		ignored.add(file.path);
 		return true;
 	};
@@ -117,6 +118,7 @@ export function registerIgnoreState(
 			isIgnoreNote(spaces, file.path) ||
 			(oldPath !== undefined && isIgnoreNote(spaces, oldPath))
 		) {
+			plugin.scheduleScopeRefresh("Ignore rules changed.");
 			void refresh();
 			return;
 		}

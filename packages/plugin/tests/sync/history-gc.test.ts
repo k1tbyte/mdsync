@@ -372,6 +372,63 @@ describe("collectGarbage (change log)", () => {
 		expect(next.snapshots.map((e) => e.id)).toEqual(["s5", "s4", "s1"]);
 	});
 
+	it("reads pinned manifests concurrently and warns once per missing pin", async () => {
+		const storage = new FakeStorage();
+		const k = await key();
+		const chain = Array.from({ length: 8 }, (_, index) =>
+			manifest(`s${index}`, index === 0 ? null : `s${index - 1}`, {
+				a: `A${index}`,
+			}),
+		);
+		const head = chain[7] as Manifest;
+		const pinnedIds = ["s0", "s1", "s2", "s3", "s4", "s5"];
+		const log = logOf(chain, pinnedIds);
+		await publishManifest(storage, k, head);
+		await seedObjects(
+			storage,
+			chain.map((_, index) => `A${index}`),
+		);
+		storage.age(DAY_MS + 1);
+		await writeHistoryLog(storage, k, "", log);
+		for (const [index, id] of pinnedIds.entries()) {
+			if (id === "s2" || id === "s4") continue;
+			await storage.put(
+				pinKey(id),
+				await encryptJson(k, chain[index] as Manifest),
+			);
+		}
+		const pinKeys = new Set(pinnedIds.map(pinKey));
+		const get = storage.get.bind(storage);
+		let active = 0;
+		let peak = 0;
+		vi.spyOn(storage, "get").mockImplementation(async (path) => {
+			if (!pinKeys.has(path)) return get(path);
+			peak = Math.max(peak, ++active);
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
+			active--;
+			return get(path);
+		});
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+		const res = await collectGarbage({
+			storage,
+			key: k,
+			root: "",
+			log,
+			maxSnapshots: 1,
+			headManifest: head,
+		});
+
+		expect(peak).toBe(4);
+		const messages = warn.mock.calls.map((call) => String(call[0]));
+		expect(
+			messages.filter((m) => m.includes("has no stored manifest")),
+		).toHaveLength(2);
+		expect(res.skippedObjectSweep).toBe(true);
+		expect(res.deletedObjects).toBe(0);
+		warn.mockRestore();
+	});
+
 	it("withholds the sweep when a pin manifest exists without its flag", async () => {
 		const storage = new FakeStorage();
 		const k = await key();

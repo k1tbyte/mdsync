@@ -14,6 +14,7 @@ interface Harness {
 	pushes: () => ReadonlyArray<ReadonlySet<string> | undefined>;
 	sharePushes: () => ReadonlyArray<ReadonlySet<string>>;
 	goOnline: () => void;
+	saved: () => readonly string[];
 }
 
 const SHARES: Record<string, Space> = {
@@ -79,8 +80,10 @@ function harness(options: {
 		registerEvent: () => undefined,
 	} as unknown as SchedulerHost;
 	const sharePushes: ReadonlySet<string>[] = [];
+	const saved: string[] = [];
 	const controller = {
 		noteLocalChange: vi.fn(),
+		refreshSaved: (path: string) => saved.push(path),
 		refreshAndAutoPush: async (paths?: ReadonlySet<string>) => {
 			refreshes++;
 			pushes.push(paths);
@@ -101,6 +104,7 @@ function harness(options: {
 		},
 		refreshes: () => refreshes,
 		pushes: () => pushes,
+		saved: () => saved,
 		goOnline: () => {
 			vi.stubGlobal("navigator", { onLine: true });
 			for (const fn of onlineListeners) fn();
@@ -117,6 +121,16 @@ describe("queued push after changes settle", () => {
 	afterEach(() => {
 		vi.useRealTimers();
 		vi.unstubAllGlobals();
+	});
+
+	it("refreshes a saved file's status on modify only, whatever the push settings", () => {
+		const h = harness({ enabled: false, queuedOnly: true });
+		h.emit("modify", "a.md");
+		h.emit("modify", "Team/b.md");
+		h.emit("create", "c.md");
+		h.emit("delete", "d.md");
+		h.emit("rename", "e.md", "old.md");
+		expect(h.saved()).toEqual(["a.md", "Team/b.md"]);
 	});
 
 	it("keeps the changes while offline and pushes them once back", async () => {

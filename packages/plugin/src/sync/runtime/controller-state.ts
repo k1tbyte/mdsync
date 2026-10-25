@@ -23,6 +23,8 @@ export interface SyncStatusSnapshot {
 	pendingRemote: number;
 	conflicts: number;
 	lastCompareAt: number | null;
+	/** Moves when a compare or an operation installs or clears results, never for a saved-file patch. */
+	resultRevision: number;
 	vaultCheck: VaultCheck | null;
 	busy: boolean;
 	error: string | null;
@@ -45,6 +47,7 @@ export class SyncControllerRuntimeState {
 	/** The partition of the last refresh; operations route by it until the next. */
 	private partition: readonly Space[] = [VAULT_SPACE];
 	private resultAt: number | null = null;
+	private resultRevision = 0;
 	private vaultCheck: VaultCheck | null = null;
 	private pendingOps = 0;
 	private error: string | null = null;
@@ -72,6 +75,7 @@ export class SyncControllerRuntimeState {
 			pendingRemote: diff ? changeCount(diff.remoteChanges, diff.moves) : 0,
 			conflicts: diff?.conflicts.length ?? 0,
 			lastCompareAt: this.resultAt,
+			resultRevision: this.resultRevision,
 			vaultCheck: this.vaultCheck,
 			busy: this.pendingOps > 0,
 			error: this.error,
@@ -126,6 +130,13 @@ export class SyncControllerRuntimeState {
 		);
 		this.merged = null;
 		this.resultAt = Date.now();
+		this.resultRevision++;
+	}
+
+	/** A display-only fix of one space's result: no compare ran, so neither the time nor the errors move. */
+	patchResult(space: Space, result: CompareResult): void {
+		this.results.set(space.id, result);
+		this.merged = null;
 	}
 
 	/** A full refresh: spaces no longer listed drop out. */
@@ -135,6 +146,7 @@ export class SyncControllerRuntimeState {
 		);
 		this.merged = null;
 		this.resultAt = Date.now();
+		this.resultRevision++;
 	}
 
 	/** The vault compared against `storage` just now. */
@@ -145,6 +157,7 @@ export class SyncControllerRuntimeState {
 	clearResult(): void {
 		this.results.clear();
 		this.merged = null;
+		this.resultRevision++;
 	}
 
 	setError(error: string | null): void {
@@ -232,14 +245,20 @@ export class SyncControllerRuntimeState {
 		this.publishProgress("Cancelling…");
 	}
 
-	enqueue<T>(task: () => Promise<T>): Promise<T> {
-		this.pendingOps++;
-		if (this.pendingOps === 1) this.broadcast();
+	/** Takes its turn in the chain without counting as an operation: `busy` never flips for it. */
+	enqueueQuiet<T>(task: () => Promise<T>): Promise<T> {
 		const run = this.chain.then(task);
 		this.chain = run.then(
 			() => undefined,
 			() => undefined,
 		);
+		return run;
+	}
+
+	enqueue<T>(task: () => Promise<T>): Promise<T> {
+		this.pendingOps++;
+		if (this.pendingOps === 1) this.broadcast();
+		const run = this.enqueueQuiet(task);
 		const finish = (): void => {
 			this.pendingOps--;
 			if (this.pendingOps === 0) this.broadcast();

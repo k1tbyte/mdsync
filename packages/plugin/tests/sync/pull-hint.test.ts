@@ -12,6 +12,15 @@ class HintedStorage extends FakeStorage {
 	}
 }
 
+class SizedStorage extends FakeStorage {
+	readonly sizes = new Map<string, number | undefined>();
+
+	override get(key: string, size?: number): Promise<Uint8Array | null> {
+		this.sizes.set(key, size);
+		return super.get(key);
+	}
+}
+
 async function seededPair(storage: FakeStorage) {
 	const source = new TestSession("device-a", storage);
 	source.adapter.write("a.md", "first");
@@ -70,5 +79,21 @@ describe("hinting a pull's reads to the storage", () => {
 
 		expect(result.written.size).toBe(4);
 		expect(target.text("d.md")).toBe("third");
+	});
+});
+
+describe("size hint on a pull's downloads", () => {
+	useEncryptionKey();
+
+	it("passes the manifest entry's size to the storage read", async () => {
+		const storage = new SizedStorage();
+		const target = await seededPair(storage);
+		const before = await compare(target.deps());
+		const entry = before.remote?.files["d.md"];
+
+		await pullPaths(target.deps(), before, ["d.md"]);
+
+		expect(entry?.size).toBe(5);
+		expect(storage.sizes.get(objectKey(entry?.hash as string))).toBe(5);
 	});
 });
