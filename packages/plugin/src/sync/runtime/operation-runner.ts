@@ -10,6 +10,7 @@ import { advanceBaselineForPaths } from "@/sync/baseline";
 import { isCancellation } from "@/sync/cancel";
 import { reconcileBaselineResetGenerations } from "@/sync/config-reset";
 import type { SyncControllerHost } from "@/sync/controller";
+import { settleLanded } from "@/sync/cut-short";
 import {
 	type CompareResult,
 	compare,
@@ -178,7 +179,7 @@ export class OperationRunner {
 		local: LocalState;
 		storage: string;
 	} | null> {
-		const session = await this.openSession(space);
+		let session = await this.openSession(space);
 		if (!session) return null;
 		const depsWithProgress: EngineDependencies = {
 			...session,
@@ -197,6 +198,7 @@ export class OperationRunner {
 			if (err instanceof SpaceGoneError) this.deps.host.onSpaceGone?.(space);
 			throw err;
 		});
+		session = await this.saveLanded(session);
 		const identity = session.storage.identity();
 		const reconciled = result.remote
 			? reconcileBaselineResetGenerations(
@@ -338,9 +340,11 @@ export class OperationRunner {
 		const epoch = this.deps.runtimeState.currentEpoch();
 		let scope: { signal: AbortSignal; end: () => void } | null = null;
 		let ended = false;
+		let journal: EngineDependencies["journal"];
 		try {
 			let session = await this.openSession(space);
 			if (!session) return { ok: false };
+			journal = session.journal;
 			if (comparison && this.invalidatedSince(comparison.epoch))
 				return { ok: false };
 			const current =
@@ -357,6 +361,7 @@ export class OperationRunner {
 							current ? comparison.result.remote : undefined,
 						);
 			if (this.invalidatedSince(epoch)) return { ok: false };
+			session = await this.saveLanded(session);
 			if (result.remote) {
 				const baseline = reconcileBaselineResetGenerations(
 					session.state.baseline,
@@ -440,10 +445,18 @@ export class OperationRunner {
 		} finally {
 			ended = true;
 			scope?.end();
+			// Its writes landed but their baseline unsaved: listed so, an edit since still gets their steps.
+			await journal?.save().catch(() => undefined);
 			// Broadcast, not just set: a queued operation keeps pendingOps above
 			// zero, so nothing else would repaint away a stale "Cancelling…".
 			this.deps.runtimeState.publishProgress(null);
 		}
+	}
+
+	private saveLanded(session: EngineDependencies): Promise<EngineDependencies> {
+		return settleLanded(session, (state) =>
+			this.buildContext(session).persistState(state),
+		);
 	}
 
 	/** Every session, reads too: a paused share asks its storage nothing. */

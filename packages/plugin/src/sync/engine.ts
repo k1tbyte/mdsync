@@ -5,26 +5,26 @@ import { sceneOfBytes } from "@/drawing";
 import { entryAt, reportWarning, sortedByPath } from "@/shared";
 import type { StorageAdapter } from "@/storage/types";
 import { REMOTE_OBJECTS_PREFIX } from "@/sync/constants";
-import { runWithConcurrency, runWithFileConcurrency } from "@/utils";
+import { runWithFileConcurrency } from "@/utils";
 import type { VaultIndex } from "@/vault/file-index";
-import { deletePath, readBinary, unchangedSince } from "@/vault/io";
+import { readBinary } from "@/vault/io";
 import { scanVault } from "@/vault/scanner";
 import type { ScopePolicy } from "@/vault/scope";
 import { attribute, publisher } from "./authors";
-import { advanceBaselineForPaths, foldersToPublish } from "./baseline";
+import { foldersToPublish } from "./baseline";
 import { throwIfCancelled } from "./cancel";
-import { untouchedSince } from "./content";
+import { finishCutShort, withLanded } from "./cut-short";
 import { diffWithin } from "./diff";
 import { ownedFiles } from "./foreign";
 import { type HistoryConfig, publishManifestWithHistory } from "./history";
-import { type LiveNotes, settleLive, writeIncoming } from "./live-notes";
+import type { WriteJournal } from "./journal";
+import type { LiveNotes } from "./live-notes";
 import {
 	buildManifest,
 	fetchRemoteManifest,
 	objectKey,
 	reconcileRemoteAgainstBaseline,
 } from "./manifest";
-import { pullMoves, syncFolders } from "./pull-moves";
 import { skipUnholdableNames } from "./remote-names";
 import { assertSpacePresent, type Space } from "./space";
 import {
@@ -63,6 +63,7 @@ export interface EngineDependencies {
 	live?: LiveNotes;
 	/** Whose the content this session publishes is; absent names the device. */
 	author?: ManifestAuthor;
+	journal?: WriteJournal;
 }
 
 export interface CompareResult {
@@ -79,53 +80,53 @@ export async function compare(
 	/** Avoids re-downloading a freshly fetched remote head. */
 	knownRemote?: Manifest | null,
 ): Promise<CompareResult> {
-	const [{ snapshot: scanned, updatedCache }, fetched] = await Promise.all([
-		scanVault(
-			deps.adapter,
-			deps.scope,
-			{
-				maxFileBytes: deps.maxFileBytes,
-				onProgress: deps.onScanProgress,
-				concurrency: deps.concurrency,
-				index: deps.index,
-				expected: deps.state.baseline?.files,
-				walk: deps.walkDisk,
-				unindexed: deps.unindexed,
-			},
-			deps.state.hashCache,
-		),
+	const fetching =
 		knownRemote === undefined
 			? fetchRemoteManifest(deps.storage, deps.key, deps.space.root)
-			: Promise.resolve(knownRemote),
-	]);
+			: Promise.resolve(knownRemote);
+	// Awaited after the scan; failing before that is no unhandled rejection.
+	fetching.catch(() => undefined);
+	const { snapshot: scanned, updatedCache } = await scanVault(
+		deps.adapter,
+		deps.scope,
+		{
+			maxFileBytes: deps.maxFileBytes,
+			onProgress: deps.onScanProgress,
+			concurrency: deps.concurrency,
+			index: deps.index,
+			expected: deps.state.baseline?.files,
+			walk: deps.walkDisk,
+			unindexed: deps.unindexed,
+		},
+		deps.state.hashCache,
+	);
+	// Before the remote: with none in reach a note cut short is finished all the same.
+	await finishCutShort(deps, scanned);
+	const baseline = withLanded(deps);
+	const fetched = await fetching;
 	assertVaultCompatibility(deps.state, fetched);
-	assertSpacePresent(deps.space, scanned, deps.state.baseline);
+	assertSpacePresent(deps.space, scanned, baseline);
 	const remote = reconcileRemoteAgainstBaseline(
 		fetched,
-		deps.state.baseline,
+		baseline,
 		deps.storage,
 		deps.key,
 	);
-	const snapshot = skipUnholdableNames(
-		scanned,
-		remote,
-		deps.state.baseline,
-		deps.scope,
-	);
+	const snapshot = skipUnholdableNames(scanned, remote, baseline, deps.scope);
 	if (fetched && remote !== fetched) {
 		reportWarning(
 			"Storage returned a stale manifest; using the complete published head.",
 			undefined,
 			[
 				`fetched: ${fetched.snapshotId}`,
-				`baseline: ${deps.state.baseline?.snapshotId ?? "none"}`,
+				`baseline: ${baseline?.snapshotId ?? "none"}`,
 			],
 		);
 	}
 	return {
 		snapshot,
 		remote,
-		diff: diffWithin(snapshot, remote, deps.state.baseline, deps.scope),
+		diff: diffWithin(snapshot, remote, baseline, deps.scope),
 		updatedCache,
 		storage: deps.storage.identity(),
 	};
@@ -192,111 +193,6 @@ export async function pushPaths(
 	});
 	const manifest = await publishFileMap(deps, compareResult, nextFiles);
 	return manifest;
-}
-
-export interface PullResult {
-	baseline: Manifest;
-	/** What each pulled path now looks like on disk (null = deleted). */
-	written: Map<string, ManifestEntry | null>;
-	/** Stopped early: `written` holds only what actually landed. */
-	cancelled: boolean;
-}
-
-export async function pullPaths(
-	deps: EngineDependencies,
-	compareResult: CompareResult,
-	paths: ReadonlyArray<string>,
-	onProgress?: (done: number, total: number) => void,
-): Promise<PullResult> {
-	if (!compareResult.remote) {
-		throw new Error("Cannot pull: remote manifest is missing");
-	}
-	const concurrency = deps.concurrency ?? DEFAULT_CONCURRENCY;
-	const pathSet = new Set(paths);
-	const remote = compareResult.remote;
-	const moved = await pullMoves(deps, compareResult, pathSet);
-	const changes = compareResult.diff.remoteChanges.filter(
-		(c) =>
-			pathSet.has(c.path) &&
-			!moved.paths.has(c.path) &&
-			deps.scope.includes(c.path),
-	);
-
-	const downloads = changes.filter((c) => c.type !== EChangeType.RemoteDelete);
-	const deletions = changes.filter((c) => c.type === EChangeType.RemoteDelete);
-	const total = downloads.length + deletions.length;
-	let done = 0;
-
-	const written = new Map<string, ManifestEntry | null>(moved.written);
-	const hashes = new Set<string>();
-	for (const change of downloads) {
-		const entry = entryAt(remote.files, change.path);
-		if (entry) hashes.add(entry.hash);
-	}
-	deps.storage.prepareReads?.([...hashes].map(objectKey));
-	/** True when live editing settled the path: an open room keeps its file. */
-	const settledLive = async (path: string): Promise<boolean> => {
-		const side = await settleLive(deps, compareResult, path);
-		if (side === "local") {
-			written.set(path, entryAt(compareResult.snapshot.files, path) ?? null);
-		}
-		return side === "local" || side === "later";
-	};
-	const leftAlone = async (path: string): Promise<boolean> =>
-		(await settledLive(path)) ||
-		!(await unchangedSince(
-			deps.adapter,
-			path,
-			entryAt(compareResult.snapshot.files, path),
-		));
-	await runWithFileConcurrency(
-		downloads,
-		concurrency,
-		(change) => entryAt(remote.files, change.path)?.size ?? 0,
-		async (change) => {
-			const entry = entryAt(remote.files, change.path);
-			if (!entry) throw new Error(`Missing manifest entry for ${change.path}`);
-			if (!(await leftAlone(change.path))) {
-				const seen = entryAt(compareResult.snapshot.files, change.path);
-				const ready = untouchedSince(deps, change.path, seen);
-				const local = await writeIncoming(deps, change.path, entry, ready);
-				if (local) written.set(change.path, local);
-			}
-			onProgress?.(++done, total);
-		},
-		deps.signal,
-	);
-
-	await runWithConcurrency(
-		deletions,
-		concurrency,
-		async (change) => {
-			if (!(await leftAlone(change.path))) {
-				await deletePath(deps.adapter, change.path);
-				written.set(change.path, null);
-			}
-			onProgress?.(++done, total);
-		},
-		deps.signal,
-	);
-
-	// Unlike a push nothing is withheld: written files are correct alone. The folder pass is skipped since a
-	// partial pull has not reached the whole tree.
-	const cancelled = deps.signal?.aborted === true;
-	const onDisk = cancelled
-		? compareResult.snapshot.emptyFolders
-		: await syncFolders(deps, remote, written);
-
-	// `written`, not `paths`: advancing the baseline of a never-downloaded path would turn an unresolved
-	// conflict into a local edit pushed over the remote.
-	const baseline = advanceBaselineForPaths(
-		deps.state.baseline,
-		remote,
-		new Set(written.keys()),
-		onDisk,
-		deps.scope,
-	);
-	return { baseline, written, cancelled };
 }
 
 export async function storeObject(

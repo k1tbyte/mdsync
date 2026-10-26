@@ -178,6 +178,7 @@ function visibleSideLines(
 	const { doc } = view.state;
 	const { side, choices } = config;
 	const tone = side === "left" ? "removed" : "added";
+	const combined = view.state.field(combinedModeField);
 	forEachVisibleRange(
 		view,
 		config.segments(),
@@ -187,7 +188,8 @@ function visibleSideLines(
 			const chosen = choices.kindOf(segment) !== undefined ? " is-chosen" : "";
 			const state = `is-${tone}${chosen}`;
 			if (to <= from) {
-				// The notch marks where the other side's lines went, so it takes their colour.
+				// The notch marks where the other side's lines went, so it takes their colour; inline, the card does.
+				if (combined) return;
 				const other = tone === "added" ? "removed" : "added";
 				const at = sideSpan(doc, segment[side]).from;
 				markLine(tints, doc, at, `is-${other}${chosen}`);

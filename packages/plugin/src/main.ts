@@ -30,6 +30,7 @@ import { SettingsTransferController } from "@/settings/transfer-controller";
 import { reportWarning } from "@/shared";
 import type { SpaceRecords } from "@/spaces";
 import type { SyncController } from "@/sync/controller";
+import type { WriteJournal } from "@/sync/journal";
 import { registerScheduler } from "@/sync/scheduler";
 import {
 	type CursorFollow,
@@ -109,6 +110,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 	private deviceKey!: DeviceKey;
 	private envelope!: SettingsEnvelope;
 	private statePersister!: StatePersister;
+	private journal?: WriteJournal;
 	private scopeRefreshTimer: number | null = null;
 	private editorSigns: SignsHandle | null = null;
 	private fileIndicators: IndicatorHandle | null = null;
@@ -169,6 +171,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		}
 		this.logs = runtime.logs;
 		this.statePersister = runtime.statePersister;
+		this.journal = runtime.journal;
 		this.spaces = runtime.spaces;
 		this.passphrase = runtime.passphraseManager;
 		this.controller = runtime.controller;
@@ -179,6 +182,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 			controller: this.controller,
 			settings: () => this.settings,
 			spaces: this.spaces,
+			journal: runtime.journal,
 			onDeletedElsewhere: createDeletedElsewhere(this),
 		});
 		this.device = new DeviceName(this.statePersister, () =>
@@ -208,6 +212,12 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		registerCommands(this, registeredUi.openNoteMenu);
 		registerHashCarry(this, this.statePersister);
 		registerScheduler(this, this.controller);
+		// Auto-sync may be off: a compare ends what the load put back, and only then can its room open.
+		this.app.workspace.onLayoutReady(() => {
+			if (runtime.journal.hasCutShort() && canSync(this.settings)) {
+				void this.controller.refresh();
+			}
+		});
 		registerWorkspaceMenus(this);
 		registerShareRenames(this);
 		registerLinkPaths(this);
@@ -244,6 +254,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		this.fileIndicators = null;
 		this.refreshStatusBar = null;
 		safely(() => this.statePersister?.dispose());
+		safely(() => this.journal?.dispose());
 		safely(() => this.controller?.dispose());
 		safely(() => this.passphrase?.dispose());
 		safely(() => this.realtime?.dispose());

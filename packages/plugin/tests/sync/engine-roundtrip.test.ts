@@ -6,13 +6,9 @@ import { deriveKey, type EncryptionKey } from "@/crypto";
 import { DEFAULT_SETTINGS_SYNC } from "@/settings/model";
 import { advanceSessionAfterPush } from "@/sync/baseline";
 import { REMOTE_MANIFEST_KEY, REMOTE_OBJECTS_PREFIX } from "@/sync/constants";
-import {
-	compare,
-	type EngineDependencies,
-	pullPaths,
-	pushPaths,
-} from "@/sync/engine";
+import { compare, type EngineDependencies, pushPaths } from "@/sync/engine";
 import { readHistoryLog } from "@/sync/history/store";
+import { pullPaths } from "@/sync/pull";
 import { VAULT_SPACE } from "@/sync/space";
 import { EChangeType, type SessionState } from "@/sync/types";
 import { SETTLED_AFTER_MS } from "@/sync/uploads";

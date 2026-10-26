@@ -10,6 +10,7 @@ import {
 } from "@/live";
 import { personColor, reportWarning } from "@/shared";
 import type { SpaceRecords } from "@/spaces";
+import type { WriteJournal } from "@/sync/journal";
 import type { LiveNotes } from "@/sync/live-notes";
 import { type Space, spaceOf, VAULT_SPACE } from "@/sync/space";
 import { renameInVault } from "@/vault/file-index";
@@ -20,6 +21,7 @@ export interface LiveHost extends SpaceAccessHost {
 	app: App;
 	/** Its partition is the spaces as the records have them now, ahead of the next refresh. */
 	spaces: Pick<SpaceRecords, "get" | "partition">;
+	journal: Pick<WriteJournal, "writeAt">;
 	onDeletedElsewhere(path: string): void;
 }
 
@@ -41,7 +43,15 @@ export function createLive(
 	const sessions = new LiveSessions({
 		app: host.app,
 		hub,
-		liveSpace: (path) => liveSpace(spaceOf(host.spaces.partition(), path)),
+		liveSpace: async (path) => {
+			const space = spaceOf(host.spaces.partition(), path);
+			const write = host.journal.writeAt(space, path);
+			// A room reads part of a write as edits and sends them everywhere: none opens under one, none stays on one cut short.
+			if (write === "cut" || (write && sessions.spaceOf(path) === null)) {
+				return null;
+			}
+			return liveSpace(space);
+		},
 		agreed,
 		baseText: (path) => baseTextOf(host, path),
 		moveFile: (from, to) => moveFile(vault, from, to),

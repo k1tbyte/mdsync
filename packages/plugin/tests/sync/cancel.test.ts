@@ -6,8 +6,9 @@ import {
 	throwIfCancelled,
 } from "@/sync/cancel";
 import { REMOTE_OBJECTS_PREFIX } from "@/sync/constants";
-import { compare, pullPaths, pushPaths } from "@/sync/engine";
+import { compare, pushPaths } from "@/sync/engine";
 import { fetchRemoteManifest } from "@/sync/manifest";
+import { pullPaths } from "@/sync/pull";
 import { runWithConcurrency } from "@/utils";
 
 describe("throwIfCancelled", () => {

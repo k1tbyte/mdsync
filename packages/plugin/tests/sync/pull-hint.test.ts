@@ -1,8 +1,9 @@
 import { FakeStorage } from "@tests/helpers/fake-storage";
 import { TestSession, useEncryptionKey } from "@tests/helpers/session";
 import { describe, expect, it } from "vitest";
-import { compare, pullPaths, pushPaths } from "@/sync/engine";
+import { compare, pushPaths } from "@/sync/engine";
 import { objectKey } from "@/sync/manifest";
+import { pullPaths } from "@/sync/pull";
 
 class HintedStorage extends FakeStorage {
 	readonly hints: string[][] = [];

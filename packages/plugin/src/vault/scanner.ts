@@ -14,7 +14,6 @@ import {
 } from "@/utils";
 import { buildEntry } from "./entry";
 import type { VaultIndex } from "./file-index";
-import { confirmGone } from "./gone";
 import { caseInsensitiveDisk } from "./io";
 import type { ScopePolicy } from "./scope";
 
@@ -93,7 +92,6 @@ export async function scanVault(
 	}
 	let scanned = 0;
 	const gate = createLargeFileGate();
-	const absent: string[] = [];
 	await runWithConcurrency(paths, concurrency, async (candidate) => {
 		const path = candidate.path;
 		// The index listed this path, so it existed moments ago.
@@ -114,8 +112,6 @@ export async function scanVault(
 					// Unreadable is not absent: report it skipped, or the diff publishes a deletion.
 					if (indexed) {
 						skipped.push({ path, reason: "unreadable" });
-					} else {
-						absent.push(path);
 					}
 					return;
 				}
@@ -149,16 +145,6 @@ export async function scanVault(
 		const count = ++scanned;
 		if (options.onProgress && count % 500 === 0) options.onProgress(count);
 	});
-	const gone = await confirmGone(adapter, absent);
-	for (const path of absent) {
-		if (gone.has(path)) continue;
-		skipped.push({
-			path,
-			reason: "unreadable",
-			detail: "Could not confirm it was deleted",
-		});
-	}
-
 	if (caseInsensitiveDisk()) {
 		const listed = new Set(
 			paths

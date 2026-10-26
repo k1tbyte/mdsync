@@ -21,12 +21,14 @@ broker, Google OAuth proxy; deployed by the Deploy Relay workflow).
 
 Breaking an engine invariant silently corrupts user data or publishes remote
 deletions. Read [sync invariants](.claude/sync-invariants.md) before changing
-diff, hunk, baseline, history or GC code.
+diff, hunk, baseline, history or GC code, and [platform contracts](.claude/platform-contracts.md)
+before code that writes, renames or deletes vault files.
 
 ## Guidelines
 
 - [Architecture](.claude/architecture.md) - layout, layering, imports, conventions
 - [Sync invariants](.claude/sync-invariants.md) - data-integrity rules of the engine
+- [Platform contracts](.claude/platform-contracts.md) - what Obsidian's adapter really does on each platform
 - [Spaces, shares and live](.claude/shares.md) - the model, relay hub, protocol and live layer, and why
 - [Commands & settings](.claude/commands-and-settings.md) - commands, settings, transfer, UI copy
 - [Testing](.claude/testing.md) - vitest, CDP driver, manual install

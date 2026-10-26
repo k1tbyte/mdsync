@@ -12,6 +12,8 @@ import { isStorageConfigured, type MdsyncSettings } from "@/settings/model";
 import { reportWarning } from "@/shared";
 import { SpaceRecords } from "@/spaces";
 import { SyncController } from "@/sync/controller";
+import { restoreCutShort } from "@/sync/cut-short";
+import { WriteJournal } from "@/sync/journal";
 import type { LiveNotes } from "@/sync/live-notes";
 import { fetchRemoteManifest } from "@/sync/manifest";
 import { type Space, VAULT_SPACE } from "@/sync/space";
@@ -25,6 +27,7 @@ export interface PluginRuntime {
 	passphraseManager: PassphraseManager;
 	statePersister: StatePersister;
 	spaces: SpaceRecords;
+	journal: WriteJournal;
 }
 
 interface BootstrapPluginRuntimeOptions {
@@ -56,6 +59,7 @@ export async function bootstrapPluginRuntime(
 	await logs.load();
 
 	const statePersister = await StatePersister.load(adapter, configDir);
+	const journal = await WriteJournal.load(adapter, configDir);
 	const passphraseManager = new PassphraseManager(
 		() => askPassphrase(app),
 		adapter,
@@ -66,6 +70,8 @@ export async function bootstrapPluginRuntime(
 	);
 
 	const spaces = new SpaceRecords(settings, persistSettings);
+	// Offline the first refresh never reaches its scan.
+	await restoreCutShort(adapter, journal, spaces.partition());
 	const { openSession, openLocal } = createSessionOpeners({
 		app,
 		settings,
@@ -77,6 +83,7 @@ export async function bootstrapPluginRuntime(
 		onNoStorage: options.onNoStorage,
 		persistSettings,
 		liveNotes,
+		journal,
 	});
 
 	const followMoves = createMoveFollower(app.vault, spaces, notifyError);
@@ -119,7 +126,9 @@ export async function bootstrapPluginRuntime(
 			}
 			await followMoves();
 			warnInert();
-			return spaces.partition();
+			const partition = spaces.partition();
+			journal.adopt(partition);
+			return partition;
 		},
 		openSession,
 		openLocal,
@@ -146,12 +155,14 @@ export async function bootstrapPluginRuntime(
 		passphraseManager,
 		statePersister,
 		spaces,
+		journal,
 	};
 }
 
 /** For an onload that has to abandon what it built, see `MdsyncPlugin.onload`. */
 export function disposePluginRuntime(runtime: PluginRuntime): void {
 	runtime.statePersister.dispose();
+	runtime.journal.dispose();
 	runtime.controller.dispose();
 	runtime.passphraseManager.dispose();
 	runtime.logs.dispose();

@@ -14,6 +14,7 @@ import type { TextModel } from "@/live/text/model";
 import { movedWith, moveRoom } from "@/live/workspace/rename";
 import { LiveSessions } from "@/live/workspace/sessions";
 import type { LiveSpace } from "@/live/workspace/space";
+import { renameCaseSafe } from "@/vault/io";
 
 vi.mock("@/live/text/binding", () => ({
 	bindEditor: vi.fn(() => ({ detach: vi.fn(), showAuthors: vi.fn() })),
@@ -245,6 +246,26 @@ describe("renaming a live note", () => {
 
 		expect(newcomer.roomAt()).toBe(await idOf("a.md", 1));
 		expect(newcomer.moveFile).not.toHaveBeenCalled();
+	});
+
+	it("moves a recasing's room only where it lands, never through its step", async () => {
+		const laptop = await device("a.md");
+		const desktop = await device("a.md");
+		const moved = await idOf("A.md");
+		// A phone: the new case is taken by the file itself, and the probe outlasts the step's refresh.
+		const rename = async (from: string, to: string) => {
+			if (from === "a.md" && to === "A.md") throw new Error("taken");
+			laptop.rename(to);
+		};
+		const exists = async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			return false;
+		};
+
+		await renameCaseSafe(rename, exists, "a.md", "A.md");
+
+		await vi.waitFor(() => expect(desktop.roomAt("A.md")).toBe(moved));
+		expect(desktop.moveFile.mock.calls).toEqual([["a.md", "A.md"]]);
 	});
 
 	it("settles two renames at once on the one the hub took first", async () => {

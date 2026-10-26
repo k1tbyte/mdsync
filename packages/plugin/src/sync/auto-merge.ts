@@ -11,11 +11,11 @@ import { tryAutoMergeConflict } from "./conflict-merge";
 import {
 	hasKnownBinaryExtension,
 	textToBytes,
-	untouchedSince,
 	writeLocalFile,
 } from "./content";
+import { baseStep } from "./cut-short";
 import type { CompareResult, EngineDependencies } from "./engine";
-import { grewFrom, settleLive, writeIncoming } from "./live-notes";
+import { coldSince, grewFrom, settleLive, writeIncoming } from "./live-notes";
 import type { OperationContext, OperationOutcome } from "./operations";
 import type { Conflict, Manifest, ManifestEntry, SessionState } from "./types";
 
@@ -25,44 +25,52 @@ export async function autoMergeOp(
 	ctx: OperationContext,
 ): Promise<OperationOutcome> {
 	const localEntries = new Map<string, ManifestEntry | null>();
-	// Indexed by conflict position so order holds whichever download finishes first.
-	const merged = new Array<string | null>(result.diff.conflicts.length).fill(
-		null,
-	);
-
-	await runWithConcurrency(
-		result.diff.conflicts,
-		deps.concurrency ?? DEFAULT_CONCURRENCY,
-		async (conflict, index) => {
-			// A share moved or paused meanwhile: what is left would land at its old path.
-			if (deps.signal?.aborted) return;
-			const entry = await settleConflict(deps, result, conflict);
-			if (entry === undefined) return;
-			localEntries.set(conflict.path, entry);
-			merged[index] = conflict.path;
-		},
-	);
-	const mergedPaths = merged.filter((path): path is string => path !== null);
+	// An error stops it as a cancel does: what merged is saved first, as a pull saves what landed.
+	let failed: unknown;
+	try {
+		await runWithConcurrency(
+			result.diff.conflicts,
+			deps.concurrency ?? DEFAULT_CONCURRENCY,
+			async (conflict) => {
+				// A share moved or paused meanwhile: what is left would land at its old path.
+				if (deps.signal?.aborted) return;
+				const entry = await settleConflict(deps, result, conflict);
+				if (entry !== undefined) localEntries.set(conflict.path, entry);
+			},
+		);
+	} catch (err) {
+		failed = err;
+	}
+	// In conflict order, whichever download finished first.
+	const mergedPaths = result.diff.conflicts
+		.map(({ path }) => path)
+		.filter((path) => localEntries.has(path));
+	if (mergedPaths.length > 0) {
+		const nextHashCache = mergeWrittenIntoCache(
+			localEntries,
+			result.updatedCache,
+		);
+		// Advances the baseline so merged content reads as a new local edit, not a conflict.
+		const freshState: SessionState = ctx.getFreshState();
+		const baseline = nextBaseline(
+			deps,
+			result,
+			freshState.baseline,
+			mergedPaths,
+		);
+		if (baseline) {
+			await ctx.persistState({
+				...freshState,
+				baseline,
+				hashCache: sortedByPath(nextHashCache),
+			});
+			await deps.journal?.acknowledge(deps.space);
+		}
+	}
+	if (failed !== undefined) throw failed;
 	const cancelled = deps.signal?.aborted === true;
-
 	if (mergedPaths.length === 0) {
 		return { newRemote: result.remote, touchedPaths: new Set(), cancelled };
-	}
-
-	const nextHashCache = mergeWrittenIntoCache(
-		localEntries,
-		result.updatedCache,
-	);
-
-	// Advances the baseline so merged content reads as a new local edit, not a conflict.
-	const freshState: SessionState = ctx.getFreshState();
-	const baseline = nextBaseline(deps, result, freshState.baseline, mergedPaths);
-	if (baseline) {
-		await ctx.persistState({
-			...freshState,
-			baseline,
-			hashCache: sortedByPath(nextHashCache),
-		});
 	}
 
 	await ctx.logInfo(
@@ -116,16 +124,20 @@ async function settleConflict(
 	if (side === "later") return undefined;
 	if (side === "local") return result.snapshot.files[conflict.path] ?? null;
 	// Edited since the scan: a write now would drop what was typed meanwhile.
-	const ready = untouchedSince(
+	const ready = coldSince(
 		deps,
 		conflict.path,
 		result.snapshot.files[conflict.path],
 	);
 	const remote = result.remote?.files[conflict.path];
+	// Settled on top of the remote version, as `nextBaseline` has it.
+	const base = remote && baseStep(deps, conflict.path, remote);
 	if (side === "remote" && remote) {
-		return (
-			(await writeIncoming(deps, conflict.path, remote, ready)) ?? undefined
-		);
+		const written = await writeIncoming(deps, conflict.path, remote, {
+			ready,
+			base,
+		});
+		return written ?? undefined;
 	}
 	// No common ancestor: nothing to merge against, and no reason to stat.
 	if (!conflict.baselineHash) return undefined;
@@ -138,10 +150,16 @@ async function settleConflict(
 	);
 	if (!mergeable) return undefined;
 	const text = await tryAutoMergeConflict(deps, conflict);
-	if (text === null || !(await ready())) return undefined;
-	const written = await writeLocalFile(deps, conflict.path, textToBytes(text));
-	if (remote) await grewFrom(deps, conflict.path, remote);
-	return written;
+	if (text === null) return undefined;
+	const landed = remote && (() => grewFrom(deps, conflict.path, remote));
+	const bytes = textToBytes(text);
+	return (
+		(await writeLocalFile(deps, conflict.path, bytes, {
+			ready,
+			landed,
+			base,
+		})) ?? undefined
+	);
 }
 
 /** Rejects known binary types and oversized files by stat and manifest size, without reading or downloading. */

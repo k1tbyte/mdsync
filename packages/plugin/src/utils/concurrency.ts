@@ -27,5 +27,8 @@ export async function runWithConcurrency<T>(
 			})(),
 		);
 	}
-	await Promise.all(runners);
+	// Rejects only once the items in flight settle: nothing still writes behind the error.
+	for (const result of await Promise.allSettled(runners)) {
+		if (result.status === "rejected") throw result.reason;
+	}
 }

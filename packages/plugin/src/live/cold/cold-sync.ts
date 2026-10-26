@@ -88,7 +88,7 @@ export class LiveColdSync implements LiveNotes {
 	async wrote(path: string, mark: LiveMark, text: string): Promise<void> {
 		if (mark.doc !== (await this.docOf(path))) return;
 		const { doc, gen, seq } = mark;
-		this.deps.agreed.put(doc, { text: toLf(text), gen, seq });
+		await this.deps.agreed.putNow(doc, { text: toLf(text), gen, seq });
 	}
 
 	holds(path: string): boolean {

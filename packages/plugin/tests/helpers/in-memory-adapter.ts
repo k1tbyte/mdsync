@@ -151,22 +151,16 @@ export class InMemoryAdapter {
 		return Promise.resolve();
 	}
 
-	rmdir(path: string, recursive: boolean): Promise<void> {
+	/** Like Obsidian mobile, which drops `recursive` and always recurses. */
+	rmdir(path: string, _recursive: boolean): Promise<void> {
 		const n = norm(path);
-		const inside = (key: string) => key.startsWith(`${n}/`);
-		const full = [...this.files.keys(), ...this.dirs].some(inside);
-		if (!recursive && full) {
-			return Promise.reject(new Error(`ENOTEMPTY: ${path}`));
-		}
+		const prefix = `${n}/`;
 		this.dirs.delete(n);
-		if (recursive) {
-			const prefix = `${n}/`;
-			for (const key of [...this.files.keys()]) {
-				if (key.startsWith(prefix)) this.files.delete(key);
-			}
-			for (const dir of [...this.dirs]) {
-				if (dir.startsWith(prefix)) this.dirs.delete(dir);
-			}
+		for (const key of [...this.files.keys()]) {
+			if (key.startsWith(prefix)) this.files.delete(key);
+		}
+		for (const dir of [...this.dirs]) {
+			if (dir.startsWith(prefix)) this.dirs.delete(dir);
 		}
 		return Promise.resolve();
 	}

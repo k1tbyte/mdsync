@@ -76,12 +76,13 @@ function resultTints(view: EditorView, tints: Tints): void {
 		changes.length,
 		(index) => (changes[index] as MergeChange).result.to >= top - 1,
 	);
+	const combined = view.state.field(combinedModeField);
 	for (let index = start; index < changes.length; index++) {
 		const change = changes[index] as MergeChange;
 		if (change.result.from > bottom) break;
-		addResultTint(tints, doc, change, top, bottom);
+		addResultTint(tints, doc, change, top, bottom, combined);
 	}
-	if (view.state.field(combinedModeField)) {
+	if (combined) {
 		const lines = changes.map((change) => resultLines(doc, change));
 		numberUnchangedLines(view, lines, tints.lines);
 	}
@@ -93,6 +94,7 @@ function addResultTint(
 	change: MergeChange,
 	top: number,
 	bottom: number,
+	combined: boolean,
 ): void {
 	const span = snapToLines(doc, change.result);
 	const resolved = isResolved(change);
@@ -102,6 +104,8 @@ function addResultTint(
 	});
 	const rest: MergeTone = resolved ? "base" : "conflict";
 	if (span.to <= span.from) {
+		// Inline, the card marks the place.
+		if (combined) return;
 		const owners = parts.filter((part) => part.span.from === span.from);
 		const tone = owners.length > 1 ? "shared" : (owners[0]?.side ?? rest);
 		markLine(tints, doc, span.from, `is-${tone}`);

@@ -1,7 +1,8 @@
 import { pairedSessions, useEncryptionKey } from "@tests/helpers/session";
 import { describe, expect, it, vi } from "vitest";
 
-import { pullPaths, pushPaths } from "@/sync/engine";
+import { pushPaths } from "@/sync/engine";
+import { pullPaths } from "@/sync/pull";
 import { LARGE_FILE_BYTES } from "@/utils";
 
 useEncryptionKey();

@@ -13,10 +13,10 @@ import {
 	loadLocalBytes,
 	loadRemoteBytes,
 	textToBytes,
-	untouchedSince,
 	withLocalMtime,
-	writeRemoteEntry,
+	writeLocalFile,
 } from "@/sync/content";
+import { baseStep } from "@/sync/cut-short";
 import {
 	type CompareResult,
 	type EngineDependencies,
@@ -24,13 +24,17 @@ import {
 	publishFileMap,
 	storeObject,
 } from "@/sync/engine";
+import { coldSince, settleLive, writeIncoming } from "@/sync/live-notes";
 import type { ManifestEntry } from "@/sync/types";
 import { runWithFileConcurrency } from "@/utils";
-import { trashPath, unchangedSince, writeBinary } from "@/vault/io";
+import { trashPath, unchangedSince } from "@/vault/io";
 import type { Operation, OperationContext, OperationOutcome } from "./types";
 
 const EDITED_SINCE =
 	"These files changed since the compare, so accepting the remote version would overwrite that change. Review them again.";
+
+const LIVE_HELD =
+	"These notes are open for live editing and their room is not ready to take the remote version yet. Try again in a moment.";
 
 export const batchAcceptRemoteOp: Operation<ReadonlySet<string>> = async (
 	deps,
@@ -46,23 +50,30 @@ export const batchAcceptRemoteOp: Operation<ReadonlySet<string>> = async (
 		if (await unchangedSince(deps.adapter, path, scanned)) unchanged.add(path);
 	}
 	if (unchanged.size === 0) throw new Error(EDITED_SINCE);
+	const held: string[] = [];
 	const { conflictPaths, localEntries } = await resolveEach(
 		deps,
 		result,
 		unchanged,
 		ctx,
 		async (path) => {
+			// An open room takes the remote version in itself: the resolution keeps what it holds.
+			const side = await settleLive(deps, result, path);
+			if (side === "later") {
+				held.push(path);
+				return undefined;
+			}
+			if (side === "local") return entryAt(result.snapshot.files, path) ?? null;
 			// Edited while an earlier file downloaded: that edit stays, and so does the conflict.
-			const ready = untouchedSince(
-				deps,
-				path,
-				entryAt(result.snapshot.files, path),
-			);
+			const ready = coldSince(deps, path, entryAt(result.snapshot.files, path));
 			const remoteEntry = remote.files[path];
 			if (remoteEntry) {
-				return (
-					(await writeRemoteEntry(deps, path, remoteEntry, ready)) ?? undefined
-				);
+				const base = baseStep(deps, path, remoteEntry);
+				const written = await writeIncoming(deps, path, remoteEntry, {
+					ready,
+					base,
+				});
+				return written ?? undefined;
 			}
 			// Edit vs delete, accepting remote: the remote side is the deletion.
 			if (!(await ready())) return undefined;
@@ -70,7 +81,9 @@ export const batchAcceptRemoteOp: Operation<ReadonlySet<string>> = async (
 			return null;
 		},
 	);
-	if (conflictPaths.length === 0) throw new Error(EDITED_SINCE);
+	if (conflictPaths.length === 0) {
+		throw new Error(held.length > 0 ? LIVE_HELD : EDITED_SINCE);
+	}
 	const baseline = advanceBaselineForPaths(
 		deps.state.baseline,
 		remote,
@@ -85,9 +98,10 @@ export const batchAcceptRemoteOp: Operation<ReadonlySet<string>> = async (
 			mergeWrittenIntoCache(localEntries, result.updatedCache),
 		),
 	);
+	await deps.journal?.acknowledge(deps.space);
 	await ctx.logInfo(
 		ESyncLogOperation.Pull,
-		`Resolved ${conflictPaths.length} conflict(s) by accepting remote.`,
+		`Resolved ${conflictPaths.length} conflict(s) by accepting remote.${held.length > 0 ? ` Left ${held.length} to live editing.` : ""}`,
 		conflictPaths.slice(0, LOG_PATH_LIMIT),
 	);
 	ctx.setProgress(null);
@@ -188,7 +202,7 @@ export const keepBothConflictOp: Operation<string> = async (
 		path,
 		result.remote?.deviceName,
 	);
-	await writeBinary(deps.adapter, copyPath, bytes);
+	await writeLocalFile(deps, copyPath, bytes);
 	await ctx.logInfo(
 		ESyncLogOperation.Push,
 		`Kept the local version of "${path}"; the remote one is saved as "${copyPath}" and publishes with the next push.`,
@@ -217,7 +231,7 @@ export const saveMergedOp: Operation<MergedSaveArgs> = async (
 			"This file changed since the merge was opened, so saving it would overwrite that change. Reopen the merge.",
 		);
 	}
-	await writeBinary(deps.adapter, path, textToBytes(content));
+	await writeLocalFile(deps, path, textToBytes(content));
 	return batchKeepLocalOp(deps, result, new Set([path]), ctx);
 };
 

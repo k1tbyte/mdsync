@@ -15,6 +15,7 @@ import { shareIdentity } from "@/spaces/record";
 import { createStorageAdapter, type StorageAdapter } from "@/storage";
 import { clearRemoteTextCache } from "@/sync/content";
 import type { EngineDependencies } from "@/sync/engine";
+import type { WriteJournal } from "@/sync/journal";
 import { PassphraseRotatedError } from "@/sync/keyfile";
 import type { LiveNotes } from "@/sync/live-notes";
 import { projectSession } from "@/sync/session-state";
@@ -47,6 +48,7 @@ export interface SessionFactoryDeps {
 	persistSettings?: () => Promise<void>;
 	/** Late-bound: live editing starts after the sync it hooks into. */
 	liveNotes?: (space: Space) => LiveNotes | undefined;
+	journal: WriteJournal;
 }
 
 export type SessionOpener = (
@@ -108,6 +110,7 @@ function sessionOpener(
 				: undefined,
 			live: deps.liveNotes?.(space),
 			author: opened.author,
+			journal: deps.journal,
 		};
 	};
 }

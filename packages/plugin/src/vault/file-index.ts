@@ -1,5 +1,7 @@
 import type { Vault } from "obsidian";
 
+import { renameCaseSafe } from "./io";
+
 export interface IndexedFile {
 	path: string;
 	size: number;
@@ -60,6 +62,10 @@ export async function renameInVault(
 	if (parent !== "" && !vault.getAbstractFileByPath(parent)) {
 		await vault.createFolder(parent);
 	}
-	await vault.rename(file, to);
-	return true;
+	return renameCaseSafe(
+		(_, next) => vault.rename(file, next),
+		(path) => vault.adapter.exists(path),
+		from,
+		to,
+	);
 }

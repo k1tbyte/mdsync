@@ -144,8 +144,9 @@
 	box-shadow: none;
 }
 
+/* One column: an empty line's text still fills the row, bar included. */
 :is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined .mdsync-code-line {
-	display: block;
+	grid-template-columns: minmax(0, 1fr);
 }
 
 :is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
@@ -155,7 +156,6 @@
 
 :is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined .mdsync-code-text {
 	position: relative;
-	display: block;
 	padding-left: var(--mdsync-card-inset);
 }
 
