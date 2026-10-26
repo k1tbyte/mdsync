@@ -62,6 +62,7 @@ export {
 	confirmBatchResolve,
 } from "./source-control";
 export {
+	keepInRightSidebar,
 	openDiffView,
 	openSourceControlChanges,
 	openSourceControlDeleted,

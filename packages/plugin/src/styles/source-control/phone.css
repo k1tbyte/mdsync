@@ -1,3 +1,8 @@
+/* The spacing clears the main area's navbar; a drawer ends above its own switcher. */
+body.is-phone .workspace-drawer .mdsync-source-control {
+	--view-bottom-spacing: 0px;
+}
+
 /* Overlay scrollbars reserve no gutter. */
 body.is-phone .mdsync-source-control .mdsync-source-tab-panel {
 	padding-right: var(--size-4-3);

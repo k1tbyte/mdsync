@@ -66,28 +66,43 @@ async function openSourceControlOn(
 	plugin: PluginHost,
 	show: (view: SourceControlView) => void,
 ): Promise<void> {
-	await openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
-	const view = plugin.app.workspace.getLeavesOfType(SOURCE_CONTROL_VIEW_TYPE)[0]
-		?.view;
+	// The leaf it showed: an older one in a main tab may sit beside the sidebar's.
+	const { view } = await openSourceControlView(
+		plugin.app,
+		SOURCE_CONTROL_VIEW_TYPE,
+	);
 	if (view instanceof SourceControlView) show(view);
 }
 
 export async function openSourceControlView(
 	app: App,
 	viewType: string,
-): Promise<void> {
-	const existing = app.workspace.getLeavesOfType(viewType);
-	const firstExisting = existing[0];
-	if (firstExisting) {
-		await app.workspace.revealLeaf(firstExisting);
-		return;
+): Promise<WorkspaceLeaf> {
+	const { workspace } = app;
+	const existing = workspace.getLeavesOfType(viewType);
+	const shown =
+		existing.find((leaf) => leaf.getRoot() === workspace.rightSplit) ??
+		existing[0];
+	if (shown) {
+		await workspace.revealLeaf(shown);
+		return shown;
 	}
-	const leaf = Platform.isMobile
-		? app.workspace.getLeaf("tab")
-		: (app.workspace.getRightLeaf(false) ?? app.workspace.getLeaf(true));
-	if (!leaf) return;
+	const leaf = workspace.getRightLeaf(false) ?? workspace.getLeaf(true);
 	await leaf.setViewState({ type: viewType, active: true });
-	await app.workspace.revealLeaf(leaf);
+	await workspace.revealLeaf(leaf);
+	return leaf;
+}
+
+/** A mobile's right sidebar lists only the views it holds: one waits there beside backlinks and the outline. */
+export function keepInRightSidebar(app: App): void {
+	const { workspace } = app;
+	const held = workspace
+		.getLeavesOfType(SOURCE_CONTROL_VIEW_TYPE)
+		.some((leaf) => leaf.getRoot() === workspace.rightSplit);
+	if (held) return;
+	void workspace
+		.getRightLeaf(false)
+		?.setViewState({ type: SOURCE_CONTROL_VIEW_TYPE, active: false });
 }
 
 export class SourceControlView extends ItemView {
@@ -103,6 +118,7 @@ export class SourceControlView extends ItemView {
 	private timelineTab!: TimelineTab;
 	/** The file changed while the view was hidden; reloading then would fetch history nobody sees. */
 	private historyStale = false;
+	private comparedOnce = false;
 
 	constructor(leaf: WorkspaceLeaf, plugin: PluginHost) {
 		super(leaf);
@@ -187,7 +203,16 @@ export class SourceControlView extends ItemView {
 				RELATIVE_TIME_REFRESH_MS,
 			),
 		);
-		// Not set up, the tab itself says so; a compare would only add a notice.
+		this.compareOnceShown();
+	}
+
+	/**
+	 * Its first compare waits until it shows: a leaf a mobile's sidebar made at launch must leave the startup
+	 * sync to the scheduler. Not set up, the tab itself says so; a compare would only add a notice.
+	 */
+	private compareOnceShown(): void {
+		if (this.comparedOnce || !this.containerEl.isShown()) return;
+		this.comparedOnce = true;
 		if (
 			!this.plugin.controller.getSnapshot().result &&
 			canSync(this.plugin.settings)
@@ -197,6 +222,7 @@ export class SourceControlView extends ItemView {
 	}
 
 	onResize(): void {
+		this.compareOnceShown();
 		if (!this.historyStale || !this.containerEl.isShown()) return;
 		this.historyStale = false;
 		if (this.tab !== ESourceTab.History) return;
@@ -299,7 +325,7 @@ export class SourceControlView extends ItemView {
 			back.type = "button";
 			back.setAttr("aria-label", "Close source control");
 			setIcon(back, "arrow-left");
-			back.addEventListener("click", () => this.leaf.detach());
+			back.addEventListener("click", () => this.close());
 		}
 		const bar = row.createDiv({
 			cls: "mdsync-settings-tabs mdsync-source-tabs",
@@ -339,6 +365,16 @@ export class SourceControlView extends ItemView {
 		};
 		for (const { tab, label, icon } of SOURCE_TABS) make(tab, label, icon);
 		return row.createDiv({ cls: "mdsync-source-tools" });
+	}
+
+	/** A sidebar's leaf stays: the drawer lists only the views it holds. */
+	private close(): void {
+		const { leftSplit, rightSplit } = this.app.workspace;
+		const side = [leftSplit, rightSplit].find(
+			(split) => split === this.leaf.getRoot(),
+		);
+		if (side) side.collapse();
+		else this.leaf.detach();
 	}
 
 	private activateTab(tab: ESourceTab, restoreFocus = false): void {

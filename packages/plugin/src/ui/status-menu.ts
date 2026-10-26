@@ -144,6 +144,6 @@ export function syncHeadline(
 	return parts.length > 0 ? parts.join(" · ") : "Everything is in sync";
 }
 
-function openSourceControl(plugin: PluginHost): Promise<void> {
-	return openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
+async function openSourceControl(plugin: PluginHost): Promise<void> {
+	await openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
 }
