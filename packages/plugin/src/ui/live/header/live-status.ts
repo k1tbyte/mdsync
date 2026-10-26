@@ -13,6 +13,7 @@ const COLD_CAUSES: Record<ColdCause, string> = {
 	"too-large": "Too large to edit live: changes sync on the schedule",
 	"too-many": "Too many notes open live: this one syncs on the schedule",
 	"read-only": ARRIVES_ON_SYNC,
+	unstored: "The relay can't store changes now: they sync on the schedule",
 	unreadable: "Can't read the live room: a different key or access",
 	"moved-away": "Live editing moved elsewhere: changes sync on the schedule",
 	empty: "Nobody is editing it live yet: reopen it to follow them",

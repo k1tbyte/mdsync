@@ -64,6 +64,7 @@ beforeEach(async () => {
 		moveFile: async () => false,
 		authorsShown: () => authorsShown,
 		nameOf: () => null,
+		sendEvery: () => 250,
 	});
 });
 

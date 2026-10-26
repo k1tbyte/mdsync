@@ -25,3 +25,10 @@ export const SOURCE_CONTROL_VIEW_TYPE = "mdsync-source-control";
 export const DIFF_VIEW_TYPE = "mdsync-diff";
 
 export const STORAGE_CHANGED_REASON = "Storage backend changed.";
+
+/** How long live edits wait after a send, by speed: each send is a row the relay writes. */
+export const LIVE_SEND_MS = {
+	instant: 100,
+	balanced: 250,
+	economical: 1000,
+} as const;

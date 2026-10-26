@@ -47,6 +47,7 @@ export function createLive(
 		moveFile: (from, to) => moveFile(vault, from, to),
 		authorsShown: () => host.settings().showLiveAuthors,
 		nameOf,
+		sendEvery: () => host.settings().liveSendMs,
 	});
 	const stopWatching = refreshOnChanges(host.app, hub, sessions);
 	const stopFlushing = flushAgreedWhenLeaving(agreed);

@@ -133,8 +133,11 @@ announcement (`ChannelPresence.nameOf`).
 - `JOIN {from, who, name}` goes to the channel as a socket arrives; before
   it, the newcomer gets `HERE` with the same fields for everyone already on
   that channel, since presence is never stored.
-- `ping` is auto-answered without waking the object; while sockets exist, an
+- `ping` is auto-answered without waking the object; while two or more sockets exist, an
   alarm every half window (37 s of 75) closes those silent past the window and announces `LEAVE` once.
+  Each alarm is a request and a row, and a lone ghost misleads no one: the next arrival sweeps first.
+- The client drops a link silent 90 s. A network change leaves a socket half-open, so `online`, turning
+  visible and a send after 10 s of quiet ping first; no answer in 5 s drops it sooner.
 - A share token is live while its participant's pointer names it
   (`share/kv.ts`): two re-invites at once leave one live token, not an
   orphan no revoke finds.
@@ -146,17 +149,29 @@ announcement (`ChannelPresence.nameOf`).
   wakes (`online`, page visible); its backoff is jittered and restarts on the
   first message, not on open. The hub keeps a revoked fingerprint 5 minutes
   (`hub/revoked.ts`) and refuses it on connect, while KV may still let it in.
-- Storage is SQLite per `(channel, doc)`, both tables WITHOUT ROWID: an update
-  writes its delta row only (the head is the last seq, or the snapshot's when
-  compaction left none), the document row (snapshot, forwarding pointer, log
-  name) changes on compaction and rotation. Ending a share deletes its rows
-  (`purgeChannel`) and shuts the channel for good (`closed`). A frame is at most 1 MiB; live notes are
-  markdown up to 256 KB, so a snapshot fits one frame and one row.
+- Storage is SQLite per `(channel, doc)`, both tables WITHOUT ROWID: a document row (snapshot,
+  forwarding pointer, log name; changes on compaction and rotation) and chunks of consecutive
+  deltas, each after its 4-byte length. An update joins the last chunk while it stays within 4 KB,
+  else starts one: a row written either way, and a compaction deletes a row per chunk, so ~1.03
+  rows an update (a row per delta cost ~2). The head is the last chunk's last seq, or the
+  snapshot's when compaction left none; a chunk the snapshot covers part of stays, reads skip what
+  it covers. Ending a share deletes its rows (`purgeChannel`) and shuts the channel for good
+  (`closed`). A frame is at most 1 MiB; live notes are markdown up to 256 KB, so a snapshot fits
+  one frame and one row.
+- A 1.3 relay kept a row per delta (`deltas`). The store packs each log into chunks in one
+  transaction, a row per chunk; while the day's writes cannot cover it, document frames get
+  `Refused(Unstored)` and retry it, the rest of the hub runs. `deltas` beside `chunks` means a
+  rollback appended under seqs the chunks hold: the logs start over as if lost, pointers kept.
 - A room row created again gets a new log name, sent in `STATE`: a client
   that sees another name, or a head behind what it knows, rotates the note on.
 - A frame past 1 MiB, a document past a socket's 64, or a write from a
   read-only grant is answered `Refused{reason}` to its sender only; that note
   stays with the file sync until it is closed, and its status says why.
+- Each document frame runs in one SQLite transaction (`DocStore.atomic`); a throw (past Free's 100k
+  rows a day, the next write throws until 00:00 UTC) rolls it back and answers `Refused(Unstored)`.
+  Unanswered, the writer would resend forever and its notes stay out of every push; half a seed would
+  leave a row with no delta that answers each seed with `State(head 0)` again. 1.3.0 clients go cold
+  under a generic status.
 
 ## Protocol (`packages/protocol`)
 
@@ -186,7 +201,9 @@ places to change later:
   (`doc:<docId>`, `awareness:<docId>`, `moved:<docId>`, `presence`): the relay
   cannot move a frame into another document or kind. A rotation is sealed for
   its target, a rename note for the room it left.
-- Edits and cursors batch for 250 ms: at 100 ms the envelope outweighed them.
+- Edits go out at once, then at most once an interval of the device's **Live editing speed** (100 ms, 250 ms by default, 1 s): each is a hub row.
+  Cursors likewise per 100 ms, and only while someone else is in the room: their Join, or the first frame of
+  one already there, asks for them, so a lone note sends no cursor or heartbeat.
 
 ## Live layer
 
@@ -212,7 +229,7 @@ places to change later:
 - A drawing binds through the Excalidraw plugin's undocumented `excalidrawAPI`
   and `window.ExcalidrawLib` (checked against 2.x). `onChange` pushes elements
   whose version moved into a staging map; the session drains it into the room
-  once per 250 ms batch (`LiveSession.stage`, also on dispose, `absorb`, a
+  once per send (`LiveSession.stage`, also on dispose, `absorb`, a
   rebuild and detach; `settled` is false meanwhile), because `mergeUpdates`
   keeps every overwritten frame of a stroke. Remote elements come in through
   `reconcileElements` and `updateScene` with `captureUpdate: NEVER`, so undo
@@ -447,6 +464,14 @@ places to change later:
 - A writable token can fill one document's log up to the tail cap (2,000 deltas
   or 8 MiB since its snapshot), and open as many documents as it likes; the hub
   caps frames and tails, not a channel's document count.
+- A relay rolled back to 1.3 and forward again restarts every live log (devices rotate from their
+  text); the plugin never deploys an older relay, only a manual rollback does this.
+- Open: the cursor heartbeat is y-protocols' own renewal, timed by the wall clock: set back (say an
+  hour), an idle device sends none, and others drop its cursor after 30 s until it moves or someone
+  joins. A monotonic heartbeat of our own, announcing only real changes otherwise, would close it.
+- Open: with the day's Durable Object writes used up (Free: 100k rows), a revocation throws in
+  `Hub.dropGrant` / `purgeChannel` before it cuts a socket; the owner sees the error, and the participant
+  keeps access until a retry succeeds after 00:00 UTC. Cutting first would not help: KV still admits the token.
 - Open: the hub keeps every room (snapshot, tail, pointer) until its share
   ends, in one Durable Object capped at 10 GB. Deleting idle rooms is not
   enough: a deleted id is seedable again, so a device returning with a stale
@@ -464,3 +489,5 @@ places to change later:
 - The broker presigns DELETE too: a writer can remove a share's objects;
   history, not revocation, repairs that. `share/key.ts` is the whole boundary:
   it fails closed, and every change needs traversal tests.
+- A faster **Live editing speed** starts from a note's next send: edits already
+  waiting keep the slower deadline, under 1 s once. Not worth tracking it.

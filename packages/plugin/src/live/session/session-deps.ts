@@ -42,4 +42,6 @@ export interface LiveSessionDeps<M extends LiveModel> {
 	/** Set for a read-only person: see `FollowerSession`. */
 	follower?: Follower;
 	nameOf?(person: string): string | null;
+	/** How long edits wait after a send (ms), asked at each; unset is balanced. */
+	sendEvery?(): number;
 }

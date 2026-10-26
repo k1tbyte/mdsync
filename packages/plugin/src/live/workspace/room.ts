@@ -17,6 +17,7 @@ export type ColdCause =
 	| "too-large"
 	| "too-many"
 	| "read-only"
+	| "unstored"
 	| "unreadable"
 	| Unfollowed;
 
@@ -24,6 +25,7 @@ const REFUSED: Record<Refused, ColdCause> = {
 	[ERefusal.TooLarge]: "too-large",
 	[ERefusal.TooManyDocs]: "too-many",
 	[ERefusal.ReadOnly]: "read-only",
+	[ERefusal.Unstored]: "unstored",
 	unreadable: "unreadable",
 };
 
@@ -56,6 +58,8 @@ export interface RoomDeps {
 	moveFile(from: string, to: string): Promise<boolean>;
 	/** The name the relay vouches for a person present in a space. */
 	nameOf(space: string, person: string): string | null;
+	/** How long live edits wait after a send (ms); asked at each, so a change reaches open notes. */
+	sendEvery(): number;
 }
 
 export interface RoomHooks {
@@ -109,12 +113,14 @@ export class RoomOpener {
 					this.saved(file, editor, text),
 				),
 			onMoved: () => this.hooks.refresh(),
-			onRefused: (reason) => this.hooks.leave(path, REFUSED[reason]),
+			// The note's path now: a refused rename rotation leaves the renamed note, not its old path.
+			onRefused: (reason) => this.hooks.leave(file.path, REFUSED[reason]),
 			nameOf: (person) => this.deps.nameOf(space.id, person),
+			sendEvery: this.deps.sendEvery,
 			follower: space.readOnly
 				? {
 						unchanged: (disk) => this.known(note, path, disk),
-						onCold: (why) => this.hooks.leave(path, why),
+						onCold: (why) => this.hooks.leave(file.path, why),
 					}
 				: undefined,
 		});

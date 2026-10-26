@@ -26,6 +26,10 @@ const RECONNECT_BASE_MS = 2_000;
 const RECONNECT_MAX_MS = 60_000;
 /** A fresh share token can be refused for about a minute while the relay's KV catches up. */
 const UNAUTHORIZED_RETRIES = 6;
+/** A send after this long with no word from the hub checks the link first: the network may have changed. */
+const PROBE_AFTER_MS = 10_000;
+/** Wait for a probe's answer: a few TCP retransmits on a poor link. */
+const PROBE_MS = 5_000;
 
 export interface HubChannel {
 	channel: string;
@@ -51,10 +55,12 @@ export class HubLink {
 	private unauthorizedCloses = 0;
 	private reconnectTimer: number | null = null;
 	private pingTimer: number | null = null;
+	private probeTimer: number | null = null;
 	private opening = false;
 	private wake: AbortController | null = null;
 	private disposed = false;
-	private lastMessageAt = 0;
+	private heardAt = 0;
+	private heardTick = 0;
 
 	constructor(private readonly options: HubLinkOptions) {}
 
@@ -79,6 +85,7 @@ export class HubLink {
 	/** Dropped while the link is down: every caller re-sends on reconnect. */
 	send(frame: ClientFrame): void {
 		if (!this.connected) return;
+		if (this.quietMs() > PROBE_AFTER_MS) this.probe();
 		try {
 			this.ws?.send(encodeClient(frame));
 		} catch {
@@ -127,14 +134,15 @@ export class HubLink {
 
 		socket.addEventListener("open", () => {
 			if (this.ws !== socket) return;
-			this.lastMessageAt = Date.now();
+			this.heard();
 			this.status = "connected";
 			this.startPing();
 			this.options.onConnectionChange?.(true);
 		});
 		socket.addEventListener("message", (event) => {
 			if (this.ws !== socket) return;
-			this.lastMessageAt = Date.now();
+			this.heard();
+			this.stopProbe();
 			this.reconnectAttempts = 0;
 			this.unauthorizedCloses = 0;
 			// Text is only the keepalive's answer.
@@ -160,13 +168,14 @@ export class HubLink {
 		if (!refused) this.scheduleReconnect();
 	}
 
-	/** After sleep or a network change the backoff may have grown long: try again at once. */
+	/** After sleep or a network change the backoff may have grown long, or the open socket gone half-open. */
 	private watchWake(): void {
 		if (this.wake) return;
 		this.wake = new AbortController();
 		const { signal } = this.wake;
 		const retry = (): void => {
-			if (!this.connected && !this.connecting) void this.openSocket();
+			if (this.connected) this.probe();
+			else if (!this.connecting) void this.openSocket();
 		};
 		window.addEventListener("online", retry, { signal });
 		document.addEventListener(
@@ -202,17 +211,43 @@ export class HubLink {
 		return url.toString();
 	}
 
+	private heard(): void {
+		this.heardAt = Date.now();
+		this.heardTick = performance.now();
+	}
+
+	/** Wall time counts a sleep, monotonic time ignores a clock set back: the longer one is right. */
+	private quietMs(): number {
+		return Math.max(
+			Date.now() - this.heardAt,
+			performance.now() - this.heardTick,
+		);
+	}
+
 	private startPing(): void {
 		this.stopPing();
 		this.pingTimer = window.setInterval(() => {
 			if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 			// A silently dead link may take long to report its close: give up on it now.
-			if (Date.now() - this.lastMessageAt > KEEPALIVE_SILENCE_MS) {
+			if (this.quietMs() > KEEPALIVE_SILENCE_MS) {
 				this.lose();
 				return;
 			}
 			this.ws.send(KEEPALIVE_PING);
 		}, KEEPALIVE_INTERVAL_MS);
+	}
+
+	/** A half-open socket reads as open until the silence timeout; any message from now on answers this ping. */
+	private probe(): void {
+		if (this.probeTimer !== null || !this.connected) return;
+		this.ws?.send(KEEPALIVE_PING);
+		this.probeTimer = window.setTimeout(() => this.lose(), PROBE_MS);
+	}
+
+	private stopProbe(): void {
+		if (this.probeTimer === null) return;
+		window.clearTimeout(this.probeTimer);
+		this.probeTimer = null;
 	}
 
 	private stopPing(): void {
@@ -229,6 +264,7 @@ export class HubLink {
 
 	private cleanup(): void {
 		this.stopPing();
+		this.stopProbe();
 		// A pending reconnect belongs to the socket being replaced.
 		this.stopReconnect();
 		const socket = this.ws;

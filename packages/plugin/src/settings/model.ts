@@ -7,6 +7,7 @@ import {
 	BULK_DELETE_LIMIT_MIN,
 	FILE_HISTORY_MAX_SNAPSHOTS,
 	FILE_HISTORY_MIN_SNAPSHOTS,
+	LIVE_SEND_MS,
 } from "@/constants";
 import { parseStoredLink, type StoredLink } from "@/links/record";
 import { isCleartextRemote } from "@/shared";
@@ -70,6 +71,8 @@ export interface MdsyncSettings {
 	realtimeSync: boolean;
 	/** Notes open in the editor edit together across devices, over the relay. */
 	liveEditing: boolean;
+	/** Live edits go out at most this often (ms), on this device. Never transferred. */
+	liveSendMs: number;
 	/** Others' text in live notes tinted by author, on this device. */
 	showLiveAuthors: boolean;
 	showOpenNote: boolean;
@@ -129,6 +132,7 @@ export const DEFAULT_SETTINGS: MdsyncSettings = {
 	historyAutoRefresh: true,
 	realtimeSync: false,
 	liveEditing: true,
+	liveSendMs: LIVE_SEND_MS.balanced,
 	showLiveAuthors: false,
 	showOpenNote: true,
 	spaces: [],
@@ -295,6 +299,12 @@ export function mergeSettings(
 		...(stored ?? {}),
 		storageConfigs,
 		activeStorageKind,
+		// A preset only: the dropdown shows nothing else.
+		liveSendMs: Object.values<unknown>(LIVE_SEND_MS).includes(
+			stored?.liveSendMs,
+		)
+			? (stored?.liveSendMs as number)
+			: DEFAULT_SETTINGS.liveSendMs,
 		settingsSync: {
 			...DEFAULT_SETTINGS_SYNC,
 			...((stored?.settingsSync as

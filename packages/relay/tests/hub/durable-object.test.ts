@@ -8,7 +8,7 @@ import {
 } from "@mdsync/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Hub } from "../../src/hub/durable-object";
+import { HUB_ADMISSION_HEADER, Hub } from "../../src/hub/durable-object";
 import type { Grant } from "../../src/hub/peer";
 import type { HubEnv } from "../../src/hub/stub";
 import { grant } from "../helpers/hub";
@@ -71,10 +71,12 @@ function makeHub(...sockets: FakeSocket[]) {
 	const sql = memorySql();
 	const ctx = {
 		setWebSocketAutoResponse() {},
+		acceptWebSocket: (ws: FakeSocket) => sockets.push(ws),
 		getWebSockets: () => sockets,
 		getWebSocketAutoResponseTimestamp: (ws: FakeSocket) => ws.pinged,
 		storage: {
 			sql,
+			transactionSync: <T>(run: () => T) => sql.transactionSync(run),
 			getAlarm: async () => alarm,
 			setAlarm: async (at: number) => {
 				alarm = at;
@@ -91,6 +93,27 @@ function makeHub(...sockets: FakeSocket[]) {
 		dropGrant: (fingerprint: string) => hub.dropGrant(fingerprint),
 		signal: (by: Grant, device: string) => hub.signal(by, device),
 		alarm: () => hub.alarm(),
+		/** A new socket through the hub's upgrade path. */
+		connect: async () => {
+			const ws = new FakeSocket(0, NOW);
+			vi.stubGlobal(
+				"WebSocketPair",
+				class {
+					0 = {};
+					1 = ws;
+				},
+			);
+			const admission = { device: "newcomer", slots: [grant(VAULT)] };
+			await hub.fetch(
+				new Request("https://hub/", {
+					headers: {
+						Upgrade: "websocket",
+						[HUB_ADMISSION_HEADER]: JSON.stringify(admission),
+					},
+				}),
+			);
+			return ws;
+		},
 		close: (ws: FakeSocket) => hub.webSocketClose(asSocket(ws)),
 		error: (ws: FakeSocket) => hub.webSocketError(asSocket(ws)),
 		alarmAt: () => alarm,
@@ -99,6 +122,15 @@ function makeHub(...sockets: FakeSocket[]) {
 
 beforeEach(() => {
 	vi.stubGlobal("WebSocketRequestResponsePair", class {});
+	// Node's Response refuses status 101, which workerd uses for upgrades.
+	vi.stubGlobal(
+		"Response",
+		class extends Response {
+			constructor(body: BodyInit | null, init?: ResponseInit) {
+				super(body, init?.status === 101 ? { status: 200 } : init);
+			}
+		},
+	);
 	vi.useFakeTimers({ toFake: ["Date"] });
 	vi.setSystemTime(NOW);
 });
@@ -132,19 +164,41 @@ describe("stale sweep", () => {
 		expect(pinging.closedWith).toBeNull();
 	});
 
-	it("sweeps twice per window while sockets remain", async () => {
-		const hub = makeHub(new FakeSocket(1, NOW));
+	it("sweeps twice per window while two sockets remain", async () => {
+		const hub = makeHub(new FakeSocket(1, NOW), new FakeSocket(2, NOW));
 
 		await hub.alarm();
 
 		expect(hub.alarmAt()).toBe(NOW + STALE_MS / 2);
 	});
 
-	it("stops sweeping once no socket is open", async () => {
-		const hub = makeHub();
+	it("stops sweeping once a socket is alone, as no one could see its ghost", async () => {
+		const hub = makeHub(new FakeSocket(1, NOW));
 
 		await hub.alarm();
 
+		expect(hub.alarmAt()).toBeNull();
+	});
+
+	it("arms no sweep for a lone socket, and one when a second arrives", async () => {
+		const hub = makeHub();
+
+		await hub.connect();
+		expect(hub.alarmAt()).toBeNull();
+
+		const second = await hub.connect();
+		expect(second.got(EFrame.Here)).toHaveLength(1);
+		expect(hub.alarmAt()).toBe(NOW + STALE_MS / 2);
+	});
+
+	it("sweeps a lone ghost before the next socket is told who is here", async () => {
+		const ghost = new FakeSocket(1, NOW - STALE_MS - 1);
+		const hub = makeHub(ghost);
+
+		const newcomer = await hub.connect();
+
+		expect(ghost.closedWith).toBe(1001);
+		expect(newcomer.got(EFrame.Here)).toEqual([]);
 		expect(hub.alarmAt()).toBeNull();
 	});
 });
@@ -226,9 +280,9 @@ describe("purging a channel", () => {
 			{ type: EFrame.Revoked, slot: 1, doc: "" },
 		]);
 		expect(owner.closedWith).toBeNull();
-		expect(hub.sql.exec("SELECT channel, seq FROM deltas").toArray()).toEqual([
-			{ channel: VAULT, seq: 1 },
-		]);
+		expect(hub.sql.exec("SELECT channel, first FROM chunks").toArray()).toEqual(
+			[{ channel: VAULT, first: 1 }],
+		);
 		expect(hub.sql.exec("SELECT channel FROM docs").toArray()).toEqual([
 			{ channel: VAULT },
 		]);
