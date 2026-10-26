@@ -148,7 +148,7 @@
 	justify-content: center;
 }
 
-.mdsync-history-mark:has(.mdsync-history-pin) {
+.mdsync-history-mark.has-pin {
 	--mdsync-mark-gap: 12px;
 }
 

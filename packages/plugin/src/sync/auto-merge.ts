@@ -1,6 +1,6 @@
 import { DEFAULT_CONCURRENCY } from "@/constants";
 import { ESyncLogOperation } from "@/logs/store";
-import { sortedByPath } from "@/shared";
+import { asError, sortedByPath } from "@/shared";
 import {
 	advanceBaselineForPaths,
 	mergeWrittenIntoCache,
@@ -26,7 +26,7 @@ export async function autoMergeOp(
 ): Promise<OperationOutcome> {
 	const localEntries = new Map<string, ManifestEntry | null>();
 	// An error stops it as a cancel does: what merged is saved first, as a pull saves what landed.
-	let failed: unknown;
+	let failed: Error | undefined;
 	try {
 		await runWithConcurrency(
 			result.diff.conflicts,
@@ -39,7 +39,7 @@ export async function autoMergeOp(
 			},
 		);
 	} catch (err) {
-		failed = err;
+		failed = asError(err);
 	}
 	// In conflict order, whichever download finished first.
 	const mergedPaths = result.diff.conflicts

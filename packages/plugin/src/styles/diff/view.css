@@ -63,14 +63,14 @@
 
 /* No room for change navigation: F7, the strip and the lines still reach every change. */
 @container mdsync-diff (max-width: 1000px) {
-	.mdsync-diff-header:has(.mdsync-segments:not([hidden])) .mdsync-compare-nav {
+	.mdsync-diff-header.has-layout .mdsync-compare-nav {
 		display: none;
 	}
 }
 
 /* Merging fills the bar with undo and saving too; a phone has the cards and the status to move by. */
 @container mdsync-diff (max-width: 900px) {
-	.mdsync-diff-view:has(.mdsync-diff-resolution) .mdsync-compare-nav {
+	.mdsync-diff-header.is-resolving .mdsync-compare-nav {
 		display: none;
 	}
 }
@@ -181,10 +181,9 @@
 	flex-shrink: 0;
 }
 
-.mdsync-diff-action-bar:not(:has(button, .mdsync-diff-hint)),
+.mdsync-diff-action-bar:not(.has-button, .has-hint),
 .mdsync-diff-file-actions:empty,
-.mdsync-diff-pending-host:not(:has(.mdsync-compare-pending > *)),
-.mdsync-diff-action-bar:has(.mdsync-compare-pending.has-pending)
-	.mdsync-diff-file-actions {
+.mdsync-diff-action-bar:not(.has-pending-items) .mdsync-diff-pending-host,
+.mdsync-diff-action-bar.has-choices .mdsync-diff-file-actions {
 	display: none;
 }

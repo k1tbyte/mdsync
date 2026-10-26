@@ -204,8 +204,7 @@
 		display: inline-flex;
 	}
 
-	.mdsync-file-row:is(:hover, :focus-within):has(.mdsync-row-actions)
-		.mdsync-file-size {
+	.mdsync-file-row.has-actions:is(:hover, :focus-within) .mdsync-file-size {
 		display: none;
 	}
 }

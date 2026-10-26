@@ -16,8 +16,8 @@ export type Refused = Refusal | "unreadable";
 
 export interface Follower {
 	/** The disk is a version the space already has: the agreed text or the cold baseline. */
-	unchanged(disk: string): Promise<boolean>;
-	onCold(why: Unfollowed): void;
+	unchanged: (disk: string) => Promise<boolean>;
+	onCold: (why: Unfollowed) => void;
 }
 
 export interface LiveSessionDeps<M extends LiveModel> {

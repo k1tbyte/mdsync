@@ -116,7 +116,7 @@ export class RoomOpener {
 			// The note's path now: a refused rename rotation leaves the renamed note, not its old path.
 			onRefused: (reason) => this.hooks.leave(file.path, REFUSED[reason]),
 			nameOf: (person) => this.deps.nameOf(space.id, person),
-			sendEvery: this.deps.sendEvery,
+			sendEvery: () => this.deps.sendEvery(),
 			follower: space.readOnly
 				? {
 						unchanged: (disk) => this.known(note, path, disk),

@@ -176,6 +176,7 @@ export class HistoryTab {
 		});
 		const mark = item.createSpan({ cls: "mdsync-history-mark" });
 		if (row.pinned) {
+			mark.addClass("has-pin");
 			const pin = mark.createSpan({ cls: "mdsync-history-pin" });
 			setIcon(pin, "pin");
 			pin.setAttr("aria-label", "Pinned snapshot");

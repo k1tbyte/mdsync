@@ -19,10 +19,10 @@ export class SelectionBar {
 	private readonly el: HTMLElement;
 
 	constructor(
-		parent: HTMLElement,
+		private readonly host: HTMLElement,
 		private readonly sources: ReadonlyArray<SelectionSource>,
 	) {
-		this.el = parent.createDiv({ cls: "mdsync-selection-bar" });
+		this.el = host.createDiv({ cls: "mdsync-selection-bar" });
 		this.el.setAttr("role", "toolbar");
 		this.el.setAttr("aria-label", "Selection");
 	}
@@ -43,6 +43,8 @@ export class SelectionBar {
 		el.empty();
 		const count = sources.reduce((sum, s) => sum + s.selectedCount, 0);
 		el.toggleClass("mdsync-hidden", count === 0);
+		// For the phone's one bottom bar: Push and Pull step aside.
+		this.host.toggleClass("has-selection", count > 0);
 		if (count === 0) return;
 		el.createSpan({
 			cls: "mdsync-selection-count",

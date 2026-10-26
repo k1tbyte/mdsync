@@ -12,8 +12,10 @@ export function renderModalHead(
 	modal: Modal,
 	{ icon, title, sub, tone = "accent" }: ModalHead,
 ): HTMLElement {
-	modal.modalEl.addClass("mdsync-modal", "mdsync-drawer");
-	const { titleEl } = modal;
+	asDrawer(modal);
+	const { modalEl, titleEl } = modal;
+	if (!modalEl.hasClass("mdsync-modal")) watchTyping(modalEl);
+	modalEl.addClass("mdsync-modal");
 	titleEl.empty();
 	titleEl.addClass("mdsync-modal-head");
 	setIcon(titleEl.createSpan({ cls: `mdsync-modal-tile is-${tone}` }), icon);
@@ -22,6 +24,32 @@ export function renderModalHead(
 	const line = text.createDiv({ cls: "mdsync-modal-sub" });
 	if (sub) line.createSpan({ text: sub });
 	return line;
+}
+
+/** The phone keyboard leaves little room: while a field is typed in, the whole sheet scrolls. */
+function watchTyping(modalEl: HTMLElement): void {
+	// Read from the focus, not the events: WebKit sends no focusout for a field a redraw removes.
+	const sync = (): void => {
+		const focused = modalEl.doc.activeElement;
+		modalEl.toggleClass(
+			"is-typing",
+			focused !== null &&
+				modalEl.contains(focused) &&
+				focused.matches('input:not([type="radio"]), textarea'),
+		);
+	};
+	modalEl.addEventListener("focusin", sync);
+	modalEl.addEventListener("focusout", () => modalEl.removeClass("is-typing"));
+	new MutationObserver(sync).observe(modalEl, {
+		childList: true,
+		subtree: true,
+	});
+}
+
+/** On a phone the window rises from the bottom as a sheet. */
+export function asDrawer(modal: Modal): void {
+	modal.modalEl.addClass("mdsync-drawer");
+	modal.containerEl.addClass("mdsync-drawer-host");
 }
 
 /** A small capitals heading; returned for a count that changes or a control it names. */

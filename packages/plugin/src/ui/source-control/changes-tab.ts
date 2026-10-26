@@ -158,6 +158,7 @@ export class ChangesTab {
 		this.lastDiff = snapshot.result?.diff ?? null;
 		this.lastError = snapshot.error ?? null;
 		this.selectionBar = null;
+		overlay.removeClass("has-selection");
 		this.summary = null;
 		this.refreshButtonEl = null;
 		root.addClass("mdsync-changes-panel");

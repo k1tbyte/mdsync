@@ -111,7 +111,7 @@ export interface CompareStateConfig {
 	toggleFold(key: number): void;
 	/** Indices of the unchanged runs opened in both panes. */
 	opened(): ReadonlySet<number>;
-	toggleGap(index: number): void;
+	toggleGap: (index: number) => void;
 	combined: CombinedCompareConfig;
 }
 

@@ -1,5 +1,6 @@
 import type { EditorView } from "@codemirror/view";
 import { type App, Modal, Platform } from "obsidian";
+import { asDrawer } from "@/ui/common";
 
 import { focusHunk } from "./focus";
 import { findChangeForLine } from "./helpers";
@@ -79,7 +80,8 @@ class HunkDrawer extends Modal {
 	}
 
 	onOpen(): void {
-		this.modalEl.addClass("mdsync-drawer", "mdsync-hunk-drawer");
+		asDrawer(this);
+		this.modalEl.addClass("mdsync-hunk-drawer");
 		this.contentEl.addClass("mdsync-hunk-drawer-content");
 		this.contentEl.empty();
 		this.contentEl.appendChild(buildPopup(this.target, dismissPopup));

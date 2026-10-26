@@ -223,7 +223,7 @@
 }
 
 /* On a phone, a sheet rising from the bottom; closed by its buttons or the backdrop. */
-body.is-phone .modal-container:has(> .mdsync-drawer) {
+body.is-phone .modal-container.mdsync-drawer-host {
 	align-items: flex-end;
 	padding: 0;
 }
@@ -281,7 +281,7 @@ body.is-phone .modal.mdsync-modal {
 	}
 
 	/* The keyboard leaves little room: the whole sheet scrolls instead. */
-	&:has(input:not([type="radio"]):focus, textarea:focus) {
+	&.is-typing {
 		overflow-y: auto;
 
 		.modal-content {

@@ -222,8 +222,7 @@ body.is-phone .mdsync-diff-header button.mdsync-merge-status {
 }
 
 /* The choices' row closes the card the head opened, right under its rows. */
-.mdsync-merge-panel.is-combined
-.mdsync-source-slot:has(> .is-closing:not(.is-opening)) {
+.mdsync-merge-panel.is-combined .mdsync-source-slot.is-card-end {
 	padding-top: 0;
 }
 

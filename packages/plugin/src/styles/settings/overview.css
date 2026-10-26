@@ -145,9 +145,8 @@
 	font-size: var(--font-ui-smaller);
 }
 
-/* The red pill says it; Obsidian's warning sign beside it would say it twice. */
-.mdsync-settings-sections
-.setting-item-value:has(+ .setting-item-status.mod-warning) {
+/* Logs shows a value only for errors: the red pill says it, Obsidian's warning sign would say it twice. */
+.mdsync-settings-sections .setting-item:nth-child(5) .setting-item-value {
 	background: rgba(var(--color-red-rgb), 0.15);
 	color: var(--text-error);
 }

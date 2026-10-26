@@ -43,3 +43,48 @@ export function renderActionBar(
 	}
 	return pending;
 }
+
+/**
+ * Classes for what the header and the bar hold, kept as their writers fill them: `:has` would restyle on
+ * any change in the tree. Only these two small trees are watched, never the editors.
+ */
+export function watchDiffChrome(
+	header: HTMLElement,
+	bar: HTMLElement,
+): MutationObserver {
+	const holds = (el: HTMLElement, selector: string): boolean =>
+		el.querySelector(selector) !== null;
+	// classList.toggle leaves an unchanged class alone: no mutation, no loop.
+	const mark = (): void => {
+		header.classList.toggle(
+			"has-layout",
+			holds(header, ".mdsync-segments:not([hidden])"),
+		);
+		header.classList.toggle(
+			"is-resolving",
+			holds(header, ".mdsync-diff-resolution") ||
+				holds(bar, ".mdsync-diff-resolution"),
+		);
+		bar.classList.toggle("has-button", holds(bar, "button"));
+		bar.classList.toggle("has-hint", holds(bar, ".mdsync-diff-hint"));
+		bar.classList.toggle("has-reason", holds(bar, ".is-non-actionable"));
+		bar.classList.toggle(
+			"has-choices",
+			holds(bar, ".mdsync-compare-pending.has-pending"),
+		);
+		bar.classList.toggle(
+			"has-pending-items",
+			holds(bar, ".mdsync-compare-pending > *"),
+		);
+	};
+	const observer = new MutationObserver(mark);
+	for (const el of [header, bar]) {
+		observer.observe(el, {
+			childList: true,
+			subtree: true,
+			attributeFilter: ["class", "hidden"],
+		});
+	}
+	mark();
+	return observer;
+}

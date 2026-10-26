@@ -107,13 +107,14 @@ body.is-phone .mdsync-source-control .mdsync-selection-bar {
 	box-shadow: none;
 }
 
-/* One bottom bar, taken out of tab order when not shown: Cancel while a sync runs, else the selection, else Push and Pull. */
+/* One bottom bar, taken out of tab order when not shown: Cancel while a sync runs, else the selection, else Push and Pull. Push and Pull come before the selection bar. */
 body.is-phone
-	.mdsync-source-control:has(.mdsync-selection-bar:not(.mdsync-hidden))
+	.mdsync-source-control.has-selection
 	.mdsync-sync-summary-buttons.is-docked:not(.is-cancellable),
 body.is-phone
-	.mdsync-source-control:has(.is-docked.is-cancellable)
-	.mdsync-selection-bar {
+	.mdsync-source-control
+	.is-docked.is-cancellable
+	~ .mdsync-selection-bar {
 	display: none;
 }
 

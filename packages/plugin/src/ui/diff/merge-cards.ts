@@ -29,7 +29,7 @@ export interface CombinedMergeConfig {
 	sides: Record<EMergeSide, readonly string[]>;
 	marks: SideMarks;
 	/** Opens or folds the unchanged run before the change at this index. */
-	toggleGap(index: number): void;
+	toggleGap: (index: number) => void;
 }
 
 export const toggleMergeGap = StateEffect.define<number>();

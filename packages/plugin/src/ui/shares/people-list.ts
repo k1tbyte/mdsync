@@ -12,10 +12,10 @@ import {
 import type { ShareRow } from "./share-people";
 
 export interface PeopleActions {
-	follow(person: Person): void;
-	open(note: string): void;
+	follow: (person: Person) => void;
+	open: (note: string) => void;
 	/** Absent where this device cannot revoke. */
-	revoke?(participant: Participant): void;
+	revoke?: (participant: Participant) => void;
 }
 
 /** This person first, then the others: who, where, their role and what to do with them. */

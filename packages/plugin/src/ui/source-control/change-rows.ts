@@ -240,6 +240,7 @@ function renderRowActions(
 ): void {
 	const actions = SECTION_ACTIONS[ctx.section];
 	if (actions.length === 0) return;
+	item.addClass("has-actions");
 	const bar = item.createSpan({ cls: "mdsync-row-actions" });
 	for (const { icon, rowLabel, run } of actions) {
 		appendIconButton(bar, icon, rowLabel, (event) => {

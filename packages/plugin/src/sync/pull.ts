@@ -1,7 +1,7 @@
 /** The pull: moves, downloads and deletions land, then the baseline follows what did. */
 
 import { DEFAULT_CONCURRENCY } from "@/constants";
-import { entryAt } from "@/shared";
+import { asError, entryAt } from "@/shared";
 import { runWithConcurrency, runWithFileConcurrency } from "@/utils";
 import { deletePath, unchangedSince } from "@/vault/io";
 import { advanceBaselineForPaths } from "./baseline";
@@ -20,7 +20,7 @@ export interface PullResult {
 	/** Stopped early: `written` holds only what actually landed. */
 	cancelled: boolean;
 	/** What stopped it, `written` holding what landed before: the caller saves that, then throws it. */
-	failed?: unknown;
+	failed?: Error;
 }
 
 export async function pullPaths(
@@ -34,7 +34,7 @@ export async function pullPaths(
 	const written = new Map<string, ManifestEntry | null>();
 	// An error stops it as a cancel does. Left on the old baseline, what landed would read as this device's
 	// edit, and a change made there elsewhere meanwhile would be undone.
-	let failed: unknown;
+	let failed: Error | undefined;
 	let onDisk = compareResult.snapshot.emptyFolders;
 	try {
 		await land(
@@ -50,7 +50,7 @@ export async function pullPaths(
 		if (!deps.signal?.aborted)
 			onDisk = await syncFolders(deps, remote, written);
 	} catch (err) {
-		failed = err;
+		failed = asError(err);
 	}
 	const cancelled = deps.signal?.aborted === true;
 	// `written`, not `paths`: advancing the baseline of a never-downloaded path would turn an unresolved

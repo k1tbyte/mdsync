@@ -6,7 +6,7 @@ export interface DiffRange {
 	b: [number, number];
 }
 
-const OVER_BUDGET = Symbol("over budget");
+const OVER_BUDGET = new Error("over budget");
 
 /**
  * Myers in linear space, as the ranges between common runs; `null` past `budget` compares. A compare count,

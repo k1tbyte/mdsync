@@ -217,6 +217,10 @@ export class SourceBlockWidget extends WidgetType {
 	toDOM(view: EditorView): HTMLElement {
 		// Space around the block goes on this slot: CodeMirror does not measure a widget's margins.
 		const slot = createDiv({ cls: "mdsync-source-slot" });
+		slot.toggleClass(
+			"is-card-end",
+			this.block.closes === true && this.block.opens !== true,
+		);
 		renderSourceBlock(slot, this.block, () => view.requestMeasure());
 		if (refocusChange === changeOf(this.block.key)) {
 			// Mounted once the dispatch that drew it returns.

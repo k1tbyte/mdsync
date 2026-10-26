@@ -37,17 +37,23 @@
 }
 
 /* On a phone interactive-normal is the bar's own colour. */
-.mdsync-segment:has(input:checked) {
+.mdsync-segment.is-checked {
 	background: var(--background-modifier-border);
 	color: var(--text-normal);
 	font-weight: var(--font-medium);
 }
 
-.mdsync-segment:has(input:focus-visible) {
+/* The radio's own :focus-visible; its text draws the ring over the whole label. */
+.mdsync-segment input:focus-visible + span::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: var(--radius-s);
 	outline: 2px solid var(--background-modifier-border-focus);
+	pointer-events: none;
 }
 
-.mdsync-segment:has(input:disabled) {
+.mdsync-segment.is-disabled {
 	opacity: 0.6;
 }
 
@@ -64,7 +70,7 @@
 	font-size: var(--font-ui-smaller);
 }
 
-.mdsync-segments.is-compact .mdsync-segment:has(input:checked) {
+.mdsync-segments.is-compact .mdsync-segment.is-checked {
 	background: var(--background-primary);
 	box-shadow: var(--shadow-xs, none);
 }

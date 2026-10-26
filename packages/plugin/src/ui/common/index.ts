@@ -12,6 +12,7 @@ export { lastEditLabel, lastEditor } from "./last-edit";
 export { onLongPress } from "./long-press";
 export { infoTitle, personTitle, showMenuAt } from "./menu";
 export {
+	asDrawer,
 	type ModalHead,
 	modalCard,
 	modalFooter,

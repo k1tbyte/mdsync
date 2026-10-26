@@ -90,7 +90,11 @@ export class WriteJournal {
 			if ((await adapter.stat(path)) === null) continue;
 			const raw = await adapter.read(path);
 			try {
-				journal = new WriteJournal(adapter, configDir, JSON.parse(raw));
+				journal = new WriteJournal(
+					adapter,
+					configDir,
+					JSON.parse(raw) as Record<string, Intent>,
+				);
 				break;
 			} catch {
 				// Garbled: the next copy, as `loadState` reads them.

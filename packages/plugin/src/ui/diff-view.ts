@@ -11,6 +11,7 @@ import {
 import { notifyError, redrawOnPhoneChange } from "@/ui/common";
 import { openConfirmModal } from "@/ui/modals";
 import { type ComparePanel, MergeEditorPanel, renderBinaryDiff } from "./diff";
+import { watchDiffChrome } from "./diff/action-bar";
 import { renderTextDiff } from "./diff/compare-panel";
 import {
 	getAdjacentPath,
@@ -50,6 +51,7 @@ export class DiffView extends ItemView {
 	private headerEl: HTMLElement | null = null;
 	private bodyEl: HTMLElement | null = null;
 	private actionBarEl: HTMLElement | null = null;
+	private chrome: MutationObserver | null = null;
 	private rendering = false;
 	private refreshPending = false;
 	/** Merge… from source control asked for this path. */
@@ -177,6 +179,7 @@ export class DiffView extends ItemView {
 			cls: "mdsync-diff-action-bar",
 		});
 		this.bodyEl = this.contentEl.createDiv({ cls: "mdsync-diff-body" });
+		this.chrome = watchDiffChrome(this.headerEl, this.actionBarEl);
 		({ result: this.seenResult, busy: this.seenBusy } =
 			this.plugin.controller.getSnapshot());
 		this.unsubStatus = this.plugin.controller.subscribe(({ result, busy }) => {
@@ -209,6 +212,8 @@ export class DiffView extends ItemView {
 			this.unsubStatus = null;
 		}
 		this.loadGeneration++;
+		this.chrome?.disconnect();
+		this.chrome = null;
 		this.refreshPending = false;
 		this.destroyViews();
 		this.contentEl.empty();
