@@ -454,8 +454,10 @@ export class DiffView extends ItemView {
 	}
 
 	private async returnToSourceControl(): Promise<void> {
-		await openSourceControlView(this.app, SOURCE_CONTROL_VIEW_TYPE);
+		// Detached first: the leaf Obsidian activates after it, a tick later, closes a phone's drawer.
 		this.leaf.detach();
+		await sleep(0);
+		await openSourceControlView(this.app, SOURCE_CONTROL_VIEW_TYPE);
 	}
 
 	private async navigateFile(delta: number): Promise<void> {
