@@ -3,6 +3,20 @@
 This file is the source of truth for release notes: the section of a version becomes the notes of its GitHub release.
 The newest section must match `version` in `manifest.json`. Headings are `## [x.y.z] - YYYY-MM-DD`, then `### Important`, `### Features`, `### Improvements` and `### Fixes` as needed. Write for users, in plain sentences, not commit titles.
 
+## [1.4.1] - 2026-10-27
+
+### Improvements
+
+- **Offline state.** Without a connection, the status bar, its menu and the Changes tab say you're offline instead of showing an error, and Push and Pull wait. History, Timeline and Deleted offer **Try again**. When the connection is back, MDSync syncs at once, or only compares when automatic sync is off.
+- A shared folder whose storage can't be reached shows as offline, apart from one that failed, and automatic sync retries it on its own.
+- Source control fits a phone's narrow sidebar: a long path shows its end, a chain of single subfolders takes one row in the tree, the size moves under the name and leaves the tree, and a row's menu shows the whole path.
+- On a phone, a long file name in the compare header slides to its end and back, window titles wrap instead of being cut, and Push and Pull in the Changes summary sit at the bottom across its width.
+
+### Fixes
+
+- Turning MDSync off and on again on a phone no longer shows source control twice in the sidebar.
+- In a sidebar, the bar under Push and Pull takes the sidebar's colour instead of a darker one.
+
 ## [1.4.0] - 2026-10-26
 
 ### Important

@@ -1,6 +1,6 @@
 {
 	"name": "mdsync-monorepo",
-	"version": "1.4.0",
+	"version": "1.4.1",
 	"description": "Monorepo for the MDSync Obsidian plugin and its companion services.",
 	"private": true,
 	"type": "module",
