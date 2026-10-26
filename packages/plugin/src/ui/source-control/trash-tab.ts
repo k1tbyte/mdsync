@@ -57,6 +57,12 @@ export class TrashTab implements SelectionSource {
 		this.list.clear();
 	}
 
+	clearOffline(): boolean {
+		if (!this.list.offline) return false;
+		this.clear();
+		return true;
+	}
+
 	/** `overlay` holds the selection bar over the pane, outside its scroll. */
 	render(parent: HTMLElement, tools: HTMLElement, overlay: HTMLElement): void {
 		this.bar = null;

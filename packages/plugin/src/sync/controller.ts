@@ -101,6 +101,7 @@ export interface SyncControllerHost {
 	): Promise<void>;
 }
 
+export { splitSpaceErrors } from "./runtime/controller-state";
 export type { SyncOperationResult, SyncStatusListener, SyncStatusSnapshot };
 
 /** Its owner's relay would refuse the write; Revert drops the change. */
@@ -201,6 +202,11 @@ export class SyncController {
 
 	subscribe(listener: SyncStatusListener): () => void {
 		return this.runtimeState.subscribe(listener);
+	}
+
+	/** The browser went on- or offline: `snapshot.offline` moved without a sync to announce it. */
+	connectivityChanged(): void {
+		this.runtimeState.broadcast();
 	}
 
 	/** Who last published the file, as its space's remote head says. */

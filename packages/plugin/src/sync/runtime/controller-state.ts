@@ -10,6 +10,18 @@ export interface SpaceError {
 	message: string;
 	/** It lost every file it had here: `settleGone` resolves it. */
 	gone?: true;
+	/** Its storage could not be reached: it waits for the connection and is not broken. */
+	offline?: true;
+}
+
+export function splitSpaceErrors(errors: readonly SpaceError[]): {
+	broken: SpaceError[];
+	unreachable: SpaceError[];
+} {
+	return {
+		broken: errors.filter(({ offline }) => !offline),
+		unreachable: errors.filter(({ offline }) => offline),
+	};
 }
 
 /** The vault's last compare and the storage it ran against. */
@@ -28,6 +40,8 @@ export interface SyncStatusSnapshot {
 	vaultCheck: VaultCheck | null;
 	busy: boolean;
 	error: string | null;
+	/** No connection to the storage: the browser says so, or the last call died on the network. Displays check it before `error`. */
+	offline: boolean;
 	spaceErrors: readonly SpaceError[];
 	result: CompareResult | null;
 	progressText: string | null;
@@ -51,6 +65,8 @@ export class SyncControllerRuntimeState {
 	private vaultCheck: VaultCheck | null = null;
 	private pendingOps = 0;
 	private error: string | null = null;
+	/** The last call died on the network while the browser still claimed to be online. */
+	private unreachable = false;
 	private spaceErrors: readonly SpaceError[] = [];
 	private progressText: string | null = null;
 	private progressRatio: number | null = null;
@@ -79,6 +95,7 @@ export class SyncControllerRuntimeState {
 			vaultCheck: this.vaultCheck,
 			busy: this.pendingOps > 0,
 			error: this.error,
+			offline: this.unreachable || !navigator.onLine,
 			spaceErrors: this.spaceErrors,
 			result,
 			progressText: this.progressText,
@@ -116,7 +133,7 @@ export class SyncControllerRuntimeState {
 		this.cancel();
 		// Closures outliving unload keep this scope alive; what survives should be empty, not 20k files of compare.
 		this.clearResult();
-		this.error = null;
+		this.clearError();
 		this.spaceErrors = [];
 		this.progressText = null;
 		this.progressRatio = null;
@@ -164,8 +181,13 @@ export class SyncControllerRuntimeState {
 		this.error = error;
 	}
 
+	setUnreachable(): void {
+		this.unreachable = true;
+	}
+
 	clearError(): void {
 		this.error = null;
+		this.unreachable = false;
 	}
 
 	setSpaceErrors(errors: readonly SpaceError[]): void {
@@ -201,7 +223,7 @@ export class SyncControllerRuntimeState {
 	invalidate(reason: string): void {
 		this.epoch++;
 		this.clearResult();
-		this.error = null;
+		this.clearError();
 		this.spaceErrors = [];
 		this.progressText = null;
 		this.progressRatio = null;

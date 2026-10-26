@@ -38,7 +38,7 @@ describe("push notices", () => {
 			showHistory: () => {},
 			openDiff: async () => {},
 		});
-		const error = "Request Failed. IOException Stream closed";
+		const error = "Upload rejected";
 		vi.spyOn(session.storage, "put").mockRejectedValueOnce(new Error(error));
 
 		expect(await actions.pushPaths(["note.md"])).toBe(false);

@@ -5,6 +5,7 @@ export function canPushAll(snapshot: SyncStatusSnapshot): boolean {
 	const diff = snapshot.result?.diff;
 	return (
 		!snapshot.busy &&
+		!snapshot.offline &&
 		!!diff &&
 		diff.conflicts.length === 0 &&
 		diff.remoteChanges.length === 0 &&
@@ -16,6 +17,7 @@ export function canPullAll(snapshot: SyncStatusSnapshot): boolean {
 	const diff = snapshot.result?.diff;
 	return (
 		!snapshot.busy &&
+		!snapshot.offline &&
 		!!diff &&
 		diff.conflicts.length === 0 &&
 		diff.remoteChanges.length > 0

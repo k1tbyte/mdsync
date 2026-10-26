@@ -1,11 +1,13 @@
 import { createTestControllerHost } from "@tests/helpers/controller";
 import type { TestSession } from "@tests/helpers/session";
 import { pairedSessions, useEncryptionKey } from "@tests/helpers/session";
-import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { ESyncLogOperation } from "@/logs/store";
+import { OFFLINE_MESSAGE } from "@/shared";
 import { ShareRefusedError, StorageRequestError } from "@/storage";
 import { StorageHttpError } from "@/storage/adapters/util";
 import { SyncCancelledError } from "@/sync/cancel";
+import { splitSpaceErrors } from "@/sync/controller";
 import { ConcurrentPushError } from "@/sync/manifest";
 import { pushPathsOp } from "@/sync/operations/push";
 import { SyncControllerRuntimeState } from "@/sync/runtime/controller-state";
@@ -65,7 +67,7 @@ describe("OperationRunner.runOperation", () => {
 	it("returns the same failure recorded in the snapshot and logs", async () => {
 		const [session] = pairedSessions();
 		const { runner, runtimeState, host } = createTestRunner(session);
-		const error = "Request Failed. IOException Stream closed";
+		const error = "Upload rejected";
 		const result = await runner.runOperation(
 			VAULT_SPACE,
 			ESyncLogOperation.Push,
@@ -83,9 +85,9 @@ describe("OperationRunner.runOperation", () => {
 		const [session] = pairedSessions();
 		const { runner, runtimeState, host } = createTestRunner(session);
 		const detail =
-			'S3 HEAD to "objects/example" failed: Request Failed. IOException Stream closed';
+			"S3 refused the request: this device's clock is off (RequestTimeTooSkewed)";
 		const message =
-			"S3 request failed on this device. Check the connection and try again. See MDSync logs for details.";
+			"This device's clock is off. Set the date and time automatically, then sync again.";
 		const result = await runner.runOperation(
 			VAULT_SPACE,
 			ESyncLogOperation.Push,
@@ -329,6 +331,33 @@ describe("OperationRunner.refreshNow", () => {
 		expect(runtimeState.getSnapshot().spaceErrors).toEqual([]);
 	});
 
+	it("sets apart a share whose storage cannot be reached from one that broke", async () => {
+		const [session] = pairedSessions();
+		const { runner, runtimeState, host } = createTestRunner(session);
+		const team = { id: "team", root: "Team" };
+		const docs = { id: "docs", root: "Docs" };
+		host.spaces = async () => [VAULT_SPACE, team, docs];
+		const open = host.openSession.getMockImplementation();
+		host.openSession.mockImplementation(async (space, partition) => {
+			if (space === team) throw new Error("Failed to fetch");
+			if (space === docs) throw new Error("Access denied");
+			return open?.(space, partition) ?? null;
+		});
+
+		await runner.refreshNow();
+
+		const snapshot = runtimeState.getSnapshot();
+		expect(snapshot).toMatchObject({ error: null, offline: false });
+		expect(snapshot.spaceErrors).toEqual([
+			{ root: "Team", message: OFFLINE_MESSAGE, offline: true },
+			{ root: "Docs", message: "Access denied" },
+		]);
+		expect(splitSpaceErrors(snapshot.spaceErrors)).toEqual({
+			unreachable: [snapshot.spaceErrors[0]],
+			broken: [snapshot.spaceErrors[1]],
+		});
+	});
+
 	it("reports a share's refused link, not any other storage refusal", async () => {
 		const [session] = pairedSessions();
 		const { runner, host } = createTestRunner(session);
@@ -449,14 +478,75 @@ describe("OperationRunner.refreshNow", () => {
 		const [session] = pairedSessions();
 		const { runner, runtimeState, host } = createTestRunner(session);
 		host.spaces = async () => [VAULT_SPACE, { id: "share", root: "Team" }];
-		host.openSession.mockRejectedValue(new Error("Offline"));
+		host.openSession.mockRejectedValue(new Error("Access denied"));
 
 		await runner.refreshNow();
 
 		expect(runtimeState.getSnapshot()).toMatchObject({
-			error: "Offline",
+			error: "Access denied",
 			spaceErrors: [],
 			result: null,
+		});
+	});
+});
+
+describe("OperationRunner offline", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("reads a lost connection as offline, yet still as a failed cycle", async () => {
+		const [session] = pairedSessions();
+		const { runner, runtimeState, host } = createTestRunner(session);
+		host.openSession.mockRejectedValueOnce(
+			new Error("net::ERR_INTERNET_DISCONNECTED"),
+		);
+
+		await runner.refreshNow();
+
+		// `error` stays set so nothing that gates on it acts on the comparison it kept.
+		expect(runtimeState.getSnapshot()).toMatchObject({
+			offline: true,
+			error: OFFLINE_MESSAGE,
+		});
+		expect(host.logWarn).toHaveBeenCalled();
+		expect(host.logError).not.toHaveBeenCalled();
+
+		await runner.refreshNow();
+		expect(runtimeState.getSnapshot()).toMatchObject({
+			offline: false,
+			error: null,
+		});
+	});
+
+	it("answers an operation with the offline line", async () => {
+		const [session] = pairedSessions();
+		const { runner, runtimeState } = createTestRunner(session);
+		const result = await runner.runOperation(
+			VAULT_SPACE,
+			ESyncLogOperation.Push,
+			async () => {
+				throw new Error("Failed to fetch");
+			},
+		);
+		expect(result).toEqual({ ok: false, error: OFFLINE_MESSAGE });
+		expect(runtimeState.getSnapshot()).toMatchObject({
+			offline: true,
+			error: OFFLINE_MESSAGE,
+		});
+	});
+
+	it("takes any failure for offline while the browser is", async () => {
+		const [session] = pairedSessions();
+		const { runner, runtimeState, host } = createTestRunner(session);
+		vi.stubGlobal("navigator", { onLine: false });
+		host.openSession.mockRejectedValueOnce(new Error("Something unrecognised"));
+
+		await runner.refreshNow();
+
+		expect(runtimeState.getSnapshot()).toMatchObject({
+			offline: true,
+			error: OFFLINE_MESSAGE,
 		});
 	});
 });

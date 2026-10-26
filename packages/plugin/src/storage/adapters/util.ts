@@ -1,3 +1,5 @@
+import { isNetworkError } from "@/shared";
+
 const RETRY_DELAYS_MS: ReadonlyArray<number> = [500, 2_000, 5_000];
 
 const STORAGE_TIMEOUT_MS = 30_000;
@@ -80,10 +82,6 @@ export function isRetryableStatus(status: number): boolean {
 	return status === 408 || status === 425 || status === 429 || status >= 500;
 }
 
-/** Platform transport failures. */
-const NETWORK_FAILURE =
-	/network|failed to fetch|load failed|stream closed|socket hang up|ECONNRESET|ECONNREFUSED|ECONNABORTED|ETIMEDOUT|EPIPE|ENOTFOUND|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|ENETRESET|ERR_(?:NETWORK|CONNECTION|INTERNET|NAME_NOT_RESOLVED)/i;
-
 /** The storage turned this device's credentials away: rotated, revoked or mistyped. */
 export function isRefusedCredentials(err: unknown): boolean {
 	return (
@@ -96,11 +94,9 @@ export function isRetryableError(err: unknown): boolean {
 	if (err instanceof StorageTimeoutError) return err.bytes <= RETRY_MAX_BYTES;
 	if (err instanceof StorageHttpError) return isRetryableStatus(err.status);
 	if (!err || typeof err !== "object") return false;
-	const e = err as { name?: string; message?: string };
 	// A cancelled request is a decision, not a hiccup: retrying it ignores the caller that asked to stop.
-	if (e.name === "AbortError") return false;
-	if (e.name === "TimeoutError") return true;
-	return typeof e.message === "string" && NETWORK_FAILURE.test(e.message);
+	if ((err as { name?: string }).name === "AbortError") return false;
+	return isNetworkError(err);
 }
 
 export async function withRetry<T>(

@@ -54,7 +54,7 @@ function harness(state: {
 		refreshAndAutoSync: async () => {
 			refreshes++;
 		},
-		getSnapshot: () => ({ error: null }),
+		getSnapshot: () => ({ error: null, offline: false, spaceErrors: [] }),
 		subscribe: () => () => undefined,
 	} as unknown as SyncController;
 	registerScheduler(host, controller);

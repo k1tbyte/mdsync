@@ -74,8 +74,8 @@ function harness(options: {
 		spaces: { partition: () => [VAULT_SPACE, ...Object.values(SHARES)] },
 		register: () => undefined,
 		registerInterval: () => undefined,
-		registerDomEvent: (_target: unknown, _event: string, fn: () => void) => {
-			onlineListeners.push(fn);
+		registerDomEvent: (_target: unknown, event: string, fn: () => void) => {
+			if (event === "online") onlineListeners.push(fn);
 		},
 		registerEvent: () => undefined,
 	} as unknown as SchedulerHost;
@@ -92,6 +92,13 @@ function harness(options: {
 			sharePushes.push(paths);
 		},
 		subscribe: () => () => undefined,
+		connectivityChanged: () => undefined,
+		getSnapshot: () => ({
+			offline: false,
+			error: null,
+			spaceErrors: [],
+			result: {},
+		}),
 	} as unknown as SyncController;
 	registerScheduler(host, controller);
 	return {

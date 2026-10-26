@@ -32,7 +32,8 @@
 }
 
 /* Mutually exclusive with is-error (see status-bar.ts), so order is free. */
-.mdsync-status-sync.is-offline {
+.mdsync-status-sync.is-offline,
+.mdsync-status-part.is-offline {
 	color: var(--text-muted);
 }
 

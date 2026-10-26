@@ -3,8 +3,8 @@ import { type Plugin, setIcon } from "obsidian";
 import { RELATIVE_TIME_REFRESH_MS } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
 import { canSync } from "@/settings/model";
-import { formatRelativeTime, pluralize } from "@/shared";
-import type { SyncStatusSnapshot } from "@/sync/controller";
+import { formatRelativeTime, OFFLINE_MESSAGE, pluralize } from "@/shared";
+import { type SyncStatusSnapshot, splitSpaceErrors } from "@/sync/controller";
 import { makeActivatable } from "./common/activatable";
 import { mountRelayStatus } from "./live/status/relay-status";
 import { openStatusMenu, syncHeadline } from "./status-menu";
@@ -33,7 +33,7 @@ export function registerStatusBar(plugin: Plugin & PluginHost): () => void {
 	mountRelayStatus(plugin, relay, name);
 
 	const render = (snapshot: SyncStatusSnapshot): void => {
-		const offline = !navigator.onLine;
+		const { offline } = snapshot;
 		sync.empty();
 		sync.toggleClass("is-error", hasError(snapshot) && !offline);
 		sync.toggleClass("is-offline", offline);
@@ -44,10 +44,7 @@ export function registerStatusBar(plugin: Plugin & PluginHost): () => void {
 
 	render(controller.getSnapshot());
 	plugin.register(controller.subscribe(render));
-	// A dropped connection must not read as a broken remote.
 	const renderCurrent = (): void => render(controller.getSnapshot());
-	plugin.registerDomEvent(window, "online", renderCurrent);
-	plugin.registerDomEvent(window, "offline", renderCurrent);
 	// The tooltip's "Compared ..." ages while nothing broadcasts.
 	plugin.registerInterval(
 		window.setInterval(renderCurrent, RELATIVE_TIME_REFRESH_MS),
@@ -83,12 +80,20 @@ function renderSync(
 		el.createSpan({ text: snapshot.progressText ?? "Syncing…" });
 		return;
 	}
-	if (snapshot.spaceErrors.length > 0) {
+	const { broken, unreachable } = splitSpaceErrors(snapshot.spaceErrors);
+	if (broken.length > 0) {
 		part(
 			el,
 			"circle-alert",
-			`${pluralize(snapshot.spaceErrors.length, "shared folder")} failed`,
+			`${pluralize(broken.length, "shared folder")} failed`,
 		);
+	}
+	if (unreachable.length > 0) {
+		part(
+			el,
+			"cloud-off",
+			`${pluralize(unreachable.length, "shared folder")} offline`,
+		).addClass("is-offline");
 	}
 	if (!snapshot.result) {
 		part(el, "cloud", "Not compared");
@@ -117,11 +122,11 @@ function tooltip(
 	offline: boolean,
 ): string {
 	if (offline) {
-		return "No network connection. MDSync will sync once it is back.";
+		return `${OFFLINE_MESSAGE} MDSync will sync once it is back.`;
 	}
 	if (snapshot.error) return `MDSync error: ${snapshot.error}`;
 	if (hasError(snapshot)) {
-		const failed = snapshot.spaceErrors.map(
+		const failed = splitSpaceErrors(snapshot.spaceErrors).broken.map(
 			({ root, message }) => `"${root}": ${message}`,
 		);
 		return `MDSync error in ${failed.join("; ")}`;
@@ -132,7 +137,10 @@ function tooltip(
 		: headline;
 }
 
-/** A shared folder that failed counts: the rest syncs, it does not. */
+/** A shared folder that failed counts: the rest syncs, it does not. One that only waits for its connection does not. */
 function hasError(snapshot: SyncStatusSnapshot): boolean {
-	return Boolean(snapshot.error) || snapshot.spaceErrors.length > 0;
+	return (
+		Boolean(snapshot.error) ||
+		splitSpaceErrors(snapshot.spaceErrors).broken.length > 0
+	);
 }

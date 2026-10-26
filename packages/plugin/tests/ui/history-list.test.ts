@@ -44,9 +44,9 @@ describe("HistoryList", () => {
 		expect(list.value).toBeNull();
 		expect(settled).not.toHaveBeenCalled();
 
-		fresh.reject(new Error("offline"));
+		fresh.reject(new Error("boom"));
 		await flush();
-		expect(list.error).toBe("offline");
+		expect(list.error).toBe("boom");
 		expect(settled).toHaveBeenCalledOnce();
 	});
 });

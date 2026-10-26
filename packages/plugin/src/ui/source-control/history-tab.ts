@@ -62,6 +62,12 @@ export class HistoryTab {
 		this.loadedPath = null;
 	}
 
+	clearOffline(): boolean {
+		if (!this.versions.offline) return false;
+		this.clearVersions();
+		return true;
+	}
+
 	render(parent: HTMLElement, tools: HTMLElement): void {
 		const pane = parent.createDiv({ cls: "mdsync-history-pane" });
 		if (!this.plugin.settings.fileHistoryEnabled) {

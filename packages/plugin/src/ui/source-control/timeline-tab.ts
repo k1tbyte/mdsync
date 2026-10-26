@@ -82,6 +82,12 @@ export class TimelineTab {
 		this.snapshots.clear();
 	}
 
+	clearOffline(): boolean {
+		if (!this.snapshots.offline) return false;
+		this.clear();
+		return true;
+	}
+
 	dispose(): void {
 		this.snapshots.clear();
 		this.openGeneration++;

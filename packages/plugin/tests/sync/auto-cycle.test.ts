@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { decryptJson, sha256Hex } from "@/crypto";
 import { DEFAULT_SETTINGS_SYNC } from "@/settings/model";
+import { OFFLINE_MESSAGE } from "@/shared";
 import { REMOTE_MANIFEST_KEY } from "@/sync/constants";
 import { SyncController } from "@/sync/controller";
 import { pushPaths } from "@/sync/engine";
@@ -42,6 +43,25 @@ describe("serialized automatic refresh cycle", () => {
 		await controller.refreshAndAutoPull();
 		expect(headReads(get)).toBe(1);
 		expect(b.text("note.md")).toBe("remote");
+		controller.dispose();
+	});
+
+	it("never pulls from the last comparison once the next refresh failed offline", async () => {
+		const [a, b] = pairedSessions();
+		a.adapter.putText("note.md", "remote");
+		await pushPaths(a.deps(), await a.compare(), ["note.md"]);
+		const controller = new SyncController(createTestControllerHost(b));
+		await controller.refresh();
+		expect(controller.getSnapshot().pendingRemote).toBe(1);
+
+		vi.spyOn(b.storage, "get").mockRejectedValue(new Error("Failed to fetch"));
+		await controller.refreshAndAutoPull();
+
+		expect(controller.getSnapshot()).toMatchObject({
+			error: OFFLINE_MESSAGE,
+			offline: true,
+		});
+		expect(await b.adapter.exists("note.md")).toBe(false);
 		controller.dispose();
 	});
 

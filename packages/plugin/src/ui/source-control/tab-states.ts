@@ -1,4 +1,5 @@
 import { type App, ButtonComponent, setIcon } from "obsidian";
+import { OFFLINE_MESSAGE } from "@/shared";
 import { callout, openPluginSettings } from "@/ui/common";
 
 interface StateAction {
@@ -36,6 +37,16 @@ export function renderLoadError(
 	error: string,
 	retry: () => void,
 ): void {
+	if (error === OFFLINE_MESSAGE) {
+		renderEmptyState(parent, {
+			icon: "cloud-off",
+			tone: "muted",
+			title: "You're offline",
+			text: "This loads once the connection is back.",
+			action: { text: "Try again", run: retry },
+		});
+		return;
+	}
 	stateButton(callout(parent, "error", error, title), {
 		text: "Try again",
 		run: retry,

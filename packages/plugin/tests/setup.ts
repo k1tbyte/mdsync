@@ -11,6 +11,14 @@ if (g.window === undefined) {
 	g.window = globalThis;
 }
 
+// Node's navigator has no onLine; every browser reports one, and `!navigator.onLine` means offline.
+if (typeof navigator !== "undefined" && navigator.onLine === undefined) {
+	Object.defineProperty(navigator, "onLine", {
+		value: true,
+		configurable: true,
+	});
+}
+
 if (g.localStorage === undefined) {
 	const items = new Map<string, string>();
 	g.localStorage = {

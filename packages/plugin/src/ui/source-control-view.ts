@@ -194,9 +194,18 @@ export class SourceControlView extends ItemView {
 		redrawOnPhoneChange(this, () =>
 			this.render(this.plugin.controller.getSnapshot(), true),
 		);
-		this.unsubscribe = this.plugin.controller.subscribe((snapshot) =>
-			this.render(snapshot),
-		);
+		let revision = this.plugin.controller.getSnapshot().resultRevision;
+		this.unsubscribe = this.plugin.controller.subscribe((snapshot) => {
+			// A compare that went through proves the storage answers again.
+			const compared =
+				snapshot.resultRevision !== revision && !snapshot.offline;
+			revision = snapshot.resultRevision;
+			const reloaded = compared && this.clearOfflineLists();
+			// Lists off screen load when their tab is next shown.
+			if (reloaded && this.tab !== ESourceTab.Changes)
+				this.render(snapshot, true);
+			else this.render(snapshot);
+		});
 		this.registerInterval(
 			window.setInterval(
 				() => this.changes.refreshTimes(),
@@ -265,6 +274,13 @@ export class SourceControlView extends ItemView {
 		else if (this.tab === ESourceTab.Deleted)
 			this.trashTab.render(panel, tools, overlay);
 		else this.timelineTab.render(panel, tools);
+	}
+
+	/** Lists that failed for want of a connection, whichever tab shows now. */
+	private clearOfflineLists(): boolean {
+		return [this.historyTab, this.trashTab, this.timelineTab]
+			.map((tab) => tab.clearOffline())
+			.some(Boolean);
 	}
 
 	refreshHistory(): void {

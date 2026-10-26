@@ -1,7 +1,7 @@
 import { ButtonComponent, setIcon } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
 import { formatRelativeTime } from "@/shared";
-import type { SyncStatusSnapshot } from "@/sync/controller";
+import { type SyncStatusSnapshot, splitSpaceErrors } from "@/sync/controller";
 import { deviceLabel } from "@/sync/device";
 import type { Manifest } from "@/sync/types";
 import { askSpaceGone } from "@/ui/shares/space-gone";
@@ -90,38 +90,57 @@ export class SummaryCard {
 	update(snapshot: SyncStatusSnapshot): void {
 		const { pendingLocal, pendingRemote, conflicts, busy, error } = snapshot;
 		const pending = pendingLocal + pendingRemote + conflicts;
-		// A shared folder that failed to compare may hold changes nobody sees.
-		const failed = Boolean(error) || snapshot.spaceErrors.length > 0;
-		const clean = !busy && !failed && snapshot.result !== null && pending === 0;
+		const offline = snapshot.offline && !busy;
+		const { broken, unreachable } = splitSpaceErrors(snapshot.spaceErrors);
+		// A shared folder that failed to compare may hold changes nobody sees; offline explains them all.
+		const failed = !offline && (Boolean(error) || broken.length > 0);
+		// Folders that only wait for their connection: nothing broke, but they are not compared either.
+		const waiting = !offline && !failed && unreachable.length > 0;
+		const clean =
+			!busy &&
+			!offline &&
+			!failed &&
+			!waiting &&
+			snapshot.result !== null &&
+			pending === 0;
+		// Nothing but the connection to say, so the card is an empty state with a retry.
+		const parked = offline || (waiting && pending === 0);
 		const mismatch = isVaultMismatch(snapshot);
-		this.el.toggleClass("is-error", Boolean(error));
+		this.el.toggleClass("is-error", Boolean(error) && !snapshot.offline);
 		this.el.toggleClass("is-warning", failed && !error);
+		this.el.toggleClass("is-offline", parked);
 		this.el.toggleClass("is-busy", busy);
 		this.el.toggleClass("is-clean", clean);
 		setIcon(
 			this.iconEl,
 			busy
 				? "refresh-cw"
-				: failed
-					? "triangle-alert"
-					: clean
-						? "circle-check"
-						: "refresh-cw",
+				: parked
+					? "cloud-off"
+					: failed
+						? "triangle-alert"
+						: clean
+							? "circle-check"
+							: "refresh-cw",
 		);
 		this.titleEl.setText(
 			mismatch
 				? "This storage holds another vault"
-				: error
-					? "Sync stopped"
-					: busy
-						? (snapshot.progressText ?? "Syncing…")
-						: !snapshot.result
-							? "Not compared yet"
-							: clean
-								? "Everything is in sync"
-								: pending === 0
-									? "Some shared folders did not compare"
-									: `${pending.toLocaleString()} ${pending === 1 ? "change" : "changes"} to sync`,
+				: offline
+					? "You're offline"
+					: error
+						? "Sync stopped"
+						: busy
+							? (snapshot.progressText ?? "Syncing…")
+							: !snapshot.result
+								? "Not compared yet"
+								: clean
+									? "Everything is in sync"
+									: pending === 0
+										? waiting
+											? "Some shared folders are offline"
+											: "Some shared folders did not compare"
+										: `${pending.toLocaleString()} ${pending === 1 ? "change" : "changes"} to sync`,
 		);
 		const remote = clean ? snapshot.result?.remote : null;
 		this.showTimes = () => {
@@ -131,11 +150,17 @@ export class SummaryCard {
 			this.subtitleEl.setText(
 				mismatch
 					? "The remote vault id does not match this one. Nothing was pushed or pulled."
-					: (error ??
+					: offline
+						? snapshot.lastCompareAt
+							? `${compared}. MDSync syncs when the connection is back.`
+							: "MDSync compares when the connection is back."
+						: (error ??
 							snapshot.staleReason ??
 							(clean
 								? `This vault matches the remote. ${compared}.`
-								: compared)),
+								: parked
+									? `${compared}. They compare again when the connection is back.`
+									: compared)),
 			);
 			this.footerEl.setText(remote ? this.lastPush(remote) : "");
 		};
@@ -147,7 +172,10 @@ export class SummaryCard {
 			this.progressEl.style.setProperty("--mdsync-progress", String(ratio));
 			this.progressEl.setAttr("aria-valuenow", String(Math.round(ratio * 100)));
 		}
-		this.compareButton.toggleClass("mdsync-hidden", !clean);
+		this.compareButton.toggleClass("mdsync-hidden", !clean && !parked);
+		this.compareButton
+			.querySelector(".mdsync-button-text")
+			?.setText(parked ? "Try again" : "Compare again");
 		this.footerEl.toggleClass("mdsync-hidden", !remote);
 
 		const cancellable = snapshot.cancellable;
@@ -211,18 +239,15 @@ export class SummaryCard {
 		}
 		const spaceErrors = this.spaceErrorsEl;
 		spaceErrors.empty();
-		for (const { root, message, gone } of snapshot.spaceErrors) {
-			const card = spaceErrors.createDiv({ cls: "mdsync-space-error" });
-			card.createDiv({
-				cls: "mdsync-space-error-title",
-				text: gone ? `"${root}" is missing` : `"${root}" did not compare`,
+		// Offline, the vault's own state says it all.
+		for (const error of snapshot.offline ? [] : snapshot.spaceErrors) {
+			const { root, gone, offline } = error;
+			const { title, desc } = spaceErrorText(error);
+			const card = spaceErrors.createDiv({
+				cls: ["mdsync-space-error", ...(offline ? ["is-offline"] : [])],
 			});
-			card.createDiv({
-				cls: "mdsync-space-error-desc",
-				text: gone
-					? "The shared folder was moved or deleted here. The rest of the vault keeps syncing."
-					: message,
-			});
+			card.createDiv({ cls: "mdsync-space-error-title", text: title });
+			card.createDiv({ cls: "mdsync-space-error-desc", text: desc });
 			if (!gone) continue;
 			textButton(card, "Resolve…").onClick(
 				() => void askSpaceGone(plugin, plugin.controller.spaceFor(root)),
@@ -273,6 +298,30 @@ export class SummaryCard {
 				: deviceLabel(remote.deviceId, remote.deviceName);
 		return `Last push ${formatRelativeTime(remote.createdAt)} from ${from}`;
 	}
+}
+
+function spaceErrorText({
+	root,
+	message,
+	gone,
+	offline,
+}: SyncStatusSnapshot["spaceErrors"][number]): {
+	title: string;
+	desc: string;
+} {
+	if (gone) {
+		return {
+			title: `"${root}" is missing`,
+			desc: "The shared folder was moved or deleted here. The rest of the vault keeps syncing.",
+		};
+	}
+	if (offline) {
+		return {
+			title: `"${root}" is offline`,
+			desc: `${message} It compares again when the connection is back.`,
+		};
+	}
+	return { title: `"${root}" did not compare`, desc: message };
 }
 
 function isVaultMismatch(snapshot: SyncStatusSnapshot): boolean {

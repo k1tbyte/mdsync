@@ -4,7 +4,7 @@ import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
 import { canSync } from "@/settings/model";
 import { formatRelativeTime, pluralize } from "@/shared";
-import type { SyncStatusSnapshot } from "@/sync/controller";
+import { type SyncStatusSnapshot, splitSpaceErrors } from "@/sync/controller";
 import { runPullAll, runPushAll } from "./actions/sync-actions";
 import { showMenuAt } from "./common";
 import { addRelaySections } from "./live/status/where-menu";
@@ -129,16 +129,21 @@ export function syncHeadline(
 	snapshot: SyncStatusSnapshot,
 ): string {
 	if (!canSync(plugin.settings)) return "Sync is not set up";
+	if (snapshot.offline) return "Offline";
 	if (snapshot.error) return "Sync stopped";
 	if (snapshot.busy) return snapshot.progressText ?? "Syncing…";
 	if (!snapshot.result) return "Not compared yet";
-	const { pendingLocal, pendingRemote, conflicts, spaceErrors } = snapshot;
+	const { pendingLocal, pendingRemote, conflicts } = snapshot;
+	const { broken, unreachable } = splitSpaceErrors(snapshot.spaceErrors);
 	const parts = [
 		pendingLocal > 0 ? `${pendingLocal} to push` : null,
 		pendingRemote > 0 ? `${pendingRemote} to pull` : null,
 		conflicts > 0 ? pluralize(conflicts, "conflict") : null,
-		spaceErrors.length > 0
-			? `${pluralize(spaceErrors.length, "shared folder")} failed`
+		broken.length > 0
+			? `${pluralize(broken.length, "shared folder")} failed`
+			: null,
+		unreachable.length > 0
+			? `${pluralize(unreachable.length, "shared folder")} offline`
 			: null,
 	].filter(Boolean);
 	return parts.length > 0 ? parts.join(" · ") : "Everything is in sync";

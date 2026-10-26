@@ -1,7 +1,7 @@
 import type { Plugin, TAbstractFile } from "obsidian";
 
 import { canSync, type MdsyncSettings } from "@/settings/model";
-import type { SyncController } from "./controller";
+import type { SyncController, SyncStatusSnapshot } from "./controller";
 import { type Space, spaceOf, VAULT_SPACE } from "./space";
 
 const AUTO_PULL_STARTUP_DELAY_MS = 3_000;
@@ -36,19 +36,34 @@ export function registerScheduler(
 	let lastRun = 0;
 	let consecutiveFailures = 0;
 	let backoffUntil = 0;
+	// Interval 0 means one sync after startup: until one lands cleanly, a reconnect still owes it.
+	let startupOwed = true;
+	const mayAutoSync = (): boolean =>
+		host.settings.autoSyncEnabled &&
+		(host.settings.autoSyncIntervalMinutes > 0 || startupOwed);
 
+	// A retry slower than the heartbeat must not queue a second cycle behind itself.
+	let ticking = false;
 	const tick = async (): Promise<void> => {
+		if (ticking) return;
 		if (!navigator.onLine) return;
 		if (!canSync(host.settings)) return;
 		const now = Date.now();
 		if (now - lastRun < AUTO_SYNC_BUSY_COOLDOWN_MS) return;
 		if (now < backoffUntil) return;
 		lastRun = now;
-		await controller.refreshAndAutoSync(host.settings.autoPushAfterSync);
+		ticking = true;
+		try {
+			await controller.refreshAndAutoSync(host.settings.autoPushAfterSync);
+		} finally {
+			ticking = false;
+		}
 		// The flows report failures via error state, not throws. Read it for backoff.
-		if (!controller.getSnapshot().error) {
+		const snapshot = controller.getSnapshot();
+		if (!snapshot.error && !cannotReach(snapshot)) {
 			consecutiveFailures = 0;
 			backoffUntil = 0;
+			startupOwed = false;
 			return;
 		}
 		consecutiveFailures++;
@@ -72,7 +87,7 @@ export function registerScheduler(
 				wasBusy = false;
 				lastRun = Date.now();
 				// A clean finish, manual included, proves the backend works again.
-				if (!snapshot.error) {
+				if (!snapshot.error && !cannotReach(snapshot)) {
 					consecutiveFailures = 0;
 					backoffUntil = 0;
 				}
@@ -96,7 +111,11 @@ export function registerScheduler(
 				dueAt = dueAfter(minutes);
 			}
 			const now = Date.now();
-			if (!host.settings.autoSyncEnabled || dueAt <= 0 || now < dueAt) return;
+			if (!mayAutoSync()) return;
+			// Online but a storage unreachable: no `online` event will come, so retry without waiting out the interval.
+			const unreachable =
+				navigator.onLine && cannotReach(controller.getSnapshot());
+			if (!unreachable && (dueAt <= 0 || now < dueAt)) return;
 			if (now - lastRun < AUTO_SYNC_BUSY_COOLDOWN_MS) {
 				// A cycle just ran by hand: retry after the cooldown, not a whole interval later.
 				dueAt = lastRun + AUTO_SYNC_BUSY_COOLDOWN_MS;
@@ -110,8 +129,30 @@ export function registerScheduler(
 	// Offline or backing off, a push would only fail and log again: its paths wait.
 	const resumers: Array<() => void> = [];
 	const onOnline = resumers.push.bind(resumers);
+	let droppedOffline = false;
+	host.registerDomEvent(window, "offline", () => {
+		droppedOffline = true;
+		controller.connectivityChanged();
+	});
 	host.registerDomEvent(window, "online", () => {
+		const snapshot = controller.getSnapshot();
+		const recover =
+			droppedOffline ||
+			cannotReach(snapshot) ||
+			Boolean(snapshot.error) ||
+			!snapshot.result;
+		droppedOffline = false;
+		controller.connectivityChanged();
+		consecutiveFailures = 0;
+		backoffUntil = 0;
 		for (const resume of resumers) resume();
+		if (!recover || !canSync(host.settings)) return;
+		if (mayAutoSync()) {
+			lastRun = 0;
+			void tick();
+		} else {
+			void controller.refresh();
+		}
 	});
 	const backingOff = (): boolean => Date.now() < backoffUntil;
 	const queueVaultPush = quietQueue(
@@ -231,6 +272,13 @@ function quietQueue(
 		if (timer !== null) window.clearTimeout(timer);
 		arm();
 	};
+}
+
+/** The vault's storage or a share's: no connection to it is worth retrying on its own. */
+function cannotReach(snapshot: SyncStatusSnapshot): boolean {
+	return (
+		snapshot.offline || snapshot.spaceErrors.some(({ offline }) => offline)
+	);
 }
 
 function dueAfter(minutes: number): number {

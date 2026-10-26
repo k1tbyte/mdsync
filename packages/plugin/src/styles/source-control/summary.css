@@ -208,6 +208,12 @@
 	color: var(--color-orange);
 }
 
+/* Mirrors the status bar: offline is muted, never an alarm. */
+.mdsync-sync-summary.is-offline .mdsync-sync-summary-icon {
+	background: var(--background-modifier-hover);
+	color: var(--text-muted);
+}
+
 /* Nothing to sync: the card turns into the tab's empty state, as the setup prompt is. */
 .mdsync-sync-summary.is-clean,
 .mdsync-empty-state {
@@ -324,6 +330,10 @@
 	height: 8px;
 	border-radius: 50%;
 	background: var(--color-orange);
+}
+
+.mdsync-space-error.is-offline .mdsync-space-error-title::before {
+	background: var(--text-faint);
 }
 
 .mdsync-space-error-desc {

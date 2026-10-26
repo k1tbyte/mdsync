@@ -1,7 +1,7 @@
 import { ItemView, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { DIFF_VIEW_TYPE, SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
-import { errorMessage } from "@/shared";
+import { userMessage } from "@/shared";
 import type { CompareResult } from "@/sync/engine";
 import {
 	EDiffDirection,
@@ -274,7 +274,7 @@ export class DiffView extends ItemView {
 		} catch (err) {
 			if (gen !== this.loadGeneration) return;
 			if (this.model) notifyError("Refresh failed", err);
-			else this.renderError(errorMessage(err));
+			else this.renderError(userMessage(err));
 		} finally {
 			this.rendering = false;
 			if (this.refreshPending) {

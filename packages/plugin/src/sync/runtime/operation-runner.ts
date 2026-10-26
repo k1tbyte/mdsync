@@ -1,5 +1,5 @@
 import { ESyncLogOperation } from "@/logs/store";
-import { errorMessage } from "@/shared";
+import { errorMessage, isOffline, OFFLINE_MESSAGE } from "@/shared";
 import {
 	isRefusedCredentials,
 	ShareRefusedError,
@@ -136,7 +136,13 @@ export class OperationRunner {
 						`Shared folder "${space.root}": `,
 					);
 					const gone = err instanceof SpaceGoneError;
-					failed.push({ root: space.root, message, ...(gone ? { gone } : {}) });
+					const offline = isOffline(err);
+					failed.push({
+						root: space.root,
+						message,
+						...(gone ? { gone } : {}),
+						...(offline ? { offline } : {}),
+					});
 				}
 			}
 			if (this.invalidatedSince(epoch)) return;
@@ -477,7 +483,10 @@ export class OperationRunner {
 		space = VAULT_SPACE,
 	): Promise<string> {
 		if (isRefusedCredentials(err)) this.deps.host.onStorageRefused?.(space);
+		const offline = isOffline(err);
 		const message = await this.logFailure(operation, err);
+		// Still an error: auto-sync, push and reset gate on it, and a stale comparison must never act. Only the display softens.
+		if (offline) this.deps.runtimeState.setUnreachable();
 		this.deps.runtimeState.setError(message);
 		return message;
 	}
@@ -488,9 +497,15 @@ export class OperationRunner {
 		err: unknown,
 		where = "",
 	): Promise<string> {
-		const detail = errorMessage(err);
-		await this.deps.host.logError(operation, `${where}${detail}`);
-		return err instanceof StorageRequestError ? err.userMessage : detail;
+		const detail = `${where}${errorMessage(err)}`;
+		if (isOffline(err)) {
+			await this.deps.host.logWarn(operation, detail);
+			return OFFLINE_MESSAGE;
+		}
+		await this.deps.host.logError(operation, detail);
+		return err instanceof StorageRequestError
+			? err.userMessage
+			: errorMessage(err);
 	}
 
 	/** `live` turns false when the operation ends: a worker outliving a failed sibling must not repaint its progress. */
