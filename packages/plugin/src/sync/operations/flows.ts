@@ -22,7 +22,10 @@ export async function runResetRemoteStorageFlow(
 		deps.storage,
 		deps.concurrency,
 		(done, total) => {
-			ctx.reportProgressSoon(`Deleting remote sync data ${done}/${total}…`);
+			ctx.reportProgressSoon(
+				`Deleting remote sync data ${done}/${total}…`,
+				total > 0 ? done / total : 0,
+			);
 		},
 	);
 	const resetState = resetSessionState(deps.state);

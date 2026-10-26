@@ -3,6 +3,7 @@ import { requestUrl } from "obsidian";
 
 import { relayBase } from "@/shared";
 import { StorageRequestError } from "@/storage/types";
+import { toArrayBuffer } from "@/utils";
 
 import { ADMIN_HEADER, type BrokerAdmin } from "./share-broker";
 import { errorCode, StorageHttpError } from "./util";
@@ -71,7 +72,7 @@ function putSealed(
 	return callLink(admin, path, {
 		method: "PUT",
 		headers,
-		body: sealed.slice().buffer,
+		body: toArrayBuffer(sealed),
 	});
 }
 

@@ -15,6 +15,7 @@ import { shareIdentity } from "@/spaces/record";
 import { createStorageAdapter, type StorageAdapter } from "@/storage";
 import { clearRemoteTextCache } from "@/sync/content";
 import type { EngineDependencies } from "@/sync/engine";
+import type { WriteJournal } from "@/sync/journal";
 import { PassphraseRotatedError } from "@/sync/keyfile";
 import type { LiveNotes } from "@/sync/live-notes";
 import { projectSession } from "@/sync/session-state";
@@ -47,6 +48,7 @@ export interface SessionFactoryDeps {
 	persistSettings?: () => Promise<void>;
 	/** Late-bound: live editing starts after the sync it hooks into. */
 	liveNotes?: (space: Space) => LiveNotes | undefined;
+	journal: WriteJournal;
 }
 
 export type SessionOpener = (
@@ -54,45 +56,119 @@ export type SessionOpener = (
 	partition: readonly Space[],
 ) => Promise<EngineDependencies | null>;
 
-export function createSessionOpener(deps: SessionFactoryDeps): SessionOpener {
+type SessionFiles = Pick<
+	EngineDependencies,
+	"space" | "adapter" | "scope" | "state" | "maxFileBytes"
+>;
+
+/** What a display-only look at one space's files needs: no storage, no key. */
+export type LocalSession = SessionFiles & {
+	/** The storage `state` belongs to. */
+	identity: string;
+};
+
+export type LocalOpener = (
+	space: Space,
+	partition: readonly Space[],
+) => Promise<LocalSession | null>;
+
+/** One adapter and scope cache for both: a local look reuses the session's adapter. */
+export function createSessionOpeners(deps: SessionFactoryDeps): {
+	openSession: SessionOpener;
+	openLocal: LocalOpener;
+} {
 	const getScope = createScopeMatchers(deps);
 	const getStorage = createAdapterCache(deps);
+	return {
+		openSession: sessionOpener(deps, getScope, getStorage),
+		openLocal: localOpener(deps, getScope, getStorage),
+	};
+}
+
+type ScopeCache = (root: string) => Promise<ScopeMatchers>;
+
+function sessionOpener(
+	deps: SessionFactoryDeps,
+	getScope: ScopeCache,
+	getStorage: AdapterCache,
+): SessionOpener {
 	return async (space, partition) => {
-		const { app, settings, state } = deps;
+		const { app, settings } = deps;
 		const opened =
 			space.root === ""
 				? await openVault(deps, getStorage)
 				: await openShare(deps, space, getStorage);
 		if (!opened) return null;
-
-		const adapter = app.vault.adapter;
-		const { shared: sharedIgnore, local: localIgnore } = await getScope(
-			space.root,
-		);
 		return {
-			space,
-			adapter,
+			...(await sessionFiles(deps, getScope, space, partition, opened.storage)),
 			storage: opened.storage,
 			index: createVaultIndex(app.vault),
-			scope: createScopePolicy({
-				settingsSync: settings.settingsSync,
-				configDir: app.vault.configDir,
-				sharedIgnore,
-				localIgnore,
-				symlinks: createSymlinkDetector(adapter, settings.ignoreSymlinks),
-				root: space.root,
-				otherRoots: nestedRoots(partition, space),
-			}),
 			key: opened.key,
-			state: projectSession(state.state, opened.storage.identity(), space.root),
-			maxFileBytes: settings.maxFileBytes,
 			concurrency: opened.concurrency,
 			history: settings.fileHistoryEnabled
 				? { maxSnapshots: settings.fileHistoryMaxSnapshots }
 				: undefined,
 			live: deps.liveNotes?.(space),
 			author: opened.author,
+			journal: deps.journal,
 		};
+	};
+}
+
+/**
+ * Never asks for the passphrase, resolves a key, logs, notifies or reaches the network: null where a
+ * session would refuse or throw. The adapter serves only its identity.
+ */
+function localOpener(
+	deps: SessionFactoryDeps,
+	getScope: ScopeCache,
+	getStorage: AdapterCache,
+): LocalOpener {
+	return async (space, partition) => {
+		let storage: StorageAdapter | null;
+		try {
+			storage =
+				space.root === ""
+					? localVaultStorage(deps, getStorage)
+					: localShareStorage(deps, space, getStorage);
+		} catch {
+			// An adapter its config cannot build: the session opener throws, this look just has nothing to show.
+			return null;
+		}
+		if (!storage) return null;
+		return {
+			...(await sessionFiles(deps, getScope, space, partition, storage)),
+			identity: storage.identity(),
+		};
+	};
+}
+
+async function sessionFiles(
+	deps: SessionFactoryDeps,
+	getScope: ScopeCache,
+	space: Space,
+	partition: readonly Space[],
+	storage: StorageAdapter,
+): Promise<SessionFiles> {
+	const { app, settings, state } = deps;
+	const adapter = app.vault.adapter;
+	const { shared: sharedIgnore, local: localIgnore } = await getScope(
+		space.root,
+	);
+	return {
+		space,
+		adapter,
+		scope: createScopePolicy({
+			settingsSync: settings.settingsSync,
+			configDir: app.vault.configDir,
+			sharedIgnore,
+			localIgnore,
+			symlinks: createSymlinkDetector(adapter, settings.ignoreSymlinks),
+			root: space.root,
+			otherRoots: nestedRoots(partition, space),
+		}),
+		state: projectSession(state.state, storage.identity(), space.root),
+		maxFileBytes: settings.maxFileBytes,
 	};
 }
 
@@ -155,14 +231,30 @@ async function openVault(
 		deps.notify("A passphrase is required.");
 		return null;
 	}
-	const config = activeStorage(deps.settings);
-	const storage = getStorage(
-		VAULT_SPACE.id,
-		JSON.stringify(config),
-		(changed) => createStorageAdapter(config, changed),
-	);
+	const storage = vaultStorage(deps, getStorage);
 	const key = await resolveKeyWithRotationRetry(deps, storage);
-	return key ? { storage, key, concurrency: config.concurrency } : null;
+	return key
+		? { storage, key, concurrency: activeStorage(deps.settings).concurrency }
+		: null;
+}
+
+function vaultStorage(
+	deps: SessionFactoryDeps,
+	getStorage: AdapterCache,
+): StorageAdapter {
+	const config = activeStorage(deps.settings);
+	return getStorage(VAULT_SPACE.id, JSON.stringify(config), (changed) =>
+		createStorageAdapter(config, changed),
+	);
+}
+
+function localVaultStorage(
+	deps: SessionFactoryDeps,
+	getStorage: AdapterCache,
+): StorageAdapter | null {
+	return isStorageConfigured(deps.settings)
+		? vaultStorage(deps, getStorage)
+		: null;
 }
 
 /** A share opens with the key in its record, never the vault passphrase. */
@@ -189,6 +281,21 @@ async function openShare(
 		concurrency: storage.concurrency,
 		author: { key: person, name },
 	};
+}
+
+function localShareStorage(
+	deps: SessionFactoryDeps,
+	space: Space,
+	getStorage: AdapterCache,
+): StorageAdapter | null {
+	const record = deps.spaces.get(space.id);
+	if (!record || pauseOf(record, deps.settings) !== null) return null;
+	const storage = shareStorage(
+		record,
+		activeStorage(deps.settings),
+		space.root,
+	);
+	return storage && getStorage(space.id, storage.memo, storage.create);
 }
 
 interface ScopeMatchers {

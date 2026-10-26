@@ -14,25 +14,50 @@ export interface DividerItem {
 	/** CSS tone whose `--mdsync-tone-<tone>` colours the connector. */
 	tone: string;
 	actions: RailAction[];
-	/** Picked for Apply: the connector takes the accent colour like the lines do. */
-	chosen?: boolean;
+	/** Keeps its buttons on the strip while another change is selected. */
+	pinned?: boolean;
+}
+
+/** An unchanged run folded in both panes. */
+export interface DividerBand {
+	near: Span;
+	far: Span;
+}
+
+interface Placed<T> {
+	item: T;
+	near: Bounds;
+	far: Bounds;
 }
 
 /** How far along the divider the curve's control points sit, as in IntelliJ. */
 const CURVE = 0.3;
+/** Space kept between one change's buttons and the next change's. */
+const GROUP_GAP = 2;
+
+interface ActionGroup {
+	el: HTMLElement;
+	/** What the buttons show; they are rebuilt only when it changes. */
+	signature: string;
+	/** As last laid out; the buttons call through it, so a refresh needs no rebuild. */
+	item: DividerItem;
+}
 
 /**
- * Curved connectors joining a change to where it lands on the far side, plus its buttons; only changes on
- * screen are drawn.
+ * Filled connectors joining a change to where it lands on the far side; the selected and pinned changes
+ * show their action buttons on their connectors. Only changes on screen are drawn.
  */
 export class Divider {
 	private readonly canvas: HTMLCanvasElement;
 	private readonly actions: HTMLElement;
+	private readonly groups = new Map<number, ActionGroup>();
 	private readonly listeners = new AbortController();
 	private items: readonly DividerItem[] = [];
-	private popup: HTMLElement | null = null;
+	private bands: readonly DividerBand[] = [];
+	private placed: readonly Placed<DividerItem>[] = [];
 	private selected: number | null = null;
 	private hovered: number | null = null;
+	private groupHeight = 0;
 	private size = { width: 0, height: 0, dpr: 0 };
 
 	constructor(
@@ -40,20 +65,14 @@ export class Divider {
 		private readonly nearView: EditorView,
 		private readonly farView: EditorView,
 		private readonly nearEdge: "left" | "right",
+		private readonly onSelect?: (key: number | null) => void,
 	) {
 		this.canvas = el.createEl("canvas", { cls: "mdsync-divider-canvas" });
-		this.canvas.tabIndex = 0;
-		this.canvas.setAttr("role", "button");
-		this.canvas.setAttr(
-			"aria-label",
-			"Change actions: click a connector, or use arrow keys and Enter.",
-		);
 		this.actions = el.createDiv({ cls: "mdsync-divider-actions" });
 		const { signal } = this.listeners;
 		el.addEventListener(
 			"wheel",
 			(event) => {
-				this.closePopup();
 				farView.scrollDOM.scrollTop += event.deltaY;
 			},
 			{ passive: true, signal },
@@ -61,149 +80,206 @@ export class Divider {
 		this.canvas.addEventListener(
 			"click",
 			(event) => {
-				const rect = this.el.getBoundingClientRect();
-				const item = this.hitTest(
-					event.clientX - rect.left,
-					event.clientY - rect.top,
-				);
-				this.closePopup();
-				if (item) this.showPopup(item, event.clientY - rect.top);
+				const key = this.hitTest(event)?.key ?? null;
+				this.select(key);
+				this.onSelect?.(key);
 			},
 			{ signal },
 		);
 		this.canvas.addEventListener(
 			"pointermove",
-			(event) => {
-				const rect = this.el.getBoundingClientRect();
-				const item = this.hitTest(
-					event.clientX - rect.left,
-					event.clientY - rect.top,
-				);
-				this.setHovered(item?.key ?? null);
-			},
-			{ passive: true, signal },
+			(event) => this.setHovered(this.hitTest(event)?.key ?? null),
+			{ signal },
 		);
 		this.canvas.addEventListener("pointerleave", () => this.setHovered(null), {
 			signal,
 		});
-		this.canvas.addEventListener("keydown", (event) => this.onKeyDown(event), {
-			signal,
-		});
-		this.canvas.addEventListener(
-			"focus",
-			() => {
-				// Tabbed in: select a connector so focus has something to show.
-				if (this.selected !== null || !this.canvas.matches(":focus-visible")) {
-					return;
-				}
-				this.selected =
-					this.visibleItems().find(({ item }) => item.actions.length > 0)?.item
-						.key ?? null;
-				this.draw();
-			},
-			{ signal },
-		);
-		for (const view of [nearView, farView]) {
-			view.scrollDOM.addEventListener("scroll", () => this.closePopup(), {
-				passive: true,
-				signal,
-			});
-		}
-		const doc = el.ownerDocument;
-		doc.addEventListener(
-			"pointerdown",
-			(event) => {
-				if (!this.popup?.contains(event.target as Node)) this.closePopup();
-			},
-			{ capture: true, signal },
-		);
-		doc.addEventListener(
-			"focusin",
-			(event) => {
-				if (!this.popup?.contains(event.target as Node)) this.closePopup();
-			},
-			{ signal },
-		);
-		doc.addEventListener(
-			"keydown",
-			(event) => {
-				if (event.key !== "Escape" || !this.popup) return;
-				event.preventDefault();
-				this.closePopup();
-				this.canvas.focus();
-			},
-			{ capture: true, signal },
-		);
 	}
 
-	update(items: readonly DividerItem[]): void {
+	update(
+		items: readonly DividerItem[],
+		bands: readonly DividerBand[] = [],
+	): void {
 		this.items = items;
-		this.selected = null;
-		this.hovered = null;
+		this.bands = bands;
+		if (!items.some((item) => item.key === this.selected)) this.selected = null;
+		this.layout();
+	}
+
+	/** Shows a change's buttons; null hides them. */
+	select(key: number | null): void {
+		if (this.selected === key) return;
+		this.selected = key;
 		this.layout();
 	}
 
 	destroy(): void {
-		this.closePopup();
 		this.listeners.abort();
+		this.groups.clear();
 		this.el.empty();
 	}
 
 	layout(): void {
-		this.closePopup();
-		this.draw();
+		const rect = this.el.getBoundingClientRect();
+		// Hidden (inline layout): nothing to measure or place.
+		if (rect.width === 0 || rect.height === 0) return;
+		this.placed = this.visible(this.items, rect);
+		this.draw(rect, this.visible(this.bands, rect));
+		this.placeGroups(rect);
 	}
 
 	private setHovered(key: number | null): void {
+		this.canvas.toggleClass("has-target", key !== null);
 		if (this.hovered === key) return;
 		this.hovered = key;
-		this.canvas.toggleClass("has-target", key !== null);
-		this.draw();
+		this.layout();
 	}
 
-	private draw(): void {
-		const { width, height } = this.el.getBoundingClientRect();
+	private draw(rect: DOMRect, bands: readonly Placed<DividerBand>[]): void {
+		const { width, height } = rect;
 		const ctx = this.prepareCanvas(width, height);
 		if (!ctx) return;
 		const style = getComputedStyle(this.el);
-		for (const { item, near, far } of this.visibleItems()) {
-			const color =
-				item.chosen || item.key === this.selected
-					? style.getPropertyValue("--interactive-accent").trim()
-					: `rgb(${style.getPropertyValue(`--mdsync-tone-${item.tone}`).trim()})`;
+		// The strip already has the folded bars' colour: their borders crossing it make one bar.
+		ctx.strokeStyle = style.getPropertyValue("--background-modifier-border");
+		ctx.lineWidth = 1;
+		for (const { near, far } of bands) {
+			ctx.stroke(this.edgePath(width, near.top + 0.5, far.top + 0.5));
+			ctx.stroke(this.edgePath(width, near.bottom - 0.5, far.bottom - 0.5));
+		}
+		for (const { item, near, far } of this.placed) {
+			// Colour is the change's kind alone; a click or a choice must not recolour it.
+			ctx.fillStyle = `rgb(${style.getPropertyValue(`--mdsync-tone-${item.tone}`).trim()})`;
 			const raised = item.key === this.hovered || item.key === this.selected;
-			const path = this.connectorPath(width, near, far);
-			ctx.fillStyle = color;
-			ctx.globalAlpha = raised ? 0.32 : 0.18;
-			ctx.fill(path);
-			ctx.strokeStyle = color;
-			ctx.globalAlpha = raised ? 0.9 : 0.55;
-			ctx.lineWidth = 1;
-			ctx.stroke(path);
+			const base =
+				item.tone === "added" || item.tone === "removed" ? 0.12 : 0.16;
+			ctx.globalAlpha = raised ? 0.32 : base;
+			ctx.fill(this.connectorPath(width, near, far));
 		}
 		ctx.globalAlpha = 1;
 	}
 
-	private visibleItems(): Array<{
-		item: DividerItem;
-		near: Bounds;
-		far: Bounds;
-	}> {
-		const rect = this.el.getBoundingClientRect();
+	/** On each connector's middle band, mid-strip, below the previous change's buttons, inside the strip. */
+	private placeGroups(rect: DOMRect): void {
+		const shown = new Set<number>();
+		let floor = 0;
+		for (const { item, near, far } of this.placed) {
+			const selected = item.key === this.selected;
+			if (item.actions.length === 0 || !(selected || item.pinned)) continue;
+			const group = this.groupFor(item);
+			this.groupHeight ||= group.el.offsetHeight;
+			const height = this.groupHeight;
+			const middle =
+				(near.top + far.top + near.bottom + far.bottom) / 4 - height / 2;
+			// A crowded tail overlaps at the bottom rather than leave the strip; the selected one stays on top.
+			const y = Math.min(Math.max(floor, middle, 0), rect.height - height);
+			group.el.style.transform = `translate(-50%, ${Math.round(y)}px)`;
+			group.el.toggleClass("is-selected", selected);
+			floor = y + height + GROUP_GAP;
+			shown.add(item.key);
+		}
+		for (const [key, group] of this.groups) {
+			if (shown.has(key)) continue;
+			group.el.remove();
+			this.groups.delete(key);
+		}
+	}
+
+	private groupFor(item: DividerItem): ActionGroup {
+		let group = this.groups.get(item.key);
+		if (!group) {
+			const el = this.actions.createDiv({
+				cls: "mdsync-divider-action",
+				attr: {
+					role: "group",
+					"aria-label": `Actions for change ${item.key + 1}`,
+				},
+			});
+			const { signal } = this.listeners;
+			el.addEventListener("pointerenter", () => this.setHovered(item.key), {
+				signal,
+			});
+			el.addEventListener("pointerleave", () => this.setHovered(null), {
+				signal,
+			});
+			group = { el, signature: "", item };
+			this.groups.set(item.key, group);
+		}
+		group.item = item;
+		this.renderButtons(group);
+		return group;
+	}
+
+	private renderButtons(group: ActionGroup): void {
+		const signature = group.item.actions
+			.map((action) => `${action.label}:${action.active}`)
+			.join("|");
+		if (signature === group.signature) return;
+		const focused = [...group.el.children].indexOf(
+			group.el.ownerDocument.activeElement as Element,
+		);
+		group.signature = signature;
+		group.el.empty();
+		const buttons = group.item.actions.map((action, index) =>
+			renderRailButton(group.el, {
+				...action,
+				run: () => {
+					// Selected first: a pinned group whose choice is undone stays, and keeps the keyboard.
+					const { key } = group.item;
+					this.select(key);
+					this.onSelect?.(key);
+					group.item.actions[index]?.run();
+				},
+			}),
+		);
+		// Pressing one rebuilds them all, maybe fewer; the keyboard stays in the group.
+		if (focused >= 0) buttons[Math.min(focused, buttons.length - 1)]?.focus();
+	}
+
+	private hitTest(event: MouseEvent): DividerItem | undefined {
+		const ctx = this.canvas.getContext("2d");
+		if (!ctx) return;
+		const rect = this.canvas.getBoundingClientRect();
+		const x = event.clientX - rect.left;
+		const y = event.clientY - rect.top;
+		const actionable = this.placed.filter(
+			({ item }) => item.actions.length > 0,
+		);
+		// Paths are in CSS pixels, the point too; the drawing scale would skew them apart.
+		ctx.save();
+		ctx.resetTransform();
+		try {
+			// Exact hits win before padding makes a squeezed neighbour clickable.
+			for (const expand of [0, 3, 6]) {
+				for (const { item, near, far } of actionable) {
+					const path = this.connectorPath(rect.width, near, far, expand);
+					if (ctx.isPointInPath(path, x, y)) return item;
+				}
+			}
+			return undefined;
+		} finally {
+			ctx.restore();
+		}
+	}
+
+	private visible<T extends DividerBand>(
+		list: readonly T[],
+		rect: DOMRect,
+	): Placed<T>[] {
 		const nearShift = this.nearView.documentTop - rect.top;
 		const farShift = this.farView.documentTop - rect.top;
-		const place = (item: DividerItem) => ({
+		const place = (item: T) => ({
 			item,
 			near: shiftBounds(spanBounds(this.nearView, item.near), nearShift),
 			far: shiftBounds(spanBounds(this.farView, item.far), farShift),
 		});
-		const start = firstIndex(this.items.length, (index) => {
-			const { near, far } = place(this.items[index] as DividerItem);
+		const start = firstIndex(list.length, (index) => {
+			const { near, far } = place(list[index] as T);
 			return Math.max(near.bottom, far.bottom) >= 0;
 		});
 		const visible = [];
-		for (let index = start; index < this.items.length; index++) {
-			const placed = place(this.items[index] as DividerItem);
+		for (let index = start; index < list.length; index++) {
+			const placed = place(list[index] as T);
 			if (Math.min(placed.near.top, placed.far.top) > rect.height) break;
 			visible.push(placed);
 		}
@@ -216,122 +292,30 @@ export class Divider {
 		far: Bounds,
 		expand = 0,
 	): Path2D {
-		const [x1, x2] = this.nearEdge === "left" ? [0, width] : [width, 0];
-		const c1 = x1 + (x2 - x1) * CURVE;
-		const c2 = x2 - (x2 - x1) * CURVE;
+		const [x1, c1, c2, x2] = this.curveXs(width);
+		const [nearTop, farTop] = [near.top - expand, far.top - expand];
+		const [nearBottom, farBottom] = [near.bottom + expand, far.bottom + expand];
 		const path = new Path2D();
-		path.moveTo(x1, near.top - expand);
-		path.bezierCurveTo(
-			c1,
-			near.top - expand,
-			c2,
-			far.top - expand,
-			x2,
-			far.top - expand,
-		);
-		path.lineTo(x2, far.bottom + expand);
-		path.bezierCurveTo(
-			c2,
-			far.bottom + expand,
-			c1,
-			near.bottom + expand,
-			x1,
-			near.bottom + expand,
-		);
+		path.moveTo(x1, nearTop);
+		path.bezierCurveTo(c1, nearTop, c2, farTop, x2, farTop);
+		path.lineTo(x2, farBottom);
+		path.bezierCurveTo(c2, farBottom, c1, nearBottom, x1, nearBottom);
 		path.closePath();
 		return path;
 	}
 
-	private hitTest(x: number, y: number): DividerItem | undefined {
-		const ctx = this.canvas.getContext("2d");
-		if (!ctx) return;
-		const { width } = this.el.getBoundingClientRect();
-		const visible = this.visibleItems().filter(
-			({ item }) => item.actions.length > 0,
-		);
-		ctx.save();
-		ctx.resetTransform();
-		try {
-			// Exact hits win before padding makes a squeezed neighbour clickable.
-			for (const expand of [0, 2, 4, 6]) {
-				for (const { item, near, far } of visible) {
-					if (
-						ctx.isPointInPath(
-							this.connectorPath(width, near, far, expand),
-							x,
-							y,
-						)
-					)
-						return item;
-				}
-			}
-		} finally {
-			ctx.restore();
-		}
-		return undefined;
+	private edgePath(width: number, nearY: number, farY: number): Path2D {
+		const [x1, c1, c2, x2] = this.curveXs(width);
+		const path = new Path2D();
+		path.moveTo(x1, nearY);
+		path.bezierCurveTo(c1, nearY, c2, farY, x2, farY);
+		return path;
 	}
 
-	private onKeyDown(event: KeyboardEvent): void {
-		if (
-			!["Enter", " ", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)
-		)
-			return;
-		const visible = this.visibleItems().filter(
-			({ item }) => item.actions.length > 0,
-		);
-		if (visible.length === 0) return;
-		event.preventDefault();
-		let index = visible.findIndex(({ item }) => item.key === this.selected);
-		if (index < 0) index = 0;
-		else if (event.key === "ArrowDown")
-			index = Math.min(index + 1, visible.length - 1);
-		else if (event.key === "ArrowUp") index = Math.max(0, index - 1);
-		if (event.key === "Home") index = 0;
-		if (event.key === "End") index = visible.length - 1;
-		const chosen = visible[index];
-		if (!chosen) return;
-		this.selected = chosen.item.key;
-		this.canvas.setAttr(
-			"aria-label",
-			`Change ${index + 1} of ${visible.length}. Enter for actions; arrow keys to choose.`,
-		);
-		this.closePopup();
-		this.draw();
-		if (event.key === "Enter" || event.key === " ") {
-			this.showPopup(chosen.item, (chosen.near.top + chosen.far.top) / 2);
-		}
-	}
-
-	private closePopup(): void {
-		this.popup?.remove();
-		this.popup = null;
-	}
-
-	private showPopup(item: DividerItem, y: number): void {
-		this.closePopup();
-		if (item.actions.length === 0) return;
-		this.selected = item.key;
-		const popup = this.actions.createDiv({
-			cls: `mdsync-divider-action is-${item.tone} is-popup`,
-		});
-		this.popup = popup;
-		popup.setAttr("role", "toolbar");
-		popup.setAttr("aria-label", `Actions for change ${item.key + 1}`);
-		popup.setAttr("data-change", String(item.key));
-		for (const action of item.actions) {
-			renderRailButton(popup, {
-				...action,
-				run: () => {
-					if (this.popup !== popup) return;
-					this.closePopup();
-					action.run();
-				},
-			});
-		}
-		const height = popup.offsetHeight;
-		const top = y - height - 6;
-		popup.style.top = `${Math.max(0, Math.min(top < 0 ? y + 6 : top, this.el.clientHeight - height))}px`;
-		popup.querySelector("button")?.focus();
+	/** The near end, both control points and the far end along the strip. */
+	private curveXs(width: number): [number, number, number, number] {
+		const [x1, x2] = this.nearEdge === "left" ? [0, width] : [width, 0];
+		return [x1, x1 + (x2 - x1) * CURVE, x2 - (x2 - x1) * CURVE, x2];
 	}
 
 	private prepareCanvas(

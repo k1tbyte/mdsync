@@ -1,0 +1,182 @@
+/* The bar over the note; a loading page shows its frame in grey. */
+.topbar {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	height: var(--topbar-height);
+	padding: 0 1.25rem 0 1.5rem;
+	border-bottom: 1px solid var(--divider-color);
+	background: var(--background-primary);
+	font-size: 0.8125rem;
+	line-height: var(--line-height-tight);
+}
+
+.tile {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border-radius: 7px;
+}
+
+.tile .icon {
+	width: 50%;
+	height: 50%;
+}
+
+.topbar-mark,
+.tile.is-accent {
+	background: color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+	color: var(--text-accent);
+}
+
+.topbar-title {
+	min-width: 0;
+	overflow: hidden;
+	font-size: 0.875rem;
+	font-weight: 600;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.topbar-actions {
+	display: flex;
+	flex: none;
+	gap: 6px;
+	margin-left: auto;
+}
+
+.topbar button,
+.menu-close {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	height: 30px;
+	padding: 0 10px;
+	border: 0;
+	border-radius: 4px;
+	background: none;
+	color: var(--text-muted);
+	font: inherit;
+	cursor: pointer;
+}
+
+.topbar button:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.wide-toggle[aria-pressed="true"],
+.wide-toggle[aria-pressed="true"]:hover {
+	background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+	color: var(--text-accent);
+}
+
+.topbar .copy-markdown {
+	padding: 0 12px;
+	background: var(--interactive-normal);
+	color: var(--text-normal);
+	font-weight: 500;
+}
+
+.topbar .copy-markdown:hover {
+	background: var(--interactive-hover);
+}
+
+.facts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	font-size: 0.75rem;
+	line-height: var(--line-height-tight);
+}
+
+.chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 24px;
+	padding: 0 9px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 999px;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.chip .icon {
+	width: 13px;
+	height: 13px;
+}
+
+.topbar .facts {
+	flex-wrap: nowrap;
+	margin-left: 0.5rem;
+}
+
+.note .facts {
+	margin: 0 0 1.25rem;
+}
+
+@media (min-width: 66rem) {
+	.topbar .menu-button,
+	.menu-close,
+	.note .facts {
+		display: none;
+	}
+}
+
+@media (max-width: 65.99rem) {
+	.topbar {
+		gap: 0.5rem;
+		padding: 0 0.5rem 0 0.75rem;
+	}
+
+	.topbar-mark,
+	.topbar .facts,
+	.topbar .wide-toggle {
+		display: none;
+	}
+
+	.topbar-title {
+		flex: 1;
+		font-size: 0.9375rem;
+	}
+
+	.topbar .menu-button,
+	.menu-close {
+		width: 40px;
+		height: 40px;
+		padding: 0;
+		border: 1px solid var(--background-modifier-border);
+		border-radius: 8px;
+		background: var(--background-secondary);
+		color: var(--text-normal);
+	}
+
+	.topbar .copy-markdown {
+		min-width: 44px;
+		height: 44px;
+		background: none;
+	}
+
+	/* Only its icon fits, until it says how the copy went. */
+	.copy-markdown:not([data-state]) .label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		opacity: 0;
+		white-space: nowrap;
+	}
+
+	.topbar .copy-markdown .icon {
+		width: 18px;
+		height: 18px;
+	}
+}

@@ -18,11 +18,14 @@ vi.mock("@/ui/common", async () => ({
 	serial: (await import("@/ui/common/serial")).serial,
 	copyText: vi.fn(),
 	notifyError: vi.fn(),
+	renderModalHead: vi.fn(),
+	modalFooter: vi.fn(),
+	modalHint: vi.fn(),
+	modalCard: vi.fn(),
 }));
 vi.mock("obsidian", () => ({
 	Modal: class {
 		modalEl = { addClass: () => {} };
-		titleEl = { setText: () => {} };
 		contentEl = {
 			empty: () => {
 				rows.length = 0;
@@ -30,6 +33,14 @@ vi.mock("obsidian", () => ({
 			createEl: () => {},
 		};
 		constructor(readonly app: object) {}
+	},
+	ButtonComponent: class {
+		setButtonText() {
+			return this;
+		}
+		onClick() {
+			return this;
+		}
 	},
 	Setting: class {
 		name = "";

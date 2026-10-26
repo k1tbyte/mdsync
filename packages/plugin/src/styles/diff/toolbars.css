@@ -1,42 +1,53 @@
-.mdsync-merge-toolbar,
-.mdsync-compare-toolbar {
+.mdsync-compare-controls,
+.mdsync-compare-nav,
+.mdsync-compare-info,
+.mdsync-compare-pending,
+.mdsync-compare-choice-actions {
 	display: flex;
-	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--size-4-2);
-	padding: var(--size-4-1) var(--size-4-3);
-	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.mdsync-merge-counter,
-.mdsync-compare-summary {
+.mdsync-compare-pending {
+	flex-wrap: wrap;
+}
+
+.mdsync-compare-pending:empty {
+	display: none;
+}
+
+.mdsync-compare-choice-actions {
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.mdsync-compare-position {
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 }
 
-.mdsync-merge-counter.is-resolved {
-	color: var(--text-success);
+.mdsync-compare-info .mdsync-counters {
+	font-weight: 600;
 }
 
-.mdsync-compare-spacer {
-	flex: 1 1 auto;
-}
-
-.mdsync-pending {
-	display: inline-flex;
-	gap: var(--size-4-1);
-}
-
-.mdsync-pending:empty {
+.mdsync-compare-context {
 	display: none;
+}
+
+.mdsync-diff-separator {
+	width: 1px;
+	height: 20px;
+	background: var(--background-modifier-border);
 }
 
 .mdsync-pending-kind {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--size-2-2);
-	padding: var(--size-2-1) var(--size-4-2);
+	height: 24px;
+	padding: 0 var(--size-4-2);
 	border-radius: var(--radius-s);
 	background: rgba(var(--mdsync-kind), 0.15);
 	color: rgb(var(--mdsync-kind));
@@ -66,49 +77,36 @@
 	--mdsync-kind: var(--color-purple-rgb, 157, 105, 220);
 }
 
-.mdsync-merge-legend {
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: var(--size-4-3);
-	padding: var(--size-4-1) var(--size-4-3);
-	font-size: var(--font-ui-smallest);
-	color: var(--text-muted);
-	border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.mdsync-merge-help {
-	position: relative;
-}
-
-.mdsync-merge-help-text {
-	position: absolute;
-	top: calc(100% + 4px);
-	left: 0;
-	z-index: 10;
-	width: min(340px, 70vw);
-	padding: var(--size-4-2) var(--size-4-3);
-	border: 1px solid var(--background-modifier-border);
+/* The bar's buttons are ghosts, like the editor's own header. */
+.mdsync-diff-header .mdsync-icon-btn {
+	width: 28px;
+	min-width: 28px;
+	height: 28px;
+	padding: 0;
 	border-radius: var(--radius-s);
-	background: var(--background-primary);
-	box-shadow: var(--shadow-s);
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+}
+
+.mdsync-diff-header .mdsync-icon-btn:hover {
+	background: var(--background-modifier-hover);
 	color: var(--text-normal);
-	font-size: var(--font-ui-small);
-	line-height: 1.5;
 }
 
-.mdsync-merge-help:not(:hover):not(:focus-within) .mdsync-merge-help-text {
-	display: none;
+.mdsync-diff-header .mdsync-icon-btn.is-active {
+	background: var(--background-modifier-hover);
+	color: var(--text-accent);
 }
 
-.mdsync-merge-key::before,
-.mdsync-merge-pane-head.is-local::before,
-.mdsync-merge-pane-head.is-remote::before {
-	content: "";
-	display: inline-block;
-	width: 7px;
-	height: 7px;
-	margin-right: var(--size-2-3);
-	border-radius: 2px;
-	background: rgb(var(--mdsync-tone));
+.mdsync-diff-header .mdsync-icon-btn:disabled {
+	background: transparent;
+	opacity: 0.4;
+}
+
+body.is-phone .mdsync-diff-view .mdsync-diff-header .mdsync-icon-btn {
+	width: var(--mdsync-touch);
+	min-width: var(--mdsync-touch);
+	height: var(--mdsync-touch);
+	color: var(--text-normal);
 }

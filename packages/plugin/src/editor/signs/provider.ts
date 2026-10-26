@@ -9,7 +9,8 @@ import type { SyncController } from "@/sync/controller";
 import { notifyError, runWithNotice } from "@/ui";
 
 import { type SyncChange, toCmText } from "./helpers";
-import { setCompareTextEffect } from "./state";
+import { dismissPopupIn } from "./hunk-popup";
+import { compareTextField, setCompareTextEffect } from "./state";
 
 const BASELINE_CACHE_MAX = 64;
 
@@ -187,6 +188,11 @@ export class SignsProvider {
 		const views = this.pathToViews.get(path);
 		if (!views) return;
 		for (const view of views) {
+			const shown = view.state.field(compareTextField, false) ?? null;
+			// Every dispatch makes the view recompute its marks.
+			if (text ? shown?.eq(text) : !shown) continue;
+			// A pushed or pulled change leaves its open popup acting on the old baseline.
+			dismissPopupIn(view);
 			safeDispatch(view, text, () => this.isViewPath(view, path));
 		}
 	}

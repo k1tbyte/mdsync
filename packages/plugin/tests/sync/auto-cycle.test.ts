@@ -148,4 +148,34 @@ describe("serialized automatic refresh cycle", () => {
 		expect(events).toEqual(["pushed", "manual"]);
 		controller.dispose();
 	});
+
+	it("holds back more deletions than the limit and pushes the rest", async () => {
+		const [a] = pairedSessions();
+		const names = ["F/a.md", "F/b.md", "c.md"];
+		for (const name of names) a.adapter.putText(name, "one");
+		const onDeletionsHeld = vi.fn();
+		const controller = new SyncController({
+			...createTestControllerHost(a),
+			autoDeleteLimit: () => 1,
+			onDeletionsHeld,
+		});
+		await controller.refreshAndAutoSync();
+		await a.adapter.remove("F/a.md");
+		await a.adapter.remove("F/b.md");
+		a.adapter.putText("c.md", "two");
+		await controller.refreshAndAutoSync();
+		const bytes = a.storage.map.get(REMOTE_MANIFEST_KEY);
+		if (!bytes) throw new Error("Missing head");
+		const manifest = await decryptJson<Manifest>(a.deps().key, bytes);
+		expect(Object.keys(manifest.files).sort()).toEqual(names);
+		expect(manifest.files["c.md"]?.hash).toBe(
+			await sha256Hex(new TextEncoder().encode("two")),
+		);
+		expect(onDeletionsHeld).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({ id: "vault" }),
+			["F/a.md", "F/b.md"],
+		);
+		expect(controller.getSnapshot().pendingLocal).toBe(2);
+		controller.dispose();
+	});
 });

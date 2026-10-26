@@ -1,31 +1,25 @@
-import { type ArrayChange, diffArrays } from "diff";
+import { commonEnds, type DiffRange, diffRanges } from "@/utils";
 
-import { commonEnds, MAX_EDIT_LENGTH } from "./hunks";
-
-/** A mismatch between two line arrays, as half-open ranges into each. */
-export interface LineHunk {
-	base: [number, number];
-	lines: [number, number];
-}
+import { DIFF_BUDGET } from "./hunks";
 
 /**
- * For texts whose exact diff ran out of edit budget: one replaced block would make a note-sized conflict, so anchor
+ * For texts whose exact diff ran out of budget: one replaced block would make a note-sized conflict, so anchor
  * on lines unique to both texts and run the exact differ only in the gaps. Adapted from No-Instructions/Relay (MIT).
  */
 export function anchoredHunks(
 	base: readonly string[],
 	lines: readonly string[],
-): LineHunk[] {
+): DiffRange[] {
 	const { head, tail } = commonEnds(base, lines);
 	const baseEnd = base.length - tail;
 	const linesEnd = lines.length - tail;
 	if (head === baseEnd && head === linesEnd) return [];
 	// One side is empty in the middle, so there is nothing to anchor on.
 	if (head === baseEnd || head === linesEnd) {
-		return [{ base: [head, baseEnd], lines: [head, linesEnd] }];
+		return [{ a: [head, baseEnd], b: [head, linesEnd] }];
 	}
 
-	const hunks: LineHunk[] = [];
+	const hunks: DiffRange[] = [];
 	let baseAt = head;
 	let lineAt = head;
 
@@ -40,13 +34,21 @@ export function anchoredHunks(
 			return;
 		}
 		// The same budget bounds the retry: an unaffordable gap stays one coarse hunk.
-		const changes = diffArrays(
+		const ranges = diffRanges(
 			base.slice(baseAt, baseTo),
 			lines.slice(lineAt, lineTo),
-			{ maxEditLength: MAX_EDIT_LENGTH },
+			DIFF_BUDGET,
 		);
-		if (changes) hunks.push(...hunksFromChanges(changes, baseAt, lineAt));
-		else hunks.push({ base: [baseAt, baseTo], lines: [lineAt, lineTo] });
+		if (!ranges) {
+			hunks.push({ a: [baseAt, baseTo], b: [lineAt, lineTo] });
+			return;
+		}
+		for (const { a, b } of ranges) {
+			hunks.push({
+				a: [a[0] + baseAt, a[1] + baseAt],
+				b: [b[0] + lineAt, b[1] + lineAt],
+			});
+		}
 	};
 
 	for (const [anchorBase, anchorLine] of anchorChain(
@@ -62,33 +64,6 @@ export function anchoredHunks(
 	}
 	gap(baseEnd, linesEnd);
 
-	return hunks;
-}
-
-/** Offset by where the diff started; a removal and the insertion right after it are one hunk. */
-export function hunksFromChanges(
-	changes: readonly ArrayChange<string>[],
-	baseFrom = 0,
-	lineFrom = 0,
-): LineHunk[] {
-	const hunks: LineHunk[] = [];
-	let baseAt = baseFrom;
-	let lineAt = lineFrom;
-	for (const change of changes) {
-		const baseTo = change.added ? baseAt : baseAt + change.count;
-		const lineTo = change.removed ? lineAt : lineAt + change.count;
-		if (change.added || change.removed) {
-			const last = hunks[hunks.length - 1];
-			if (last?.base[1] === baseAt && last.lines[1] === lineAt) {
-				last.base = [last.base[0], baseTo];
-				last.lines = [last.lines[0], lineTo];
-			} else {
-				hunks.push({ base: [baseAt, baseTo], lines: [lineAt, lineTo] });
-			}
-		}
-		baseAt = baseTo;
-		lineAt = lineTo;
-	}
 	return hunks;
 }
 

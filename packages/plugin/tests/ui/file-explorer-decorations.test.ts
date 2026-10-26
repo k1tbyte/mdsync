@@ -28,9 +28,9 @@ const SHARE: ShareMark = { root: "Team", kind: "owned", here: 1 };
 
 describe("comparing decorations", () => {
 	const full: PathDecoration = {
-		change: "mdsync-changed-added",
+		change: { kind: "add", incoming: false },
 		linkRoot: "Team/link",
-		ignored: true,
+		ignored: "root",
 		skipped: "Not synced",
 		unseen: { count: 1, file: "Team/a.md" },
 		share: SHARE,
@@ -38,9 +38,17 @@ describe("comparing decorations", () => {
 		people: [ALEX],
 	};
 	const differing: [string, PathDecoration][] = [
-		["a changed status", { ...full, change: "mdsync-changed-deleted" }],
+		[
+			"a changed status",
+			{ ...full, change: { kind: "delete", incoming: false } },
+		],
+		[
+			"a change made elsewhere",
+			{ ...full, change: { kind: "add", incoming: true } },
+		],
 		["another link", { ...full, linkRoot: "Team/other" }],
 		["a lost ignore mark", { ...full, ignored: undefined }],
+		["an ignored row below another", { ...full, ignored: "below" }],
 		["another skip reason", { ...full, skipped: "Not synced either" }],
 		["another unseen count", { ...full, unseen: { count: 2 } }],
 		["an unseen folder", { ...full, unseen: { count: 1 } }],
@@ -90,6 +98,7 @@ describe("comparing decorations", () => {
 			published: { ...PUBLISHED },
 			unseen: { count: 1, file: "Team/a.md" },
 			people: [{ ...ALEX }],
+			change: { kind: "add", incoming: false },
 		};
 
 		expect(sameDecoration(full, copy)).toBe(true);
@@ -99,13 +108,16 @@ describe("comparing decorations", () => {
 
 	it("marks a row with a badge for people only when there are some", () => {
 		const addClass = vi.fn();
-		const target = { addClass } as unknown as HTMLElement;
+		const target = {
+			addClass,
+			querySelector: () => null,
+		} as unknown as HTMLElement;
 		const plugin = {} as PluginHost;
 
 		renderDecoration(target, { people: [] }, plugin);
 		expect(addClass).not.toHaveBeenCalled();
 
-		renderDecoration(target, { ignored: true }, plugin);
+		renderDecoration(target, { ignored: "below" }, plugin);
 		expect(addClass).toHaveBeenCalledWith("mdsync-explorer-ignored");
 		expect(addClass).not.toHaveBeenCalledWith("mdsync-has-path-badge");
 	});
@@ -132,8 +144,15 @@ class BadgeElement {
 		return child;
 	}
 
-	addClass(name: string) {
-		this.classes.add(name);
+	addClass(...names: string[]) {
+		for (const name of names) this.classes.add(name);
+	}
+
+	querySelector(selector: string): BadgeElement | null {
+		return (
+			this.children.find((child) => child.classes.has(selector.slice(1))) ??
+			null
+		);
 	}
 
 	getAttribute(name: string) {
@@ -145,6 +164,59 @@ class BadgeElement {
 		return this.parent?.closest(selector) ?? null;
 	}
 }
+
+describe("change marks", () => {
+	beforeEach(() => vi.mocked(setIcon).mockClear());
+
+	it.each([
+		[{ kind: "modify", incoming: false }, null, "Edited here, not pushed yet"],
+		[
+			{ kind: "delete", incoming: true },
+			"arrow-down",
+			"Deleted elsewhere, not pulled yet",
+		],
+		[
+			{ kind: "conflict", incoming: false },
+			"triangle-alert",
+			"Conflict: changed here and elsewhere",
+		],
+	] as const)(
+		"draws %o with its colour, mark and tooltip",
+		(change, icon, label) => {
+			const target = new BadgeElement();
+
+			renderDecoration(
+				target as unknown as HTMLElement,
+				{ change },
+				host([], []),
+			);
+
+			const mark = target.children.at(-1);
+			expect(target.classes.has(`mdsync-changed-${change.kind}`)).toBe(true);
+			expect(mark?.classes.has("mdsync-change-mark")).toBe(true);
+			expect(mark?.classes.has("mdsync-dot")).toBe(icon === null);
+			expect(mark?.getAttribute("aria-label")).toBe(label);
+			if (icon) expect(setIcon).toHaveBeenCalledWith(mark, icon);
+			else expect(setIcon).not.toHaveBeenCalled();
+		},
+	);
+
+	it("keeps the colour and drops the mark when change marks are off", () => {
+		const target = new BadgeElement();
+		const plugin = host([], []);
+		plugin.settings.showChangeMarks = false;
+
+		renderDecoration(
+			target as unknown as HTMLElement,
+			{ change: { kind: "conflict", incoming: false } },
+			plugin,
+		);
+
+		expect(target.classes.has("mdsync-changed-conflict")).toBe(true);
+		expect(target.children).toEqual([]);
+		expect(target.classes.has("mdsync-has-path-badge")).toBe(false);
+	});
+});
 
 function publishedBadge(stale = false) {
 	const target = new BadgeElement();

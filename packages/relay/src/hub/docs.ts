@@ -47,6 +47,8 @@ export interface Pointer {
 }
 
 export interface DocStore {
+	/** All of `run`'s writes or none, so a frame refused midway leaves no half-written log. */
+	atomic<T>(run: () => T): T;
 	/** Null while the document is live. */
 	movedTo(channel: string, doc: string): Pointer | null;
 	/**
@@ -83,6 +85,16 @@ export class Documents {
 	constructor(private readonly store: DocStore) {}
 
 	handle(context: FrameContext, frame: ClientFrame): void {
+		try {
+			this.store.atomic(() => this.dispatch(context, frame));
+		} catch (error) {
+			// Most likely the day's write limit: unanswered, the writer would resend and never settle.
+			console.error("hub could not store a frame", error);
+			refuse(context.peer, frame, ERefusal.Unstored);
+		}
+	}
+
+	private dispatch(context: FrameContext, frame: ClientFrame): void {
 		if (frame.type === EFrame.Sub) this.subscribe(context, frame);
 		else if (follows(context.peer, frame.slot, frame.doc)) {
 			this.followed(context, frame);
@@ -141,9 +153,10 @@ export class Documents {
 			refuse(peer, { slot, doc }, ERefusal.TooManyDocs);
 			return;
 		}
-		if (fresh) peer.subscribe(slot, doc);
+		// Read first: the attachment is no part of the transaction, so a refused Sub must not follow.
 		this.sendState(peer, grant, slot, doc, since);
 		if (!fresh) return;
+		peer.subscribe(slot, doc);
 		// Awareness is never stored: followers re-announce for the newcomer.
 		const join = vouchedFrame(EFrame.Join, peer.tag, grant);
 		toFollowers(peers, grant.channel, doc, join, peer.tag);

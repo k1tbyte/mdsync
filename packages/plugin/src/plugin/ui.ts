@@ -1,4 +1,4 @@
-import type { Plugin } from "obsidian";
+import { Platform, type Plugin } from "obsidian";
 import { DIFF_VIEW_TYPE, SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
 import { MdsyncSettingTab } from "@/settings/tab";
@@ -6,9 +6,9 @@ import type { SyncController } from "@/sync/controller";
 import {
 	DiffView,
 	type IndicatorHandle,
+	keepInRightSidebar,
 	registerFileContextIndicators,
 	registerFileExplorerIndicators,
-	registerLiveStatusBar,
 	registerNoteLinkActions,
 	registerNotePresence,
 	registerRibbon,
@@ -20,6 +20,8 @@ interface RegisteredPluginUi {
 	settingsTab: MdsyncSettingTab;
 	fileIndicators: IndicatorHandle;
 	openNoteMenu: (checking: boolean) => boolean;
+	/** Repaints the status bar item; a no-op when it is off. */
+	refreshStatusBar: () => void;
 }
 
 export function registerPluginUi(
@@ -34,11 +36,13 @@ export function registerPluginUi(
 		(leaf) => new SourceControlView(leaf, plugin),
 	);
 	plugin.registerView(DIFF_VIEW_TYPE, (leaf) => new DiffView(leaf, plugin));
-
-	if (plugin.settings.showStatusBar) {
-		registerStatusBar(plugin, controller);
-		registerLiveStatusBar(plugin);
+	if (Platform.isMobile) {
+		plugin.app.workspace.onLayoutReady(() => keepInRightSidebar(plugin.app));
 	}
+
+	const refreshStatusBar = plugin.settings.showStatusBar
+		? registerStatusBar(plugin)
+		: () => {};
 	const openNoteMenu = registerNotePresence(plugin);
 	registerNoteLinkActions(plugin);
 	if (plugin.settings.showRibbonIcon) {
@@ -54,7 +58,7 @@ export function registerPluginUi(
 	};
 	fileIndicators.refresh(plugin.settings.showFileExplorerIndicators);
 
-	return { settingsTab, fileIndicators, openNoteMenu };
+	return { settingsTab, fileIndicators, openNoteMenu, refreshStatusBar };
 }
 
 export function refreshOpenHistoryViewsAfterPush(

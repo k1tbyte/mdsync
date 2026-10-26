@@ -9,6 +9,15 @@ export const LINK_LIVE_STATE: Record<LinkState, LiveState> = {
 	unauthorized: "offline",
 };
 
+/** The header pill's word; a status may name itself closer. */
+export const STATE_TEXT: Record<LiveState, string> = {
+	live: "Live",
+	joining: "Joining",
+	offline: "Offline",
+	cold: "Not live",
+	warning: "Not live",
+};
+
 export const STATE_ICONS: Record<LiveState, string> = {
 	live: "radio",
 	joining: "loader",

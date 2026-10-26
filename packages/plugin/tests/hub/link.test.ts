@@ -1,5 +1,8 @@
 import {
+	CHANNEL_DOC,
+	EFrame,
 	KEEPALIVE_INTERVAL_MS,
+	KEEPALIVE_PING,
 	KEEPALIVE_SILENCE_MS,
 	UNAUTHORIZED_CLOSE_CODE,
 } from "@mdsync/protocol";
@@ -13,14 +16,21 @@ class FakeSocket extends EventTarget {
 	static opened: FakeSocket[] = [];
 	readyState = FakeSocket.OPEN;
 	binaryType = "";
+	readonly sent: unknown[] = [];
 
 	constructor(readonly url: string) {
 		super();
 		FakeSocket.opened.push(this);
 	}
 
-	send(): void {}
+	send(data: unknown): void {
+		this.sent.push(data);
+	}
 	close(): void {}
+
+	pings(): number {
+		return this.sent.filter((data) => data === KEEPALIVE_PING).length;
+	}
 
 	emit(type: string, fields: object = {}): void {
 		this.dispatchEvent(Object.assign(new Event(type), fields));
@@ -233,15 +243,54 @@ describe("hub link wakes", () => {
 		expect(FakeSocket.opened).toHaveLength(before);
 	});
 
-	it("leaves a connected link alone", async () => {
+	it("keeps a connected link that answers one probe", async () => {
 		last().emit("open");
 		const before = FakeSocket.opened.length;
 
 		windowEvents.dispatchEvent(new Event("online"));
 		documentEvents.dispatchEvent(new Event("visibilitychange"));
-		await vi.advanceTimersByTimeAsync(0);
+		expect(last().pings()).toBe(1);
+		last().emit("message", { data: "pong" });
+		await vi.advanceTimersByTimeAsync(60_000);
 
 		expect(FakeSocket.opened).toHaveLength(before);
+		expect(link.state).toBe("connected");
+	});
+
+	it("reconnects a connected link that leaves its probe unanswered", async () => {
+		last().emit("open");
+		const before = FakeSocket.opened.length;
+
+		documentEvents.dispatchEvent(new Event("visibilitychange"));
+		await vi.advanceTimersByTimeAsync(5_000);
+		expect(link.state).toBe("offline");
+
+		await vi.advanceTimersByTimeAsync(2_000);
+		expect(FakeSocket.opened).toHaveLength(before + 1);
+	});
+
+	it("probes afresh on a wake soon after an answered probe", async () => {
+		last().emit("open");
+		windowEvents.dispatchEvent(new Event("online"));
+		last().emit("message", { data: "pong" });
+		await vi.advanceTimersByTimeAsync(1_000);
+
+		windowEvents.dispatchEvent(new Event("online"));
+		expect(last().pings()).toBe(2);
+		await vi.advanceTimersByTimeAsync(5_000);
+
+		expect(link.state).toBe("offline");
+	});
+
+	it("takes an answer to its probe whatever the clock does meanwhile", async () => {
+		last().emit("open");
+		windowEvents.dispatchEvent(new Event("online"));
+
+		vi.setSystemTime(Date.now() - 60_000);
+		last().emit("message", { data: "pong" });
+		await vi.advanceTimersByTimeAsync(5_000);
+
+		expect(link.state).toBe("connected");
 	});
 
 	it("tries a refused link again, and stays refused while the relay says so", async () => {
@@ -296,5 +345,48 @@ describe("hub link backoff jitter", () => {
 		expect(FakeSocket.opened).toHaveLength(2);
 		await vi.advanceTimersByTimeAsync(1);
 		expect(FakeSocket.opened).toHaveLength(3);
+	});
+});
+
+describe("hub link sends", () => {
+	const signal = () =>
+		link.send({ type: EFrame.Signal, slot: 0, doc: CHANNEL_DOC });
+
+	it("probes first after a quiet spell, and not while the hub answers", async () => {
+		last().emit("open");
+		signal();
+		expect(last().pings()).toBe(0);
+
+		await vi.advanceTimersByTimeAsync(10_001);
+		signal();
+		signal();
+		expect(last().pings()).toBe(1);
+		expect(last().sent.at(-3)).toBe(KEEPALIVE_PING);
+
+		last().emit("message", { data: "pong" });
+		await vi.advanceTimersByTimeAsync(5_000);
+		signal();
+		expect(last().pings()).toBe(1);
+		expect(link.state).toBe("connected");
+	});
+
+	it("probes after a quiet spell however far back the clock was set", async () => {
+		last().emit("open");
+		vi.setSystemTime(Date.now() - 3_600_000);
+		await vi.advanceTimersByTimeAsync(10_001);
+
+		signal();
+
+		expect(last().pings()).toBe(1);
+	});
+
+	it("gives up on a link quiet after a send in seconds, not at the silence timeout", async () => {
+		last().emit("open");
+		await vi.advanceTimersByTimeAsync(10_001);
+
+		signal();
+		await vi.advanceTimersByTimeAsync(5_000);
+
+		expect(link.state).toBe("offline");
 	});
 });

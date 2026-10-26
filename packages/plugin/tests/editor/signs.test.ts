@@ -1,24 +1,31 @@
-import { Chunk } from "@codemirror/merge";
 import { EditorState, Text } from "@codemirror/state";
 import { describe, expect, it, vi } from "vitest";
 
 import { registerEditorSigns } from "@/editor/signs";
 import { signsField } from "@/editor/signs/gutter";
 import {
-	findSyncChangeForLine,
-	presentChunk,
+	type ChangeMark,
+	findChangeForLine,
+	markedChanges,
+	markPlace,
 	presentSyncChange,
 	shouldRedeliverBaseline,
 	toCmText,
 } from "@/editor/signs/helpers";
 import { segmentRevert } from "@/editor/signs/hunk-revert";
 import {
-	chunksField,
+	changesField,
 	compareTextField,
-	setChunksEffect,
+	setChangesEffect,
 	setCompareTextEffect,
 } from "@/editor/signs/state";
 import { computeHunks, hunkSegments } from "@/sync/hunks";
+
+const marksOf = (baseline: Text, current: Text): ChangeMark[] =>
+	markedChanges(baseline, current).map(({ mark }) => mark);
+
+const marks = (baseline: string, current: string): ChangeMark[] =>
+	marksOf(toCmText(baseline), toCmText(current));
 
 describe("signs helpers", () => {
 	it("redelivers when compare text disappears after already being set", () => {
@@ -41,83 +48,84 @@ describe("signs helpers", () => {
 		expect(shouldRedeliverBaseline(null, null, false)).toBe(false);
 	});
 
-	it("presents a new trailing line as an add instead of a changed previous line", () => {
-		const baseline = Text.of(["There is second"]);
-		const current = Text.of(["There is second", "asdasd"]);
-		const chunk = Chunk.build(baseline, current)[0];
-		expect(chunk).toBeDefined();
-		if (!chunk)
-			throw new Error("Expected a diff chunk for trailing line addition");
-		const presented = presentChunk(chunk, baseline, current);
-
-		expect(presented.removedLines).toEqual([]);
-		expect(presented.addedLines).toEqual(["asdasd"]);
-		expect(presented.addedFromLine).toBe(2);
-		expect(presented.addedToLine).toBe(2);
+	it("marks a new trailing line as an add instead of a changed previous line", () => {
+		expect(
+			marksOf(
+				Text.of(["There is second"]),
+				Text.of(["There is second", "asdasd"]),
+			),
+		).toMatchObject([{ from: 2, to: 2, kind: "add" }]);
 	});
 
-	it("presents removing the final line as a deletion of that line only", () => {
-		const baseline = Text.of(["There is second", "asdasd"]);
-		const current = Text.of(["There is second"]);
-		const chunk = Chunk.build(baseline, current)[0];
-		expect(chunk).toBeDefined();
-		if (!chunk) throw new Error("Expected a diff chunk for final line removal");
-		const presented = presentChunk(chunk, baseline, current);
+	it("marks removing the final line as a deletion after the line kept", () => {
+		expect(
+			marksOf(
+				Text.of(["There is second", "asdasd"]),
+				Text.of(["There is second"]),
+			),
+		).toMatchObject([{ from: 1, to: 1, kind: "delete" }]);
+	});
 
-		expect(presented.removedLines).toEqual(["asdasd"]);
-		expect(presented.addedLines).toEqual([]);
+	it("marks a change of the final newline alone on the line it opened or closed", () => {
+		expect(marks("a\nb", "a\nb\n")).toMatchObject([
+			{ from: 3, to: 3, kind: "add" },
+		]);
+		expect(marks("a\nb\n", "a\nb")).toMatchObject([
+			{ from: 2, to: 2, kind: "delete" },
+		]);
 	});
 
 	it("maps a clicked added line to the matching sync hunk index", () => {
-		const baseline = Text.of(["There is second"]);
-		const current = Text.of(["There is second", "asdasd", "hello world"]);
+		const changes = markedChanges(
+			Text.of(["There is second"]),
+			Text.of(["There is second", "asdasd", "hello world"]),
+		);
 
-		expect(findSyncChangeForLine(2, baseline, current)?.hunk.index).toBe(0);
+		expect(findChangeForLine(changes, 2)?.change.hunk.index).toBe(0);
 	});
 
 	it("keeps edits that share a hunk apart", () => {
 		const baseline = Text.of(["a", "b", "c", "d", "e", "f", ""]);
 		const current = Text.of(["A", "b", "c", "d", "e", ""]);
+		const changes = markedChanges(baseline, current);
 		const at = (line: number) => {
-			const change = findSyncChangeForLine(line, baseline, current);
-			return change && presentSyncChange(change);
+			const found = findChangeForLine(changes, line);
+			return found && presentSyncChange(found.change);
 		};
 
 		expect(
 			computeHunks(baseline.toString(), current.toString()).hunks,
 		).toHaveLength(1);
 		expect(at(1)).toEqual({ removedLines: ["a"], addedLines: ["A"] });
-		// The removed last line's mark sits on the line after the gap.
-		expect(at(6)).toEqual({ removedLines: ["f"], addedLines: [] });
+		// The removed last line's mark sits on the line above the gap.
+		expect(at(5)).toEqual({ removedLines: ["f"], addedLines: [] });
 	});
 
-	it("presents filling an existing blank line with text as an add", () => {
-		const baseline = Text.of(["", "tail"]);
-		const current = Text.of(["heading", "tail"]);
-		const chunk = Chunk.build(baseline, current)[0];
-		expect(chunk).toBeDefined();
-		if (!chunk)
-			throw new Error("Expected a diff chunk for blank line replacement");
-		const presented = presentChunk(chunk, baseline, current);
-
-		expect(presented.removedLines).toEqual([]);
-		expect(presented.addedLines).toEqual(["heading"]);
-		expect(presented.addedFromLine).toBe(1);
+	it("marks filling an existing blank line with text as an add", () => {
+		expect(
+			marksOf(Text.of(["", "tail"]), Text.of(["heading", "tail"])),
+		).toMatchObject([{ from: 1, to: 1, kind: "add" }]);
 	});
 
-	it("presents filling the only blank line with multiple added lines as adds", () => {
-		const baseline = Text.of([""]);
-		const current = Text.of(["asdasdas", "dasd", "sadas"]);
-		const chunk = Chunk.build(baseline, current)[0];
-		expect(chunk).toBeDefined();
-		if (!chunk)
-			throw new Error("Expected a diff chunk for multi-line blank replacement");
-		const presented = presentChunk(chunk, baseline, current);
+	it("marks filling the only blank line with multiple lines as adds", () => {
+		expect(
+			marksOf(Text.of([""]), Text.of(["asdasdas", "dasd", "sadas"])),
+		).toMatchObject([{ from: 1, to: 3, kind: "add" }]);
+	});
 
-		expect(presented.removedLines).toEqual([]);
-		expect(presented.addedLines).toEqual(["asdasdas", "dasd", "sadas"]);
-		expect(presented.addedFromLine).toBe(1);
-		expect(presented.addedToLine).toBe(3);
+	it("marks exactly the lines a push takes while blank lines make the diff ambiguous", () => {
+		const base = "L1\nL2\nL3\nL4\nL5\n";
+		const steps: Array<[string, number, number]> = [
+			["\n", 6, 6],
+			["\nabc", 6, 7],
+			["\nabc\n", 6, 7],
+			["\nabc\ndef", 6, 8],
+		];
+		for (const [typed, from, to] of steps) {
+			const [change] = markedChanges(toCmText(base), toCmText(base + typed));
+			expect(change?.mark).toMatchObject({ from, to, kind: "add" });
+			expect(change?.change.segment.right).toEqual([from - 1, to]);
+		}
 	});
 
 	it("keeps the empty last line a trailing newline implies", () => {
@@ -128,20 +136,61 @@ describe("signs helpers", () => {
 		expect(toCmText("").lines).toBe(1);
 	});
 
+	it("marks removed lines on the line above them, or the first line when they led the note", () => {
+		const below = marks("a\nb\nc\n", "a\nc\n")[0];
+		expect(below).toMatchObject({ from: 1, to: 1, kind: "delete" });
+		expect(below && markPlace(below)).toBe("After line 1");
+		expect(marks("a\nb\n", "b\n")[0]).toMatchObject({
+			from: 1,
+			kind: "topdelete",
+		});
+		// No final newline: the gap still follows the last line kept.
+		expect(marks("a\nb", "a")[0]).toMatchObject({ from: 1, kind: "delete" });
+		expect(marks("a\nb\nc", "a\nb")[0]).toMatchObject({
+			from: 2,
+			kind: "delete",
+		});
+		expect(marks("a\nb\nc\n", "a\nB\n")[0]).toMatchObject({
+			from: 2,
+			to: 2,
+			kind: "change",
+			removesBelow: true,
+		});
+	});
+
+	it("marks a removal from below when the line above already holds a mark", () => {
+		const changes = markedChanges(
+			toCmText("a\nmiddle\nc\n"),
+			toCmText("middle\n"),
+		);
+		const placed = changes.map(({ mark }) => mark);
+		expect(placed).toMatchObject([
+			{ from: 1, kind: "topdelete" },
+			{ from: 2, kind: "topdelete" },
+		]);
+		expect(markPlace(placed[1] as ChangeMark)).toBe("After line 1");
+		// Each opens its own change, the one a push would send.
+		expect(findChangeForLine(changes, 2)).toBe(changes[1]);
+		expect(changes[1]?.change.segment.left).toEqual([2, 3]);
+	});
+
 	it("maps a clicked line inside a changed run to the whole run", () => {
-		const baseline = Text.of(["one", "two", "three", "four", ""]);
-		const current = Text.of(["one", "TWO", "THREE", "four", ""]);
-		const change = findSyncChangeForLine(3, baseline, current);
+		const changes = markedChanges(
+			Text.of(["one", "two", "three", "four", ""]),
+			Text.of(["one", "TWO", "THREE", "four", ""]),
+		);
 
 		// The popup has to show every line the push sends, not just the click.
-		expect(change?.segment.right).toEqual([1, 3]);
+		expect(findChangeForLine(changes, 3)?.change.segment.right).toEqual([1, 3]);
 	});
 
 	it("returns nothing for a line far from every hunk", () => {
 		const lines = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", ""];
-		const baseline = Text.of(lines);
-		const current = Text.of(lines.map((l) => (l === "a" ? "A" : l)));
-		expect(findSyncChangeForLine(9, baseline, current)).toBeNull();
+		const changes = markedChanges(
+			Text.of(lines),
+			Text.of(lines.map((l) => (l === "a" ? "A" : l))),
+		);
+		expect(findChangeForLine(changes, 9)).toBeNull();
 	});
 });
 
@@ -149,14 +198,15 @@ describe("signs gutter field", () => {
 	function stateWithSigns(doc: string, baseline: string): EditorState {
 		const initial = EditorState.create({
 			doc,
-			extensions: [compareTextField, chunksField, signsField],
+			extensions: [compareTextField, changesField, signsField],
 		});
 		const withBaseline = initial.update({
 			effects: setCompareTextEffect.of(toCmText(baseline)),
 		}).state;
 		return withBaseline.update({
-			effects: setChunksEffect.of({
-				chunks: Chunk.build(toCmText(baseline), withBaseline.doc),
+			effects: setChangesEffect.of({
+				changes: markedChanges(toCmText(baseline), withBaseline.doc),
+				doc: withBaseline.doc,
 				lastDiffMs: 0,
 			}),
 		}).state;

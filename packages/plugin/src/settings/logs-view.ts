@@ -9,7 +9,7 @@ import {
 	type SyncLogEntry,
 } from "@/logs/store";
 import type { PluginHost } from "@/plugin/host";
-import { formatTimestamp } from "@/shared";
+import { formatTimestamp, pluralize } from "@/shared";
 import { copyText } from "@/ui/common";
 import { imperativePage } from "./page";
 
@@ -33,11 +33,25 @@ const OPERATION_LABELS: Record<ESyncLogOperation, string> = {
 	[ESyncLogOperation.Session]: "Session",
 };
 
+const RECENT_ERRORS_MS = 24 * 60 * 60 * 1000;
+
 export function logsPage(plugin: PluginHost): SettingDefinitionPage {
+	const recentErrors = (): number => {
+		const since = Date.now() - RECENT_ERRORS_MS;
+		return plugin.logs
+			.getEntries()
+			.filter((e) => e.level === ESyncLogLevel.Error && e.timestamp >= since)
+			.length;
+	};
 	return {
 		type: "page",
 		name: "Logs",
-		desc: "Local sync diagnostics and errors.",
+		desc: "Diagnostics stored on this device only.",
+		displayValue: () => {
+			const count = recentErrors();
+			return count ? pluralize(count, "error") : "";
+		},
+		status: () => (recentErrors() ? "warning" : null),
 		page: () =>
 			imperativePage("Logs", (parent, refresh) =>
 				renderLogsView(parent, plugin, refresh),
@@ -98,7 +112,7 @@ function renderLogsView(
 	}
 }
 
-function renderLogEntry(parent: HTMLElement, entry: SyncLogEntry): void {
+export function renderLogEntry(parent: HTMLElement, entry: SyncLogEntry): void {
 	const item = parent.createDiv({
 		cls: `mdsync-log-entry ${LOG_LEVEL_CLASSES[entry.level]}`,
 	});
@@ -114,10 +128,17 @@ function renderLogEntry(parent: HTMLElement, entry: SyncLogEntry): void {
 	}
 	const details = item.createEl("details", { cls: "mdsync-log-details" });
 	details.createEl("summary", { text: `Details (${entry.details.length})` });
-	const list = details.createEl("ul");
-	for (const detail of entry.details) {
-		list.createEl("li", { text: detail });
-	}
+	// Up to 200 entries x 50 details stay unbuilt until someone opens one.
+	details.addEventListener(
+		"toggle",
+		() => {
+			const list = details.createEl("ul");
+			for (const detail of entry.details) {
+				list.createEl("li", { text: detail });
+			}
+		},
+		{ once: true },
+	);
 }
 
 function logMeta(entry: SyncLogEntry): string {

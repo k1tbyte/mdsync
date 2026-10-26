@@ -2,7 +2,7 @@ import type { TestSession } from "@tests/helpers/session";
 import { pairedSessions, useEncryptionKey } from "@tests/helpers/session";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS_SYNC } from "@/settings/model";
-import { compare, pullPaths } from "@/sync/engine";
+import { compare } from "@/sync/engine";
 import { pullPathsOp } from "@/sync/operations/pull";
 import { pushPathsOp } from "@/sync/operations/push";
 import {
@@ -12,6 +12,7 @@ import {
 	saveMergedOp,
 } from "@/sync/operations/resolve";
 import { revertPathsOp } from "@/sync/operations/revert";
+import { pullPaths } from "@/sync/pull";
 import { recomputeAfterWrite } from "@/sync/session-state";
 import { createIgnoreMatcher } from "@/vault/ignore";
 import { createScopePolicy } from "@/vault/scope";

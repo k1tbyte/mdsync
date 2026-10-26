@@ -5,6 +5,7 @@ import {
 	isLikelyText,
 	loadLocalBytes,
 	textToBytes,
+	writeLocalFile,
 	writeRemoteObject,
 } from "@/sync/content";
 import type { EngineDependencies } from "@/sync/engine";
@@ -36,7 +37,7 @@ import {
 } from "@/sync/projection";
 import type { LocalSnapshot, Manifest } from "@/sync/types";
 import { runWithConcurrency, runWithFileConcurrency, withEolOf } from "@/utils";
-import { diskRefuses, trashPath, writeBinary } from "@/vault/io";
+import { diskRefuses, trashPath } from "@/vault/io";
 import { scanVault } from "@/vault/scanner";
 
 const NO_SESSION = "Storage session unavailable";
@@ -110,14 +111,29 @@ export class HistoryService {
 			const target = await this.requireSnapshot(session, snapshotId);
 			const plan = await this.planRestore(session, target);
 			if (!sameRestorePlan(plan, confirmed)) return { plan, applied: false };
-			await runWithFileConcurrency(
-				plan.write,
-				session.concurrency ?? DEFAULT_CONCURRENCY,
-				(item) => item.entry.size,
-				async (item) => {
-					await writeRemoteObject(session, item.path, item.entry.hash);
-				},
+			const claims = await session.journal?.claim(
+				session.space,
+				new Map(
+					plan.write.map(({ path, entry: { hash } }) => [path, { hash }]),
+				),
 			);
+			try {
+				await runWithFileConcurrency(
+					plan.write,
+					session.concurrency ?? DEFAULT_CONCURRENCY,
+					(item) => item.entry.size,
+					async (item) => {
+						await writeRemoteObject(
+							session,
+							item.path,
+							item.entry.hash,
+							claims,
+						);
+					},
+				);
+			} finally {
+				if (claims) await session.journal?.settle(claims);
+			}
 			await runWithConcurrency(
 				plan.remove,
 				session.concurrency ?? DEFAULT_CONCURRENCY,
@@ -190,7 +206,7 @@ export class HistoryService {
 		await this.deps.enqueue(async () => {
 			const session = await this.requireSession(path);
 			const bytes = await loadVersionBytes(session.storage, session.key, hash);
-			await writeBinary(session.adapter, path, bytes);
+			await writeLocalFile(session, path, bytes);
 			await this.deps.refresh();
 		});
 	}
@@ -236,7 +252,7 @@ export class HistoryService {
 				currentText,
 				applyHunks(versionText, hunks, complementSelection(hunks, selected)),
 			);
-			await writeBinary(session.adapter, path, textToBytes(merged));
+			await writeLocalFile(session, path, textToBytes(merged));
 			await this.deps.refresh();
 		});
 	}

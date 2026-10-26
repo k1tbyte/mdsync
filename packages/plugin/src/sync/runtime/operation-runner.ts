@@ -10,6 +10,7 @@ import { advanceBaselineForPaths } from "@/sync/baseline";
 import { isCancellation } from "@/sync/cancel";
 import { reconcileBaselineResetGenerations } from "@/sync/config-reset";
 import type { SyncControllerHost } from "@/sync/controller";
+import { settleLanded } from "@/sync/cut-short";
 import {
 	type CompareResult,
 	compare,
@@ -63,9 +64,13 @@ export class OperationRunner {
 		space: Space,
 		result: CompareResult,
 		epoch: number,
+		storage: string,
 	): void {
 		if (this.invalidatedSince(epoch)) return;
 		this.deps.runtimeState.setResult(space, result);
+		if (space.id === VAULT_SPACE.id) {
+			this.deps.runtimeState.setVaultChecked(storage);
+		}
 		this.settled();
 	}
 
@@ -104,6 +109,7 @@ export class OperationRunner {
 							(error) => !refreshedRoots.has(error.root),
 						);
 			let local = this.deps.host.getState();
+			let vaultStorage: string | null = null;
 			const cycle = new ScanCycle(spaces, local.hashCache);
 			const walk = targets === null && this.walkDisk;
 			for (const space of spaces) {
@@ -118,6 +124,7 @@ export class OperationRunner {
 					if (!refreshed) continue;
 					local = refreshed.local;
 					results.set(space, refreshed.result);
+					if (space.id === VAULT_SPACE.id) vaultStorage = refreshed.storage;
 					this.deps.host.onSpaceRefreshed?.(space);
 				} catch (err) {
 					if (space.root === VAULT_SPACE.root) throw err;
@@ -140,6 +147,7 @@ export class OperationRunner {
 			});
 			if (this.invalidatedSince(epoch)) return;
 			this.deps.runtimeState.setResults(results);
+			if (vaultStorage) this.deps.runtimeState.setVaultChecked(vaultStorage);
 			this.deps.runtimeState.setSpaceErrors(failed);
 			this.unindexed = new Set(
 				[...results.values()].flatMap(
@@ -166,8 +174,12 @@ export class OperationRunner {
 		local: LocalState,
 		cycle: ScanCycle,
 		walk: boolean,
-	): Promise<{ result: CompareResult; local: LocalState } | null> {
-		const session = await this.openSession(space);
+	): Promise<{
+		result: CompareResult;
+		local: LocalState;
+		storage: string;
+	} | null> {
+		let session = await this.openSession(space);
 		if (!session) return null;
 		const depsWithProgress: EngineDependencies = {
 			...session,
@@ -186,6 +198,7 @@ export class OperationRunner {
 			if (err instanceof SpaceGoneError) this.deps.host.onSpaceGone?.(space);
 			throw err;
 		});
+		session = await this.saveLanded(session);
 		const identity = session.storage.identity();
 		const reconciled = result.remote
 			? reconcileBaselineResetGenerations(
@@ -228,6 +241,7 @@ export class OperationRunner {
 				: undefined;
 		return {
 			result,
+			storage: identity,
 			local: mergeSessionIntoLocal(
 				local,
 				nextSessionState,
@@ -270,17 +284,24 @@ export class OperationRunner {
 			this.deps.runtimeState.clearError();
 			this.deps.runtimeState.broadcast();
 			const epoch = this.deps.runtimeState.currentEpoch();
+			let ended = false;
 			try {
 				const session = await this.openSession(VAULT_SPACE);
 				if (!session) return false;
-				const ctx = this.buildContext(session);
+				const ctx = this.buildContext(session, () => !ended);
 				const { compareResult } = await flow(session, ctx);
-				this.applyResult(VAULT_SPACE, compareResult, epoch);
+				this.applyResult(
+					VAULT_SPACE,
+					compareResult,
+					epoch,
+					session.storage.identity(),
+				);
 				return true;
 			} catch (err) {
 				await this.reportError(operation, err);
 				return false;
 			} finally {
+				ended = true;
 				this.deps.runtimeState.setProgressText(null);
 			}
 		});
@@ -318,9 +339,12 @@ export class OperationRunner {
 		}
 		const epoch = this.deps.runtimeState.currentEpoch();
 		let scope: { signal: AbortSignal; end: () => void } | null = null;
+		let ended = false;
+		let journal: EngineDependencies["journal"];
 		try {
 			let session = await this.openSession(space);
 			if (!session) return { ok: false };
+			journal = session.journal;
 			if (comparison && this.invalidatedSince(comparison.epoch))
 				return { ok: false };
 			const current =
@@ -337,6 +361,7 @@ export class OperationRunner {
 							current ? comparison.result.remote : undefined,
 						);
 			if (this.invalidatedSince(epoch)) return { ok: false };
+			session = await this.saveLanded(session);
 			if (result.remote) {
 				const baseline = reconcileBaselineResetGenerations(
 					session.state.baseline,
@@ -348,9 +373,9 @@ export class OperationRunner {
 					await this.buildContext(session).persistState(session.state);
 				}
 			}
-			this.applyResult(space, result, epoch);
+			this.applyResult(space, result, epoch, session.storage.identity());
 			if (cancellable) scope = this.deps.runtimeState.beginCancellable();
-			const ctx = this.buildContext(session);
+			const ctx = this.buildContext(session, () => !ended);
 			const outcome = await fn(
 				scope ? { ...session, signal: scope.signal } : session,
 				result,
@@ -367,7 +392,7 @@ export class OperationRunner {
 				outcome,
 				session.scope,
 			);
-			this.applyResult(space, recomputed, epoch);
+			this.applyResult(space, recomputed, epoch, session.storage.identity());
 			// A first sync brings everything: none of it is news.
 			if (operation === ESyncLogOperation.Pull && session.state.baseline) {
 				const theirs = publishedByOthers(
@@ -418,11 +443,20 @@ export class OperationRunner {
 			const message = await this.reportError(operation, err, space);
 			return { ok: false, error: message };
 		} finally {
+			ended = true;
 			scope?.end();
+			// Its writes landed but their baseline unsaved: listed so, an edit since still gets their steps.
+			await journal?.save().catch(() => undefined);
 			// Broadcast, not just set: a queued operation keeps pendingOps above
 			// zero, so nothing else would repaint away a stale "Cancelling…".
 			this.deps.runtimeState.publishProgress(null);
 		}
+	}
+
+	private saveLanded(session: EngineDependencies): Promise<EngineDependencies> {
+		return settleLanded(session, (state) =>
+			this.buildContext(session).persistState(state),
+		);
 	}
 
 	/** Every session, reads too: a paused share asks its storage nothing. */
@@ -459,14 +493,21 @@ export class OperationRunner {
 		return err instanceof StorageRequestError ? err.userMessage : detail;
 	}
 
-	private buildContext(deps: EngineDependencies): OperationContext {
+	/** `live` turns false when the operation ends: a worker outliving a failed sibling must not repaint its progress. */
+	private buildContext(
+		deps: EngineDependencies,
+		live: () => boolean = () => true,
+	): OperationContext {
 		const identity = deps.storage.identity();
 		const { space } = deps;
 		const { root } = space;
 		return {
-			setProgress: (text) => this.deps.runtimeState.publishProgress(text),
-			reportProgressSoon: (text) =>
-				this.deps.runtimeState.publishProgressSoon(text),
+			setProgress: (text, ratio) => {
+				if (live()) this.deps.runtimeState.publishProgress(text, ratio);
+			},
+			reportProgressSoon: (text, ratio) => {
+				if (live()) this.deps.runtimeState.publishProgressSoon(text, ratio);
+			},
 			persistState: (session) =>
 				this.deps.host.persistState(
 					mergeSessionIntoLocal(

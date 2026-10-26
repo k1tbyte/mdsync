@@ -16,7 +16,6 @@ import {
 	openSourceControlDeleted,
 	openSourceControlHistory,
 } from "@/ui";
-import { isIgnoreNote } from "@/vault/ignore";
 
 /**
  * History is otherwise only in the side panel and a deleted file has no menu, so the entry rides on whatever
@@ -81,32 +80,6 @@ function addDeletedItem(menu: Menu, plugin: Plugin & PluginHost): void {
 			.setTitle("MDSync: Restore deleted files")
 			.setIcon("trash-2")
 			.onClick(() => void openSourceControlDeleted(plugin)),
-	);
-}
-
-export function registerIgnoreFileRefresh(plugin: Plugin & PluginHost): void {
-	const refreshIfIgnoreFile = (file: TAbstractFile, oldPath?: string): void => {
-		const spaces = plugin.spaces.partition();
-		const touched = [file.path, oldPath].some(
-			(path) => path !== undefined && isIgnoreNote(spaces, path),
-		);
-		if (!touched) return;
-		plugin.scheduleScopeRefresh("Ignore rules changed.");
-	};
-
-	plugin.registerEvent(
-		plugin.app.vault.on("create", (file) => refreshIfIgnoreFile(file)),
-	);
-	plugin.registerEvent(
-		plugin.app.vault.on("modify", (file) => refreshIfIgnoreFile(file)),
-	);
-	plugin.registerEvent(
-		plugin.app.vault.on("delete", (file) => refreshIfIgnoreFile(file)),
-	);
-	plugin.registerEvent(
-		plugin.app.vault.on("rename", (file, oldPath) =>
-			refreshIfIgnoreFile(file, oldPath),
-		),
 	);
 }
 

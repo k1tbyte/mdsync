@@ -31,9 +31,9 @@ export interface ObjectStorage {
 	exists(key: string): Promise<boolean>;
 	/**
 	 * Bytes, or null only when genuinely absent. Any other failure throws, preventing mistaking outage for
-	 * empty remote.
+	 * empty remote. `size` is the expected byte count, which stretches the transfer deadline.
 	 */
-	get(key: string): Promise<Uint8Array | null>;
+	get(key: string, size?: number): Promise<Uint8Array | null>;
 	/**
 	 * Reads only if the validator no longer matches, and reports the new one. Optional: a backend with no
 	 * validator leaves it out and callers fall back to {@link get}.

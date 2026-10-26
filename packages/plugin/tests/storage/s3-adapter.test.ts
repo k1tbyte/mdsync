@@ -16,6 +16,8 @@ interface Reply {
 	arrayBuffer?: ArrayBuffer;
 	headers?: Record<string, string>;
 	error?: Error;
+	/** Never answers. */
+	hang?: boolean;
 }
 
 const requests: Recorded[] = [];
@@ -27,6 +29,7 @@ vi.mock("obsidian", async (importOriginal) => ({
 		requests.push(params);
 		const reply = replies.shift() ?? { status: 200 };
 		if (reply.error) return Promise.reject(reply.error);
+		if (reply.hang) return new Promise(() => undefined);
 		return Promise.resolve({
 			status: reply.status,
 			text: reply.text ?? "",
@@ -434,3 +437,44 @@ async function until(done: () => boolean): Promise<void> {
 	}
 	if (!done()) throw new Error("condition never became true");
 }
+
+describe("S3 transfer deadline", () => {
+	const MIB = 1024 * 1024;
+
+	/** The deadline a request armed, without waiting for it. */
+	async function deadlineOf(send: () => Promise<unknown>): Promise<number> {
+		const delays: number[] = [];
+		const spy = vi.spyOn(window, "setTimeout").mockImplementation(((
+			_fn: () => void,
+			ms: number,
+		) => {
+			delays.push(ms);
+			return 0;
+		}) as unknown as typeof window.setTimeout);
+		replies = [{ status: 200, hang: true }];
+		void send();
+		await vi.waitFor(() => expect(delays).toHaveLength(1));
+		spy.mockRestore();
+		return delays[0] as number;
+	}
+
+	it("gives a read the time its expected size needs", async () => {
+		const store = createS3Adapter(config());
+		// 30 s + 100 MiB at 128 KiB/s.
+		expect(await deadlineOf(() => store.get("objects/big", 100 * MIB))).toBe(
+			830_000,
+		);
+	});
+
+	it("keeps 30 s for a read with no size hint", async () => {
+		const store = createS3Adapter(config());
+		expect(await deadlineOf(() => store.get("objects/small"))).toBe(30_000);
+	});
+
+	it("sizes a write by its body", async () => {
+		const store = createS3Adapter(config());
+		expect(
+			await deadlineOf(() => store.put("objects/up", new Uint8Array(2 * MIB))),
+		).toBe(30_000 + 16_000);
+	});
+});

@@ -1,18 +1,31 @@
-import { TFile, TFolder } from "obsidian";
+import { Menu, Platform, setIcon, TFile, TFolder } from "obsidian";
 import type { PluginHost } from "@/plugin/host";
-import { errorMessage } from "@/shared";
+import { pluralize } from "@/shared";
 import type { DeletedFilesResult } from "@/sync/history";
 import {
-	appendLabeledButton,
+	appendIconButton,
 	attempt,
+	callout,
 	notifyError,
 	notifyInfo,
+	onLongPress,
+	renderPath,
 } from "@/ui/common";
-
 import { openPromptModal } from "@/ui/modals";
-import { actionButton } from "./action-button";
+import { HistoryList } from "./history-list";
 import { confirmBulkRestore, confirmRestore } from "./restore-modal";
 import { RowPager } from "./row-pager";
+import {
+	SelectionBar,
+	type SelectionCommand,
+	type SelectionSource,
+} from "./selection-bar";
+import {
+	renderEmptyState,
+	renderHistoryOff,
+	renderLoadError,
+	renderLoading,
+} from "./tab-states";
 import {
 	buildTrashRows,
 	resolveRestoreTarget,
@@ -20,17 +33,16 @@ import {
 } from "./trash-rows";
 
 /** Files gone from the vault but still recoverable from history. */
-export class TrashTab {
-	private deleted: DeletedFilesResult | null = null;
-	private error: string | null = null;
-	private loading = false;
-	/** Invalidations race in-flight loads; only the current generation may land. */
-	private generation = 0;
+export class TrashTab implements SelectionSource {
+	private readonly list = new HistoryList<DeletedFilesResult>(() =>
+		this.onRerender(),
+	);
 	/** Selected row paths; pruned to the rows the latest render produced. */
 	private readonly selected = new Set<string>();
 	private rows: TrashRow[] = [];
 	private readonly pager = new RowPager();
-	private bulkButton: HTMLButtonElement | null = null;
+	private bar: SelectionBar | null = null;
+	private selectAll: HTMLInputElement | null = null;
 
 	constructor(
 		private readonly plugin: PluginHost,
@@ -42,89 +54,90 @@ export class TrashTab {
 	) {}
 
 	clear(): void {
-		this.deleted = null;
-		this.error = null;
-		this.loading = false;
-		this.generation++;
+		this.list.clear();
 	}
 
-	render(parent: HTMLElement): void {
+	/** `overlay` holds the selection bar over the pane, outside its scroll. */
+	render(parent: HTMLElement, tools: HTMLElement, overlay: HTMLElement): void {
+		this.bar = null;
+		this.selectAll = null;
 		const pane = parent.createDiv({ cls: "mdsync-history-pane" });
 		if (!this.plugin.settings.fileHistoryEnabled) {
-			pane.createDiv({
-				cls: "mdsync-status-line",
-				text: "File version history is disabled, so deleted files are not recoverable. Enable it in settings.",
-			});
+			renderHistoryOff(
+				pane,
+				this.plugin.app,
+				"File version history is disabled, so deleted files are not recoverable. Enable it in settings.",
+			);
 			return;
 		}
-		const head = pane.createDiv({ cls: "mdsync-history-versions-head" });
-		const bar = head.createDiv({ cls: "mdsync-history-head-actions" });
-		appendLabeledButton(bar, "refresh-cw", "Refresh deleted", () => {
+		parent.addClass("mdsync-deleted-panel");
+		appendIconButton(tools, "refresh-cw", "Refresh deleted", () => {
 			this.clear();
 			this.onRerender();
 		});
-		this.renderBulkActions(bar);
 		this.renderBody(pane.createDiv({ cls: "mdsync-history-list" }));
+		this.bar = new SelectionBar(overlay, [this]);
+		this.selectionChanged();
 	}
 
-	private renderBulkActions(head: HTMLElement): void {
-		const selectAll = head.createEl("button", {
-			text: "Select all",
-		});
-		selectAll.addEventListener("click", () => {
-			if (this.selected.size === this.rows.length) this.selected.clear();
-			else for (const row of this.rows) this.selected.add(row.path);
-			this.onRerender();
-		});
-		this.bulkButton = actionButton(head, "cta")
-			.setButtonText("Restore selected")
-			.onClick(() => void this.restoreSelected()).buttonEl;
-		this.updateBulkButton();
+	get selectedCount(): number {
+		return this.selected.size;
 	}
 
-	private updateBulkButton(): void {
-		const button = this.bulkButton;
-		if (!button) return;
-		const count = this.selected.size;
-		button.disabled = count === 0;
-		button.setText(
-			count === 0 ? "Restore selected" : `Restore selected (${count})`,
-		);
-		button.setAttr(
-			"aria-label",
-			count === 0
-				? "Select deleted files to restore them"
-				: `Restore ${count} selected deleted file(s)`,
-		);
+	selectionCommands(): SelectionCommand[] {
+		return [
+			{
+				text: `Restore ${this.selected.size}`,
+				cta: true,
+				run: () => this.restoreSelected(),
+			},
+		];
+	}
+
+	clearSelection(): void {
+		this.selected.clear();
+		this.onRerender();
+	}
+
+	private selectionChanged(): void {
+		// Until a list is in, the ticked rows are the last one's and may be back.
+		this.bar?.update(this.list.value === null || this.list.error !== null);
+		const box = this.selectAll;
+		if (!box) return;
+		box.checked = this.selected.size === this.rows.length;
+		box.indeterminate = this.selected.size > 0 && !box.checked;
 	}
 
 	private renderBody(body: HTMLElement): void {
-		if (this.error) {
-			body.createDiv({
-				cls: "mdsync-history-error",
-				text: `Could not list deleted files: ${this.error}`,
+		const { value: deleted, error } = this.list;
+		if (error) {
+			renderLoadError(body, "Could not list deleted files", error, () => {
+				this.clear();
+				this.onRerender();
 			});
 			return;
 		}
-		if (this.deleted === null) {
-			body.createDiv({ cls: "mdsync-status-line", text: "Loading…" });
-			this.load();
+		if (deleted === null) {
+			renderLoading(body);
+			this.list.load(() => this.plugin.controller.history.listDeletedFiles());
 			return;
 		}
-		const incomplete = this.deleted.lagging || this.deleted.truncated;
-		if (this.deleted.lagging) {
-			body.createDiv({
-				cls: "mdsync-status-line",
-				text: "History has not caught up with the latest push yet, so recent deletions are missing. Push again to update it.",
-			});
+		const incomplete = deleted.lagging || deleted.truncated;
+		if (deleted.lagging) {
+			callout(
+				body,
+				"warning",
+				"History has not caught up with the latest push yet, so recent deletions are missing. Push again to update it.",
+			);
 		}
-		if (this.deleted.truncated) {
-			body.createDiv({
-				cls: "mdsync-status-line",
-				text: "History has a gap, so deletions older than it are missing unless a pinned snapshot still covers them.",
-			});
+		if (deleted.truncated) {
+			callout(
+				body,
+				"warning",
+				"History has a gap, so deletions older than it are missing unless a pinned snapshot still covers them.",
+			);
 		}
-		const rows = buildTrashRows(this.deleted.files, {
+		const rows = buildTrashRows(deleted.files, {
 			maxSnapshots: this.plugin.settings.fileHistoryMaxSnapshots,
 			currentDevice: this.plugin.controller.currentDevice(),
 			inVault: (path) =>
@@ -135,15 +148,38 @@ export class TrashTab {
 		if (rows.length === 0) {
 			// The warnings above already say why the list is short; do not contradict them.
 			if (!incomplete) {
-				body.createDiv({
-					cls: "mdsync-status-line is-empty",
+				renderEmptyState(body, {
+					icon: "circle-check",
+					tone: "success",
+					title: "Nothing to restore",
 					text: `Nothing deleted in the last ${this.plugin.settings.fileHistoryMaxSnapshots} snapshots. Older deletions are dropped from history unless their snapshot is pinned.`,
 				});
 			}
 			return;
 		}
+		this.renderListHead(body);
 		for (const row of this.pager.slice(rows)) this.renderRow(body, row);
 		this.pager.render(body, rows.length, this.onRerender);
+	}
+
+	private renderListHead(body: HTMLElement): void {
+		const head = body.createDiv({ cls: "mdsync-deleted-head" });
+		const label = head.createEl("label", { cls: "mdsync-deleted-all" });
+		const box = label.createEl("input", {
+			type: "checkbox",
+			cls: "mdsync-file-checkbox",
+		});
+		label.appendText("Select all");
+		box.addEventListener("change", () => {
+			if (this.selected.size === this.rows.length) this.selected.clear();
+			else for (const row of this.rows) this.selected.add(row.path);
+			this.onRerender();
+		});
+		this.selectAll = box;
+		head.createSpan({
+			cls: "mdsync-deleted-count",
+			text: `${pluralize(this.rows.length, "file")} history still holds`,
+		});
 	}
 
 	/** A selection outliving its row (restored or pushed away) must not linger. */
@@ -152,36 +188,12 @@ export class TrashTab {
 		for (const path of Array.from(this.selected)) {
 			if (!valid.has(path)) this.selected.delete(path);
 		}
-		this.updateBulkButton();
-	}
-
-	/** Loads into state, never into a captured node: a re-render discards that node. */
-	private load(): void {
-		if (this.loading) return;
-		this.loading = true;
-		const generation = this.generation;
-		this.plugin.controller.history
-			.listDeletedFiles()
-			.then((result) => {
-				if (generation !== this.generation) return;
-				this.deleted = result;
-			})
-			.catch((err: unknown) => {
-				if (generation !== this.generation) return;
-				this.error = errorMessage(err);
-			})
-			.finally(() => {
-				// A newer load owns the flag now, so leave it to that one.
-				if (generation !== this.generation) return;
-				this.loading = false;
-				this.onRerender();
-			});
 	}
 
 	private renderRow(body: HTMLElement, row: TrashRow): void {
-		const item = body.createDiv({ cls: "mdsync-history-row" });
-		const head = item.createDiv({ cls: "mdsync-history-row-head" });
-		const selection = head.createEl("label", {
+		const item = body.createDiv({ cls: "mdsync-deleted-row" });
+		item.toggleClass("is-selected", this.selected.has(row.path));
+		const selection = item.createEl("label", {
 			cls: "mdsync-file-selection",
 		});
 		const checkbox = selection.createEl("input", {
@@ -193,67 +205,94 @@ export class TrashTab {
 		checkbox.addEventListener("change", () => {
 			if (checkbox.checked) this.selected.add(row.path);
 			else this.selected.delete(row.path);
-			this.updateBulkButton();
+			item.toggleClass("is-selected", checkbox.checked);
+			this.selectionChanged();
 		});
-		const title = head.createDiv({
-			cls: "mdsync-history-row-title",
-			text: row.title,
-		});
-		if (row.pinned) {
-			title.createSpan({
-				cls: "mdsync-history-pinned-badge",
-				text: " (pinned)",
+		const copy = item.createDiv({ cls: "mdsync-deleted-copy" });
+		renderPath(copy, row.path);
+		copy.createDiv({ cls: "mdsync-history-row-meta", text: row.meta });
+		if (row.note) {
+			const note = copy.createDiv({
+				cls: `mdsync-deleted-note is-${row.note.tone}`,
 			});
-		}
-		item.createDiv({ cls: "mdsync-history-row-meta", text: row.meta });
-		if (row.restored) {
-			item.createDiv({
-				cls: "mdsync-history-row-meta is-restored",
-				text: "Restored here, not pushed yet",
-			});
-		} else if (row.retention) {
-			item.createDiv({ cls: "mdsync-history-row-meta", text: row.retention });
-		}
-
-		const actions = item.createDiv({ cls: "mdsync-history-row-actions" });
-		// Every row repeats these three labels, so name the file in each.
-		const preview = this.action(actions, "Preview", `Preview ${row.path}`);
-		preview.addEventListener("click", () => {
-			attempt(
-				this.openDiff(row.path, {
-					hash: row.hash,
-					label: row.label,
-					size: row.size,
-				}),
-				"Could not open the diff",
+			setIcon(
+				note.createSpan({ cls: "mdsync-deleted-note-icon" }),
+				row.note.icon,
 			);
+			note.createSpan({ text: row.note.text });
+		}
+		// A phone has no hover, so its actions wait behind the menu.
+		if (Platform.isPhone) {
+			const actions = item.createDiv({ cls: "mdsync-timeline-actions" });
+			appendIconButton(
+				actions,
+				"ellipsis",
+				`Actions for ${row.path}`,
+				(event) => this.showMenu(event, row),
+			);
+			onLongPress(item, (event) => this.showMenu(event, row));
+		} else this.renderActions(item, row);
+		item.addEventListener("contextmenu", (event) => {
+			event.preventDefault();
+			this.showMenu(event, row);
 		});
-		const restore = actionButton(actions, "cta")
-			.setButtonText("Restore")
-			.onClick(() => void this.restore(row, row.path)).buttonEl;
-		restore.setAttr("aria-label", `Restore ${row.path}`);
-		const restoreTo = this.action(
-			actions,
-			"Restore to…",
-			`Restore ${row.path} to another path`,
-		);
-		restoreTo.addEventListener("click", () => void this.restoreTo(row));
 	}
 
-	private action(
-		parent: HTMLElement,
-		text: string,
-		label: string,
-	): HTMLButtonElement {
-		const button = parent.createEl("button", { text });
-		button.setAttr("aria-label", label);
-		return button;
+	/** Shown on hover over the row's spare column, so revealing them moves nothing. */
+	private renderActions(parent: HTMLElement, row: TrashRow): void {
+		const actions = parent.createDiv({ cls: "mdsync-row-actions" });
+		for (const { icon, label, run } of this.actionsOf(row)) {
+			appendIconButton(actions, icon, label, run).addClass("mdsync-row-action");
+		}
+	}
+
+	private showMenu(event: MouseEvent, row: TrashRow): void {
+		const menu = new Menu();
+		for (const { icon, title, run } of this.actionsOf(row)) {
+			menu.addItem((item) => item.setTitle(title).setIcon(icon).onClick(run));
+		}
+		menu.showAtMouseEvent(event);
+	}
+
+	private actionsOf(row: TrashRow) {
+		return [
+			{
+				icon: "eye",
+				title: "Preview",
+				label: `Preview ${row.path}`,
+				run: () => this.preview(row),
+			},
+			{
+				icon: "rotate-ccw",
+				title: "Restore",
+				label: `Restore ${row.path}`,
+				run: () => void this.restore(row, row.path),
+			},
+			{
+				icon: "folder-input",
+				title: "Restore to…",
+				label: `Restore ${row.path} to another path`,
+				run: () => void this.restoreTo(row),
+			},
+		];
+	}
+
+	private preview(row: TrashRow): void {
+		attempt(
+			this.openDiff(row.path, {
+				hash: row.hash,
+				label: row.label,
+				size: row.size,
+			}),
+			"Could not open the diff",
+		);
 	}
 
 	private async restoreTo(row: TrashRow): Promise<void> {
 		const target = await openPromptModal({
 			app: this.plugin.app,
 			title: "Restore to a different path",
+			icon: "folder-input",
 			description: `Where should "${row.path}" be written?`,
 			label: "Vault-relative path",
 			initialValue: row.path,

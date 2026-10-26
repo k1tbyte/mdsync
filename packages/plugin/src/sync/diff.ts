@@ -1,3 +1,5 @@
+import type { ScopePolicy } from "@/vault/scope";
+import { reconcileBaselineResetGenerations } from "./config-reset";
 import { pairMoves } from "./moves";
 import {
 	type Conflict,
@@ -97,6 +99,23 @@ export function diff(input: DiffInput): DiffResult {
 		{ localChanges, remoteChanges, conflicts, converged, remoteMoved },
 		baselineFiles,
 	);
+}
+
+/** The diff a compare makes: the baseline reconciled against the remote, both read within the scope. */
+export function diffWithin(
+	local: LocalSnapshot,
+	remote: Manifest | null,
+	baseline: Manifest | null,
+	scope: ScopePolicy,
+): DiffResult {
+	return diff({
+		local,
+		remote,
+		baseline: remote
+			? reconcileBaselineResetGenerations(baseline, remote, scope)
+			: null,
+		includes: (path) => scope.includes(path),
+	});
 }
 
 /** A drawing is its scene: saves of one scene differ only in the view state they carry. */

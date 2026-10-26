@@ -1,4 +1,4 @@
-import { type App, Modal } from "obsidian";
+import type { App } from "obsidian";
 
 import { EConflictStrategy } from "@/sync/controller";
 import { openConfirmModal } from "@/ui/modals";
@@ -34,25 +34,6 @@ export function confirmAdoptNewVault(app: App): Promise<boolean> {
 	});
 }
 
-export function showFileList(
-	app: App,
-	title: string,
-	intro: string,
-	files: ReadonlyArray<{ path: string; detail?: string }>,
-): void {
-	const modal = new Modal(app);
-	modal.titleEl.setText(`${title} (${files.length})`);
-	modal.contentEl.createEl("p", { text: intro });
-	const list = modal.contentEl.createEl("ul", { cls: "mdsync-ignored-list" });
-	for (const { path, detail } of files) {
-		const item = list.createEl("li", { cls: "mdsync-file-name", text: path });
-		if (detail) {
-			item.createDiv({ cls: "setting-item-description", text: detail });
-		}
-	}
-	modal.open();
-}
-
 /** Revert discards local edits that were never pushed, so it is confirmed. */
 export function confirmRevert(
 	app: App,
@@ -60,7 +41,6 @@ export function confirmRevert(
 	/** Never synced: revert deletes them. */
 	added: number,
 ): Promise<boolean> {
-	const first = paths.slice(0, 5);
 	return openConfirmModal({
 		app,
 		title:
@@ -74,11 +54,8 @@ export function confirmRevert(
 						`${added} new file(s) among them never synced and will be moved to the trash.`,
 					]
 				: []),
-			...first,
-			...(paths.length > first.length
-				? [`… and ${paths.length - first.length} more`]
-				: []),
 		],
+		files: paths.length > 1 ? paths : undefined,
 		confirmLabel: "Revert",
 		cancelLabel: "Keep my changes",
 		confirmClass: "mod-warning",

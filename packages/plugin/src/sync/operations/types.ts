@@ -16,7 +16,8 @@ export interface OperationOutcome {
 	cancelled?: boolean;
 }
 
-export type ProgressReporter = (text: string | null) => void;
+/** `ratio` is the share done, 0 to 1; only counted steps give it. */
+export type ProgressReporter = (text: string | null, ratio?: number) => void;
 
 export interface OperationContext {
 	setProgress: ProgressReporter;

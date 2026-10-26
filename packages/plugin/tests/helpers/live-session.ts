@@ -2,6 +2,7 @@ import { EFrame, type ServerFrame } from "@mdsync/protocol";
 import { afterEach, beforeEach, expect, vi } from "vitest";
 import * as Y from "yjs";
 
+import { LIVE_SEND_MS } from "@/constants";
 import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
 import { seal } from "@/crypto/seal";
 import { docIdFor } from "@/live/doc-id";
@@ -10,7 +11,7 @@ import type { Refused } from "@/live/session/session-deps";
 import { TEXT, type TextModel } from "@/live/text/model";
 import { LiveHub, type TestConnection } from "./live-hub";
 
-/** Longer than the session's batching window, so a typed edit has left. */
+/** Longer than the default send interval, so a typed edit has left. */
 export const FLUSHED_MS = 400;
 const HANG_GUARD_MS = 4_000;
 /** Under the hub's per-socket burst limit. */
@@ -42,10 +43,13 @@ export function useLiveRoom() {
 		synced,
 		typedElsewhere,
 		roomState,
+		/** The send interval the next device takes. */
+		sendEvery: LIVE_SEND_MS.balanced as number,
 	};
 
 	beforeEach(async () => {
 		live.hub = new LiveHub();
+		live.sendEvery = LIVE_SEND_MS.balanced;
 		live.keys = await deriveLiveKeys(
 			crypto.getRandomValues(new Uint8Array(32)),
 		);
@@ -83,6 +87,7 @@ export function useLiveRoom() {
 				onRefused: (reason) => {
 					opened.refused = reason;
 				},
+				sendEvery: () => live.sendEvery,
 			}),
 			agreed: null,
 			refused: null,

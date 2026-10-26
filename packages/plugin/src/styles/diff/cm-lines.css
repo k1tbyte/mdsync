@@ -1,53 +1,55 @@
-.cm-line.mdsync-merge-line,
-.cm-line.mdsync-diff-line {
+/* Changed rows are tinted across the gutter too; the bar sits on the gutter, at the row's edge. */
+.cm-line.mdsync-diff-line,
+.cm-gutterElement.mdsync-diff-gutter {
 	background-color: rgba(var(--mdsync-tone), 0.14);
+}
+
+.cm-gutterElement.mdsync-diff-gutter {
 	box-shadow: inset var(--mdsync-bar) 0 0 rgba(var(--mdsync-tone), 0.6);
 }
 
-.cm-line.mdsync-merge-line.is-base {
+/* Merge: a side left out, or Result typed by hand. */
+.cm-line.mdsync-diff-line.is-base,
+.cm-gutterElement.mdsync-diff-gutter.is-base {
 	background-color: rgba(var(--mdsync-tone), 0.05);
+}
+
+.cm-gutterElement.mdsync-diff-gutter.is-base {
 	box-shadow: inset var(--mdsync-bar) 0 0 rgba(var(--mdsync-tone), 0.2);
 }
 
-.cm-line.mdsync-merge-line.is-pending {
-	border-left: var(--mdsync-bar) dotted rgb(var(--mdsync-tone-conflict));
-}
-
-.cm-line.mdsync-merge-mark,
-.cm-line.mdsync-diff-mark {
+.cm-line.mdsync-diff-mark,
+.cm-gutterElement.mdsync-diff-gutter-mark {
 	box-shadow: inset 0 var(--mdsync-bar) 0 rgba(var(--mdsync-tone), 0.6);
 }
 
-.cm-line.mdsync-merge-mark.is-after,
-.cm-line.mdsync-diff-mark.is-after {
+.cm-line.mdsync-diff-mark.is-after,
+.cm-gutterElement.mdsync-diff-gutter-mark.is-after {
 	box-shadow: inset 0 calc(-1 * var(--mdsync-bar)) 0
 		rgba(var(--mdsync-tone), 0.6);
 }
 
-.cm-line.mdsync-diff-line.is-chosen {
+.cm-line.mdsync-diff-line.is-chosen,
+.cm-gutterElement.mdsync-diff-gutter.is-chosen {
 	background-color: color-mix(
 		in srgb,
 		var(--interactive-accent) 14%,
 		transparent
 	);
+}
+
+.cm-gutterElement.mdsync-diff-gutter.is-chosen {
 	box-shadow: inset var(--mdsync-bar-strong) 0 0 var(--interactive-accent);
 }
 
-.cm-line.mdsync-diff-mark.is-chosen {
+.cm-line.mdsync-diff-mark.is-chosen,
+.cm-gutterElement.mdsync-diff-gutter-mark.is-chosen {
 	box-shadow: inset 0 var(--mdsync-bar) 0 var(--interactive-accent);
 }
 
-.cm-line.mdsync-diff-mark.is-after.is-chosen {
+.cm-line.mdsync-diff-mark.is-after.is-chosen,
+.cm-gutterElement.mdsync-diff-gutter-mark.is-after.is-chosen {
 	box-shadow: inset 0 calc(-1 * var(--mdsync-bar)) 0 var(--interactive-accent);
-}
-
-.mdsync-compare-panel.is-combined .cm-line.mdsync-diff-line.is-last {
-	border-bottom: 1px solid rgba(var(--mdsync-tone), 0.4);
-}
-
-.mdsync-merge-panel.is-combined .cm-line.mdsync-merge-line,
-.mdsync-compare-panel.is-combined .cm-line.mdsync-diff-line {
-	border-right: 1px solid var(--background-modifier-border);
 }
 
 .mdsync-code-mark {

@@ -98,7 +98,39 @@ describe("buildTimelineRows", () => {
 		);
 		expect(rows[0]?.isHead).toBe(true);
 		expect(rows[1]?.isHead).toBe(false);
-		expect(rows[1]?.title).toBe("1 day ago");
+	});
+
+	it("titles a push from today by age and an older one by its clock time", () => {
+		const rows = buildTimelineRows(
+			[snapshot({ id: "s2", createdAt: NOW - 60_000 }), snapshot()],
+			{ now: NOW },
+		);
+		expect(rows[0]?.title).toBe("1 minute ago");
+		expect(rows[1]?.title).toBe(
+			new Date(NOW - DAY).toLocaleTimeString(undefined, {
+				hour: "2-digit",
+				minute: "2-digit",
+			}),
+		);
+	});
+
+	it("counts each kind of change for the chips, leaving out the empty ones", () => {
+		const [row] = buildTimelineRows(
+			[
+				snapshot({
+					files: {
+						added: { "a.md": entry("A") },
+						modified: {},
+						deleted: { "b.md": entry("B"), "c.md": entry("C") },
+					},
+				}),
+			],
+			{ now: NOW },
+		);
+		expect(row?.tally).toEqual([
+			["add", 1],
+			["delete", 2],
+		]);
 	});
 
 	it("real HEAD versus lagging entry", () => {
@@ -288,7 +320,7 @@ describe("buildTimelineRows", () => {
 			{ now: NOW },
 		);
 		// 3072 added, 1024 lost on the edit, 1024 removed.
-		expect(row?.netSize).toBe("+1.0 KB");
+		expect(row?.netDelta).toBe(1024);
 	});
 
 	it("says nothing about size when the push broke even, or is unknown", () => {
@@ -304,11 +336,11 @@ describe("buildTimelineRows", () => {
 			],
 			{ now: NOW },
 		);
-		expect(even?.netSize).toBeNull();
+		expect(even?.netDelta).toBeNull();
 		const [unknown] = buildTimelineRows([snapshot({ files: null })], {
 			now: NOW,
 		});
-		expect(unknown?.netSize).toBeNull();
+		expect(unknown?.netDelta).toBeNull();
 	});
 });
 

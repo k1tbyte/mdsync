@@ -1,4 +1,4 @@
-import { EFrame } from "@mdsync/protocol";
+import { EFrame, ERefusal, encodeServer } from "@mdsync/protocol";
 import { InMemoryAdapter } from "@tests/helpers/in-memory-adapter";
 import { LiveHub } from "@tests/helpers/live-hub";
 import { type App, type DataAdapter, MarkdownView, TFile } from "obsidian";
@@ -14,6 +14,7 @@ import type { TextModel } from "@/live/text/model";
 import { movedWith, moveRoom } from "@/live/workspace/rename";
 import { LiveSessions } from "@/live/workspace/sessions";
 import type { LiveSpace } from "@/live/workspace/space";
+import { renameCaseSafe } from "@/vault/io";
 
 vi.mock("@/live/text/binding", () => ({
 	bindEditor: vi.fn(() => ({ detach: vi.fn(), showAuthors: vi.fn() })),
@@ -83,6 +84,7 @@ class Device {
 			moveFile: this.moveFile,
 			authorsShown: () => false,
 			nameOf: () => null,
+			sendEvery: () => 250,
 		});
 	}
 
@@ -175,6 +177,8 @@ describe("renaming a live note", () => {
 		vi.spyOn(desktop.agreed, "get").mockImplementation(async (doc) =>
 			doc === first ? null : agreed(doc),
 		);
+		// Both synced it once; the renamer's editor here never shows its room, so it needs a base too.
+		laptop.baselines.set("a.md", "text");
 		desktop.baselines.set("a.md", "text");
 		const moved = await idOf("b.md");
 
@@ -182,6 +186,23 @@ describe("renaming a live note", () => {
 
 		await vi.waitFor(() => expect(desktop.roomAt("b.md")).toBe(moved));
 		expect(desktop.text()).toBe("both text");
+	});
+
+	it("leaves the renamed note to the file sync when the hub refuses its move", async () => {
+		const laptop = await device("a.md");
+		const handle = hub.handle.bind(hub);
+		vi.spyOn(hub, "handle").mockImplementation((peer, frame) => {
+			if (frame.type !== EFrame.Rotate) return handle(peer, frame);
+			const { slot, doc } = frame;
+			const reason = ERefusal.Unstored;
+			peer.send(encodeServer({ type: EFrame.Refused, slot, doc, reason }));
+		});
+
+		laptop.rename("b.md");
+
+		await vi.waitFor(() =>
+			expect(laptop.sessions.noteState("b.md")).toBe("unstored"),
+		);
 	});
 
 	it("leaves the room where it is when the new path's room holds another note", async () => {
@@ -225,6 +246,26 @@ describe("renaming a live note", () => {
 
 		expect(newcomer.roomAt()).toBe(await idOf("a.md", 1));
 		expect(newcomer.moveFile).not.toHaveBeenCalled();
+	});
+
+	it("moves a recasing's room only where it lands, never through its step", async () => {
+		const laptop = await device("a.md");
+		const desktop = await device("a.md");
+		const moved = await idOf("A.md");
+		// A phone: the new case is taken by the file itself, and the probe outlasts the step's refresh.
+		const rename = async (from: string, to: string) => {
+			if (from === "a.md" && to === "A.md") throw new Error("taken");
+			laptop.rename(to);
+		};
+		const exists = async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			return false;
+		};
+
+		await renameCaseSafe(rename, exists, "a.md", "A.md");
+
+		await vi.waitFor(() => expect(desktop.roomAt("A.md")).toBe(moved));
+		expect(desktop.moveFile.mock.calls).toEqual([["a.md", "A.md"]]);
 	});
 
 	it("settles two renames at once on the one the hub took first", async () => {

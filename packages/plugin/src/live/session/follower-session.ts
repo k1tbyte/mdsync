@@ -28,7 +28,14 @@ export class FollowerSession<
 		deps: LiveSessionDeps<M> & { follower: Follower },
 	) {
 		super(docId, generation, deps);
-		this.follower = deps.follower;
+		const { unchanged, onCold } = deps.follower;
+		this.follower = {
+			unchanged,
+			// Queued before dispose: the note's path may hold its next room by now.
+			onCold: (why) => {
+				if (!this.disposed) onCold(why);
+			},
+		};
 		this.awareness.setLocalStateField(FOLLOWS, true);
 	}
 

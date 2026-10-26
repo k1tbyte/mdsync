@@ -93,15 +93,16 @@ h6 {
 
 .heading-anchor {
 	margin-left: 0.4em;
-	padding: 0 0.3em;
+	padding: 0.15em 0.5em;
 	border: 0;
 	border-radius: 4px;
-	background: none;
-	color: var(--text-faint);
+	background: var(--code-background);
+	color: var(--text-muted);
 	font: inherit;
-	font-size: 0.7em;
+	font-size: 0.55em;
 	font-weight: normal;
-	vertical-align: 0.1em;
+	line-height: 1.3;
+	vertical-align: 0.25em;
 	cursor: pointer;
 	opacity: 0;
 }
@@ -119,7 +120,6 @@ h6 {
 }
 
 .heading-anchor:hover {
-	background: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
 
@@ -182,8 +182,9 @@ code {
 pre {
 	position: relative;
 	padding: 0.9rem 1rem;
+	border: 1px solid var(--divider-color);
 	border-radius: 8px;
-	background: var(--code-background);
+	background: var(--background-secondary);
 	color: var(--code-normal);
 	overflow-x: auto;
 }
@@ -204,16 +205,25 @@ pre > code {
 
 .copy-code-button {
 	position: absolute;
-	top: 0.4rem;
-	right: 0.4rem;
-	padding: 0.15rem 0.55rem;
+	top: 0.5rem;
+	right: 0.5rem;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 26px;
+	padding: 0 9px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 4px;
-	background: var(--background-primary);
+	background: var(--code-background);
 	color: var(--text-muted);
-	font: 0.75rem / 1.5 var(--font-text);
+	font: 0.75rem / 1 var(--font-text);
 	cursor: pointer;
 	opacity: 0;
+}
+
+.copy-code-button .icon {
+	width: 13px;
+	height: 13px;
 }
 
 pre:hover > .copy-code-button,
@@ -315,7 +325,7 @@ math[display="block"] {
 .callout {
 	--callout-color: var(--color-blue-rgb);
 	margin: 1rem 0;
-	border-radius: 6px;
+	border-radius: 8px;
 	background: rgba(var(--callout-color), 0.1);
 	overflow: hidden;
 }
@@ -366,7 +376,7 @@ math[display="block"] {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
-	padding: 0.6rem 1rem;
+	padding: 0.625rem 1rem 0.25rem;
 	color: rgb(var(--callout-color));
 	font-weight: 600;
 }

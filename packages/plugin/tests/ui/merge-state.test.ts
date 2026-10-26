@@ -8,7 +8,7 @@ import {
 	type MergeChange,
 	revertPlan,
 } from "@/sync/merge-model";
-import { expandedGapsField, expandGap } from "@/ui/diff/gap-widgets";
+import { openedGapsField, toggleMergeGap } from "@/ui/diff/merge-cards";
 import {
 	combinedModeField,
 	mergeResultState,
@@ -415,29 +415,22 @@ describe("merge boundary regressions", () => {
 });
 
 describe("responsive merge state", () => {
-	it("keeps result and decisions while changing layout and expanding context", () => {
+	it("keeps result and decisions while changing layout and opening unchanged lines", () => {
 		let state = open("a\nb\nc", "a\nL\nc", "a\nR\nc");
 		state = take(state, 0, "local", ["L"]);
 		const before = state.doc.toString();
 		const status = changeOf(state, 0).status;
 
 		state = state.update({
-			effects: [setCombinedMode.of(true), expandGap.of({ from: 0, to: 1 })],
+			effects: [setCombinedMode.of(true), toggleMergeGap.of(0)],
 		}).state;
 
 		expect(state.field(combinedModeField)).toBe(true);
-		expect(state.field(expandedGapsField).size).toBe(1);
+		expect([...state.field(openedGapsField)]).toEqual([0]);
 		expect(state.doc.toString()).toBe(before);
 		expect(changeOf(state, 0).status).toEqual(status);
 
-		state = state.update({
-			changes: { from: 0, insert: "intro\n" },
-			annotations: Transaction.addToHistory.of(false),
-		}).state;
-		let mappedFrom = -1;
-		state.field(expandedGapsField).between(0, state.doc.length, (from) => {
-			mappedFrom = from;
-		});
-		expect(mappedFrom).toBeGreaterThan(0);
+		state = state.update({ effects: toggleMergeGap.of(0) }).state;
+		expect(state.field(openedGapsField).size).toBe(0);
 	});
 });

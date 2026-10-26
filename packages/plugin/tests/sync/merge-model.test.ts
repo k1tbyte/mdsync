@@ -71,7 +71,7 @@ describe("threeWayRegions", () => {
 		]);
 	});
 
-	it("keeps a side past the edit budget as one region around its differing middle", () => {
+	it("keeps a side past the diff budget as one region around its differing middle", () => {
 		const base = Array.from({ length: 2000 }, (_, i) => `line ${i}`);
 		const local = base.map((line, i) =>
 			i === 0 || i === 1999 ? line : `${line} local`,

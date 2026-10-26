@@ -1,61 +1,124 @@
-import type { Plugin } from "obsidian";
+import { type Plugin, setIcon } from "obsidian";
 
-import { SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
-import { formatRelativeTime } from "@/shared";
-import type { SyncController, SyncStatusSnapshot } from "@/sync/controller";
+import { RELATIVE_TIME_REFRESH_MS } from "@/constants";
+import type { PluginHost } from "@/plugin/host";
+import { canSync } from "@/settings/model";
+import { formatRelativeTime, pluralize } from "@/shared";
+import type { SyncStatusSnapshot } from "@/sync/controller";
 import { makeActivatable } from "./common/activatable";
-import { openSourceControlView } from "./source-control-view";
+import { mountRelayStatus } from "./live/status/relay-status";
+import { openStatusMenu, syncHeadline } from "./status-menu";
 
-export function registerStatusBar(
-	plugin: Plugin,
-	controller: SyncController,
-): void {
+/**
+ * One item: where sync stands, then the relay and who is in shared notes; selecting it opens their menu.
+ * Returns a repaint for what no snapshot announces, such as finishing setup.
+ */
+export function registerStatusBar(plugin: Plugin & PluginHost): () => void {
+	const { controller } = plugin;
 	const root = plugin.addStatusBarItem();
-	root.addClass("mdsync-status-bar");
-	makeActivatable(root, "Open MDSync source control", () => {
-		void openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
-	});
-
-	const spinner = root.createSpan({
-		cls: "mdsync-status-spinner mdsync-hidden",
-	});
-	const text = root.createSpan();
+	root.addClass("mdsync-status-bar", "mod-clickable");
+	makeActivatable(root, null, () => openStatusMenu(plugin, root));
+	const sync = root.createSpan({ cls: "mdsync-status-sync" });
+	const relay = root.createSpan({ cls: "mdsync-status-relay mdsync-hidden" });
+	// Each half has its own tooltip; the button's name is both, or it would hide them.
+	const name = (): void => {
+		root.setAttr(
+			"aria-label",
+			[sync, relay]
+				.filter((half) => !half.hasClass("mdsync-hidden"))
+				.map((half) => half.getAttr("aria-label"))
+				.join("\n"),
+		);
+	};
+	mountRelayStatus(plugin, relay, name);
 
 	const render = (snapshot: SyncStatusSnapshot): void => {
 		const offline = !navigator.onLine;
-		spinner.toggleClass("mdsync-hidden", !snapshot.busy || offline);
-		root.toggleClass("is-error", hasError(snapshot) && !offline);
-		root.toggleClass("is-offline", offline);
-		text.setText(offline ? "MDSync: offline" : formatStatus(snapshot));
-		root.setAttr(
-			"aria-label",
-			offline
-				? "No network connection. MDSync will sync once it is back."
-				: buildTooltip(snapshot),
-		);
+		sync.empty();
+		sync.toggleClass("is-error", hasError(snapshot) && !offline);
+		sync.toggleClass("is-offline", offline);
+		sync.setAttr("aria-label", tooltip(plugin, snapshot, offline));
+		renderSync(sync, snapshot, offline, canSync(plugin.settings));
+		name();
 	};
 
 	render(controller.getSnapshot());
-	const unsubscribe = controller.subscribe(render);
-	plugin.register(unsubscribe);
+	plugin.register(controller.subscribe(render));
 	// A dropped connection must not read as a broken remote.
 	const renderCurrent = (): void => render(controller.getSnapshot());
 	plugin.registerDomEvent(window, "online", renderCurrent);
 	plugin.registerDomEvent(window, "offline", renderCurrent);
+	// The tooltip's "Compared ..." ages while nothing broadcasts.
+	plugin.registerInterval(
+		window.setInterval(renderCurrent, RELATIVE_TIME_REFRESH_MS),
+	);
+	return renderCurrent;
 }
 
-function formatStatus(snapshot: SyncStatusSnapshot): string {
-	if (hasError(snapshot)) return `MDSync: error`;
-	if (snapshot.busy) return `MDSync: syncing…`;
-	const parts: string[] = [];
-	if (snapshot.pendingLocal > 0) parts.push(`↑${snapshot.pendingLocal}`);
-	if (snapshot.pendingRemote > 0) parts.push(`↓${snapshot.pendingRemote}`);
-	if (snapshot.conflicts > 0) parts.push(`⚠${snapshot.conflicts}`);
-	if (parts.length === 0) return "MDSync: clean";
-	return `MDSync: ${parts.join(" ")}`;
+function renderSync(
+	el: HTMLElement,
+	snapshot: SyncStatusSnapshot,
+	offline: boolean,
+	setUp: boolean,
+): void {
+	const { pendingLocal, pendingRemote, conflicts } = snapshot;
+	if (offline) {
+		part(
+			el,
+			"cloud-off",
+			pendingLocal > 0 ? `Offline · ${pendingLocal} waiting` : "Offline",
+		);
+		return;
+	}
+	if (!setUp) {
+		part(el, "cloud-off", "Set up sync");
+		return;
+	}
+	if (snapshot.error) {
+		part(el, "circle-alert", "Sync stopped");
+		return;
+	}
+	if (snapshot.busy) {
+		el.createSpan({ cls: "mdsync-status-spinner" });
+		el.createSpan({ text: snapshot.progressText ?? "Syncing…" });
+		return;
+	}
+	if (snapshot.spaceErrors.length > 0) {
+		part(
+			el,
+			"circle-alert",
+			`${pluralize(snapshot.spaceErrors.length, "shared folder")} failed`,
+		);
+	}
+	if (!snapshot.result) {
+		part(el, "cloud", "Not compared");
+		return;
+	}
+	if (conflicts > 0) {
+		part(el, "triangle-alert", pluralize(conflicts, "conflict")).addClass(
+			"is-conflict",
+		);
+	}
+	if (pendingLocal > 0) part(el, "arrow-up", String(pendingLocal));
+	if (pendingRemote > 0) part(el, "arrow-down", String(pendingRemote));
+	if (!el.hasChildNodes()) part(el, "cloud-check", "Synced");
 }
 
-function buildTooltip(snapshot: SyncStatusSnapshot): string {
+function part(parent: HTMLElement, icon: string, text: string): HTMLElement {
+	const el = parent.createSpan({ cls: "mdsync-status-part" });
+	setIcon(el, icon);
+	el.createSpan({ text });
+	return el;
+}
+
+function tooltip(
+	plugin: PluginHost,
+	snapshot: SyncStatusSnapshot,
+	offline: boolean,
+): string {
+	if (offline) {
+		return "No network connection. MDSync will sync once it is back.";
+	}
 	if (snapshot.error) return `MDSync error: ${snapshot.error}`;
 	if (hasError(snapshot)) {
 		const failed = snapshot.spaceErrors.map(
@@ -63,10 +126,10 @@ function buildTooltip(snapshot: SyncStatusSnapshot): string {
 		);
 		return `MDSync error in ${failed.join("; ")}`;
 	}
-	const last = snapshot.lastCompareAt
-		? `Last compared ${formatRelativeTime(snapshot.lastCompareAt)}`
-		: "Not compared yet";
-	return `${last}. Select to open source control.`;
+	const headline = `MDSync: ${syncHeadline(plugin, snapshot)}`;
+	return snapshot.lastCompareAt
+		? `${headline}. Compared ${formatRelativeTime(snapshot.lastCompareAt)}`
+		: headline;
 }
 
 /** A shared folder that failed counts: the rest syncs, it does not. */

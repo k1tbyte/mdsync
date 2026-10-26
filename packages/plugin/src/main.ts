@@ -30,14 +30,17 @@ import { SettingsTransferController } from "@/settings/transfer-controller";
 import { reportWarning } from "@/shared";
 import type { SpaceRecords } from "@/spaces";
 import type { SyncController } from "@/sync/controller";
+import type { WriteJournal } from "@/sync/journal";
 import { registerScheduler } from "@/sync/scheduler";
 import {
+	type CursorFollow,
 	createAccessEnded,
 	createDeletedElsewhere,
 	createSpaceGone,
 	type IndicatorHandle,
 	notifyAction,
 	notifyInfo,
+	openSourceControlChanges,
 } from "@/ui";
 import { loadNodeFs } from "@/vault/symlinks";
 import {
@@ -46,10 +49,10 @@ import {
 } from "./plugin/bootstrap";
 import {
 	registerHashCarry,
-	registerIgnoreFileRefresh,
 	registerStatePersistenceFlush,
 	registerWorkspaceMenus,
 } from "./plugin/events";
+import { registerFollows } from "./plugin/follows";
 import type { PluginHost } from "./plugin/host";
 import {
 	type IgnoreStateHandle,
@@ -58,7 +61,7 @@ import {
 import { registerLinkPaths } from "./plugin/links";
 import { registerProtocolHandlers } from "./plugin/protocols";
 import { createRealtime, type Realtime } from "./plugin/realtime";
-import { registerRelayUpdate } from "./plugin/relay-update";
+import { type RelayUpdate, registerRelayUpdate } from "./plugin/relay-update";
 import { registerShareRenames } from "./plugin/share-moves";
 import { createShareRegistration } from "./plugin/share-registration";
 import { createStorageRefused } from "./plugin/storage-refused";
@@ -92,6 +95,8 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 	ignoreState!: IgnoreStateHandle;
 	spaces!: SpaceRecords;
 	unseen!: Unseen;
+	follows!: CursorFollow;
+	relayUpdate!: RelayUpdate;
 	readonly sharedLinks = new SharedLinks({
 		settings: () => this.settings,
 		save: () => this.saveSettings(),
@@ -105,9 +110,11 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 	private deviceKey!: DeviceKey;
 	private envelope!: SettingsEnvelope;
 	private statePersister!: StatePersister;
+	private journal?: WriteJournal;
 	private scopeRefreshTimer: number | null = null;
 	private editorSigns: SignsHandle | null = null;
 	private fileIndicators: IndicatorHandle | null = null;
+	private refreshStatusBar: (() => void) | null = null;
 	unloaded = false;
 	private freshInstall = false;
 	/** One settings write at a time: two in flight may land the older one last. */
@@ -141,6 +148,12 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 				notifyInfo(
 					`Obsidian has not loaded ${count} files that are on disk. MDSync syncs them; restart Obsidian to see them.`,
 				),
+			onDeletionsHeld: (space, paths) =>
+				notifyAction(
+					`Auto-push held back ${paths.length} deleted files${space.root ? ` in "${space.root}"` : ""}. Review them before they sync.`,
+					"Review",
+					() => void openSourceControlChanges(this),
+				),
 			onTheirsPulled: (space, paths) =>
 				markTheirs(this, this.unseen, space, paths),
 			onNoStorage: () =>
@@ -158,6 +171,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		}
 		this.logs = runtime.logs;
 		this.statePersister = runtime.statePersister;
+		this.journal = runtime.journal;
 		this.spaces = runtime.spaces;
 		this.passphrase = runtime.passphraseManager;
 		this.controller = runtime.controller;
@@ -168,6 +182,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 			controller: this.controller,
 			settings: () => this.settings,
 			spaces: this.spaces,
+			journal: runtime.journal,
 			onDeletedElsewhere: createDeletedElsewhere(this),
 		});
 		this.device = new DeviceName(this.statePersister, () =>
@@ -181,24 +196,31 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 			onSettingsReplaced: () => this.onSettingsReplaced(),
 		});
 		this.realtime.hub.restart();
+		this.follows = registerFollows(this);
 		this.ignoreState = registerIgnoreState(this);
 
 		registerVaultAdoptionPrompt(this, this.controller);
-		registerRelayUpdate(this);
+		this.relayUpdate = registerRelayUpdate(this);
 
 		const registeredUi = registerPluginUi(this, this.controller);
 		this.settingsTab = registeredUi.settingsTab;
 		this.fileIndicators = registeredUi.fileIndicators;
+		this.refreshStatusBar = registeredUi.refreshStatusBar;
 		this.editorSigns = registerEditorSigns(this);
 		registerReadOnlyLock(this);
 
 		registerCommands(this, registeredUi.openNoteMenu);
 		registerHashCarry(this, this.statePersister);
 		registerScheduler(this, this.controller);
+		// Auto-sync may be off: a compare ends what the load put back, and only then can its room open.
+		this.app.workspace.onLayoutReady(() => {
+			if (runtime.journal.hasCutShort() && canSync(this.settings)) {
+				void this.controller.refresh();
+			}
+		});
 		registerWorkspaceMenus(this);
 		registerShareRenames(this);
 		registerLinkPaths(this);
-		registerIgnoreFileRefresh(this);
 		registerStatePersistenceFlush(this, this.statePersister);
 
 		// Re-render the open Settings tab so auth status updates live.
@@ -230,7 +252,9 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		safely(() => this.editorSigns?.dispose());
 		this.editorSigns = null;
 		this.fileIndicators = null;
+		this.refreshStatusBar = null;
 		safely(() => this.statePersister?.dispose());
+		safely(() => this.journal?.dispose());
 		safely(() => this.controller?.dispose());
 		safely(() => this.passphrase?.dispose());
 		safely(() => this.realtime?.dispose());
@@ -279,8 +303,12 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 	}
 
 	openSetup(step?: ESetupStep): void {
-		// The settings tab under the wizard would keep showing what the wizard replaced.
-		openSetupWizard(this, step, () => this.settingsTab?.update());
+		// The settings tab under the wizard, the Changes tab's setup prompt and the status bar would keep showing what it replaced.
+		openSetupWizard(this, step, () => {
+			this.settingsTab?.update();
+			this.refreshSourceControlView();
+			this.refreshStatusBar?.();
+		});
 	}
 
 	scheduleScopeRefresh(reason = "Sync scope changed."): void {

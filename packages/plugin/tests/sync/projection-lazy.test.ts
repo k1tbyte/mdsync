@@ -81,6 +81,10 @@ describe("projection loads no content for binary/oversized files", () => {
 			remoteHash: "b",
 		};
 		const model = await buildLocalChangeDiff(deps, change);
+		expect([model.leftLabel, model.rightLabel]).toEqual([
+			"Last synced",
+			"This device",
+		]);
 		expect(model.isBinary).toBe(true);
 		expect(model.forceTextAvailable).toBe(false);
 		expect(model.leftSize).toBe(5_000_000);
@@ -109,6 +113,10 @@ describe("projection loads no content for binary/oversized files", () => {
 			remoteHash: "deadbeef",
 		};
 		const model = await buildRemoteChangeDiff(deps, change);
+		expect([model.leftLabel, model.rightLabel]).toEqual([
+			"This device",
+			"Incoming",
+		]);
 		expect(model.isBinary).toBe(true);
 		expect(model.forceTextAvailable).toBe(true);
 		expect(model.rightSize).toBe(size);
@@ -159,6 +167,10 @@ describe("projection loads no content for binary/oversized files", () => {
 			baselineHash: "basehash",
 		};
 		const model = await buildConflictDiff(deps, conflict);
+		expect([model.leftLabel, model.rightLabel]).toEqual([
+			"This device",
+			"Incoming",
+		]);
 		expect(model.isBinary).toBe(true);
 		expect(model.baseText).toBeNull();
 		expect(reads).toEqual([]);

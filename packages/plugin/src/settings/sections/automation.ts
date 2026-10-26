@@ -5,8 +5,11 @@ import {
 	AUTO_PUSH_SETTLE_MIN_SECONDS,
 	AUTO_SYNC_MAX_MINUTES,
 	AUTO_SYNC_MIN_MINUTES,
+	BULK_DELETE_LIMIT_MAX,
+	BULK_DELETE_LIMIT_MIN,
 	FILE_HISTORY_MAX_SNAPSHOTS,
 	FILE_HISTORY_MIN_SNAPSHOTS,
+	LIVE_SEND_MS,
 } from "@/constants";
 import type { RelayStatus } from "@/hub/status";
 import type { PluginHost } from "@/plugin/host";
@@ -18,7 +21,7 @@ import {
 	type SettingsField,
 	SUB_SETTING_CLASS,
 } from "@/settings/fields";
-import { isRelayConfigured } from "@/settings/model";
+import { DEFAULT_SETTINGS, isRelayConfigured } from "@/settings/model";
 import { EFieldKind } from "@/storage";
 import { clampMaxSnapshots } from "@/sync/history";
 import { VAULT_SPACE } from "@/sync/space";
@@ -52,6 +55,22 @@ const LIVE_EDITING_FIELD: SettingsField = {
 	get: (s) => s.liveEditing,
 	set: (v) => ({ liveEditing: v }),
 	after: (plugin) => void plugin.realtime.live.refresh(),
+	rerender: true,
+};
+
+const LIVE_SPEED_FIELD: SettingsField = {
+	kind: EFieldKind.Choice,
+	name: "Live editing speed",
+	desc: "How often your typing reaches others. Each send is a write on the relay, and Cloudflare's free plan allows 100,000 a day. Set per device.",
+	when: (s) => s.realtimeSync && s.liveEditing,
+	sub: true,
+	options: {
+		[LIVE_SEND_MS.instant]: "Instant",
+		[LIVE_SEND_MS.balanced]: "Balanced",
+		[LIVE_SEND_MS.economical]: "Economical: once a second",
+	},
+	get: (s) => String(s.liveSendMs),
+	set: (v) => ({ liveSendMs: Number(v) }),
 };
 
 /** What the setup wizard offers once the vault syncs; real-time sync only with a relay to carry it. */
@@ -70,7 +89,8 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 		when: (s) => s.autoSyncEnabled,
 		sub: true,
 		get: (s) => String(s.autoSyncIntervalMinutes),
-		parse: clampAutoSyncMinutes,
+		parse: (raw) =>
+			clampInt(raw, AUTO_SYNC_MIN_MINUTES, AUTO_SYNC_MAX_MINUTES, 0),
 		set: (v) => ({ autoSyncIntervalMinutes: v }),
 	},
 	{
@@ -113,6 +133,30 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 	},
 	{
 		kind: EFieldKind.Toggle,
+		name: "Ask before pushing many deletions",
+		desc: "An automatic push holds back deleting more files than the limit below and asks you to review them first. Guards against storage that briefly hides a folder. Pushing by hand is not affected.",
+		get: (s) => s.confirmBulkDeletes,
+		set: (v) => ({ confirmBulkDeletes: v }),
+		rerender: true,
+	},
+	{
+		kind: EFieldKind.Number,
+		name: "Deletion limit",
+		desc: `How many deleted files an automatic push may publish without asking (${BULK_DELETE_LIMIT_MIN}-${BULK_DELETE_LIMIT_MAX}).`,
+		when: (s) => s.confirmBulkDeletes,
+		sub: true,
+		get: (s) => String(s.bulkDeleteLimit),
+		parse: (raw) =>
+			clampInt(
+				raw,
+				BULK_DELETE_LIMIT_MIN,
+				BULK_DELETE_LIMIT_MAX,
+				DEFAULT_SETTINGS.bulkDeleteLimit,
+			),
+		set: (v) => ({ bulkDeleteLimit: v }),
+	},
+	{
+		kind: EFieldKind.Toggle,
 		name: "File version history",
 		desc: "Keep past versions of files so you can view or restore them. Each push appends what it changed to one small encrypted log; old versions are pruned automatically.",
 		get: (s) => s.fileHistoryEnabled,
@@ -140,6 +184,7 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 	},
 	REALTIME_FIELD,
 	LIVE_EDITING_FIELD,
+	LIVE_SPEED_FIELD,
 	{
 		kind: EFieldKind.Toggle,
 		name: "Show my open note to others",
@@ -190,11 +235,16 @@ function restartRelay(plugin: PluginHost): void {
 	plugin.realtime.hub.restart();
 }
 
-function clampAutoSyncMinutes(raw: string): number {
+function clampInt(
+	raw: string,
+	min: number,
+	max: number,
+	fallback: number,
+): number {
 	const parsed = Number.parseInt(raw, 10);
 	return Math.max(
-		AUTO_SYNC_MIN_MINUTES,
-		Math.min(AUTO_SYNC_MAX_MINUTES, Number.isFinite(parsed) ? parsed : 0),
+		min,
+		Math.min(max, Number.isFinite(parsed) ? parsed : fallback),
 	);
 }
 

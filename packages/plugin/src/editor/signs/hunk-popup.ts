@@ -1,15 +1,19 @@
 import type { EditorView } from "@codemirror/view";
 import { type App, Modal, Platform } from "obsidian";
+import { asDrawer } from "@/ui/common";
 
-import { findChunkForLine, findSyncChangeForLine } from "./helpers";
+import { focusHunk } from "./focus";
+import { findChangeForLine } from "./helpers";
 import { installDismissHandlers } from "./popup-dismiss";
 import { positionPopup } from "./popup-placement";
 import { buildPopup, type HunkTarget } from "./popup-view";
 import type { SignsProvider } from "./provider";
-import { chunksField, compareTextField } from "./state";
+import { changesField, compareTextField } from "./state";
 
 let activePopup: { element: HTMLElement; cleanup: () => void } | null = null;
 let activeDrawer: HunkDrawer | null = null;
+/** The editor whose change is open, so closing clears its tint. */
+let activeView: EditorView | null = null;
 
 export function showHunkPopupAt(
 	view: EditorView,
@@ -18,24 +22,22 @@ export function showHunkPopupAt(
 	provider: SignsProvider,
 ): boolean {
 	const baseline = view.state.field(compareTextField, false);
-	const data = view.state.field(chunksField, false);
-	if (!baseline || !data || data.chunks.length === 0) return false;
-	const chunk = findChunkForLine(data.chunks, view.state.doc, lineNumber);
-	if (!chunk) return false;
+	const data = view.state.field(changesField, false);
+	// Changes not yet recomputed after an edit name the lines it moved.
+	if (!baseline || data?.doc !== view.state.doc) return false;
+	const found = findChangeForLine(data.changes, lineNumber);
+	if (!found) return false;
 
-	const path = provider.getViewPath(view);
 	const target: HunkTarget = {
 		view,
-		chunk,
+		...found,
 		baseline,
 		provider,
-		path,
-		syncChange:
-			path === null
-				? null
-				: findSyncChangeForLine(lineNumber, baseline, view.state.doc),
+		path: provider.getViewPath(view),
 	};
 	dismissPopup();
+	activeView = view;
+	view.dispatch({ effects: focusHunk.of({ open: found.mark }) });
 	if (Platform.isPhone) {
 		activeDrawer = new HunkDrawer(provider.app, target);
 		activeDrawer.open();
@@ -52,7 +54,15 @@ export function showHunkPopupAt(
 	return true;
 }
 
+export function dismissPopupIn(view: EditorView): void {
+	if (activeView === view) dismissPopup();
+}
+
 export function dismissPopup(): void {
+	const view = activeView;
+	activeView = null;
+	if (view?.dom.isConnected)
+		view.dispatch({ effects: focusHunk.of({ open: null }) });
 	const drawer = activeDrawer;
 	activeDrawer = null;
 	drawer?.close();
@@ -70,7 +80,7 @@ class HunkDrawer extends Modal {
 	}
 
 	onOpen(): void {
-		this.containerEl.addClass("mdsync-hunk-drawer-container");
+		asDrawer(this);
 		this.modalEl.addClass("mdsync-hunk-drawer");
 		this.contentEl.addClass("mdsync-hunk-drawer-content");
 		this.contentEl.empty();
@@ -78,7 +88,11 @@ class HunkDrawer extends Modal {
 	}
 
 	onClose(): void {
-		if (activeDrawer === this) activeDrawer = null;
+		// Closed by a swipe or the backdrop: the rest of the popup state goes too.
+		if (activeDrawer === this) {
+			activeDrawer = null;
+			dismissPopup();
+		}
 		this.contentEl.empty();
 	}
 }

@@ -16,7 +16,7 @@ const TEXTS = [
 const NOTES = TEXTS.map(([path]) => path);
 const SWITCHES = 8;
 const DWELL_MS = 1_500;
-const LIVE = "mdsync-note-state is-live";
+const LIVE = "mdsync-live-dot is-live";
 
 // biome-ignore lint/suspicious/noExplicitAny: the renderer's app is untyped here.
 declare const app: any;
@@ -107,7 +107,7 @@ async function settled(owner: Obsidian): Promise<Record<string, number>> {
 				const { containerEl, editor } =
 					app.workspace.getLeavesOfType("markdown")[0].view;
 				const mark = containerEl.querySelector(
-					".mdsync-note-presence:not(.mdsync-hidden) .mdsync-note-state",
+					".mdsync-note-presence:not(.mdsync-hidden) .mdsync-live-dot",
 				);
 				return [
 					editor.getLine(0),
@@ -143,7 +143,7 @@ function sample(owner: Obsidian, start: boolean): Promise<Sample[]> {
 				signs: containerEl.querySelectorAll(".mdsync-sign").length,
 				mark: header?.classList.contains("mdsync-hidden")
 					? "hidden"
-					: (header?.querySelector(".mdsync-note-state")?.className ?? "none"),
+					: (header?.querySelector(".mdsync-live-dot")?.className ?? "none"),
 			});
 			setTimeout(tick, 2);
 		};

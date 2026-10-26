@@ -1,25 +1,46 @@
-.nav-file-title.mdsync-changed-added .nav-file-title-content {
-	color: var(--color-green);
+/* One colour per kind of change, shared by the name and its mark. */
+.nav-file-title.mdsync-changed-add {
+	--mdsync-change: var(--color-green);
 }
 
-.nav-file-title.mdsync-changed-modified .nav-file-title-content {
-	color: var(--color-orange);
+.nav-file-title.mdsync-changed-modify {
+	--mdsync-change: var(--color-orange);
 }
 
-.nav-file-title.mdsync-changed-deleted .nav-file-title-content {
-	color: var(--color-red);
+.nav-file-title.mdsync-changed-move {
+	--mdsync-change: var(--color-blue);
+}
+
+.nav-file-title:is(.mdsync-changed-delete, .mdsync-changed-conflict) {
+	--mdsync-change: var(--color-red);
+}
+
+.nav-file-title.mdsync-changed .nav-file-title-content,
+.mdsync-path-badge.mdsync-change-mark {
+	color: var(--mdsync-change);
+}
+
+.nav-file-title.mdsync-changed-delete .nav-file-title-content {
 	text-decoration: line-through;
 }
 
-/* Ignored rows read as out-of-sync-scope the way IDEs dim them, not as a change. */
-.nav-file-title.mdsync-explorer-ignored .nav-file-title-content,
-.nav-folder-title.mdsync-explorer-ignored .nav-folder-title-content {
+/* An image layer: hover and selection colours still show under the tint. */
+.nav-file-title.mdsync-changed-conflict {
+	--mdsync-conflict-tint: color-mix(in srgb, var(--color-red) 12%, transparent);
+	background-image: linear-gradient(
+		var(--mdsync-conflict-tint),
+		var(--mdsync-conflict-tint)
+	);
+}
+
+/* Out of sync by a rule or a limit: dimmed the way IDEs dim ignored files, not shown as a change. */
+:is(.mdsync-explorer-ignored, .mdsync-explorer-skipped) > .tree-item-inner,
+.mdsync-path-badge:is(.mdsync-skip-badge, .mdsync-ignore-badge) {
 	color: var(--text-faint);
 }
 
-.nav-file-title.mdsync-changed-conflict .nav-file-title-content {
-	color: var(--color-red);
-	font-weight: 700;
+.nav-folder-title.mdsync-share-root + .nav-folder-children {
+	border-inline-start-color: var(--interactive-accent);
 }
 
 .nav-file-title.mdsync-has-path-badge,
@@ -55,17 +76,6 @@
 .mdsync-link-badge,
 .mdsync-link-context {
 	color: var(--color-cyan);
-}
-
-.nav-file-title.mdsync-explorer-skipped .nav-file-title-content,
-.nav-folder-title.mdsync-explorer-skipped .nav-folder-title-content {
-	color: var(--text-faint);
-	text-decoration: line-through;
-	text-decoration-color: var(--color-red);
-}
-
-.mdsync-skip-badge {
-	color: var(--color-red);
 }
 
 .mdsync-ignored-context {
@@ -167,10 +177,11 @@ body.is-mobile
 	width: max(calc(100% + var(--size-4-1)), var(--mdsync-touch));
 }
 
-.mdsync-share-badge.has-people {
+/* One pill for a live share, people in it or not; the count shows only when someone is. */
+.mdsync-share-badge:not(.is-paused) {
 	padding: 0 var(--size-4-1);
 	border-radius: var(--mdsync-radius-pill);
-	background: var(--background-modifier-hover);
+	background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
 	color: var(--interactive-accent);
 }
 
@@ -183,10 +194,14 @@ body.is-mobile
 	font-weight: var(--font-semibold);
 }
 
-.mdsync-unseen-dot::before {
+.mdsync-unseen-dot {
+	color: var(--interactive-accent);
+}
+
+.mdsync-dot::before {
 	content: "";
 	width: 6px;
 	height: 6px;
 	border-radius: 50%;
-	background: var(--interactive-accent);
+	background: currentColor;
 }

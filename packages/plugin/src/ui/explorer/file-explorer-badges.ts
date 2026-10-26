@@ -29,7 +29,7 @@ const SHARE_ROOT_ATTR = "data-share-root";
 const SHARE_BADGE = ".mdsync-share-badge";
 const PUBLISHED_BADGE = ".mdsync-published-badge";
 const TAP_BADGES =
-	".mdsync-people-badge, .mdsync-unseen-dot, .mdsync-skip-badge";
+	".mdsync-people-badge, .mdsync-unseen-dot, .mdsync-skip-badge, .mdsync-ignore-badge, .mdsync-change-mark";
 const TIP_MS = 4000;
 
 /** Read here, not while computing marks: a pass runs on every sync event. */
@@ -40,7 +40,7 @@ export function renderPresenceMarks(
 ): void {
 	if (marks.unseen) {
 		target.createSpan({
-			cls: "mdsync-path-badge mdsync-unseen-dot",
+			cls: "mdsync-path-badge mdsync-unseen-dot mdsync-dot",
 			attr: { role: "img", "aria-label": unseenTooltip(plugin, marks.unseen) },
 		});
 	}
@@ -132,8 +132,6 @@ function renderShareBadge(target: HTMLElement, share: ShareMark): void {
 		badge.createSpan({ cls: "mdsync-share-icon" }),
 		SHARE_ICONS[share.kind],
 	);
-	if (share.here > 0) {
-		badge.addClass("has-people");
+	if (share.here > 0)
 		badge.createSpan({ cls: "mdsync-share-count", text: String(share.here) });
-	}
 }

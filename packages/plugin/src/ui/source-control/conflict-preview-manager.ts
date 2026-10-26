@@ -1,5 +1,9 @@
 import type { FileDiffModel } from "@/sync/projection";
-import { renderConflictPreview } from "./conflict-preview";
+import {
+	type ConflictPreview,
+	renderConflictPreview,
+	summarizeConflictPreview,
+} from "./conflict-preview";
 
 interface ConflictPreviewManagerDeps {
 	loadPreview: (path: string) => Promise<FileDiffModel | null>;
@@ -7,7 +11,7 @@ interface ConflictPreviewManagerDeps {
 
 export class ConflictPreviewManager {
 	private readonly loadPreview: (path: string) => Promise<FileDiffModel | null>;
-	private readonly previewCache = new Map<string, FileDiffModel | null>();
+	private readonly previewCache = new Map<string, ConflictPreview | null>();
 	private readonly loadingPreviews = new Set<string>();
 	private readonly pendingTargets = new Map<string, HTMLElement>();
 	private readonly expandedPreviews = new Set<string>();
@@ -26,7 +30,9 @@ export class ConflictPreviewManager {
 		if (this.expandedPreviews.size === 0) return;
 		const current = new Set(conflictPaths);
 		for (const path of this.expandedPreviews) {
-			if (!current.has(path)) this.expandedPreviews.delete(path);
+			if (current.has(path)) continue;
+			this.expandedPreviews.delete(path);
+			this.previewCache.delete(path);
 		}
 	}
 
@@ -35,7 +41,7 @@ export class ConflictPreviewManager {
 	}
 
 	toggle(path: string): void {
-		if (this.expandedPreviews.has(path)) this.expandedPreviews.delete(path);
+		if (this.expandedPreviews.delete(path)) this.previewCache.delete(path);
 		else this.expandedPreviews.add(path);
 	}
 
@@ -53,8 +59,9 @@ export class ConflictPreviewManager {
 		this.loadingPreviews.add(path);
 		void this.loadPreview(path)
 			.then((model) => {
-				this.previewCache.set(path, model);
-				this.settle(path, model);
+				const preview = model && summarizeConflictPreview(model);
+				this.previewCache.set(path, preview);
+				this.settle(path, preview);
 			})
 			.catch(() => {
 				// Not cached: a transient failure should be retried on the next open.
@@ -62,29 +69,29 @@ export class ConflictPreviewManager {
 			});
 	}
 
-	private settle(path: string, model: FileDiffModel | null): void {
+	private settle(path: string, preview: ConflictPreview | null): void {
 		this.loadingPreviews.delete(path);
 		const target = this.pendingTargets.get(path);
 		this.pendingTargets.delete(path);
 		if (target) {
-			this.renderInto(target, model);
+			this.renderInto(target, preview);
 		}
 	}
 
 	private renderInto(
 		previewEl: HTMLElement,
-		model: FileDiffModel | null,
+		preview: ConflictPreview | null,
 	): void {
 		if (!previewEl.isConnected) return;
 		previewEl.empty();
-		if (model === null) {
+		if (preview === null) {
 			previewEl.setText("No diff available.");
 			return;
 		}
-		if (model.isBinary) {
+		if (preview.binary) {
 			previewEl.setText("Binary file — cannot preview diff.");
 			return;
 		}
-		renderConflictPreview(previewEl, model);
+		renderConflictPreview(previewEl, preview);
 	}
 }

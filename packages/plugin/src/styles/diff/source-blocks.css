@@ -61,6 +61,34 @@ body.is-phone
 	background: var(--background-secondary);
 }
 
+.mdsync-source-mark {
+	flex: none;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: rgb(var(--mdsync-mark));
+}
+
+.mdsync-source-mark.is-added {
+	--mdsync-mark: var(--mdsync-tone-added);
+}
+
+.mdsync-source-mark.is-removed {
+	--mdsync-mark: var(--mdsync-tone-removed);
+}
+
+.mdsync-source-mark.is-modified {
+	--mdsync-mark: var(--mdsync-tone-modified);
+}
+
+.mdsync-source-mark.is-chosen {
+	display: inline-flex;
+	width: auto;
+	height: auto;
+	background: none;
+	color: var(--text-accent);
+}
+
 .mdsync-source-label {
 	overflow: hidden;
 	text-overflow: ellipsis;

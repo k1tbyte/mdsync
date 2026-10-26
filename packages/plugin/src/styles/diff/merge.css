@@ -1,0 +1,245 @@
+/* Merge: the status pill, the panes' heads, the strips' Take buttons and the conflict heads in Result. */
+.mdsync-diff-header button.mdsync-merge-status {
+	gap: var(--size-2-3);
+	border: none;
+	box-shadow: none;
+	background: rgba(var(--mdsync-status), 0.15);
+}
+
+.mdsync-merge-status.is-conflict {
+	--mdsync-status: var(--color-red-rgb);
+}
+
+.mdsync-merge-status.is-resolved {
+	--mdsync-status: var(--color-green-rgb);
+}
+
+.mdsync-diff-header button.mdsync-merge-status:hover {
+	background: rgba(var(--mdsync-status), 0.25);
+}
+
+.mdsync-diff-header button.mdsync-merge-status:disabled {
+	opacity: 1;
+	cursor: default;
+}
+
+/* A phone's buttons are tall; this one stays a pill under the title. */
+body.is-phone .mdsync-diff-header button.mdsync-merge-status {
+	height: 32px;
+	min-height: 32px;
+}
+
+.mdsync-merge-status .mdsync-labeled-btn-icon {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: currentColor;
+}
+
+/* Saving says what is left rather than doing nothing, so it only looks off. */
+.mdsync-diff-resolution button[aria-disabled="true"] {
+	opacity: 0.55;
+}
+
+.mdsync-merge-pane-head {
+	gap: var(--size-4-2);
+}
+
+.mdsync-merge-pane-note {
+	overflow: hidden;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: normal;
+	text-overflow: ellipsis;
+}
+
+.mdsync-merge-pane-mark {
+	flex: none;
+	width: 8px;
+	height: 8px;
+	border-radius: 2px;
+	background: rgb(var(--mdsync-tone));
+}
+
+.mdsync-merge-pane-head.is-result .mdsync-merge-pane-mark {
+	display: inline-flex;
+	width: auto;
+	height: auto;
+	background: none;
+	color: var(--text-muted);
+}
+
+.mdsync-merge-pane-mark svg {
+	width: 13px;
+	height: 13px;
+}
+
+/* Taking a side: in the side's colour, named, pointing into Result. */
+.mdsync-divider-action .mdsync-rail-btn.is-take {
+	width: auto;
+	gap: 1px;
+	padding: 0 var(--size-2-2);
+	box-shadow: none;
+	background: rgb(var(--mdsync-tone));
+	color: var(--text-on-accent);
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+}
+
+.mdsync-divider-action .mdsync-rail-btn.is-take:hover {
+	background: color-mix(in srgb, rgb(var(--mdsync-tone)) 85%, white);
+	color: var(--text-on-accent);
+}
+
+.mdsync-divider-action .is-take .mdsync-rail-label {
+	display: inline;
+}
+
+.mdsync-merge-divider.is-local .mdsync-rail-btn.is-take {
+	flex-direction: row-reverse;
+}
+
+/* Side by side: an open conflict's head over its lines in Result. */
+.mdsync-merge-panel:not(.is-combined) .mdsync-source-slot {
+	/* Never widens the lines: a narrow Result cuts the head's text instead. */
+	contain: inline-size;
+	/* Spans the empty gutter beside it, above it (CodeMirror's 200) so the gutter takes no clicks. */
+	position: relative;
+	z-index: 201;
+	margin-left: calc(-1 * var(--mdsync-gutter-width, 0px));
+	padding: var(--size-4-1) var(--size-4-2);
+	/* Tinted as the conflict's lines, so the connectors run into it. */
+	background: rgba(var(--mdsync-tone-conflict), 0.14);
+	box-shadow: inset var(--mdsync-bar) 0 0 rgba(var(--mdsync-tone-conflict), 0.6);
+}
+
+.mdsync-merge-panel:not(.is-combined) .mdsync-source.is-conflict {
+	border: 1px dashed rgba(var(--mdsync-tone), 0.7);
+	border-radius: var(--radius-m);
+	/* Its own surface: a tint would stack on the slot's. */
+	background: var(--background-primary);
+}
+
+/* Text, then the buttons sharing a row of their own: any width fits them. */
+.mdsync-merge-panel:not(.is-combined) .is-conflict > .mdsync-source-head {
+	flex-wrap: wrap;
+	row-gap: var(--size-4-2);
+	padding: var(--size-4-2);
+	background: none;
+	color: color-mix(in srgb, rgb(var(--mdsync-tone)) 55%, var(--text-normal));
+	font-size: var(--font-ui-small);
+	font-weight: normal;
+}
+
+/* A mark's class names its tone. */
+.mdsync-merge-panel .mdsync-source-mark {
+	--mdsync-mark: var(--mdsync-tone);
+}
+
+.mdsync-merge-panel:not(.is-combined) .is-conflict .mdsync-source-label {
+	flex: 1 1 0;
+	min-width: 0;
+}
+
+/* A conflict's ways out: under its head side by side, closing its card inline. */
+.mdsync-merge-panel .is-conflict .mdsync-source-actions {
+	flex: 1 0 100%;
+	gap: var(--size-4-1);
+	margin: 0;
+}
+
+.mdsync-merge-panel .is-conflict .mdsync-source-actions .mdsync-rail-btn {
+	flex: 1 1 0;
+	min-width: 0;
+	width: auto;
+	height: 24px;
+	padding: 0 var(--size-4-2);
+	border: none;
+	border-radius: var(--radius-s);
+	box-shadow: none;
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+	font-family: var(--font-interface);
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+}
+
+.mdsync-merge-panel
+	.is-conflict
+	.mdsync-source-actions
+	.mdsync-rail-btn:is(.is-local, .is-remote) {
+	background: rgba(var(--mdsync-tone), 0.2);
+	color: color-mix(in srgb, rgb(var(--mdsync-tone)) 60%, var(--text-normal));
+}
+
+.mdsync-merge-panel .is-conflict .mdsync-source-actions .mdsync-rail-btn:hover {
+	background: var(--background-modifier-active-hover);
+	color: var(--text-normal);
+}
+
+.mdsync-merge-panel
+	.is-conflict
+	.mdsync-source-actions
+	.mdsync-rail-btn:is(.is-local, .is-remote):hover {
+	background: rgba(var(--mdsync-tone), 0.32);
+}
+
+.mdsync-merge-panel .is-conflict .mdsync-rail-label {
+	display: inline;
+}
+
+/* Inline cards: both sides' lines, then Result's rows, then the choices. */
+.mdsync-merge-panel.is-combined .mdsync-source-head:is(.is-part, .is-trailer) {
+	min-height: 28px;
+	border-top: none;
+	background: none;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.mdsync-merge-panel.is-combined .mdsync-source-part .mdsync-code-line {
+	background: rgba(var(--mdsync-tone), 0.1);
+}
+
+.mdsync-merge-panel.is-combined .mdsync-source-part .mdsync-code-text {
+	box-shadow: inset var(--mdsync-bar) 0 rgba(var(--mdsync-tone), 0.7);
+}
+
+/* Signs only where Result differs from the base: a side's lines and rows taken from a side. */
+.mdsync-merge-panel.is-combined .mdsync-source-part .mdsync-code-text::before,
+.mdsync-merge-panel.is-combined
+	.cm-line.mdsync-diff-line:is(.is-base, .is-conflict)::before {
+	content: none;
+}
+
+.mdsync-merge-panel.is-combined .mdsync-source.is-base .mdsync-code-line {
+	color: var(--text-muted);
+}
+
+/* Base rows are not a side's: no bar. */
+.mdsync-merge-panel.is-combined .cm-line.mdsync-diff-line.is-base {
+	--mdsync-line-bar: 0 0 transparent;
+}
+
+/* The choices' row closes the card the head opened, right under its rows. */
+.mdsync-merge-panel.is-combined .mdsync-source-slot.is-card-end {
+	padding-top: 0;
+}
+
+.mdsync-merge-panel.is-combined .mdsync-source.is-closing:not(.is-opening) {
+	border-top: none;
+	border-radius: 0 0 var(--mdsync-card-radius) var(--mdsync-card-radius);
+}
+
+.mdsync-merge-panel.is-combined
+	.mdsync-source.is-closing:not(.is-opening)
+	> .mdsync-source-head {
+	padding: var(--size-4-2);
+	background: none;
+}
+
+.mdsync-merge-panel.is-combined
+	.mdsync-source.is-closing:not(.is-opening)
+	.mdsync-source-label {
+	display: none;
+}

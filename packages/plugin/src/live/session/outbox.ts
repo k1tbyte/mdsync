@@ -2,8 +2,6 @@ import * as Y from "yjs";
 
 import { reportWarning } from "@/shared";
 
-/** Edits and cursors batch this long: at 100 ms the envelope outweighed the content. */
-export const FLUSH_MS = 250;
 /** Silent this long, the hub dropped the last update and no later echo will tell. */
 const ACK_PATIENCE_MS = 15_000;
 
@@ -11,6 +9,8 @@ interface OutboxIo {
 	enqueue(step: () => unknown): void;
 	ship(update: Uint8Array): Promise<void>;
 	settle(): Promise<void>;
+	/** How long edits wait after a send (ms). */
+	every(): number;
 	online(): boolean;
 }
 
@@ -21,6 +21,8 @@ export class Outbox {
 	private sent = 0;
 	private readonly staged = new Set<() => void>();
 	private timer: number | null = null;
+	/** Monotonic, as a clock set back would read as a burst. */
+	private flushedAt = Number.NEGATIVE_INFINITY;
 	private ackTimer: number | null = null;
 
 	constructor(private readonly io: OutboxIo) {}
@@ -103,13 +105,17 @@ export class Outbox {
 		this.stopAckTimer();
 	}
 
+	/** A change goes at once, then at most once an interval: each update is a hub row. */
 	private armFlush(): void {
-		this.timer ??= window.setTimeout(() => this.flush(), FLUSH_MS);
+		const wait = this.flushedAt + this.io.every() - performance.now();
+		this.timer ??= window.setTimeout(() => this.flush(), Math.max(0, wait));
 	}
 
 	private flush(): void {
 		this.drainStaged();
 		this.timer = null;
+		// A drain that changed nothing sent nothing: no interval to wait.
+		if (this.pending.length > 0) this.flushedAt = performance.now();
 		if (this.staged.size > 0) this.armFlush();
 		// Taken inside the step: early, an echo queued before it would see nothing pending and agree on
 		// text the room lacks.

@@ -1,7 +1,7 @@
-import { diffChars } from "diff";
 import type * as Y from "yjs";
 
-import { commonEnds, MAX_EDIT_LENGTH } from "@/sync/hunks";
+import { DIFF_BUDGET } from "@/sync/hunks";
+import { changedMiddle, diffRanges } from "@/utils";
 
 const MIN_ANCHOR = 10;
 
@@ -16,7 +16,7 @@ const opsOf = ({ removed, added }: Group): number =>
 
 /**
  * Brings a Y.Text to `target` as inserts and deletes: replacing the whole text would make two devices that
- * each rewrote it merge into interleaved nonsense. Past the edit budget the differing middle is one
+ * each rewrote it merge into interleaved nonsense. Past the diff budget the differing middle is one
  * replacement.
  */
 export function patchYText(doc: Y.Doc, text: Y.Text, target: string): void {
@@ -26,30 +26,17 @@ export function patchYText(doc: Y.Doc, text: Y.Text, target: string): void {
 	// Code points, not UTF-16 units: Yjs turns a split surrogate pair into U+FFFD.
 	const a = Array.from(current);
 	const b = Array.from(target);
-	const { head, tail } = commonEnds(a, b);
-	const from = a.slice(head, a.length - tail).join("");
-	const to = b.slice(head, b.length - tail).join("");
-	const parts = diffChars(from, to, { maxEditLength: MAX_EDIT_LENGTH }) ?? [
-		{ removed: true, value: from },
-		{ added: true, value: to },
-	];
-
-	const groups: Group[] = [];
-	let keep = "";
-	for (const part of parts) {
-		if (!part.added && !part.removed) {
-			keep += part.value;
-			continue;
-		}
-		let group = groups.at(-1);
-		if (keep || !group) {
-			group = { keep, removed: "", added: "" };
-			groups.push(group);
-			keep = "";
-		}
-		if (part.added) group.added += part.value;
-		else group.removed += part.value;
-	}
+	const ranges = diffRanges(a, b, DIFF_BUDGET) ?? [changedMiddle(a, b)];
+	let kept = 0;
+	const groups = ranges.map((range): Group => {
+		const keep = a.slice(kept, range.a[0]).join("");
+		kept = range.a[1];
+		return {
+			keep,
+			removed: a.slice(...range.a).join(""),
+			added: b.slice(...range.b).join(""),
+		};
+	});
 
 	const folded: Group[] = [];
 	for (const group of groups) {
@@ -67,7 +54,7 @@ export function patchYText(doc: Y.Doc, text: Y.Text, target: string): void {
 	}
 
 	doc.transact(() => {
-		let at = a.slice(0, head).join("").length;
+		let at = 0;
 		for (const group of folded) {
 			at += group.keep.length;
 			if (group.removed) text.delete(at, group.removed.length);

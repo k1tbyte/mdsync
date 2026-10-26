@@ -4,11 +4,16 @@
  */
 
 @import "./tokens.css";
+@import "./base/file-path.css";
+@import "./base/segments.css";
+@import "./base/callout.css";
 
 @import "./settings/tabs-and-logs.css";
 
 @import "./source-control/shell.css";
 @import "./source-control/toolbar.css";
+@import "./source-control/summary.css";
+@import "./source-control/states.css";
 @import "./source-control/sections.css";
 @import "./source-control/file-rows.css";
 @import "./source-control/tree.css";
@@ -26,9 +31,12 @@
 @import "./diff/source-blocks.css";
 @import "./diff/code-lines.css";
 @import "./diff/gaps.css";
+@import "./diff/cards.css";
+@import "./diff/merge.css";
 @import "./diff/hunk-preview.css";
 
 @import "./settings/transfer.css";
+@import "./settings/overview.css";
 @import "./settings/setup.css";
 @import "./settings/setup-stepper.css";
 @import "./settings/setup-cards.css";
@@ -38,6 +46,8 @@
 @import "./status-bar.css";
 @import "./ribbon.css";
 @import "./modals.css";
+@import "./modal-frame.css";
+@import "./source-control/file-list.css";
 @import "./shares.css";
 @import "./links.css";
 

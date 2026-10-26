@@ -1,9 +1,7 @@
-import { diffArrays } from "diff";
+import { diffRanges, toLf } from "@/utils";
 
-import { toLf } from "@/utils";
-
-import { anchoredHunks, hunksFromChanges } from "./anchored-hunks";
-import { MAX_EDIT_LENGTH } from "./hunks";
+import { anchoredHunks } from "./anchored-hunks";
+import { DIFF_BUDGET } from "./hunks";
 
 /** 0-based, half-open line range in one of the original sides. */
 export type LineRange = readonly [number, number];
@@ -311,7 +309,12 @@ export function applyPlan(
 	);
 	return {
 		...edit,
-		result: append ? { from: span.from, to: edit.result.to } : edit.result,
+		// An emptied span at the end of the file sits before the line break the new lines bring, not at a
+		// line start: they are the whole result, or reverting would snap it onto the line above.
+		result:
+			append && doc.lineAt(span.from).from === span.from
+				? { from: span.from, to: edit.result.to }
+				: edit.result,
 		taken: { [side]: edit.result },
 	};
 }
@@ -422,11 +425,9 @@ function sideHunks(
 	side: EMergeSide,
 ): SideHunk[] {
 	// Myers with a budget: diff3's own LCS goes quadratic on repeated lines like blanks.
-	const changes = diffArrays(base, lines, { maxEditLength: MAX_EDIT_LENGTH });
-	const hunks = changes
-		? hunksFromChanges(changes)
-		: anchoredHunks(base, lines);
-	return hunks.map((hunk) => ({ side, ...hunk }));
+	const ranges =
+		diffRanges(base, lines, DIFF_BUDGET) ?? anchoredHunks(base, lines);
+	return ranges.map(({ a, b }) => ({ side, base: a, lines: b }));
 }
 
 export function sameLines(a: readonly string[], b: readonly string[]): boolean {

@@ -1,0 +1,26 @@
+/* `renderPath`: the name, then its folder faintly. */
+.mdsync-file-copy {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: baseline;
+	gap: var(--size-2-2);
+	min-width: 0;
+	overflow: hidden;
+}
+
+.mdsync-file-name {
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mdsync-file-parent {
+	flex: 1 100 auto;
+	min-width: 0;
+	overflow: hidden;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

@@ -511,6 +511,72 @@ describe("scanVault with a vault index", () => {
 		expect(snapshot.unindexed).toBeUndefined();
 	});
 
+	it("lists the config directory once when the disk walk already covered it", async () => {
+		const adapter = vault({
+			"a.md": "one",
+			".obsidian/app.json": "{}",
+			".obsidian/themes/dark.css": "x",
+		});
+		await adapter.asDataAdapter().mkdir(".obsidian/snippets");
+		const index = await indexOf(adapter);
+		const scope = policy({ coreSettings: true, themes: true, snippets: true });
+		const scan = async (walk: boolean) => {
+			const inner = adapter.asDataAdapter();
+			const listed: string[] = [];
+			const data = Object.create(inner) as DataAdapter;
+			data.list = (path: string) => {
+				listed.push(path);
+				return inner.list(path);
+			};
+			const { snapshot } = await scanVault(
+				data,
+				scope,
+				{ ...options, index, walk },
+				{},
+			);
+			return { snapshot, listed };
+		};
+
+		const walked = await scan(true);
+		const indexOnly = await scan(false);
+
+		const count = (listed: string[], dir: string) =>
+			listed.filter((path) => path === dir).length;
+		expect(count(walked.listed, "")).toBe(1);
+		expect(count(walked.listed, CONFIG)).toBe(1);
+		expect(count(indexOnly.listed, "")).toBe(0);
+		expect(count(indexOnly.listed, CONFIG)).toBe(1);
+		expect(Object.keys(walked.snapshot.files)).toEqual([
+			".obsidian/app.json",
+			".obsidian/themes/dark.css",
+			"a.md",
+		]);
+		expect(walked.snapshot.files).toEqual(indexOnly.snapshot.files);
+		expect(walked.snapshot.emptyFolders).toEqual([".obsidian/snippets"]);
+		expect(walked.snapshot.emptyFolders).toEqual(
+			indexOnly.snapshot.emptyFolders,
+		);
+	});
+
+	it("reports an unreadable config directory once on a disk walk", async () => {
+		const adapter = vault({ "a.md": "one", ".obsidian/app.json": "{}" });
+		const index = await indexOf(adapter);
+		const inner = adapter.asDataAdapter();
+		const data = Object.create(inner) as DataAdapter;
+		data.list = (path: string) =>
+			path === CONFIG ? Promise.reject(new Error("EACCES")) : inner.list(path);
+
+		const { snapshot } = await scanVault(
+			data,
+			policy({ coreSettings: true }),
+			{ ...options, index, walk: true },
+			{},
+		);
+
+		expect(snapshot.unreadableDirs).toEqual([CONFIG]);
+		expect(Object.keys(snapshot.files)).toEqual(["a.md"]);
+	});
+
 	it("does not resurrect a baseline path the scope no longer includes", async () => {
 		const adapter = vault({ "keep.md": "one", "drafts/old.md": "two" });
 		const index = await indexOf(adapter);

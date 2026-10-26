@@ -10,6 +10,7 @@ import {
 	type ServerFrame,
 } from "@mdsync/protocol";
 import * as Y from "yjs";
+import { LIVE_SEND_MS } from "@/constants";
 import { type SealedFor, seal, unseal } from "@/crypto/seal";
 import type { SpaceFrame, SpaceListener } from "@/hub";
 import { attribute } from "@/live/authors";
@@ -51,7 +52,7 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	/** Bumped per socket, so nothing queued for a dead one acts on the next. */
 	private epoch = 0;
 	private lastSubAt = 0;
-	private disposed = false;
+	protected disposed = false;
 	private attributedAs: number | null = null;
 	/** Disk text offered to an empty room, applied here only once the hub takes it. */
 	private seed: Uint8Array | null = null;
@@ -81,13 +82,15 @@ export class LiveSession<M extends LiveModel = LiveModel>
 			enqueue: (step) => this.enqueue(step),
 			ship: (update) => this.sendUpdate(update),
 			settle: () => this.settle(),
+			every: () => deps.sendEvery?.() ?? LIVE_SEND_MS.balanced,
 			// Disposed, no echo comes: the rest sent on close must not go out again and again.
 			online: () => this.online && !this.disposed,
 		});
 		this.presence = new RoomAwareness(this.doc, {
 			keys: deps.keys,
 			docId,
-			canSend: () => this.online,
+			// A step queued before dispose would announce a closing note.
+			canSend: () => this.online && !this.disposed,
 			send: (payload) => this.send({ type: EFrame.Awareness, payload }),
 			enqueue: (step) => this.enqueue(step),
 		});
@@ -282,7 +285,7 @@ export class LiveSession<M extends LiveModel = LiveModel>
 			case EFrame.Peer:
 				return this.presence.receive(frame.payload, frame.from);
 			case EFrame.Join:
-				return this.presence.announce();
+				return this.presence.joined(frame.from);
 			case EFrame.Leave:
 				return this.presence.depart(frame.from);
 			case EFrame.Moved:
@@ -430,7 +433,8 @@ export class LiveSession<M extends LiveModel = LiveModel>
 	private onRefused(reason: Refused): void {
 		this.online = false;
 		this.rotation.end("refused");
-		this.deps.onRefused(reason);
+		// Queued before dispose: the note's path may hold its next room by now.
+		if (!this.disposed) this.deps.onRefused(reason);
 	}
 
 	private async apply(payload: Uint8Array, epoch: number): Promise<boolean> {

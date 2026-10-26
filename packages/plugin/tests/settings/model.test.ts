@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { AUTO_PUSH_SETTLE_MAX_SECONDS } from "@/constants";
+import {
+	AUTO_PUSH_SETTLE_MAX_SECONDS,
+	BULK_DELETE_LIMIT_MAX,
+	LIVE_SEND_MS,
+} from "@/constants";
 import {
 	DEFAULT_SETTINGS,
 	isRelayConfigured,
@@ -221,6 +225,34 @@ describe("mergeSettings clamps", () => {
 		expect(merged.autoSyncIntervalMinutes).toBe(
 			DEFAULT_SETTINGS.autoSyncIntervalMinutes,
 		);
+	});
+
+	it("defaults the bulk delete guard to on with a limit of 5", () => {
+		expect(DEFAULT_SETTINGS.confirmBulkDeletes).toBe(true);
+		expect(DEFAULT_SETTINGS.bulkDeleteLimit).toBe(5);
+	});
+
+	it("falls back on a negative deletion limit, keeps 0 and caps a greedy one", () => {
+		expect(mergeSettings({ bulkDeleteLimit: -1 }).bulkDeleteLimit).toBe(
+			DEFAULT_SETTINGS.bulkDeleteLimit,
+		);
+		expect(mergeSettings({ bulkDeleteLimit: 0 }).bulkDeleteLimit).toBe(0);
+		expect(mergeSettings({ bulkDeleteLimit: 5000 }).bulkDeleteLimit).toBe(
+			BULK_DELETE_LIMIT_MAX,
+		);
+	});
+
+	it("sends live edits balanced by default and takes only a preset speed", () => {
+		expect(DEFAULT_SETTINGS.liveSendMs).toBe(LIVE_SEND_MS.balanced);
+		expect(mergeSettings({ liveSendMs: 10 }).liveSendMs).toBe(
+			LIVE_SEND_MS.balanced,
+		);
+		expect(mergeSettings({ liveSendMs: 500 }).liveSendMs).toBe(
+			LIVE_SEND_MS.balanced,
+		);
+		expect(
+			mergeSettings({ liveSendMs: LIVE_SEND_MS.economical }).liveSendMs,
+		).toBe(LIVE_SEND_MS.economical);
 	});
 
 	it("keeps a value that is already in range", () => {

@@ -3,32 +3,32 @@
  * re-downloaded, and a local edit goes with it. Each move lands whole or waits.
  */
 
-import { entryAt } from "@/shared";
+import { entryAt, reportWarning } from "@/shared";
 import {
 	diskRefuses,
 	ensureDir,
 	ensureParent,
 	removeEmptyDir,
+	renameCaseSafe,
+	StrandedRenameError,
 	unchangedSince,
 } from "@/vault/io";
 
-import { untouchedSince } from "./content";
 import type { CompareResult, EngineDependencies } from "./engine";
-import { writeIncoming } from "./live-notes";
+import { coldSince, writeIncoming } from "./live-notes";
 import { isUnder } from "./space";
 import type { Manifest, ManifestEntry } from "./types";
 
-export interface PulledMoves {
-	/** Both paths of every move asked for, landed or waiting: the plain pull leaves them be. */
-	paths: Set<string>;
-	written: Map<string, ManifestEntry | null>;
-}
-
+/**
+ * Records each move in `written` as it lands, so one that stops the pull keeps those before it. Returns both
+ * paths of every move asked for, landed or waiting: the plain pull leaves them be.
+ */
 export async function pullMoves(
 	deps: EngineDependencies,
 	result: CompareResult,
 	requested: ReadonlySet<string>,
-): Promise<PulledMoves> {
+	written: Map<string, ManifestEntry | null>,
+): Promise<Set<string>> {
 	const incoming = new Set(result.diff.remoteChanges.map(({ path }) => path));
 	const moves = result.diff.moves.filter(
 		({ from, to }) =>
@@ -36,12 +36,11 @@ export async function pullMoves(
 			(incoming.has(from) || incoming.has(to)),
 	);
 	const paths = new Set(moves.flatMap(({ from, to }) => [from, to]));
-	const written = new Map<string, ManifestEntry | null>();
 	for (const { from, to, side } of moves) {
 		// An open room keeps its note; live editing moves it itself.
 		if (deps.live?.holds(from) || deps.live?.holds(to)) continue;
 		if (side === "remote") {
-			if (!(await renameLocal(deps, from, to))) continue;
+			if (!(await landsHere(deps, from, to))) continue;
 			written.set(to, entryAt(result.snapshot.files, from) ?? null);
 		} else {
 			// `to` still holds what `from` had, so their newer text replaces nothing of ours.
@@ -49,14 +48,15 @@ export async function pullMoves(
 			if (!theirs) continue;
 			const ours = entryAt(result.snapshot.files, to);
 			if (!(await unchangedSince(deps.adapter, to, ours))) continue;
-			const ready = untouchedSince(deps, to, ours);
-			const local = await writeIncoming(deps, to, theirs, ready);
+			const ready = coldSince(deps, to, ours);
+			// No base step: the baseline takes theirs at `from`, not here.
+			const local = await writeIncoming(deps, to, theirs, { ready });
 			if (!local) continue;
 			written.set(to, local);
 		}
 		written.set(from, null);
 	}
-	return { paths, written };
+	return paths;
 }
 
 /**
@@ -117,6 +117,27 @@ async function removeEmptied(
 	}
 }
 
+/** A rename the disk refused leaves the file where it was, so the move waits; anywhere else, the pull stops. */
+async function landsHere(
+	deps: EngineDependencies,
+	from: string,
+	to: string,
+): Promise<boolean> {
+	try {
+		return await renameLocal(deps, from, to);
+	} catch (err) {
+		// Stranded, it is gone from `from` even when another file took that name.
+		if (
+			err instanceof StrandedRenameError ||
+			!(await deps.adapter.exists(from))
+		) {
+			throw err;
+		}
+		reportWarning(`Could not move "${from}" to "${to}" here; it waits.`, err);
+		return false;
+	}
+}
+
 /** Never over a file that appeared at `to` since the compare, nor from a `from` gone since: the move waits. */
 export async function renameLocal(
 	deps: EngineDependencies,
@@ -129,8 +150,12 @@ export async function renameLocal(
 	if (!(await deps.adapter.exists(from))) return false;
 	if (await deps.index?.rename(from, to)) return true;
 	await ensureParent(deps.adapter, to);
-	await deps.adapter.rename(from, to);
-	return true;
+	return renameCaseSafe(
+		(a, b) => deps.adapter.rename(a, b),
+		(path) => deps.adapter.exists(path),
+		from,
+		to,
+	);
 }
 
 function parentOf(path: string): string | null {

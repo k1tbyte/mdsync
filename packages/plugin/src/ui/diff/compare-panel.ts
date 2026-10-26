@@ -1,20 +1,21 @@
 import { EditorState } from "@codemirror/state";
 import { EditorView, lineNumbers } from "@codemirror/view";
-import { setIcon } from "obsidian";
 import { EDiffDirection, type FileDiffModel } from "@/sync/projection";
-import { appendIconButton } from "@/ui/common";
 import { ChangeOverlay } from "./change-overlay";
-import { CHOICE_ICON, EChoiceKind, HunkChoices } from "./choices";
+import { choiceActions, type EChoiceKind, HunkChoices } from "./choices";
+import { CompareControls } from "./compare-controls";
 import {
 	buildSegments,
 	type CompareSegment,
 	type CompareSide,
 	compareState,
-	directionTone,
+	segmentKind,
 	segmentsChanged,
 } from "./compare-decorations";
 import { Divider, type DividerItem } from "./divider";
+import { foldedBands } from "./gap-widgets";
 import { sideSpan, spanBounds, updatePaneViewportWidth } from "./geometry";
+import type { PanelHosts } from "./header";
 import { LayoutMode } from "./layout-mode";
 import {
 	LineWrappingControl,
@@ -28,12 +29,33 @@ import {
 	type ScrollAnchors,
 	spanAnchors,
 } from "./scroll-sync";
-import { renderCounters } from "./source-widget";
 
 export interface ComparePanelOptions extends LineWrappingOptions {
 	direction: EDiffDirection;
 	actionable: boolean;
+	pinChosen: boolean;
+	onPinChosenChange(enabled: boolean): void;
 	onApply(choices: HunkChoices): void;
+}
+
+export function renderTextDiff(
+	parent: HTMLElement,
+	model: FileDiffModel,
+	options: ComparePanelOptions,
+): ComparePanel | null {
+	if (model.hunks.hunks.length === 0) {
+		parent.createDiv({
+			cls: "mdsync-diff-empty",
+			text:
+				model.movedFrom === undefined
+					? "No textual differences."
+					: `Moved from ${model.movedFrom}, unchanged.`,
+		});
+		return null;
+	}
+	const panel = new ComparePanel(options);
+	panel.render(parent, model);
+	return panel;
 }
 
 /**
@@ -44,6 +66,8 @@ export class ComparePanel {
 	private readonly choices = new HunkChoices();
 	/** Keys of the segments folded to one row in both panes. */
 	private readonly folded = new Set<number>();
+	/** Unchanged runs opened in both panes, by index. */
+	private readonly opened = new Set<number>();
 	private segments: readonly CompareSegment[] = [];
 	private model: FileDiffModel | null = null;
 	private rootEl: HTMLElement | null = null;
@@ -53,17 +77,14 @@ export class ComparePanel {
 	private overlays: ChangeOverlay[] = [];
 	private scrollSync: PaneScrollSync | null = null;
 	private layoutMode: LayoutMode | null = null;
-	private summaryEl: HTMLElement | null = null;
-	private navButtons: HTMLButtonElement[] = [];
-	private pendingEl: HTMLElement | null = null;
-	private fileActionsEl: HTMLElement | null = null;
-	private applyButton: HTMLButtonElement | null = null;
-	private discardButton: HTMLButtonElement | null = null;
+	private controls: CompareControls | null = null;
 	private layoutFrame: number | null = null;
 	private readonly wrapping: LineWrappingControl;
+	private pinChosen: boolean;
 	private current = -1;
 
 	constructor(private readonly options: ComparePanelOptions) {
+		this.pinChosen = options.pinChosen;
 		this.wrapping = new LineWrappingControl(
 			options,
 			() => [this.leftView, this.rightView],
@@ -80,10 +101,10 @@ export class ComparePanel {
 		const [first, second] = this.paneOrder();
 		const heads = root.createDiv({ cls: "mdsync-compare-heads" });
 		const body = root.createDiv({ cls: "mdsync-compare-body" });
-		const firstView = this.renderPane(heads, body, model, first);
+		const firstView = this.renderPane(heads, body, model, first, true);
 		heads.createDiv({ cls: "mdsync-compare-divider-head" });
 		const dividerEl = body.createDiv({ cls: "mdsync-compare-divider" });
-		const secondView = this.renderPane(heads, body, model, second);
+		const secondView = this.renderPane(heads, body, model, second, false);
 		const views: Record<CompareSide, EditorView> =
 			first === "left"
 				? { left: firstView, right: secondView }
@@ -96,12 +117,16 @@ export class ComparePanel {
 			views[near],
 			views[near === "left" ? "right" : "left"],
 			near === first ? "left" : "right",
+			(key) =>
+				this.selectSegment(
+					this.segments.findIndex((segment) => segment.key === key),
+				),
 		);
 		this.scrollSync = new PaneScrollSync(
 			[{ a: views.left, b: views.right, pairs: () => this.scrollPairs() }],
 			() => this.scheduleLayout(),
 		);
-		this.divider.update(this.dividerItems());
+		this.refreshDivider();
 		this.layoutMode?.refresh();
 		this.updateToolbar();
 		this.scheduleLayout();
@@ -128,6 +153,9 @@ export class ComparePanel {
 		// The texts moved, so segment indices no longer address what the user saw.
 		this.choices.clear();
 		this.folded.clear();
+		this.opened.clear();
+		this.current = -1;
+		this.divider?.select(null);
 		this.segments = buildSegments(model);
 		// A hash is of the exact text shown, so an unchanged side keeps its doc and scroll.
 		if (model.leftHash !== previous.leftHash) {
@@ -159,21 +187,19 @@ export class ComparePanel {
 		this.leftView = null;
 		this.rightView = null;
 		this.rootEl = null;
-		this.summaryEl = null;
-		this.navButtons = [];
-		this.pendingEl = null;
-		this.fileActionsEl = null;
-		this.applyButton = null;
-		this.discardButton = null;
+		this.controls?.info.remove();
+		this.controls?.controls.remove();
+		this.controls?.pending.remove();
+		this.controls = null;
 		this.current = -1;
 		this.choices.clear();
 		this.folded.clear();
+		this.opened.clear();
 	}
 
-	mountFileActions(host: HTMLElement): void {
-		if (!this.fileActionsEl) return;
-		host.appendChild(this.fileActionsEl);
-		host.toggleClass("has-pending", this.choices.size > 0);
+	mount(hosts: PanelHosts): void {
+		this.controls?.mount(hosts);
+		this.layoutMode?.refresh();
 	}
 
 	/** The pane the rail buttons belong to: the side a decision takes from. */
@@ -193,19 +219,24 @@ export class ComparePanel {
 		body: HTMLElement,
 		model: FileDiffModel,
 		side: CompareSide,
+		first: boolean,
 	): EditorView {
 		heads.createDiv({
 			cls: `mdsync-compare-head is-${side}`,
 			text: side === "left" ? model.leftLabel : model.rightLabel,
 		});
-		const host = body.createDiv({ cls: `mdsync-compare-host is-${side}` });
+		const host = body.createDiv({
+			cls: `mdsync-compare-host is-${side}${first ? " is-first" : ""}`,
+		});
 		const view = this.makeEditor(
 			host,
 			side === "left" ? model.leftText : model.rightText,
 			side,
 		);
 		this.overlays.push(
-			new ChangeOverlay(host, view, side, (key) => this.toggleFold(key)),
+			new ChangeOverlay(host, view, side, (key) =>
+				this.toggle(this.folded, key),
+			),
 		);
 		return view;
 	}
@@ -215,7 +246,6 @@ export class ComparePanel {
 		doc: string,
 		side: CompareSide,
 	): EditorView {
-		const model = this.model;
 		return new EditorView({
 			state: EditorState.create({
 				doc,
@@ -227,15 +257,24 @@ export class ComparePanel {
 						segments: () => this.segments,
 						choices: this.choices,
 						folded: () => this.folded,
-						toggleFold: (key) => this.toggleFold(key),
+						toggleFold: (key) => this.toggle(this.folded, key),
+						opened: () => this.opened,
+						toggleGap: (index) => this.toggle(this.opened, index),
 						combined: {
-							leftLabel: model?.leftLabel ?? "",
-							rightLabel: model?.rightLabel ?? "",
-							near: this.nearSide(),
+							direction: this.options.direction,
 							actions: (segment) => this.segmentActions(segment),
 						},
 					}),
 					lineNumbers(),
+					EditorView.domEventHandlers({
+						// A click on a change's lines selects it, as one on its connector does.
+						click: (event, view) => {
+							if (view.state.selection.main.empty) {
+								this.selectAt(view, side, event);
+							}
+							return false;
+						},
+					}),
 					this.wrapping.extension(),
 					EditorView.updateListener.of((update) => {
 						if (update.geometryChanged || update.viewportChanged) {
@@ -257,36 +296,11 @@ export class ComparePanel {
 	private segmentActions(segment: CompareSegment): RailAction[] {
 		if (!this.options.actionable) return [];
 		const ref = { hunk: segment.hunk, segment: segment.segment };
-		const action = (
-			kind: EChoiceKind,
-			label: string,
-			shortLabel: string,
-		): RailAction => ({
-			icon: CHOICE_ICON[kind],
-			label,
-			shortLabel,
-			active: this.choices.kindOf(ref) === kind,
-			run: () => this.toggleChoice(ref, kind),
-		});
-		switch (this.options.direction) {
-			case EDiffDirection.Local:
-				return [
-					action(EChoiceKind.Push, "Push this change to the remote", "Push"),
-					action(
-						EChoiceKind.Revert,
-						"Revert this change to the baseline",
-						"Revert",
-					),
-				];
-			case EDiffDirection.Remote:
-				return [
-					action(EChoiceKind.Pull, "Pull this change from the remote", "Pull"),
-				];
-			case EDiffDirection.Conflict:
-				return [action(EChoiceKind.Pull, "Accept the remote change", "Accept")];
-			default:
-				return [action(EChoiceKind.Restore, "Restore this change", "Restore")];
-		}
+		return choiceActions(
+			this.options.direction,
+			this.choices.kindOf(ref),
+			(kind) => this.toggleChoice(ref, kind),
+		);
 	}
 
 	private toggleChoice(
@@ -298,8 +312,8 @@ export class ComparePanel {
 		this.updateToolbar();
 	}
 
-	private toggleFold(key: number): void {
-		if (!this.folded.delete(key)) this.folded.add(key);
+	private toggle(set: Set<number>, key: number): void {
+		if (!set.delete(key)) set.add(key);
 		this.redrawSegments();
 	}
 
@@ -312,31 +326,36 @@ export class ComparePanel {
 		for (const view of [this.leftView, this.rightView]) {
 			view?.dispatch({ effects: segmentsChanged.of() });
 		}
-		this.divider?.update(this.dividerItems());
+		this.refreshDivider();
 	}
 
-	private dividerItems(): DividerItem[] {
+	private refreshDivider(): void {
 		const left = this.leftView;
 		const right = this.rightView;
-		if (!left || !right) return [];
+		if (!left || !right || !this.divider) return;
 		const near = this.nearSide();
+		const far = near === "left" ? "right" : "left";
 		const docs = { left: left.state.doc, right: right.state.doc };
-		const tone = directionTone(this.options.direction);
-		return this.segments.map((segment) => ({
+		const side = (at: CompareSide) => ({
+			doc: docs[at],
+			changes: this.segments.map((segment) => segment[at]),
+		});
+		const bands = foldedBands(side(near), side(far), this.opened);
+		const items: DividerItem[] = this.segments.map((segment) => ({
 			key: segment.key,
 			near: sideSpan(docs[near], segment[near]),
-			far: sideSpan(
-				near === "left" ? docs.right : docs.left,
-				segment[near === "left" ? "right" : "left"],
-			),
-			tone,
+			far: sideSpan(docs[far], segment[far]),
+			// The change's kind, never its direction or choice.
+			tone: segmentKind(segment),
 			actions: this.segmentActions(segment),
-			chosen:
+			pinned:
+				this.pinChosen &&
 				this.choices.kindOf({
 					hunk: segment.hunk,
 					segment: segment.segment,
 				}) !== undefined,
 		}));
+		this.divider.update(items, bands);
 	}
 
 	private scrollPairs(): ScrollAnchors {
@@ -354,41 +373,26 @@ export class ComparePanel {
 	}
 
 	private renderToolbar(root: HTMLElement): void {
-		const toolbar = root.createDiv({ cls: "mdsync-compare-toolbar" });
-		this.summaryEl = toolbar.createSpan({ cls: "mdsync-compare-summary" });
-		this.navButtons = [
-			appendIconButton(toolbar, "arrow-up", "Previous change", () =>
-				this.jump(-1),
-			),
-			appendIconButton(toolbar, "arrow-down", "Next change", () =>
-				this.jump(1),
-			),
-		];
+		this.controls = new CompareControls();
+		const toolbar = this.controls.controls;
 		this.layoutMode = new LayoutMode(root, toolbar, (combined, changed) => {
 			if (changed) {
 				for (const view of [this.leftView, this.rightView]) {
 					view?.dispatch({ effects: setCombinedMode.of(combined) });
 				}
 			}
+			this.controls?.showPin(!combined);
 			this.scheduleLayout();
 		});
 		this.wrapping.mount(toolbar);
-		toolbar.createSpan({ cls: "mdsync-compare-spacer" });
-		const fileActions = toolbar.createDiv({
-			cls: "mdsync-compare-file-actions",
-		});
-		this.fileActionsEl = fileActions;
-		this.discardButton = appendIconButton(
-			fileActions,
-			"x",
-			"Discard the pending choices",
-			() => this.discardChoices(),
-		);
-		this.applyButton = appendIconButton(fileActions, "check", "Apply", () => {
-			if (this.choices.size > 0) this.options.onApply(this.choices);
-		});
-		this.applyButton.addClass("mod-cta");
-		this.pendingEl = fileActions.createSpan({ cls: "mdsync-pending" });
+		if (this.options.actionable) {
+			this.controls.pinToggle(this.pinChosen, (enabled) => {
+				this.pinChosen = enabled;
+				this.options.onPinChosenChange(enabled);
+				this.refreshDivider();
+			});
+		}
+		this.controls.navigation((delta) => this.jump(delta));
 	}
 
 	private updateToolbar(): void {
@@ -398,47 +402,16 @@ export class ComparePanel {
 			added += segment.added;
 			removed += segment.removed;
 		}
-		if (this.summaryEl) {
-			this.summaryEl.empty();
-			this.summaryEl.appendText(`${this.segments.length} change(s)`);
-			if (added + removed > 0) {
-				this.summaryEl.appendText(" · ");
-				renderCounters(this.summaryEl, { added, removed });
-			}
-		}
-		// With one change there is nowhere else to go.
-		for (const button of this.navButtons) {
-			button.hidden = this.segments.length < 2;
-		}
-		const pending = this.choices.size;
-		if (this.applyButton) {
-			this.applyButton.hidden = pending === 0;
-			this.applyButton.setAttr(
-				"aria-label",
-				`Apply ${pending} chosen change(s)`,
-			);
-		}
-		if (this.discardButton) this.discardButton.hidden = pending === 0;
-		if (this.pendingEl) this.renderPending(this.pendingEl);
-	}
-
-	/** What Apply will do: a coloured count per kind, none for a kind not chosen. */
-	private renderPending(el: HTMLElement): void {
-		el.closest<HTMLElement>(".mdsync-diff-file-actions")?.toggleClass(
-			"has-pending",
-			this.choices.size > 0,
+		this.controls?.update(
+			{ added, removed, changes: this.segments.length, current: this.current },
+			this.options.direction,
+			this.options.actionable,
+			this.choices,
+			() => this.discardChoices(),
+			() => {
+				if (this.choices.size > 0) this.options.onApply(this.choices);
+			},
 		);
-		el.empty();
-		for (const kind of Object.values(EChoiceKind)) {
-			const count = this.choices.count(kind);
-			if (count === 0) continue;
-			const item = el.createSpan({
-				cls: `mdsync-pending-kind is-${kind}`,
-				attr: { "aria-label": `${count} to ${kind}` },
-			});
-			setIcon(item, CHOICE_ICON[kind]);
-			item.appendText(String(count));
-		}
 	}
 
 	private discardChoices(): void {
@@ -447,9 +420,33 @@ export class ComparePanel {
 		this.updateToolbar();
 	}
 
+	private selectAt(
+		view: EditorView,
+		side: CompareSide,
+		event: MouseEvent,
+	): void {
+		const pos = view.posAtCoords(event);
+		const line = pos === null ? -1 : view.state.doc.lineAt(pos).number - 1;
+		this.selectSegment(
+			this.segments.findIndex(
+				({ [side]: [from, to] }) => from <= line && line < to,
+			),
+		);
+	}
+
+	/** From either pane or the strip; the change counter follows. */
+	private selectSegment(index: number): void {
+		this.divider?.select(this.segments[index]?.key ?? null);
+		if (index < 0) return;
+		this.current = index;
+		this.updateToolbar();
+	}
+
 	private jump(delta: number): void {
 		const segment = this.segments[this.nextIndex(delta)];
 		if (!segment) return;
+		this.divider?.select(segment.key);
+		this.updateToolbar();
 		// Landing alone does not say where the change is; a ring marks it for a moment.
 		for (const overlay of this.overlays) overlay.flash(segment);
 		this.scheduleLayout();

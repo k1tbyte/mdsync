@@ -4,10 +4,9 @@ import { relayBehind } from "@/cloudflare";
 import { type RelayTestResult, testRelay } from "@/settings/connection-test";
 import { isRelayConfigured } from "@/settings/model";
 import { relayBase } from "@/shared";
-import { alertLine, focusKey, onEnter } from "@/ui/common";
-
+import { alertLine, callout, focusKey, onEnter } from "@/ui/common";
 import { choiceCard } from "./choice-card";
-import { actionRow, busyLine, callout } from "./form";
+import { actionRow, busyLine } from "./form";
 import { useRelay } from "./relay";
 import { relayDeployView } from "./relay-deploy-view";
 import { runAction } from "./run-action";

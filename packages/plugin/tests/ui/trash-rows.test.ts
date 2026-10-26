@@ -85,12 +85,24 @@ describe("buildTrashRows", () => {
 		expect(row?.title).toBe("notes/gone.md");
 		expect(row?.hash).toBe("H1");
 		expect(row?.meta).toBe("deleted 3 days ago · Device device-a · 2.0 KB");
-		expect(row?.retention).toBe("Drops out of history after 50 more pushes");
+		expect(row?.note).toEqual({
+			text: "Drops out of history after 50 more pushes",
+			tone: "plain",
+			icon: "hourglass",
+		});
 		expect(row?.pinned).toBe(false);
 	});
 
 	it("has nothing to build from an empty list", () => {
 		expect(buildTrashRows([], { maxSnapshots: 50 })).toEqual([]);
+	});
+
+	it("colours a record that drops out within a few pushes", () => {
+		const rows = buildTrashRows(
+			[deleted({ rank: 47 }), deleted({ rank: 46 })],
+			{ maxSnapshots: 50, now: NOW },
+		);
+		expect(rows.map((row) => row.note?.tone)).toEqual(["soon", "plain"]);
 	});
 
 	it("marks a file that is back in the vault as restored", () => {
@@ -102,12 +114,12 @@ describe("buildTrashRows", () => {
 				inVault: (path) => path === "notes/gone.md",
 			},
 		);
-		expect(rows.map((row) => row.restored)).toEqual([true, false]);
+		expect(rows.map((row) => row.note?.tone)).toEqual(["restored", "plain"]);
 	});
 
 	it("treats every file as still deleted without a vault to ask", () => {
 		const [row] = buildTrashRows([deleted()], { maxSnapshots: 50, now: NOW });
-		expect(row?.restored).toBe(false);
+		expect(row?.note?.tone).toBe("plain");
 	});
 
 	it("dates against the wall clock when no time is supplied", () => {
@@ -164,7 +176,8 @@ describe("buildTrashRows", () => {
 		});
 		// rank null means a pin holds it, whatever the source says.
 		expect(row?.pinned).toBe(true);
-		expect(row?.retention).toBe("Kept by a pinned snapshot");
+		expect(row?.note?.text).toBe("Kept by a pinned snapshot");
+		expect(row?.note?.tone).toBe("pinned");
 	});
 
 	it("says last seen, not deleted, for a file only a pin still holds", () => {
@@ -174,7 +187,8 @@ describe("buildTrashRows", () => {
 		});
 		expect(row?.meta).toContain("last seen 3 days ago");
 		expect(row?.pinned).toBe(true);
-		expect(row?.retention).toBe("Kept by a pinned snapshot");
+		expect(row?.note?.text).toBe("Kept by a pinned snapshot");
+		expect(row?.note?.tone).toBe("pinned");
 	});
 });
 

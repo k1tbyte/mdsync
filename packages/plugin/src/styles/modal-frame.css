@@ -1,0 +1,303 @@
+/* `renderModalHead` and friends in ui/common/modal-frame.ts: one look for every window. */
+.modal.mdsync-modal {
+	overflow: hidden;
+}
+
+/* The content scrolls; the head and the footer stay. */
+.mdsync-modal .modal-content {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	min-height: 0;
+	overflow-y: auto;
+}
+
+:where(.mdsync-modal .modal-content > *) {
+	flex-shrink: 0;
+}
+
+.mdsync-modal .modal-content p {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.mdsync-modal input[readonly] {
+	text-overflow: ellipsis;
+}
+
+.modal.mdsync-modal .mdsync-modal-head {
+	display: flex;
+	gap: var(--size-4-3);
+	align-items: center;
+	justify-content: flex-start;
+	margin-inline: 0;
+	padding-inline-end: var(--size-4-8);
+	text-align: start;
+}
+
+.mdsync-modal-tile {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 40px;
+	height: 40px;
+	border-radius: var(--radius-m);
+	background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+	color: var(--text-accent);
+}
+
+.mdsync-modal-tile.is-danger {
+	background: rgba(var(--color-red-rgb), 0.15);
+	color: var(--color-red);
+}
+
+.mdsync-modal-head-text {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-1);
+	min-width: 0;
+}
+
+.mdsync-modal-name {
+	overflow-wrap: anywhere;
+}
+
+/* Parts joined by a middle dot, wrapping whole. */
+.mdsync-modal-sub {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0 var(--size-4-2);
+	align-items: center;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-normal);
+}
+
+.mdsync-modal-sub:empty {
+	display: none;
+}
+
+.mdsync-modal-sub > :not(:first-child)::before {
+	content: "·";
+	margin-inline-end: var(--size-4-2);
+}
+
+.mdsync-modal-section {
+	margin-top: var(--size-4-3);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.mdsync-modal-hint {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.mdsync-modal-hint:empty {
+	display: none;
+}
+
+.mdsync-modal-warning {
+	padding: var(--size-4-2) var(--size-4-3);
+	border-inline-start: var(--mdsync-bar-strong) solid var(--color-orange);
+	border-radius: var(--radius-s);
+	background: rgba(var(--color-orange-rgb), 0.12);
+	overflow-wrap: anywhere;
+}
+
+/* One bordered card, a row per item. */
+.mdsync-modal-card {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+}
+
+.mdsync-modal-card > * + * {
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.mdsync-modal-row {
+	display: flex;
+	gap: var(--size-4-3);
+	align-items: center;
+	min-width: 0;
+	padding: var(--size-4-2) var(--size-4-3);
+}
+
+/* A file per row: `renderPath`, no avatar. */
+.mdsync-modal-row.is-compact {
+	padding-block: var(--size-2-3);
+}
+
+.mdsync-modal-row .mdsync-file-name {
+	flex: 0 1 auto;
+	min-width: 3ch;
+}
+
+.mdsync-modal-row[role="button"] {
+	cursor: var(--cursor);
+}
+
+.mdsync-modal-row[role="button"]:hover {
+	background: var(--background-modifier-hover);
+}
+
+.mdsync-modal-row[role="button"]:focus-visible {
+	outline: 2px solid var(--background-modifier-border-focus);
+	outline-offset: -2px;
+}
+
+.mdsync-modal-card > .mdsync-modal-row:first-child {
+	border-start-start-radius: inherit;
+	border-start-end-radius: inherit;
+}
+
+.mdsync-modal-card > .mdsync-modal-row:last-child {
+	border-end-start-radius: inherit;
+	border-end-end-radius: inherit;
+}
+
+.mdsync-modal-row-text {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.mdsync-modal-row-name {
+	font-weight: var(--font-medium);
+	overflow-wrap: anywhere;
+}
+
+.mdsync-modal-row-detail {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	overflow-wrap: anywhere;
+}
+
+/* Native form rows listed in a card. */
+.mdsync-modal-card > .setting-item {
+	padding: var(--size-4-2) var(--size-4-3);
+}
+
+.mdsync-modal-card > .setting-item:first-child {
+	border-top: 0;
+}
+
+.mdsync-modal-row-aside {
+	flex: none;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+}
+
+.mdsync-modal-row button {
+	flex: none;
+}
+
+.mdsync-modal-row .mdsync-icon-only {
+	background: transparent;
+	box-shadow: none;
+	color: var(--icon-color);
+}
+
+.mdsync-modal-row .mdsync-icon-only:hover {
+	background: var(--background-modifier-hover);
+}
+
+.modal.mdsync-modal .mdsync-modal-footer {
+	flex: 0 0 auto;
+	margin-top: var(--size-4-3);
+	padding-top: var(--size-4-3);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+/* A destructive way out, when it leads, stands apart from the rest. */
+.mdsync-modal-footer
+> :is(.mod-warning, .mod-destructive):first-child:not(:last-child) {
+	margin-inline-end: auto;
+}
+
+/* On a phone, a sheet rising from the bottom; closed by its buttons or the backdrop. */
+body.is-phone .modal-container.mdsync-drawer-host {
+	align-items: flex-end;
+	padding: 0;
+}
+
+body.is-phone .modal.mdsync-drawer {
+	width: 100%;
+	max-width: none;
+	height: auto;
+	max-height: 85dvh;
+	margin: 0;
+	border-radius: var(--radius-l) var(--radius-l) 0 0;
+}
+
+body.is-phone .modal.mdsync-drawer::before {
+	content: "";
+	flex: none;
+	width: 36px;
+	height: 4px;
+	margin: var(--size-4-2) auto 0;
+	border-radius: var(--mdsync-radius-pill);
+	background: var(--background-modifier-border-hover);
+}
+
+body.is-phone .mdsync-drawer :is(.modal-close-button, .modal-header-button) {
+	display: none;
+}
+
+body.is-phone .modal.mdsync-modal {
+	.mdsync-modal-footer {
+		margin-bottom: 0;
+		padding: var(--size-4-3) var(--size-4-4);
+		padding-bottom: max(
+			var(--size-4-3),
+			var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
+		);
+	}
+
+	.mdsync-modal-footer > :is(.mod-warning, .mod-destructive):first-child {
+		margin-inline-end: 0;
+	}
+
+	/* Parts stacked: a narrow head would wrap them mid-list. */
+	.mdsync-modal-sub {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+
+	.mdsync-modal-sub > ::before {
+		display: none;
+	}
+
+	.mdsync-modal-row .mdsync-icon-only {
+		min-width: var(--mdsync-touch);
+		min-height: var(--mdsync-touch);
+	}
+
+	/* The keyboard leaves little room: the whole sheet scrolls instead. */
+	&.is-typing {
+		overflow-y: auto;
+
+		.modal-content {
+			flex: none;
+			overflow: visible;
+		}
+	}
+}
+
+@media (max-height: 520px) {
+	body.is-phone .modal.mdsync-modal {
+		overflow-y: auto;
+
+		.modal-content {
+			flex: none;
+			overflow: visible;
+		}
+	}
+}

@@ -1,0 +1,296 @@
+/* Inline: every change is a card. Its head and removed lines are a widget, its added lines the editor's rows below. */
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined {
+	--mdsync-card-radius: 10px;
+	--mdsync-card-gap: var(--size-4-2);
+	--mdsync-card-border: var(--background-modifier-border);
+	/* Room for the sign before a changed line's text. */
+	--mdsync-card-inset: calc(var(--size-4-3) + 2ch);
+	/* Room for the number before an unchanged line's text. */
+	--mdsync-number-width: calc(var(--size-4-2) + 4ch);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined .cm-gutters {
+	display: none;
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined .cm-content {
+	padding: 0 var(--size-4-3) var(--mdsync-card-gap);
+}
+
+/* Space goes on widget slots: padding a text row would skew CodeMirror's line height sample. */
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+:is(.mdsync-source-slot, .mdsync-gap-slot) {
+	padding-top: var(--mdsync-card-gap);
+}
+
+/* Rows framed by inset shadows, not borders: a chosen card's thicker edge moves nothing. */
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+.cm-line:is(.mdsync-diff-line, .mdsync-unchanged-line) {
+	--mdsync-edge: var(--mdsync-card-border);
+	--mdsync-edge-width: 1px;
+	/* An edge left off is transparent, not zero-wide: a zero inset shadow leaves hairlines at fractional zoom. */
+	--mdsync-edge-top: transparent;
+	--mdsync-edge-bottom: transparent;
+	position: relative;
+	box-shadow:
+		inset var(--mdsync-edge-width) 0 0 var(--mdsync-edge),
+		inset calc(-1 * var(--mdsync-edge-width)) 0 0 var(--mdsync-edge),
+		inset 0 var(--mdsync-edge-width) 0 var(--mdsync-edge-top),
+		inset 0 calc(-1 * var(--mdsync-edge-width)) 0 var(--mdsync-edge-bottom),
+		var(--mdsync-line-bar, 0 0 transparent);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined .mdsync-source {
+	position: relative;
+	/* Clips the corners without becoming the sticky head's scroll container. */
+	overflow: clip;
+	border: 1px solid var(--mdsync-card-border);
+	border-bottom: none;
+	border-radius: var(--mdsync-card-radius) var(--mdsync-card-radius) 0 0;
+	background: none;
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.mdsync-source.is-closing {
+	border-bottom: 1px solid var(--mdsync-card-border);
+	border-radius: var(--mdsync-card-radius);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.mdsync-source-head {
+	min-height: 36px;
+	padding: 0 var(--size-4-1) 0 var(--size-4-3);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	font-weight: normal;
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.mdsync-source-label {
+	flex: 1 1 auto;
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.mdsync-source-head
+	.mdsync-rail-btn {
+	width: auto;
+	height: 28px;
+	padding: 0 var(--size-4-2);
+	gap: var(--size-4-1);
+	border: none;
+	box-shadow: none;
+	background: transparent;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.mdsync-source-head
+	.mdsync-rail-btn:hover {
+	background: var(--background-modifier-hover);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.mdsync-source-head
+	.mdsync-rail-btn.is-active {
+	color: var(--text-accent);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined .mdsync-rail-label {
+	display: inline;
+}
+
+/* A chosen card: accent edge, its second pixel drawn inside. */
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+.mdsync-source.is-chosen {
+	border-color: var(--interactive-accent);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.mdsync-source.is-chosen::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	border: 1px solid var(--interactive-accent);
+	border-bottom: none;
+	border-radius: calc(var(--mdsync-card-radius) - 1px)
+		calc(var(--mdsync-card-radius) - 1px) 0 0;
+	pointer-events: none;
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.mdsync-source.is-chosen.is-closing::after {
+	border-bottom: 1px solid var(--interactive-accent);
+	border-radius: calc(var(--mdsync-card-radius) - 1px);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.mdsync-source.is-chosen
+	> .mdsync-source-head {
+	box-shadow: none;
+	background: color-mix(
+		in srgb,
+		var(--interactive-accent) 16%,
+		var(--background-secondary)
+	);
+	color: var(--text-normal);
+}
+
+/* Removed lines: a sign instead of a line number. */
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+.mdsync-source-lines {
+	box-shadow: none;
+}
+
+/* One column: an empty line's text still fills the row, bar included. */
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined .mdsync-code-line {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.mdsync-code-number {
+	display: none;
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined .mdsync-code-text {
+	position: relative;
+	padding-left: var(--mdsync-card-inset);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.mdsync-code-text::before {
+	content: "−";
+	position: absolute;
+	left: var(--size-4-3);
+	color: rgb(var(--mdsync-tone));
+}
+
+/* Added lines: the editor's own rows close the card. */
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+.cm-line.mdsync-diff-line {
+	--mdsync-line-bar: inset calc(var(--mdsync-edge-width) + var(--mdsync-bar)) 0
+		0 rgba(var(--mdsync-tone), 0.7);
+	padding-left: calc(var(--mdsync-card-inset) + 1px);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.cm-line.mdsync-diff-line::before {
+	content: "+";
+	position: absolute;
+	left: calc(var(--size-4-3) + 1px);
+	color: rgb(var(--mdsync-tone));
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.cm-line.mdsync-diff-line.is-last {
+	--mdsync-edge-bottom: var(--mdsync-edge);
+	border-radius: 0 0 var(--mdsync-card-radius) var(--mdsync-card-radius);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.cm-line.mdsync-diff-line.is-chosen {
+	--mdsync-edge: var(--interactive-accent);
+	--mdsync-edge-width: 2px;
+	background-color: rgba(var(--mdsync-tone), 0.14);
+}
+
+/* A folded change: its row closes the card. */
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+button.mdsync-gap.is-card-foot {
+	height: 32px;
+	border: 1px solid var(--mdsync-card-border);
+	border-top: none;
+	border-radius: 0 0 var(--mdsync-card-radius) var(--mdsync-card-radius);
+	background: var(--background-secondary);
+	font-size: var(--font-ui-small);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	button.mdsync-gap.is-card-foot.is-chosen {
+	border-color: var(--interactive-accent);
+	box-shadow:
+		inset 1px 0 0 var(--interactive-accent),
+		inset -1px 0 0 var(--interactive-accent),
+		inset 0 -1px 0 var(--interactive-accent);
+}
+
+/* Unchanged rows on show: numbered, in a frame of their own. */
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+.cm-line.mdsync-unchanged-line {
+	padding-left: calc(var(--mdsync-number-width) + var(--size-4-3));
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.cm-line.mdsync-unchanged-line::before {
+	content: attr(data-line);
+	position: absolute;
+	left: 0;
+	width: var(--mdsync-number-width);
+	color: var(--text-faint);
+	text-align: right;
+}
+
+/* A short run opens its frame itself; an opened run's head does it for it. */
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.mdsync-gap-slot.is-spacer
+	+ .cm-line.mdsync-unchanged-line {
+	--mdsync-edge-top: var(--mdsync-edge);
+	border-top-left-radius: var(--mdsync-card-radius);
+	border-top-right-radius: var(--mdsync-card-radius);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.cm-line.mdsync-unchanged-line.is-run-end {
+	--mdsync-edge-bottom: var(--mdsync-edge);
+	border-bottom-left-radius: var(--mdsync-card-radius);
+	border-bottom-right-radius: var(--mdsync-card-radius);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.mdsync-gap-slot.is-open
+	> button.mdsync-gap {
+	height: 32px;
+	border: 1px solid var(--mdsync-card-border);
+	border-radius: var(--mdsync-card-radius) var(--mdsync-card-radius) 0 0;
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	.mdsync-gap-slot:not(.is-open)
+	> button.mdsync-gap {
+	height: auto;
+	min-height: 36px;
+	border: 1px dashed var(--background-modifier-border-hover);
+	border-radius: var(--mdsync-card-radius);
+	background: transparent;
+	font-size: var(--font-ui-small);
+}
+
+:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	:is(
+		.mdsync-gap-slot > button.mdsync-gap,
+		button.mdsync-gap.is-card-foot
+	):hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+/* Unwrapped lines scroll sideways; heads and bars stay in view. Never wider than their box: a stale pane width would widen the content. */
+body.is-phone
+	.mdsync-diff-view
+	:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	:is(.mdsync-source-head, .mdsync-gap) {
+	left: var(--size-4-3);
+	width: min(100%, calc(var(--mdsync-pane-width, 100%) - 2 * var(--size-4-3)));
+}
+
+body.is-phone
+	.mdsync-diff-view
+	:is(.mdsync-compare-panel, .mdsync-merge-panel).is-combined
+	:is(button.mdsync-gap, .mdsync-source-head .mdsync-rail-btn) {
+	min-height: var(--mdsync-touch);
+}

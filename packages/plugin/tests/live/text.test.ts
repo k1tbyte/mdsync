@@ -3,7 +3,7 @@ import * as Y from "yjs";
 
 import { mergeThreeWay } from "@/live/text/merge";
 import { patchYText } from "@/live/text/patch";
-import { commonEnds } from "@/sync/hunks";
+import { commonEnds } from "@/utils";
 
 describe("mergeThreeWay", () => {
 	it("takes the room when this device changed nothing", () => {
@@ -78,7 +78,7 @@ describe("patchYText", () => {
 		expect(text).not.toContain("�");
 	});
 
-	it("reaches the target past the edit budget", () => {
+	it("reaches the target past the diff budget", () => {
 		const from = "x".repeat(3000);
 		const to = "y".repeat(3000);
 		expect(patched(`<${from}>`, `<${to}>`).text).toBe(`<${to}>`);

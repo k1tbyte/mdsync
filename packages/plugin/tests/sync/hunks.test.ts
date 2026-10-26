@@ -10,6 +10,7 @@ import {
 	selectionSize,
 	wholeHunks,
 } from "@/sync/hunks";
+import { diffRanges, toLf } from "@/utils";
 
 describe("hunks", () => {
 	describe("computeHunks", () => {
@@ -26,10 +27,10 @@ describe("hunks", () => {
 			expect(result.rightLines).toHaveLength(2);
 		});
 
-		describe("past the edit budget", () => {
+		describe("past the diff budget", () => {
 			const shared = Array.from({ length: 10 }, (_, i) => `same ${i}`);
 			const rewritten = (tag: string) =>
-				Array.from({ length: 1200 }, (_, i) => `${tag} ${i}`);
+				Array.from({ length: 2000 }, (_, i) => `${tag} ${i}`);
 
 			it("reports the differing middle as one segment with three lines of context", () => {
 				const left = [...shared, ...rewritten("old"), ...shared].join("\n");
@@ -39,14 +40,14 @@ describe("hunks", () => {
 				const hunk = hunks[0] as SyncHunk;
 				expect(hunk).toMatchObject({
 					oldStart: 8,
-					oldLines: 1206,
+					oldLines: 2006,
 					newStart: 8,
-					newLines: 1206,
-					removed: 1200,
-					added: 1200,
+					newLines: 2006,
+					removed: 2000,
+					added: 2000,
 				});
 				expect(hunkSegments(hunk)).toMatchObject([
-					{ left: [10, 1210], right: [10, 1210] },
+					{ left: [10, 2010], right: [10, 2010] },
 				]);
 			});
 
@@ -66,11 +67,16 @@ describe("hunks", () => {
 				},
 			);
 
+			it("builds a block too large to spread into one call", () => {
+				const { hunks } = computeHunks("", "\n".repeat(200_000));
+				expect(hunks).toMatchObject([{ oldLines: 0, added: 200_000 }]);
+			});
+
 			it("handles an empty side", () => {
 				const right = rewritten("new").join("\n");
 				const { hunks } = computeHunks("", right);
 				expect(hunks).toMatchObject([
-					{ oldStart: 1, oldLines: 0, newLines: 1200 },
+					{ oldStart: 1, oldLines: 0, newLines: 2000 },
 				]);
 				expect(applyHunks("", hunks, wholeHunks(hunks))).toBe(right);
 				expect(
@@ -91,6 +97,57 @@ describe("hunks", () => {
 			expect(result.hunks[0]).toMatchObject({
 				kind: EHunkKind.Removed,
 				removed: 1,
+			});
+		});
+
+		describe("diffs from the first differing line, yet matches a diff of the whole texts", () => {
+			const lineTokens = (text: string) =>
+				toLf(text).match(/[^\n]*\n|[^\n]+$/g) ?? [];
+			const matchesWhole = (a: string, b: string) =>
+				expect(
+					computeHunks(a, b)
+						.hunks.flatMap(hunkSegments)
+						.map(({ left, right }) => ({ a: left, b: right })),
+				).toEqual(diffRanges(lineTokens(a), lineTokens(b), Infinity));
+
+			// Repeated lines let the differ align into a common suffix: cutting one off moved hunks.
+			it("keeps a common suffix of repeated lines", () => {
+				matchesWhole(`c\n${"a\n".repeat(10)}z\n`, `${"a\n".repeat(11)}z\n`);
+				const cycle = ["😀", "a", "", "ab", "a", "a", "c", "b"];
+				const left = [...Array(5).fill(cycle).flat(), "😀", "a"];
+				const right = [
+					...cycle,
+					...["😀", "a", "", "ab", "a", "a", "c", "", "ab", "a", "a", "a"],
+					...["", "ab", "a", "a", "c", "b", "😀", "a", "", "ab", "a", "a"],
+					...["c", "b", "😀", "a", "a", "c", "b", "😀", "a", "", "ab", "a"],
+					...["a", "c", "c", "b", "😀", "a"],
+				];
+				matchesWhole(`${left.join("\n")}\n`, `${right.join("\n")}\n`);
+			});
+
+			it("on random texts heavy with blank and repeated lines", () => {
+				let seed = 7;
+				const random = (n: number) => {
+					seed = (seed * 1103515245 + 12345) % 2 ** 31;
+					return seed % n;
+				};
+				const pool = ["", "", "a", "a", "a", "b", "## h", "\r", "😀"];
+				const text = (lines: readonly string[]) =>
+					lines.join(random(5) ? "\n" : "\r\n") + (random(2) ? "\n" : "");
+				for (let run = 0; run < 5000; run++) {
+					const left = Array.from(
+						{ length: random(60) },
+						() => pool[random(pool.length)] as string,
+					);
+					const right = [...left];
+					for (let edit = random(6); edit >= 0; edit--) {
+						const at = random(right.length + 1);
+						if (random(2))
+							right.splice(at, 0, pool[random(pool.length)] as string);
+						else right.splice(at, 1 + random(3));
+					}
+					matchesWhole(text(left), text(right));
+				}
 			});
 		});
 	});

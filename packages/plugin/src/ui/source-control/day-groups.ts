@@ -1,4 +1,14 @@
-import { formatDayLabel } from "@/shared";
+import { formatDayLabel, formatRelativeTime } from "@/shared";
+
+/** A dated row's title: its age today, its clock time on an older day, whose name heads the group. */
+export function timeInDay(ms: number, now: number = Date.now()): string {
+	if (new Date(ms).toDateString() === new Date(now).toDateString())
+		return formatRelativeTime(ms, now);
+	return new Date(ms).toLocaleTimeString(undefined, {
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+}
 
 export interface DayGroup<T> {
 	label: string;

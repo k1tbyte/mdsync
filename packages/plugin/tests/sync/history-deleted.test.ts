@@ -1,6 +1,6 @@
 import { FakeStorage } from "@tests/helpers/fake-storage";
 import { publishManifest } from "@tests/helpers/manifest";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { deriveKey, type EncryptionKey, encryptJson } from "@/crypto";
 import { diffManifests } from "@/sync/history/changes";
 import { listDeletedFiles, listSnapshots } from "@/sync/history/query";
@@ -315,6 +315,43 @@ describe("listDeletedFiles", () => {
 		expect(result.files[0]?.source).toBe("deleted");
 		expect(result.files[0]?.createdAt).toBe(300);
 		expect(result.files[0]?.rank).toBeNull();
+	});
+
+	it("lets the newest pin win however the pin reads finish", async () => {
+		const chain = [
+			manifest("p1", null, { f: entry("F1") }, 100),
+			manifest("p2", "p1", { f: entry("F2"), g: entry("G2") }, 200),
+			manifest("p3", "p2", { f: entry("F3") }, 300),
+			manifest("s4", "p3", {}, 400),
+		];
+		const storage = new FakeStorage();
+		await publishManifest(storage, key, chain[3] as Manifest);
+		const log = logOf(chain, ["p1", "p2", "p3"]);
+		// Without s4's record the walk stops, so the pins alone explain the files.
+		const { s4: _dropped, ...changes } = log.changes;
+		await writeHistoryLog(storage, key, "", { ...log, changes });
+		const delays: Record<string, number> = { p1: 0, p2: 15, p3: 30 };
+		for (const [index, id] of ["p1", "p2", "p3"].entries()) {
+			await storage.put(
+				pinKey(id),
+				await encryptJson(key, chain[index] as Manifest),
+			);
+		}
+		const get = storage.get.bind(storage);
+		vi.spyOn(storage, "get").mockImplementation(async (path) => {
+			const id = Object.keys(delays).find((pin) => path === pinKey(pin));
+			if (id) await new Promise((r) => setTimeout(r, delays[id]));
+			return get(path);
+		});
+
+		const result = await listDeletedFiles({ storage, key, root: "" });
+		const byPath = Object.fromEntries(
+			result.files.map((file) => [file.path, file]),
+		);
+		expect(byPath.f?.snapshotId).toBe("p3");
+		expect(byPath.f?.entry.hash).toBe("F3");
+		expect(byPath.g?.snapshotId).toBe("p2");
+		expect(result.files.every((file) => file.rank === null)).toBe(true);
 	});
 
 	it("returns nothing when no vault is published", async () => {

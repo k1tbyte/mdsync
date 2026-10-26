@@ -2,6 +2,7 @@ import { beforeAll } from "vitest";
 import { deriveKey, type EncryptionKey } from "@/crypto";
 import { DEFAULT_SETTINGS_SYNC } from "@/settings/model";
 import { compare, type EngineDependencies } from "@/sync/engine";
+import { WriteJournal } from "@/sync/journal";
 import type { OperationContext } from "@/sync/operations";
 import { VAULT_SPACE } from "@/sync/space";
 import type { SessionState } from "@/sync/types";
@@ -25,6 +26,7 @@ const scope = createScopePolicy({
 /** One device: an in-memory vault, a fake remote, and mutable session state. */
 export class TestSession {
 	readonly adapter = new InMemoryAdapter();
+	journal = new WriteJournal(this.adapter.asDataAdapter(), ".obsidian");
 	readonly logged: string[] = [];
 	state: SessionState;
 
@@ -51,6 +53,7 @@ export class TestSession {
 			state: this.state,
 			maxFileBytes: 1_000_000,
 			concurrency: 2,
+			journal: this.journal,
 		};
 	}
 

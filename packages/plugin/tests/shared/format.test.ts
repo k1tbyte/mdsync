@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
 	formatBytes,
 	formatDayLabel,
-	formatSizeDelta,
 	pluralize,
 	withDevices,
 } from "@/shared/format";
@@ -36,17 +35,6 @@ describe("pluralize", () => {
 		expect(pluralize(1, "file")).toBe("1 file");
 		expect(pluralize(0, "file")).toBe("0 files");
 		expect(pluralize(2, "file")).toBe("2 files");
-	});
-});
-
-describe("formatSizeDelta", () => {
-	it("signs the change in both directions", () => {
-		expect(formatSizeDelta(1024)).toBe("+1.0 KB");
-		expect(formatSizeDelta(-1024)).toBe("−1.0 KB");
-	});
-
-	it("says nothing when nothing moved", () => {
-		expect(formatSizeDelta(0)).toBeNull();
 	});
 });
 

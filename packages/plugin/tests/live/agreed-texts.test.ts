@@ -39,6 +39,38 @@ describe("agreed texts", () => {
 		await agreed.flush();
 	});
 
+	it("saves a base put now at once, leaving the others to the delay", async () => {
+		const adapter = new InMemoryAdapter();
+		const agreed = store(adapter);
+		const typed = { text: "typed", gen: 0, seq: 2 };
+		agreed.put("room", typed, async () => false);
+		for (const seq of [1, 2, 3, 4, 5]) {
+			await agreed.putNow("doc", { text: "pulled", gen: 1, seq });
+		}
+		expect(await store(adapter).get("doc")).toEqual({
+			text: "pulled",
+			gen: 1,
+			seq: 5,
+		});
+		// Tried five times early, the room's base would be given up before its file is saved.
+		expect(await agreed.get("room")).toEqual(typed);
+	});
+
+	it("fails a base put now that it could not save, and saves the next", async () => {
+		const adapter = new InMemoryAdapter();
+		const agreed = store(adapter);
+		vi.spyOn(adapter, "write").mockRejectedValueOnce(new Error("disk full"));
+		await expect(
+			agreed.putNow("doc", { text: "a", gen: 0, seq: 1 }),
+		).rejects.toThrow("disk full");
+		await agreed.putNow("doc", { text: "b", gen: 0, seq: 2 });
+		expect(await store(adapter).get("doc")).toEqual({
+			text: "b",
+			gen: 0,
+			seq: 2,
+		});
+	});
+
 	it("keeps a base off disk until the note's file holds it", async () => {
 		const adapter = new InMemoryAdapter();
 		const agreed = store(adapter);

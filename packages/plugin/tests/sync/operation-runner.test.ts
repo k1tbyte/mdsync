@@ -274,6 +274,18 @@ describe("OperationRunner.refreshNow", () => {
 		expect(baseline?.folders ?? []).toEqual([]);
 	});
 
+	it("names the storage the vault compared against", async () => {
+		const [session] = pairedSessions();
+		const { runner, runtimeState } = createTestRunner(session);
+		expect(runtimeState.getSnapshot().vaultCheck).toBeNull();
+
+		await runner.refreshNow();
+
+		expect(runtimeState.getSnapshot().vaultCheck?.storage).toBe(
+			session.storage.identity(),
+		);
+	});
+
 	it("records the empty folders a first refresh finds on both sides", async () => {
 		const [a, b] = pairedSessions();
 		a.adapter.putText("note.md", "shared\n");

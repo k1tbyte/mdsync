@@ -24,7 +24,13 @@ import {
 } from "@/links";
 import type { PluginHost } from "@/plugin/host";
 import { invitePassword } from "@/spaces";
-import { alertLine, copyable, serial } from "@/ui/common";
+import {
+	alertLine,
+	copyable,
+	modalFooter,
+	renderModalHead,
+	serial,
+} from "@/ui/common";
 import { renderPreviewFrame } from "./preview-frame";
 
 const MIN_PASSPHRASE = 8;
@@ -54,6 +60,7 @@ export class ShareLinkModal extends Modal {
 	private snapshot: Snapshot | null = null;
 	private passphraseField: TextComponent | null = null;
 	private createButton: ButtonComponent | null = null;
+	private footer: HTMLElement | null = null;
 
 	constructor(
 		private readonly plugin: PluginHost,
@@ -64,7 +71,12 @@ export class ShareLinkModal extends Modal {
 
 	onOpen(): void {
 		this.modalEl.addClass("mdsync-link-modal");
-		this.titleEl.setText(`Share a link to "${this.file.basename}"`);
+		renderModalHead(this, {
+			icon: "link",
+			title: "Share a link",
+			sub: this.file.basename,
+		});
+		this.footer = modalFooter(this);
 		this.renderForm();
 	}
 
@@ -81,7 +93,7 @@ export class ShareLinkModal extends Modal {
 	private renderForm(): void {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.createEl("p", { cls: "setting-item-description", text: INTRO });
+		contentEl.createEl("p", { text: INTRO });
 		this.renderExpiry(contentEl);
 		new Setting(contentEl)
 			.setName("Views")
@@ -132,7 +144,7 @@ export class ShareLinkModal extends Modal {
 				}),
 			);
 		const failure = alertLine(contentEl);
-		const buttons = contentEl.createDiv({ cls: "mdsync-modal-buttons" });
+		const buttons = this.footerEmptied();
 		new ButtonComponent(buttons)
 			.setButtonText("Cancel")
 			.onClick(() => this.close());
@@ -235,8 +247,9 @@ export class ShareLinkModal extends Modal {
 		this.snapshot = null;
 		this.syncCreate();
 		pane.empty();
+		// A paragraph: the e2e reads "Left out…" from the modal's `p`.
 		const line = pane.createEl("p", {
-			cls: "setting-item-description",
+			cls: "mdsync-modal-hint",
 			text: "Checking what the link will contain…",
 		});
 		try {
@@ -264,6 +277,13 @@ export class ShareLinkModal extends Modal {
 		this.syncCreate();
 	}
 
+	private footerEmptied(): HTMLElement {
+		const footer = this.footer ?? modalFooter(this);
+		footer.empty();
+		this.footer = footer;
+		return footer;
+	}
+
 	private syncCreate(): void {
 		this.createButton?.setDisabled(this.snapshot === null || this.uploading);
 	}
@@ -271,17 +291,19 @@ export class ShareLinkModal extends Modal {
 	private renderResult(record: LinkRecord, passphrase: string): void {
 		const { contentEl } = this;
 		contentEl.empty();
-		this.titleEl.setText("Link created");
+		renderModalHead(this, {
+			icon: "check",
+			title: "Link created",
+			sub: this.file.basename,
+		});
 		contentEl.createEl("p", {
-			cls: "setting-item-description",
 			text: passphrase
 				? "Send the link and the passphrase by different routes. The passphrase is not saved: you will not see it again. The link stays listed under Manage share links."
 				: "Anyone who gets this link can read the note. It stays listed under Manage share links.",
 		});
 		copyable(contentEl, "Link", record.url);
 		if (passphrase) copyable(contentEl, "Passphrase", passphrase);
-		const buttons = contentEl.createDiv({ cls: "mdsync-modal-buttons" });
-		new ButtonComponent(buttons)
+		new ButtonComponent(this.footerEmptied())
 			.setButtonText("Done")
 			.setCta()
 			.onClick(() => this.close());

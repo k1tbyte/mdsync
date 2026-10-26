@@ -2,8 +2,10 @@ import type { TestSession } from "@tests/helpers/session";
 import { pairedSessions, useEncryptionKey } from "@tests/helpers/session";
 import { describe, expect, it, vi } from "vitest";
 import { autoMergeOp, isTextMergeCandidate } from "@/sync/auto-merge";
+import type { LiveNotes } from "@/sync/live-notes";
 import { pushPathsOp } from "@/sync/operations/push";
 import { recomputeAfterWrite } from "@/sync/session-state";
+import { VAULT_SPACE } from "@/sync/space";
 
 useEncryptionKey();
 
@@ -170,6 +172,34 @@ describe("autoMergeOp", () => {
 
 		expect(a.text("note.md")).toBe(typed);
 		expect(outcome.touchedPaths.size).toBe(0);
+	});
+
+	it("lets no room open on a merge before its merge base is saved", async () => {
+		const [a] = await diverged(
+			BASE.replace("one", "ONE"),
+			BASE.replace("six", "SIX"),
+		);
+		const result = await a.compare();
+		const remote = result.remote?.files["note.md"];
+		if (!result.remote || !remote) throw new Error("expected the remote note");
+		result.remote.files["note.md"] = {
+			...remote,
+			live: { doc: "doc", gen: 0, seq: 1 },
+		};
+		const seen: unknown[] = [];
+		const live = {
+			holds: () => false,
+			absorb: async () => "cold",
+			mark: async () => null,
+			wrote: async () => {
+				seen.push(a.journal.writeAt(VAULT_SPACE, "note.md"));
+			},
+		} as unknown as LiveNotes;
+
+		await autoMergeOp({ ...a.deps(), live }, result, a.context());
+
+		expect(seen).toEqual(["writing"]);
+		expect(a.journal.pending(VAULT_SPACE)).toEqual([]);
 	});
 
 	it("skips a conflict with no common ancestor", async () => {

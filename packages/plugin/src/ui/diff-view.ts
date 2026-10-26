@@ -1,14 +1,8 @@
-import {
-	debounce,
-	ItemView,
-	Platform,
-	type ViewStateResult,
-	type WorkspaceLeaf,
-} from "obsidian";
+import { ItemView, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { DIFF_VIEW_TYPE, SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
 import { errorMessage } from "@/shared";
-import { HUNK_TEXT_MAX_BYTES } from "@/sync/constants";
+import type { CompareResult } from "@/sync/engine";
 import {
 	EDiffDirection,
 	type FileDiffModel,
@@ -16,37 +10,26 @@ import {
 } from "@/sync/projection";
 import { notifyError, redrawOnPhoneChange } from "@/ui/common";
 import { openConfirmModal } from "@/ui/modals";
+import { type ComparePanel, MergeEditorPanel, renderBinaryDiff } from "./diff";
+import { watchDiffChrome } from "./diff/action-bar";
+import { renderTextDiff } from "./diff/compare-panel";
 import {
-	ComparePanel,
-	MergeEditorPanel,
-	renderBinaryDiff,
-	renderDiffHeader,
-} from "./diff";
+	getAdjacentPath,
+	getNextConflictPath,
+	getOrderedPaths,
+} from "./diff/file-navigation";
+import { renderDiffFrame } from "./diff/header";
 import {
 	buildHistoryRequest,
 	changesDiffer,
+	compareActionable,
+	type DiffViewState,
 	type HistoryChange,
-	hunkHintText,
 	selectHistoryMode,
 } from "./diff/history-state";
 import { DiffOperations } from "./diff/operations";
 import { PreviewPanel } from "./diff/preview-panel";
 import { openSourceControlView } from "./source-control-view";
-
-interface DiffViewState {
-	path?: string;
-	historyHash?: string;
-	historyLabel?: string;
-	historySize?: number;
-	/** Set to diff two stored versions instead of a version against the vault. */
-	againstHash?: string;
-	againstLabel?: string;
-	againstSize?: number;
-	/** Before/after refs for a historical change diff (timeline file click). */
-	historyChange?: HistoryChange;
-	/** When true and local file is missing, show read-only preview instead of deletion diff. */
-	historyPreviewIfMissing?: boolean;
-}
 
 export class DiffView extends ItemView {
 	private readonly plugin: PluginHost;
@@ -64,10 +47,15 @@ export class DiffView extends ItemView {
 	private previewPanel: PreviewPanel | null = null;
 	private forceText = false;
 	private lineWrapping = true;
+	private pinChosen = true;
 	private headerEl: HTMLElement | null = null;
 	private bodyEl: HTMLElement | null = null;
+	private actionBarEl: HTMLElement | null = null;
+	private chrome: MutationObserver | null = null;
 	private rendering = false;
 	private refreshPending = false;
+	/** Merge… from source control asked for this path. */
+	private mergeRequested: string | null = null;
 	/** Monotonic generation counter; async loads discard results from older generations. */
 	private loadGeneration = 0;
 
@@ -115,6 +103,7 @@ export class DiffView extends ItemView {
 	}
 
 	async setState(state: DiffViewState, result: ViewStateResult): Promise<void> {
+		this.mergeRequested = state.merge ? (state.path ?? this.path) : null;
 		const changed =
 			(state.path && state.path !== this.path) ||
 			(state.historyHash ?? null) !== this.historyHash ||
@@ -146,30 +135,75 @@ export class DiffView extends ItemView {
 			this.destroyViews();
 			await this.refreshModel();
 		}
+		await this.enterRequestedMerge();
 		await super.setState(state, result);
 	}
 
+	/** Once the requested path's model is in: a load still queued behind another finishes later. */
+	private async enterRequestedMerge(): Promise<void> {
+		const model = this.model;
+		if (!this.path || this.mergeRequested !== this.path || !model) return;
+		this.mergeRequested = null;
+		if (
+			model.direction !== EDiffDirection.Conflict ||
+			model.isBinary ||
+			this.mergePanel.isEditing
+		) {
+			return;
+		}
+		await this.mergePanel.enter(
+			this.plugin,
+			this.path,
+			this.stillShowing(),
+			() => this.renderShell(),
+		);
+	}
+
+	/** A file opened since, even this one again, makes what was asked for it stale. */
+	private stillShowing(): () => boolean {
+		const gen = this.loadGeneration;
+		return () => gen === this.loadGeneration;
+	}
+
 	private unsubStatus: (() => void) | null = null;
-	private cancelStatusDebounce: (() => void) | null = null;
+	/** Only a compare or a finished operation changes what a diff reads; progress broadcasts change neither. */
+	private seenResult: CompareResult | null = null;
+	private seenBusy = false;
+	private stale = false;
 
 	async onOpen(): Promise<void> {
 		this.contentEl.empty();
 		this.contentEl.addClass("mdsync-diff-view");
 		this.headerEl = this.contentEl.createDiv({ cls: "mdsync-diff-header" });
+		this.actionBarEl = this.contentEl.createDiv({
+			cls: "mdsync-diff-action-bar",
+		});
 		this.bodyEl = this.contentEl.createDiv({ cls: "mdsync-diff-body" });
-		const handleStatus = debounce(
-			() => {
-				if (this.path && !this.mergePanel.isEditing) void this.refreshModel();
-			},
-			200,
-			true,
-		);
-
-		this.unsubStatus = this.plugin.controller.subscribe(handleStatus);
-		this.cancelStatusDebounce = () => handleStatus.cancel();
+		this.chrome = watchDiffChrome(this.headerEl, this.actionBarEl);
+		({ result: this.seenResult, busy: this.seenBusy } =
+			this.plugin.controller.getSnapshot());
+		this.unsubStatus = this.plugin.controller.subscribe(({ result, busy }) => {
+			// A failed operation can write files and keep the result it started from.
+			const settled = this.seenBusy && !busy;
+			this.seenBusy = busy;
+			if (result === this.seenResult && !settled) return;
+			this.seenResult = result;
+			// Stored versions are immutable: a compare cannot change them.
+			if (this.against || this.historyChange) return;
+			this.stale = true;
+			this.onResize();
+		});
 
 		this.renderShell();
 		redrawOnPhoneChange(this, () => this.redrawForPlatform());
+	}
+
+	/** Obsidian resizes a tab when it is shown again: the reload a hidden tab skipped. */
+	onResize(): void {
+		if (!this.stale || !this.path || this.mergePanel.isEditing) return;
+		if (!this.containerEl.isShown()) return;
+		this.stale = false;
+		void this.refreshModel();
 	}
 
 	async onClose(): Promise<void> {
@@ -177,14 +211,15 @@ export class DiffView extends ItemView {
 			this.unsubStatus();
 			this.unsubStatus = null;
 		}
-		this.cancelStatusDebounce?.();
-		this.cancelStatusDebounce = null;
 		this.loadGeneration++;
+		this.chrome?.disconnect();
+		this.chrome = null;
 		this.refreshPending = false;
 		this.destroyViews();
 		this.contentEl.empty();
 		this.bodyEl = null;
 		this.headerEl = null;
+		this.actionBarEl = null;
 	}
 
 	private async refreshModel(): Promise<void> {
@@ -235,6 +270,7 @@ export class DiffView extends ItemView {
 			}
 
 			this.renderShell();
+			void this.enterRequestedMerge();
 		} catch (err) {
 			if (gen !== this.loadGeneration) return;
 			if (this.model) notifyError("Refresh failed", err);
@@ -249,7 +285,6 @@ export class DiffView extends ItemView {
 	}
 
 	private renderLoading(): void {
-		this.renderHeader();
 		this.renderMessage("Loading...");
 	}
 
@@ -262,6 +297,7 @@ export class DiffView extends ItemView {
 		this.destroyViews();
 		this.bodyEl.empty();
 		this.bodyEl.createDiv({ cls: "mdsync-diff-empty", text });
+		this.renderHeader();
 	}
 
 	private redrawForPlatform(): void {
@@ -274,34 +310,32 @@ export class DiffView extends ItemView {
 	}
 
 	private renderShell(): void {
-		const fileActions = this.renderHeader();
 		this.renderBody();
-		if (fileActions) this.comparePanel?.mountFileActions(fileActions);
+		this.renderHeader();
 	}
 
-	private renderHeader(): HTMLElement | null {
+	private renderHeader(): void {
 		const header = this.headerEl;
-		if (!header) return null;
+		const actionBar = this.actionBarEl;
+		if (!header || !actionBar) return;
 		const path = this.path ?? "";
-		const paths = this.getOrderedPaths();
-		return renderDiffHeader(
+		renderDiffFrame(
 			header,
+			actionBar,
 			{
 				path,
-				direction: this.model?.direction ?? null,
-				isBinary: this.model?.isBinary ?? false,
-				remotePresent: this.model?.rightPresent ?? false,
+				paths: getOrderedPaths(
+					this.plugin.controller.getSnapshot().result?.diff,
+				),
+				model: this.model,
 				isEditing: this.mergePanel.isEditing,
-				canGoPrevFile: this.getAdjacentPath(paths, -1) !== null,
-				canGoNextFile: this.getAdjacentPath(paths, 1) !== null,
-				showBack: Platform.isPhone,
-				restoreLabel: this.against
-					? `Restore ${this.historyLabel}`
-					: "Restore this version",
+				against: this.against,
+				historyChange: this.historyChange,
+				historyLabel: this.historyLabel,
 			},
 			{
 				saveResolution: () =>
-					void this.mergePanel.save(this.plugin, path, (resolved) =>
+					void this.mergePanel.save(this.plugin, path, (resolved: string) =>
 						this.advanceAfterResolve(resolved),
 					),
 				cancelResolution: () =>
@@ -315,8 +349,11 @@ export class DiffView extends ItemView {
 				acceptRemote: () => void this.operations.acceptRemote(),
 				keepBothVersions: () => void this.operations.keepBoth(),
 				startMerge: () =>
-					void this.mergePanel.enter(this.plugin, path, () =>
-						this.renderShell(),
+					void this.mergePanel.enter(
+						this.plugin,
+						path,
+						this.stillShowing(),
+						() => this.renderShell(),
 					),
 				goPrevFile: () => void this.navigateFile(-1),
 				goNextFile: () => void this.navigateFile(1),
@@ -325,6 +362,7 @@ export class DiffView extends ItemView {
 						if (leave) void this.returnToSourceControl();
 					}),
 			},
+			this.mergePanel.isEditing ? this.mergePanel : this.comparePanel,
 		);
 	}
 
@@ -367,7 +405,6 @@ export class DiffView extends ItemView {
 		if (this.mergePanel.isEditing) {
 			this.mergePanel.render(body, {
 				lineWrapping: this.lineWrapping,
-				showLineWrappingToggle: Platform.isPhone,
 				onLineWrappingChange: (enabled) => {
 					this.lineWrapping = enabled;
 				},
@@ -379,63 +416,34 @@ export class DiffView extends ItemView {
 			this.previewPanel.render(body, model.leftText, this.historyLabel);
 			return;
 		}
-		this.renderTextDiff(body, model);
-	}
-
-	private renderTextDiff(parent: HTMLElement, model: FileDiffModel): void {
-		if (model.hunks.hunks.length === 0) {
-			parent.createDiv({
-				cls: "mdsync-diff-empty",
-				text:
-					model.movedFrom === undefined
-						? "No textual differences."
-						: `Moved from ${model.movedFrom}, unchanged.`,
-			});
-			return;
-		}
-		const actionable = this.compareActionable(model);
-		this.comparePanel = new ComparePanel({
+		this.comparePanel = renderTextDiff(body, model, {
 			direction: model.direction,
-			actionable,
+			actionable: this.compareActionable(model),
 			lineWrapping: this.lineWrapping,
-			showLineWrappingToggle: Platform.isPhone,
 			onLineWrappingChange: (enabled) => {
 				this.lineWrapping = enabled;
 			},
+			pinChosen: this.pinChosen,
+			onPinChosenChange: (enabled) => {
+				this.pinChosen = enabled;
+			},
 			onApply: (choices) => void this.operations.applyChoices(choices),
 		});
-		this.comparePanel.render(parent, model);
-		if (!actionable) {
-			parent.createDiv({
-				cls: "mdsync-diff-hint",
-				text: this.hunkHintText(model),
-			});
-		}
 	}
 
 	private compareActionable(model: FileDiffModel): boolean {
-		const tooLarge =
-			model.leftSize > HUNK_TEXT_MAX_BYTES ||
-			model.rightSize > HUNK_TEXT_MAX_BYTES;
-		return (
-			!tooLarge &&
-			model.movedFrom === undefined &&
-			this.against === null &&
-			this.historyChange === null &&
-			!(model.direction === EDiffDirection.History && !model.rightPresent)
-		);
-	}
-
-	private hunkHintText(model: FileDiffModel): string {
-		return hunkHintText({
+		return compareActionable({
 			model,
-			historyChange: this.historyChange,
 			against: this.against,
+			historyChange: this.historyChange,
 		});
 	}
 
 	private async advanceAfterResolve(resolvedPath: string): Promise<void> {
-		const next = this.getNextConflictPath(resolvedPath);
+		const next = getNextConflictPath(
+			this.plugin.controller.getSnapshot().result?.diff,
+			resolvedPath,
+		);
 		if (next) {
 			this.showFile(next);
 			await this.refreshModel();
@@ -449,34 +457,13 @@ export class DiffView extends ItemView {
 		this.leaf.detach();
 	}
 
-	private getNextConflictPath(resolvedPath: string): string | null {
-		const diff = this.plugin.controller.getSnapshot().result?.diff;
-		if (!diff) return null;
-		return diff.conflicts.find((c) => c.path !== resolvedPath)?.path ?? null;
-	}
-
-	private getOrderedPaths(): string[] {
-		const diff = this.plugin.controller.getSnapshot().result?.diff;
-		if (!diff) return [];
-		return [
-			...diff.conflicts.map((c) => c.path),
-			...diff.localChanges.map((c) => c.path),
-			...diff.remoteChanges.map((c) => c.path),
-		];
-	}
-
-	private getAdjacentPath(
-		paths: readonly string[],
-		delta: number,
-	): string | null {
-		if (!this.path) return null;
-		const next = paths.indexOf(this.path) + delta;
-		return next >= 0 && next < paths.length ? (paths[next] ?? null) : null;
-	}
-
 	private async navigateFile(delta: number): Promise<void> {
 		// Re-read at click time: the list captured at render goes stale once anything syncs.
-		const target = this.getAdjacentPath(this.getOrderedPaths(), delta);
+		const target = getAdjacentPath(
+			getOrderedPaths(this.plugin.controller.getSnapshot().result?.diff),
+			this.path,
+			delta,
+		);
 		if (!target || !(await this.leaveMerge())) return;
 		this.showFile(target);
 		await this.refreshModel();

@@ -1,6 +1,6 @@
 import { type DataAdapter, Platform } from "obsidian";
 
-import { hasReservedChar } from "@/shared";
+import { errorMessage, hasReservedChar } from "@/shared";
 import { toArrayBuffer } from "@/utils";
 
 /**
@@ -114,17 +114,98 @@ export async function ensureDir(
 	return true;
 }
 
+/**
+ * True when it removed the folder. Obsidian's `recursive: false` never holds: mobile always recurses, desktop
+ * refuses any folder. So list first.
+ */
 export async function removeEmptyDir(
 	adapter: DataAdapter,
 	path: string,
-): Promise<void> {
+): Promise<boolean> {
+	let removed = false;
 	try {
-		await adapter.rmdir(path, false);
+		const { files, folders } = await adapter.list(path);
+		if (files.length === 0 && folders.length === 0) {
+			await adapter.rmdir(path, true);
+			removed = true;
+		}
 	} catch {
-		// Ignore if not empty or already gone.
+		// Already gone.
 	}
 	// Unconditional, even on not-empty: one wasted probe beats an entry claiming a missing folder exists.
 	knownDirs(adapter).delete(path);
+	return removed;
+}
+
+type Rename = (from: string, to: string) => Promise<void>;
+
+/** Recasing steps in flight: their file moves on or back at once. */
+const steps = new Set<string>();
+
+/** Live editing follows no step: peers would rename to a name nobody chose. */
+export function isRecaseStep(path: string): boolean {
+	return steps.has(path);
+}
+
+/** The file sits under its step name, not where it was. */
+export class StrandedRenameError extends Error {
+	override readonly name = "StrandedRenameError";
+}
+
+/**
+ * False when `to` is another file's. Obsidian mobile never learns its disk is case-blind and refuses a new case
+ * of a name as taken, so there a recasing steps through a free name, as people do by hand.
+ */
+export async function renameCaseSafe(
+	rename: Rename,
+	exists: (path: string) => Promise<boolean>,
+	from: string,
+	to: string,
+): Promise<boolean> {
+	const recasing =
+		from !== to &&
+		from.toLowerCase() === to.toLowerCase() &&
+		parentDir(from) === parentDir(to);
+	try {
+		await rename(from, to);
+		return true;
+	} catch (err) {
+		if (!recasing) throw err;
+	}
+	let step = stepName(from, 0);
+	for (let n = 1; await exists(step); n++) step = stepName(from, n);
+	steps.add(step);
+	try {
+		await rename(from, step);
+		let landed = false;
+		try {
+			// Free only now on a case-blind disk; a case-sensitive one may hold another file there.
+			if (!(await exists(to))) {
+				await rename(step, to);
+				landed = true;
+			}
+		} finally {
+			if (!landed) await putBack(rename, step, from);
+		}
+		return landed;
+	} finally {
+		steps.delete(step);
+	}
+}
+
+async function putBack(rename: Rename, step: string, from: string) {
+	await rename(step, from).catch((err: unknown) => {
+		throw new StrandedRenameError(
+			`"${from}" was left as "${step}": rename it back. ${errorMessage(err)}`,
+		);
+	});
+}
+
+/** Keeps the extension, so a view showing the file stays open. */
+function stepName(path: string, n: number): string {
+	const dot = path.lastIndexOf(".");
+	const end = dot > path.lastIndexOf("/") + 1 ? dot : path.length;
+	return `${path.slice(0, end)}.mdsync-recase${n || ""}${path.slice(end)}`;
 }
 
 export async function ensureParent(

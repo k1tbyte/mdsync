@@ -13,16 +13,19 @@ import {
 import { renderPresenceMarks } from "./file-explorer-badges";
 import type { PresenceMarks } from "./file-explorer-marks";
 
-type ChangeIndicatorClass =
-	| "mdsync-changed-added"
-	| "mdsync-changed-modified"
-	| "mdsync-changed-deleted"
-	| "mdsync-changed-conflict";
+type ChangeKind = ChangeAction | "move" | "conflict";
+
+export interface ChangeMark {
+	kind: ChangeKind;
+	/** Made elsewhere: a pull brings it. */
+	incoming: boolean;
+}
 
 export interface BaseMarks {
-	change?: ChangeIndicatorClass;
+	change?: ChangeMark;
 	linkRoot?: string;
-	ignored?: boolean;
+	/** Only the topmost ignored row carries the mark; the rows below are just dimmed. */
+	ignored?: "root" | "below";
 	/** Why the last compare left it out. */
 	skipped?: string;
 }
@@ -34,17 +37,27 @@ export interface AppliedDecoration {
 	target: HTMLElement;
 }
 
-const CHANGE_CLASSES: ReadonlyArray<ChangeIndicatorClass> = [
-	"mdsync-changed-added",
-	"mdsync-changed-modified",
-	"mdsync-changed-deleted",
-	"mdsync-changed-conflict",
+const CHANGE_KINDS: readonly ChangeKind[] = [
+	"add",
+	"modify",
+	"delete",
+	"move",
+	"conflict",
 ];
-const CHANGE_CLASS_BY_ACTION: Record<ChangeAction, ChangeIndicatorClass> = {
-	add: "mdsync-changed-added",
-	modify: "mdsync-changed-modified",
-	delete: "mdsync-changed-deleted",
+const CHANGE_TEXT: Record<ChangeAction | "move", string> = {
+	add: "Added",
+	modify: "Edited",
+	delete: "Deleted",
+	move: "Moved",
 };
+const TARGET_CLASSES = [
+	"mdsync-changed",
+	...CHANGE_KINDS.map((kind) => `mdsync-changed-${kind}`),
+	"mdsync-explorer-ignored",
+	"mdsync-explorer-skipped",
+	"mdsync-share-root",
+	"mdsync-has-path-badge",
+];
 
 export function computeBase(
 	plugin: PluginHost,
@@ -52,15 +65,27 @@ export function computeBase(
 	directLinks: ReadonlyMap<string, string>,
 ): Map<string, BaseMarks> {
 	const out = new Map<string, BaseMarks>();
-	for (const [path, status] of controller.fileDiffs.getChangedPathStatuses()) {
-		const cls = classifyStatus(status);
-		if (cls) patchDecoration(out, path, { change: cls });
+	const statuses = controller.fileDiffs.getChangedPathStatuses();
+	for (const [path, status] of statuses) {
+		const change = changeMarkOf(status);
+		if (change) patchDecoration(out, path, { change });
+	}
+	// The move shows on the row on disk: its new path when made here, its old one when made elsewhere.
+	for (const move of controller.getSnapshot().result?.diff.moves ?? []) {
+		const incoming = move.side === "remote";
+		const path = incoming ? move.from : move.to;
+		if (statuses.get(path) === "conflict") continue;
+		patchDecoration(out, path, { change: { kind: "move", incoming } });
 	}
 	for (const [path, linkRoot] of directLinks) {
 		patchDecoration(out, path, { linkRoot });
 	}
-	for (const path of plugin.ignoreState.ignoredPaths()) {
-		patchDecoration(out, path, { ignored: true });
+	const ignored = plugin.ignoreState.ignoredPaths();
+	for (const path of ignored) {
+		const parent = path.slice(0, Math.max(path.lastIndexOf("/"), 0));
+		patchDecoration(out, path, {
+			ignored: ignored.has(parent) ? "below" : "root",
+		});
 	}
 	for (const file of skippedFiles(controller)) {
 		const skipped = skippedText(file, plugin.settings.maxFileBytes);
@@ -82,7 +107,7 @@ export function sameDecoration(
 ): boolean {
 	return (
 		left === right ||
-		(left.change === right.change &&
+		(sameFlat(left.change, right.change) &&
 			left.linkRoot === right.linkRoot &&
 			left.ignored === right.ignored &&
 			left.skipped === right.skipped &&
@@ -98,40 +123,77 @@ export function renderDecoration(
 	decoration: PathDecoration,
 	plugin: PluginHost,
 ): void {
-	if (decoration.change) target.addClass(decoration.change);
-	if (decoration.ignored) target.addClass("mdsync-explorer-ignored");
-	if (decoration.skipped) target.addClass("mdsync-explorer-skipped");
-	if (
-		decoration.skipped ||
-		decoration.linkRoot ||
-		decoration.people?.length ||
-		decoration.share ||
-		decoration.published ||
-		decoration.unseen
-	) {
+	const { change, ignored, skipped, linkRoot, share } = decoration;
+	if (change) {
+		target.addClass("mdsync-changed", `mdsync-changed-${change.kind}`);
+	}
+	if (ignored) target.addClass("mdsync-explorer-ignored");
+	if (skipped) target.addClass("mdsync-explorer-skipped");
+	// Colours the guide down its notes.
+	if (share && share.kind !== "paused") target.addClass("mdsync-share-root");
+	if (skipped) {
+		renderIconBadge(target, "mdsync-skip-badge", "cloud-off", skipped);
+	}
+	if (ignored === "root") {
+		renderIconBadge(
+			target,
+			"mdsync-ignore-badge",
+			"eye-off",
+			"Ignored\nExcluded from sync",
+		);
+	}
+	if (linkRoot) {
+		renderIconBadge(
+			target,
+			"mdsync-link-badge",
+			"link-2",
+			`Linked path: ${linkRoot}\nExcluded from sync`,
+		);
+	}
+	renderPresenceMarks(target, decoration, plugin);
+	if (change && plugin.settings.showChangeMarks)
+		renderChangeMark(target, change);
+	if (target.querySelector(".mdsync-path-badge")) {
 		target.addClass("mdsync-has-path-badge");
 	}
-	if (decoration.skipped) renderSkipBadge(target, decoration.skipped);
-	if (decoration.linkRoot) renderLinkBadge(target, decoration.linkRoot);
-	renderPresenceMarks(target, decoration, plugin);
 }
 
 export function clearDecoration(target: HTMLElement): void {
-	for (const cls of CHANGE_CLASSES) target.removeClass(cls);
-	target.removeClass("mdsync-explorer-ignored");
-	target.removeClass("mdsync-explorer-skipped");
-	target.removeClass("mdsync-has-path-badge");
+	target.removeClass(...TARGET_CLASSES);
 	for (const badge of target.querySelectorAll(".mdsync-path-badge")) {
 		badge.remove();
 	}
 }
 
-function classifyStatus(
-	status: EChangeType | "conflict",
-): ChangeIndicatorClass | null {
-	if (status === "conflict") return "mdsync-changed-conflict";
-	const action = changeActionOf(status);
-	return action ? CHANGE_CLASS_BY_ACTION[action] : null;
+function changeMarkOf(status: EChangeType | "conflict"): ChangeMark | null {
+	if (status === "conflict") return { kind: "conflict", incoming: false };
+	const kind = changeActionOf(status);
+	return kind ? { kind, incoming: status.startsWith("remote") } : null;
+}
+
+/** A dot for a change made here, an arrow for one to pull: the name takes its colour. */
+function renderChangeMark(
+	target: HTMLElement,
+	{ kind, incoming }: ChangeMark,
+): void {
+	if (kind === "conflict") {
+		renderIconBadge(
+			target,
+			"mdsync-change-mark",
+			"triangle-alert",
+			"Conflict: changed here and elsewhere",
+		);
+		return;
+	}
+	const label = `${CHANGE_TEXT[kind]} ${incoming ? "elsewhere, not pulled yet" : "here, not pushed yet"}`;
+	if (incoming) {
+		renderIconBadge(target, "mdsync-change-mark", "arrow-down", label);
+		return;
+	}
+	target.createSpan({
+		cls: "mdsync-path-badge mdsync-change-mark mdsync-dot",
+		attr: { role: "img", "aria-label": label },
+	});
 }
 
 function patchDecoration(
@@ -175,21 +237,15 @@ function sameList(
 	);
 }
 
-function renderSkipBadge(target: HTMLElement, reason: string): void {
+function renderIconBadge(
+	target: HTMLElement,
+	cls: string,
+	icon: string,
+	label: string,
+): void {
 	const badge = target.createSpan({
-		cls: "mdsync-path-badge mdsync-skip-badge",
-		attr: { role: "img", "aria-label": reason },
+		cls: `mdsync-path-badge ${cls}`,
+		attr: { role: "img", "aria-label": label },
 	});
-	setIcon(badge, "cloud-off");
-}
-
-function renderLinkBadge(target: HTMLElement, linkRoot: string): void {
-	const badge = target.createSpan({
-		cls: "mdsync-path-badge mdsync-link-badge",
-		attr: {
-			role: "img",
-			"aria-label": `Linked path: ${linkRoot}\nExcluded from sync`,
-		},
-	});
-	setIcon(badge, "link-2");
+	setIcon(badge, icon);
 }

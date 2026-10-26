@@ -39,18 +39,16 @@
 	flex: 0 0 auto;
 }
 
-.mdsync-file-row.is-conflict {
-	color: var(--color-red);
-}
-
+/* A tinted letter tile: the colour comes from the status class. */
 .mdsync-file-status {
 	display: inline-flex;
-	flex: 0 0 auto;
-	align-self: stretch;
+	flex: 0 0 18px;
 	align-items: center;
-	justify-content: flex-end;
-	min-width: 0.6rem;
+	justify-content: center;
+	height: 18px;
 	margin-left: auto;
+	border-radius: var(--radius-s);
+	background: color-mix(in srgb, currentColor 16%, transparent);
 	font-weight: 700;
 	font-family: var(--font-monospace);
 	font-size: var(--font-ui-smaller);
@@ -83,15 +81,15 @@
 	font-weight: var(--font-semibold);
 }
 
-.mdsync-file-size-delta.is-positive {
+.mdsync-size-delta.is-positive {
 	color: var(--color-green);
 }
 
-.mdsync-file-size-delta.is-negative {
+.mdsync-size-delta.is-negative {
 	color: var(--color-red);
 }
 
-.mdsync-file-size-delta.is-neutral {
+.mdsync-size-delta.is-neutral {
 	color: var(--text-muted);
 }
 
@@ -111,15 +109,12 @@
 	color: var(--color-red);
 }
 
-.mdsync-status-conflict {
-	color: var(--color-red);
+.mdsync-status-move {
+	color: var(--color-blue);
 }
 
-.mdsync-file-name {
-	flex: 1 1 auto;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.mdsync-status-conflict {
+	color: var(--color-red);
 }
 
 .mdsync-file-selection {
@@ -133,6 +128,21 @@
 	cursor: pointer;
 }
 
+/* One box column for every depth, under the header's own box. */
+:is(.mdsync-file-row, .mdsync-tree-folder).is-selectable
+> .mdsync-file-selection {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: calc(var(--mdsync-gutter) - 24px);
+	height: auto;
+	margin: 0;
+}
+
+.mdsync-section-header > .mdsync-file-selection {
+	margin: 0;
+}
+
 .mdsync-file-checkbox {
 	flex: 0 0 auto;
 	width: var(--checkbox-size, 14px);
@@ -143,18 +153,32 @@
 
 .mdsync-file-row:hover .mdsync-file-checkbox,
 .mdsync-file-row:focus-within .mdsync-file-checkbox,
+.mdsync-tree-folder:hover .mdsync-file-checkbox,
+.mdsync-section-header:hover .mdsync-file-checkbox,
 .mdsync-file-selection:hover .mdsync-file-checkbox,
-.mdsync-file-checkbox:checked {
+.mdsync-file-checkbox:checked,
+.mdsync-file-checkbox:indeterminate {
 	opacity: 1;
 }
 
-.mdsync-file-copy {
-	display: flex;
-	flex: 1 1 auto;
-	align-items: baseline;
-	gap: var(--size-2-2);
-	min-width: 0;
-	overflow: hidden;
+/* Obsidian draws only the checked state. */
+.mdsync-file-checkbox:indeterminate {
+	border-color: var(--interactive-accent);
+	background-color: var(--interactive-accent);
+}
+
+.mdsync-file-checkbox:indeterminate::after {
+	content: "";
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 8px;
+	height: 2px;
+	border-radius: 1px;
+	background-color: var(--text-on-accent);
+	transform: translate(-50%, -50%);
+	-webkit-mask-image: none;
+	mask-image: none;
 }
 
 .mdsync-file-row .mdsync-file-name {
@@ -163,47 +187,106 @@
 	font-size: var(--font-ui-small);
 }
 
-.mdsync-file-parent {
-	flex: 1 100 auto;
-	min-width: 0;
-	overflow: hidden;
-	color: var(--text-faint);
-	font-size: var(--font-ui-smaller);
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.mdsync-file-row.is-deleted .mdsync-file-name {
+	color: var(--text-muted);
+	text-decoration: line-through;
 }
 
-.mdsync-conflict-controls {
-	display: flex;
+/* Revealed on hover in place of the size; a phone reaches them through the menu. */
+.mdsync-row-actions {
+	display: none;
 	flex: 0 0 auto;
-	align-items: center;
 	gap: var(--size-2-1);
-	margin-left: var(--size-2-2);
 }
 
-.mdsync-conflict-controls .mdsync-icon-btn {
-	width: 24px;
-	min-width: 24px;
-	height: 24px;
+@media (hover: hover) {
+	.mdsync-file-row:is(:hover, :focus-within) .mdsync-row-actions {
+		display: inline-flex;
+	}
+
+	.mdsync-file-row.has-actions:is(:hover, :focus-within) .mdsync-file-size {
+		display: none;
+	}
+}
+
+.mdsync-conflict-card {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-3);
+	margin: 0 0 var(--size-2-3);
+	padding: var(--size-2-3) var(--size-4-2) var(--size-4-2);
+	border-radius: var(--radius-m);
+	background: color-mix(in srgb, var(--color-red) 9%, transparent);
+}
+
+.mdsync-conflict-card > .mdsync-file-row {
+	min-height: 24px;
 	padding: 0;
 }
 
-body.is-mobile .mdsync-conflict-controls .mdsync-icon-btn {
-	width: var(--input-height);
-	min-width: var(--input-height);
-	height: var(--input-height);
+.mdsync-conflict-card > .mdsync-file-row:hover {
+	background: transparent;
 }
 
-.mdsync-conflict-controls svg {
+.mdsync-conflict-card > .mdsync-file-row:hover .mdsync-file-name {
+	text-decoration: underline;
+}
+
+/* The icon already says conflict, and the size decides nothing here. */
+.mdsync-conflict-card :is(.mdsync-file-status, .mdsync-file-size) {
+	display: none;
+}
+
+.mdsync-conflict-card.is-compact {
+	padding: var(--size-2-2) var(--size-4-3);
+}
+
+.mdsync-conflict-chevron {
+	display: inline-flex;
+	flex: 0 0 auto;
+	color: var(--text-faint);
+}
+
+.mdsync-conflict-chevron svg {
+	width: var(--mdsync-icon-lg);
+	height: var(--mdsync-icon-lg);
+}
+
+.mdsync-conflict-icon {
+	display: inline-flex;
+	flex: 0 0 auto;
+	color: var(--color-red);
+}
+
+.mdsync-conflict-icon svg {
 	width: var(--mdsync-icon);
 	height: var(--mdsync-icon);
 }
 
+.mdsync-conflict-note {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.mdsync-conflict-choices {
+	display: flex;
+	gap: var(--size-2-3);
+}
+
+.mdsync-conflict-choices > button {
+	flex: 1 1 0;
+	min-width: 0;
+	height: 26px;
+	padding: 0 var(--size-2-3);
+	font-size: var(--font-ui-smaller);
+}
+
 .mdsync-conflict-preview {
-	margin: 0 var(--size-4-1) var(--size-4-2);
+	margin: 0;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-s);
 	overflow-x: auto;
+	background: var(--background-primary);
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 }

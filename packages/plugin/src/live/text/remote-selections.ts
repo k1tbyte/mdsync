@@ -101,13 +101,25 @@ export function remoteSelections(ytext: Y.Text, awareness: Awareness) {
 			private publishLocal(update: ViewUpdate): void {
 				const local = awareness.getLocalState() as PeerState | null;
 				if (local == null) return;
+				// Scrolls and remote redraws leave the cursor where it was.
+				if (
+					local.cursor != null &&
+					!update.docChanged &&
+					!update.selectionSet &&
+					!update.focusChanged
+				) {
+					return;
+				}
 				const hasFocus =
 					update.view.hasFocus && update.view.dom.ownerDocument.hasFocus();
 				// Unfocused, the last cursor stays where it was, as the library leaves it.
 				if (!hasFocus) return;
 				const sel = update.state.selection.main;
 				const anchor = Y.createRelativePositionFromTypeIndex(ytext, sel.anchor);
-				const head = Y.createRelativePositionFromTypeIndex(ytext, sel.head);
+				const head =
+					sel.head === sel.anchor
+						? anchor
+						: Y.createRelativePositionFromTypeIndex(ytext, sel.head);
 				const { cursor } = local;
 				if (
 					cursor == null ||

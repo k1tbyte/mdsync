@@ -156,7 +156,7 @@ function mapTakenPatch(patch: TakenPatch, mapping: ChangeDesc): TakenPatch {
 }
 
 /** Both keys present, so applying it replaces rather than patches. */
-function fullTaken(taken: Taken): TakenPatch {
+export function fullTaken(taken: Taken): TakenPatch {
 	return { local: taken.local ?? null, remote: taken.remote ?? null };
 }
 

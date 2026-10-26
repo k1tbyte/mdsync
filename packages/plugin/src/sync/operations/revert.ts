@@ -2,13 +2,16 @@ import { DEFAULT_CONCURRENCY } from "@/constants";
 import { ESyncLogOperation } from "@/logs/store";
 import { mergeWrittenIntoCache } from "@/sync/baseline";
 import { LOG_PATH_LIMIT } from "@/sync/constants";
-import { untouchedSince, writeRemoteEntry } from "@/sync/content";
+import { coldSince, writeIncoming } from "@/sync/live-notes";
 import { withMoves } from "@/sync/moves";
 import { renameLocal } from "@/sync/pull-moves";
 import { EChangeType, type ManifestEntry } from "@/sync/types";
 import { runWithConcurrency, runWithFileConcurrency } from "@/utils";
 import { trashPath } from "@/vault/io";
 import type { Operation } from "./types";
+
+const LIVE_HELD =
+	"These notes are open for live editing: their room keeps its text, so they were left as they are.";
 
 export const revertPathsOp: Operation<ReadonlyArray<string>> = async (
 	deps,
@@ -18,7 +21,15 @@ export const revertPathsOp: Operation<ReadonlyArray<string>> = async (
 ) => {
 	// Half a move undone would leave the file at neither path.
 	const ours = result.diff.moves.filter(({ side }) => side === "local");
-	const asked = new Set(withMoves(paths, ours));
+	const expanded = withMoves(paths, ours);
+	// An open room owns its note: a revert under it would reach every device as an edit.
+	const held = new Set(
+		withMoves(
+			expanded.filter((path) => deps.live?.holds(path)),
+			ours,
+		),
+	);
+	const asked = new Set(expanded.filter((path) => !held.has(path)));
 	const moves = ours.filter(({ to }) => asked.has(to));
 	const sourceOf = new Map(moves.map(({ from, to }) => [to, from]));
 	const destinationOf = new Map(moves.map(({ from, to }) => [from, to]));
@@ -46,7 +57,7 @@ export const revertPathsOp: Operation<ReadonlyArray<string>> = async (
 	const concurrency = deps.concurrency ?? DEFAULT_CONCURRENCY;
 	// Edited since the compare: reverting would drop that edit too.
 	const unedited = (path: string) =>
-		untouchedSince(deps, path, result.snapshot.files[heldAs.get(path) ?? path]);
+		coldSince(deps, path, result.snapshot.files[heldAs.get(path) ?? path]);
 	// One file under two spellings on a case-blind disk: renamed back, then restored like an edit of it.
 	const recased = moves.filter(
 		({ from, to }) => from.toLowerCase() === to.toLowerCase(),
@@ -66,7 +77,8 @@ export const revertPathsOp: Operation<ReadonlyArray<string>> = async (
 			if (to !== undefined && !heldAs.has(path) && !(await unedited(to)())) {
 				return;
 			}
-			const written = await writeRemoteEntry(deps, path, entry, unedited(path));
+			const ready = unedited(path);
+			const written = await writeIncoming(deps, path, entry, { ready });
 			if (written) localEntries.set(path, written);
 		},
 	);
@@ -79,6 +91,7 @@ export const revertPathsOp: Operation<ReadonlyArray<string>> = async (
 		await trashPath(deps.adapter, path);
 		localEntries.set(path, null);
 	});
+	if (localEntries.size === 0 && held.size > 0) throw new Error(LIVE_HELD);
 	const nextHashCache = mergeWrittenIntoCache(
 		localEntries,
 		result.updatedCache,
@@ -87,7 +100,7 @@ export const revertPathsOp: Operation<ReadonlyArray<string>> = async (
 	await ctx.persistState({ ...freshState, hashCache: nextHashCache });
 	await ctx.logInfo(
 		ESyncLogOperation.Compare,
-		`Reverted ${localEntries.size} file(s).`,
+		`Reverted ${localEntries.size} file(s).${held.size > 0 ? ` Left ${held.size} to live editing.` : ""}`,
 		Array.from(localEntries.keys()).slice(0, LOG_PATH_LIMIT),
 	);
 	return {

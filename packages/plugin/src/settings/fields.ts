@@ -89,7 +89,20 @@ export interface SliderField extends FieldBase {
 	set: (value: number, plugin: PluginHost) => Partial<MdsyncSettings>;
 }
 
-export type SettingsField = ToggleField | TextField | NumberField | SliderField;
+export interface ChoiceField extends FieldBase {
+	kind: typeof EFieldKind.Choice;
+	/** Value to label. */
+	options: Record<string, string>;
+	get: (settings: MdsyncSettings) => string;
+	set: (value: string, plugin: PluginHost) => Partial<MdsyncSettings>;
+}
+
+export type SettingsField =
+	| ToggleField
+	| TextField
+	| NumberField
+	| SliderField
+	| ChoiceField;
 
 export type SettingsRow = Omit<SettingDefinitionRender, "render"> & {
 	render: (setting: Setting) => ReturnType<SettingDefinitionRender["render"]>;
@@ -126,6 +139,15 @@ function applyControl(
 	if (field.kind === EFieldKind.Toggle) {
 		return setting.addToggle((toggle) =>
 			toggle
+				.setValue(field.get(ctx.plugin.settings))
+				.onChange((value) => apply(field.set(value, ctx.plugin))),
+		);
+	}
+
+	if (field.kind === EFieldKind.Choice) {
+		return setting.addDropdown((dropdown) =>
+			dropdown
+				.addOptions(field.options)
 				.setValue(field.get(ctx.plugin.settings))
 				.onChange((value) => apply(field.set(value, ctx.plugin))),
 		);

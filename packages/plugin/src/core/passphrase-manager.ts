@@ -47,6 +47,7 @@ export class PassphraseManager {
 	private pendingReplace = false;
 	/** One derivation for every caller: each is a PBKDF2 run, and on a first sync a keyfile. */
 	private resolving: Resolving | null = null;
+	private readonly listeners = new Set<() => void>();
 
 	constructor(
 		private readonly ask: () => Promise<string | null>,
@@ -58,6 +59,17 @@ export class PassphraseManager {
 		private readonly persistSettings?: () => Promise<void>,
 	) {}
 
+	/** Called whenever the passphrase is entered, replaced or forgotten. */
+	subscribe(listener: () => void): () => void {
+		this.listeners.add(listener);
+		return () => this.listeners.delete(listener);
+	}
+
+	private setPassphrase(value: string | null): void {
+		this.passphrase = value;
+		for (const listener of this.listeners) listener();
+	}
+
 	has(): boolean {
 		return this.passphrase !== null;
 	}
@@ -67,7 +79,7 @@ export class PassphraseManager {
 	}
 
 	async forget(): Promise<void> {
-		this.passphrase = null;
+		this.setPassphrase(null);
 		this.unverified = false;
 		this.cachedKey = null;
 		try {
@@ -78,7 +90,7 @@ export class PassphraseManager {
 	}
 
 	dispose(): void {
-		this.passphrase = null;
+		this.setPassphrase(null);
 		this.cachedKey = null;
 	}
 
@@ -107,7 +119,7 @@ export class PassphraseManager {
 		if (!replace && (await this.tryLoadCached())) return true;
 		const value = await this.ask();
 		if (!value) return false;
-		this.passphrase = value;
+		this.setPassphrase(value);
 		this.unverified = true;
 		this.cachedKey = null;
 		return true;
@@ -146,7 +158,7 @@ export class PassphraseManager {
 			cachedKey: this.cachedKey,
 		};
 		if (value !== undefined) {
-			this.passphrase = value;
+			this.setPassphrase(value);
 			this.unverified = true;
 			this.cachedKey = null;
 		} else if (!this.passphrase && !(await this.tryLoadCached())) {
@@ -157,7 +169,7 @@ export class PassphraseManager {
 			return true;
 		} catch (err) {
 			if (value !== undefined && this.passphrase === value) {
-				this.passphrase = before.passphrase;
+				this.setPassphrase(before.passphrase);
 				this.unverified = before.unverified;
 				this.cachedKey = before.cachedKey;
 			}
@@ -167,7 +179,7 @@ export class PassphraseManager {
 
 	/** Adopts a passphrase known to open the vault: a rotation's, or one that opened a transfer. */
 	async replacePassphrase(value: string): Promise<void> {
-		this.passphrase = value;
+		this.setPassphrase(value);
 		this.unverified = false;
 		this.cachedKey = null;
 		await this.persistIfEnabled();
@@ -264,7 +276,7 @@ export class PassphraseManager {
 			this.bindingSignature(),
 		);
 		if (!cached) return false;
-		this.passphrase = cached;
+		this.setPassphrase(cached);
 		this.cachedKey = null;
 		return true;
 	}

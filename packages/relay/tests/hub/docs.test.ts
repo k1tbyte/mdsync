@@ -6,12 +6,16 @@ import {
 	MAX_MOVE_NOTE_BYTES,
 	type ServerFrame,
 } from "@mdsync/protocol";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { HubCore } from "../../src/hub/core";
-import { MAX_TAIL_DELTAS, type Sql, SqlDocStore } from "../../src/hub/store";
+import {
+	MAX_TAIL_DELTAS,
+	SqlDocStore,
+	type TransactionalSql,
+} from "../../src/hub/store";
 import { type FakePeer, grant, hub, peer, send, types } from "../helpers/hub";
-import { memorySql } from "../helpers/memory-sql";
+import { failing, limited, memorySql } from "../helpers/memory-sql";
 
 const VAULT = "vault-channel";
 const OTHER = "other-channel";
@@ -62,7 +66,7 @@ function rotate(
 }
 
 /** A hub over storage that outlives it, as a Durable Object's does across restarts. */
-function over(sql: Sql, ...peers: FakePeer[]): HubCore {
+function over(sql: TransactionalSql, ...peers: FakePeer[]): HubCore {
 	return new HubCore(() => peers, new SqlDocStore(sql));
 }
 
@@ -73,6 +77,74 @@ function logOf(state: ServerFrame): string {
 function refused(at: string, reason: number, slot = 0): ServerFrame {
 	return { type: EFrame.Refused, slot, doc: at, reason } as ServerFrame;
 }
+
+describe("hub storage that fails", () => {
+	const seed = frame(EFrame.Seed, { n: 0, payload: Uint8Array.of(1) });
+
+	it("refuses a subscription it cannot read, and follows nothing for it", () => {
+		const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+		let broken = false;
+		const reads = failing(
+			memorySql(),
+			(query) => broken && query.includes("FROM docs"),
+		);
+		const writer = peer(1, [grant(VAULT)]);
+		const follower = peer(2, [grant(VAULT)]);
+		const core = over(reads, writer, follower);
+		sub(core, follower);
+
+		broken = true;
+		send(core, writer, frame(EFrame.Sub, { since: 0 }));
+
+		expect(writer.inbox).toEqual([refused(DOC, ERefusal.Unstored)]);
+		expect(writer.subs).toEqual([]);
+		expect(follower.inbox).toEqual([]);
+		errors.mockRestore();
+	});
+
+	it("refuses a seed it stored half of, and keeps none of it, so the next seed takes", () => {
+		const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+		const quota = { writes: 1 };
+		const writer = peer(1, [grant(VAULT)]);
+		const follower = peer(2, [grant(VAULT)]);
+		const core = over(limited(memorySql(), quota), writer, follower);
+		sub(core, writer);
+		sub(core, follower);
+		writer.inbox.length = 0;
+
+		send(core, writer, seed);
+		expect(writer.inbox).toEqual([refused(DOC, ERefusal.Unstored)]);
+		expect(follower.inbox).toEqual([]);
+		expect(errors).toHaveBeenCalledOnce();
+
+		quota.writes = Number.POSITIVE_INFINITY;
+		send(core, writer, seed);
+		expect(writer.inbox.at(-1)).toMatchObject({ type: EFrame.Echo, seq: 1 });
+		errors.mockRestore();
+	});
+
+	it("refuses an update past the limit, fanning none of it out", () => {
+		const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+		const quota = { writes: Number.POSITIVE_INFINITY };
+		const writer = peer(1, [grant(VAULT)]);
+		const follower = peer(2, [grant(VAULT)]);
+		const core = over(limited(memorySql(), quota), writer, follower);
+		sub(core, writer);
+		sub(core, follower);
+		send(core, writer, seed);
+		writer.inbox.length = 0;
+		follower.inbox.length = 0;
+
+		quota.writes = 0;
+		update(core, writer, 2);
+
+		expect(writer.inbox).toEqual([refused(DOC, ERefusal.Unstored)]);
+		expect(follower.inbox).toEqual([]);
+		quota.writes = Number.POSITIVE_INFINITY;
+		expect(sub(core, follower)).toMatchObject({ head: 1 });
+		errors.mockRestore();
+	});
+});
 
 describe("hub documents", () => {
 	it("answers a subscription with the document's state", () => {

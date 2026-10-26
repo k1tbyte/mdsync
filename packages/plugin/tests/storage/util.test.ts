@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	assertOk,
+	isRetryableError,
 	isRetryableStatus,
 	StorageHttpError,
 	StorageTimeoutError,
+	transferBytes,
+	withDeadline,
 	withRetry,
 	withTimeout,
 } from "@/storage/adapters/util";
@@ -133,5 +136,57 @@ describe("toArrayBuffer", () => {
 		const view = backing.subarray(1, 3);
 		const buffer = toArrayBuffer(view);
 		expect(new Uint8Array(buffer)).toEqual(new Uint8Array([2, 3]));
+	});
+});
+
+describe("transfer deadline", () => {
+	afterEach(() => vi.useRealTimers());
+
+	const outcome = (promise: Promise<unknown>) =>
+		promise.then(
+			() => "done",
+			(err: unknown) => err,
+		);
+
+	it("adds the time the bytes take at 128 KiB/s to the base allowance", async () => {
+		vi.useFakeTimers();
+		const pending = outcome(
+			withDeadline(new Promise<never>(() => undefined), 128 * 1024 * 100),
+		);
+		await vi.advanceTimersByTimeAsync(129_999);
+		let settled = false;
+		void pending.then(() => {
+			settled = true;
+		});
+		await vi.advanceTimersByTimeAsync(0);
+		expect(settled).toBe(false);
+		await vi.advanceTimersByTimeAsync(1);
+		expect(await pending).toBeInstanceOf(StorageTimeoutError);
+	});
+
+	it("keeps 30 s for a request that moves nothing", async () => {
+		vi.useFakeTimers();
+		const pending = outcome(
+			withDeadline(new Promise<never>(() => undefined), 0),
+		);
+		await vi.advanceTimersByTimeAsync(30_000);
+		expect(await pending).toBeInstanceOf(StorageTimeoutError);
+	});
+
+	it("takes the body's length, else the expected size", () => {
+		expect(transferBytes(new ArrayBuffer(7), 99)).toBe(7);
+		expect(transferBytes("abc", 99)).toBe(3);
+		expect(transferBytes(undefined, 99)).toBe(99);
+		expect(transferBytes(undefined)).toBe(0);
+	});
+
+	it("retries the timeout of a small request but not of one over 1 MiB", () => {
+		expect(isRetryableError(new StorageTimeoutError(1, 0))).toBe(true);
+		expect(isRetryableError(new StorageTimeoutError(1, 1024 * 1024))).toBe(
+			true,
+		);
+		expect(isRetryableError(new StorageTimeoutError(1, 1024 * 1024 + 1))).toBe(
+			false,
+		);
 	});
 });

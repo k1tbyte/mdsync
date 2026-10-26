@@ -254,6 +254,91 @@ describe("Google Drive bulk write hint", () => {
 	});
 });
 
+describe("Google Drive bulk ID priming is bounded by the batch", () => {
+	const keys = Array.from({ length: 256 }, (_, index) => `objects/${index}`);
+	const searches = () =>
+		requests.filter(({ url }) => new URL(url).searchParams.has("q"));
+	const page = (from: number, count: number, next?: string) => ({
+		files: Array.from({ length: count }, (_, i) => ({
+			id: `h${from + i}`,
+			name: `objects/old${from + i}`,
+		})),
+		nextPageToken: next,
+	});
+
+	it("stops listing past a few pages of history and looks the rest up exactly", async () => {
+		const drive = adapter();
+		drive.prepareWrites?.(keys);
+		replies = [
+			FOLDER,
+			page(0, 1000, "P2"),
+			page(1000, 1000, "P3"),
+			{ files: [] },
+			{},
+		];
+		await drive.put("objects/1", new Uint8Array([1]));
+
+		// Folder lookup, two list pages, then the exact lookup of the key: never the third page.
+		expect(searches()).toHaveLength(4);
+		expect(requests.some(({ url }) => url.includes("pageToken=P3"))).toBe(
+			false,
+		);
+		expect(
+			requests.some(
+				({ method, url }) => method === "PATCH" && url.includes("/upload/"),
+			),
+		).toBe(false);
+	});
+
+	it("marks nothing absent after a cut-short listing", async () => {
+		const drive = adapter();
+		drive.prepareWrites?.(keys);
+		// The exact lookup finds a file the truncated listing never reached.
+		replies = [
+			FOLDER,
+			page(0, 1000, "P2"),
+			page(1000, 1000, "P3"),
+			{ files: [{ id: "late" }] },
+			{},
+		];
+		await drive.put("objects/1", new Uint8Array([1]));
+
+		expect(
+			requests.some(
+				({ method, url }) => method === "PATCH" && url.includes("/late?"),
+			),
+		).toBe(true);
+	});
+
+	it("stops a read listing once every hinted key has an id", async () => {
+		const drive = adapter();
+		drive.prepareReads?.(keys);
+		replies = [
+			FOLDER,
+			{
+				files: keys.map((name, index) => ({ id: String(index), name })),
+				nextPageToken: "P2",
+			},
+			{},
+		];
+		await drive.get("objects/1");
+
+		expect(requests.some(({ url }) => url.includes("pageToken=P2"))).toBe(
+			false,
+		);
+	});
+
+	it("keeps list() fully paginated", async () => {
+		replies = [
+			FOLDER,
+			page(0, 1000, "P2"),
+			page(1000, 1000, "P3"),
+			page(2000, 1, undefined),
+		];
+		expect(await adapter().list("objects/")).toHaveLength(2001);
+	});
+});
+
 describe("Google Drive file ids another device deleted", () => {
 	const listed = () => [FOLDER, { files: [{ id: "9", name: "objects/x" }] }];
 

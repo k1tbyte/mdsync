@@ -8,9 +8,11 @@ import type { ESetupStep } from "@/settings/setup/steps";
 import type { SettingsTransferController } from "@/settings/transfer-controller";
 import type { SpaceRecords } from "@/spaces";
 import type { SyncController } from "@/sync/controller";
+import type { CursorFollow } from "@/ui";
 
 import type { IgnoreStateHandle } from "./ignore-state";
 import type { Realtime } from "./realtime";
+import type { RelayUpdate } from "./relay-update";
 
 /**
  * The plugin surface feature modules may use; Obsidian's registration API stays on the Plugin, so registering
@@ -28,7 +30,9 @@ export interface PluginHost {
 	readonly ignoreState: IgnoreStateHandle;
 	readonly spaces: SpaceRecords;
 	readonly unseen: Unseen;
+	readonly follows: CursorFollow;
 	readonly sharedLinks: SharedLinks;
+	readonly relayUpdate: RelayUpdate;
 	/** Work that outlives its view, like a relay deploy, stops here. */
 	readonly unloaded: boolean;
 

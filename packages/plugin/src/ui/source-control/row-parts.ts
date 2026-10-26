@@ -9,37 +9,26 @@ export function renderSize(
 	const el = parent.createSpan({
 		cls: ["mdsync-file-size", ...(delta === undefined ? [] : ["has-delta"])],
 	});
-	if (delta !== undefined) {
-		const { sign, cls } = deltaParts(delta);
-		el.createSpan({
-			cls: `mdsync-file-size-delta ${cls}`,
-			text: `${sign}${formatBytes(Math.abs(delta))}`,
-		});
-	}
+	if (delta !== undefined) renderDelta(el, delta, "mdsync-file-size-delta");
 	el.createSpan({ cls: "mdsync-file-size-current", text: formatBytes(size) });
 	return el;
 }
 
-/** File name in full, with the folder trailing it faintly when asked for. */
-export function renderPath(
+/** A signed size change: green grew, red shrank. */
+export function renderDelta(
 	parent: HTMLElement,
-	path: string,
-	withParent = true,
+	delta: number,
+	cls: string,
 ): HTMLElement {
-	const separator = path.lastIndexOf("/");
-	const copy = parent.createSpan({ cls: "mdsync-file-copy" });
-	copy.createSpan({ cls: "mdsync-file-name", text: path.slice(separator + 1) });
-	if (withParent && separator > 0) {
-		copy.createSpan({
-			cls: "mdsync-file-parent",
-			text: path.slice(0, separator),
-		});
-	}
-	return copy;
+	const { sign, tone } = deltaParts(delta);
+	return parent.createSpan({
+		cls: ["mdsync-size-delta", tone, cls],
+		text: `${sign}${formatBytes(Math.abs(delta))}`,
+	});
 }
 
-function deltaParts(delta: number): { sign: string; cls: string } {
-	if (delta > 0) return { sign: "+", cls: "is-positive" };
-	if (delta < 0) return { sign: "−", cls: "is-negative" };
-	return { sign: "±", cls: "is-neutral" };
+function deltaParts(delta: number): { sign: string; tone: string } {
+	if (delta > 0) return { sign: "+", tone: "is-positive" };
+	if (delta < 0) return { sign: "−", tone: "is-negative" };
+	return { sign: "±", tone: "is-neutral" };
 }

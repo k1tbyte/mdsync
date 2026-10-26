@@ -8,3 +8,8 @@ export function errorMessage(err: unknown): string {
 	}
 	return String(err);
 }
+
+/** An Error as caught, anything else wrapped. */
+export function asError(err: unknown): Error {
+	return err instanceof Error ? err : new Error(errorMessage(err));
+}

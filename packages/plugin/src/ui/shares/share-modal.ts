@@ -1,43 +1,43 @@
-import { Modal, Setting } from "obsidian";
+import { ButtonComponent, Modal } from "obsidian";
 
+import { isLinkState } from "@/hub/status";
 import type { PluginHost } from "@/plugin/host";
+import type { Person } from "@/presence";
 import { isRelayConfigured, relayAdmin } from "@/settings/model";
 import { errorMessage } from "@/shared";
-import type { PauseKind } from "@/spaces";
-import type { SpaceRecord } from "@/spaces/record";
+import { type SpaceRecord, shareIdentity } from "@/spaces/record";
 import {
 	type BrokerAdmin,
 	listParticipants,
 	type Participant,
 } from "@/storage";
+import { isUnder } from "@/sync/space";
 import {
 	alertLine,
-	focusKey,
+	modalCard,
+	modalFooter,
+	modalHint,
+	modalSection,
+	modalWarning,
 	notifyError,
 	openNote,
 	RELAY_TEXT,
-	renderAvatar,
+	relaySummary,
 	renderKeepingFocus,
 	serial,
 } from "@/ui/common";
 import { createInvite } from "./invite-action";
 import { renderInviteForm } from "./invite-section";
+import { type Pause, renderPauseControl } from "./pause-control";
+import { renderPeople } from "./people-list";
 import {
 	closeLabel,
 	closeShare,
 	revokeAccess,
 	strandedInvites,
 } from "./share-action";
-import { presenceNote, type ShareRow, shareRows } from "./share-people";
-import { shareSummary } from "./share-summary";
-
-type Pause = Exclude<PauseKind, "off">;
-
-const PAUSE: Record<Pause | "", string> = {
-	"": "Off",
-	here: "On this device",
-	everywhere: "On all my devices",
-};
+import { renderShareHead } from "./share-head";
+import { presenceNote, selfRow, shareRows } from "./share-people";
 
 /** One place for a shared folder: its people, invites, pause, stop. */
 export class ShareModal extends Modal {
@@ -45,7 +45,6 @@ export class ShareModal extends Modal {
 	private failure: string | null = null;
 	private shown = "";
 	private redraw = (): void => {};
-	private summary: HTMLElement | null = null;
 	private unsubscribe: (() => void) | null = null;
 	private readonly owner: boolean;
 	private readonly admin: BrokerAdmin | null;
@@ -66,27 +65,32 @@ export class ShareModal extends Modal {
 	onOpen(): void {
 		const { contentEl, plugin, record } = this;
 		this.modalEl.addClass("mdsync-share-modal");
-		this.titleEl.setText(`Sharing "${record.name}"`);
-		this.summary = contentEl.createEl("p", {
-			cls: "setting-item-description",
-			text: shareSummary(plugin.spaces, record),
-		});
-		const stranded = strandedInvites(plugin, record);
-		if (stranded) {
-			contentEl.createEl("p", {
-				cls: "mdsync-share-warning",
-				text: `People were invited through ${stranded}, which this vault no longer uses: invite them again, and the new link takes over the folder they have.`,
-			});
-		}
-		this.renderPause();
-		heading(contentEl, "People");
+		const relay = renderShareHead(this, record);
+		this.renderWarnings();
+		const count = modalSection(contentEl, "People");
 		const failure = alertLine(contentEl);
-		const list = contentEl.createDiv({ cls: "mdsync-share-access" });
-		this.redraw = () => this.drawPeople(failure, list);
+		const note = modalHint(contentEl);
+		const list = modalCard(contentEl);
+		list.addClass("mdsync-share-people");
+		this.redraw = () => {
+			const { hub, people } = plugin.realtime;
+			const status = hub.statusOf(record.id);
+			const unreadable = people.unreadable(record.id);
+			relay(
+				isLinkState(status)
+					? {
+							live: status === "connected" && !unreadable,
+							text: relaySummary([status], unreadable),
+						}
+					: null,
+			);
+			this.drawPeople(count, failure, note, list);
+		};
 		this.unsubscribe = plugin.realtime.people.subscribe(this.redraw);
 		this.redraw();
 		void this.load();
 		if (this.owner) this.renderInvite();
+		this.renderPause();
 		this.renderFooter();
 	}
 
@@ -108,14 +112,32 @@ export class ShareModal extends Modal {
 		this.redraw();
 	}
 
+	/** What keeps it from syncing here, where the pause control cannot say it. */
+	private renderWarnings(): void {
+		const { contentEl, plugin, record } = this;
+		const { spaces } = plugin;
+		const lines = [];
+		if (!spaces.partition().some(({ id }) => id === record.id)) {
+			lines.push(
+				`Not syncing: another shared folder already holds "${record.root}".`,
+			);
+		} else if (spaces.pauseOf(record.id) === "off") {
+			lines.push("Shared folders are off on this device.");
+		}
+		const stranded = strandedInvites(plugin, record);
+		if (stranded) {
+			lines.push(
+				`People were invited through ${stranded}, which this vault no longer uses: invite them again, and the new link takes over the folder they have.`,
+			);
+		}
+		for (const text of lines) modalWarning(contentEl, text);
+	}
+
 	private renderInvite(): void {
 		const { contentEl, plugin, record } = this;
-		heading(contentEl, "Invite");
+		modalSection(contentEl, "Invite someone");
 		if (!this.admin) {
-			contentEl.createEl("p", {
-				cls: "setting-item-description",
-				text: `${RELAY_TEXT["no-relay"]} to invite people.`,
-			});
+			modalHint(contentEl, `${RELAY_TEXT["no-relay"]} to invite people.`);
 			return;
 		}
 		renderInviteForm(
@@ -126,151 +148,126 @@ export class ShareModal extends Modal {
 	}
 
 	/** The hub announces every space's people: redraw only when this share's rows changed. */
-	private drawPeople(failure: HTMLElement, list: HTMLElement): void {
+	private drawPeople(
+		count: HTMLElement,
+		failure: HTMLElement,
+		noteEl: HTMLElement,
+		list: HTMLElement,
+	): void {
+		const { plugin, record } = this;
+		const identity = shareIdentity(record).person;
 		const rows = shareRows(
-			this.plugin.realtime.people.online(this.record.id),
+			plugin.realtime.people.online(record.id),
 			this.participants,
+			identity,
 		);
-		const note = this.noteOf(rows);
-		const signature = JSON.stringify([this.failure, note, rows]);
+		const open = plugin.app.workspace.getActiveFile()?.path ?? null;
+		const self = selfRow(
+			record,
+			open !== null && isUnder(open, record.root) ? open : null,
+		);
+		const note = this.noteOf(rows.length);
+		const signature = JSON.stringify([this.failure, note, self, rows]);
 		if (signature === this.shown) return;
 		this.shown = signature;
+		count.setText(`People · ${rows.length + 1}`);
 		failure.setText(this.failure ?? "");
+		noteEl.setText(note ?? "");
 		renderKeepingFocus(list, () => {
 			list.empty();
-			if (note)
-				list.createEl("p", { cls: "setting-item-description", text: note });
-			for (const row of rows) this.renderRow(list, row);
+			renderPeople(list, self, rows, {
+				follow: (person) => void this.follow(person),
+				open: (path) => void this.openNote(path),
+				revoke: this.admin ? (person) => void this.revoke(person) : undefined,
+			});
 		});
 	}
 
-	private noteOf(rows: readonly ShareRow[]): string | null {
+	private noteOf(others: number): string | null {
 		if (this.failure) return null;
 		if (this.admin && this.participants === null) return "Loading…";
 		const { people, hub } = this.plugin.realtime;
 		const { id } = this.record;
 		const presence = presenceNote(hub.statusOf(id), people.unreadable(id));
 		if (presence) return presence;
-		if (rows.length > 0) return null;
+		if (others > 0) return null;
 		return this.admin
 			? "Nobody else can open this folder yet."
 			: "Nobody else is here now.";
 	}
 
-	private renderRow(list: HTMLElement, row: ShareRow): void {
-		const setting = new Setting(list).setName(named(row)).setDesc(row.detail);
-		const note = row.person?.note ?? null;
-		if (note !== null) {
-			setting.addExtraButton((button) => {
-				focusKey(button.extraSettingsEl, `note-${row.key}`);
-				button
-					.setIcon("file-text")
-					.setTooltip(`Open ${note}`)
-					.onClick(async () => {
-						if (await openNote(this.app, note)) this.close();
-					});
-			});
-		}
-		const { participant } = row;
-		if (!this.admin || !participant) return;
-		setting.addButton((button) => {
-			focusKey(button.buttonEl, `revoke-${row.key}`);
-			button
-				.setButtonText("Revoke")
-				.setDestructive()
-				.onClick(() => this.revoke(participant));
-		});
+	private async follow(person: Person): Promise<void> {
+		if (await this.plugin.follows.follow(this.record.id, person)) this.close();
+	}
+
+	private async openNote(path: string): Promise<void> {
+		if (await openNote(this.app, path)) this.close();
 	}
 
 	private readonly revoke = serial(async (person: Participant) => {
 		try {
-			if (await revokeAccess(this.plugin, this.record, person))
+			if (await revokeAccess(this.plugin, this.record, person)) {
 				await this.load();
+			}
 		} catch (err) {
 			this.failure = errorMessage(err);
 			this.redraw();
 		}
 	});
 
-	private renderFooter(): void {
-		const { plugin, record } = this;
-		const label = closeLabel(record);
-		new Setting(this.modalEl)
-			.setClass("mdsync-share-footer")
-			.setDesc(
-				this.owner
-					? "Everyone you invited loses access. The files stay in your vault."
-					: "Its changes stop reaching you. The files stay in your vault.",
-			)
-			.addButton((button) =>
-				button
-					.setButtonText(label)
-					.setDestructive()
-					.onClick(
-						serial(async () => {
-							button.setDisabled(true);
-							try {
-								if (await closeShare(plugin, record)) this.close();
-							} catch (err) {
-								notifyError(`Could not ${label.toLowerCase()}`, err);
-							} finally {
-								button.setDisabled(false);
-							}
-						}),
-					),
-			);
-	}
-
-	/** Shares off here say so in the summary: nothing to choose. */
+	/** Shares off here say so above: nothing to choose. */
 	private renderPause(): void {
 		const { contentEl, plugin, record } = this;
 		const { spaces, controller } = plugin;
 		const mounted = spaces.partition().some(({ id }) => id === record.id);
-		const paused = spaces.pauseOf(record.id);
-		if (!mounted || paused === "off") return;
-		new Setting(contentEl)
-			.setName("Pause")
-			.setDesc("Paused, the folder stays as it is and nothing of it syncs.")
-			.addDropdown((dropdown) =>
-				dropdown
-					.addOptions(PAUSE)
-					.setValue(paused ?? "")
-					.onChange(
-						serial(async (value) => {
-							const pause = value === "" ? null : (value as Pause);
-							// A pull or push running now would go on writing into it.
-							if (spaces.pauseOf(record.id) === null) controller.cancel();
-							dropdown.setDisabled(true);
-							try {
-								await spaces.setPause(
-									record.id,
-									pause,
-									controller.currentDevice().id,
-								);
-							} catch (err) {
-								notifyError("Could not change pause", err);
-							} finally {
-								dropdown.setDisabled(false);
-							}
-							void controller.refresh();
-							dropdown.setValue(spaces.pauseOf(record.id) ?? "");
-							this.summary?.setText(shareSummary(spaces, record));
-						}),
-					),
-			);
+		if (!mounted || spaces.pauseOf(record.id) === "off") return;
+		renderPauseControl(
+			contentEl,
+			modalSection(contentEl, "Pause syncing"),
+			`mdsync-pause-${record.id}`,
+			() => spaces.pauseOf(record.id) as Pause | null,
+			async (pause) => {
+				// A pull or push running now would go on writing into it.
+				if (spaces.pauseOf(record.id) === null) controller.cancel();
+				try {
+					await spaces.setPause(
+						record.id,
+						pause,
+						controller.currentDevice().id,
+					);
+				} catch (err) {
+					notifyError("Could not change pause", err);
+				}
+				void controller.refresh();
+			},
+		);
+		modalHint(
+			contentEl,
+			"Paused, the folder stays as it is and nothing of it syncs.",
+		);
 	}
-}
 
-function heading(parent: HTMLElement, title: string): void {
-	new Setting(parent)
-		.setName(title)
-		.setHeading()
-		.settingEl.addClass("mdsync-share-section");
-}
-
-function named({ key, name, person }: ShareRow): DocumentFragment {
-	const fragment = createFragment();
-	renderAvatar(fragment, { key, name, idle: person?.idle ?? false });
-	fragment.createSpan({ text: name });
-	return fragment;
+	private renderFooter(): void {
+		const { plugin, record } = this;
+		const label = closeLabel(record);
+		const footer = modalFooter(this);
+		const close = new ButtonComponent(footer)
+			.setButtonText(`${label}…`)
+			.setDestructive();
+		close.onClick(
+			serial(async () => {
+				close.setDisabled(true);
+				try {
+					if (await closeShare(plugin, record)) this.close();
+				} catch (err) {
+					notifyError(`Could not ${label.toLowerCase()}`, err);
+				} finally {
+					close.setDisabled(false);
+				}
+			}),
+		);
+		new ButtonComponent(footer)
+			.setButtonText("Done")
+			.onClick(() => this.close());
+	}
 }

@@ -112,6 +112,18 @@ describe("PassphraseManager", () => {
 		expect(passphrase.liveKeys()).toBeNull();
 	});
 
+	it("tells subscribers when the passphrase is entered or forgotten", async () => {
+		const passphrase = manager(["secret"]);
+		const changed = vi.fn();
+		const stop = passphrase.subscribe(changed);
+		await passphrase.prompt(false);
+		await passphrase.forget();
+		expect(changed).toHaveBeenCalledTimes(2);
+		stop();
+		await passphrase.prompt(false);
+		expect(changed).toHaveBeenCalledTimes(2);
+	});
+
 	it("caches a typed passphrase only once it opened the keyfile", async () => {
 		vi.mocked(resolveContentKey).mockRejectedValueOnce(new Error("wrong"));
 		const passphrase = manager(["typo"]);

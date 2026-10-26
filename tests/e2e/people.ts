@@ -8,7 +8,6 @@ import {
 	closeModals,
 	confirm,
 	openSharedFolderSettings,
-	press,
 	read,
 	sync,
 	write,
@@ -163,7 +162,7 @@ async function inviteAgain(owner: Obsidian, friend: Obsidian): Promise<void> {
 
 async function revoke(owner: Obsidian, friend: Obsidian): Promise<void> {
 	await people(owner);
-	await press(owner, "Revoke");
+	await revokeFirst(owner);
 	await confirm(owner, "Revoke");
 	// The list reloads after the revoke; wait for it rather than read the old one.
 	await poll("nobody is left", async () =>
@@ -188,23 +187,54 @@ async function pushes(device: Obsidian, label: string): Promise<void> {
 /** Opens the share's window from the settings (unless open) and reads who has access once loaded, as [name, access]. */
 async function people(owner: Obsidian): Promise<string[][]> {
 	const open = await owner.evaluate(
-		() => activeDocument.querySelector(".mdsync-share-access") !== null,
+		() => activeDocument.querySelector(".mdsync-share-people") !== null,
 	);
 	if (!open) {
 		await openSharedFolderSettings(owner);
 	}
 	return poll("the people", () =>
 		owner.evaluate(() => {
-			const list = activeDocument.querySelector(".mdsync-share-access");
-			if (!list || list.textContent?.includes("Loading…")) return undefined;
-			return [...list.querySelectorAll(".setting-item")].map((row) => [
-				row.querySelector(".setting-item-name span:not(.mdsync-avatar)")
-					?.textContent ?? "",
-				// The role, without where they are now.
-				row
-					.querySelector(".setting-item-description")
-					?.textContent?.split(" - ")[0] ?? "",
-			]);
+			const modal = activeDocument.querySelector(".mdsync-share-modal");
+			const list = modal?.querySelector(".mdsync-share-people");
+			if (!list || modal?.textContent?.includes("Loading…")) return undefined;
+			// The first row is this device's own person.
+			return [...list.querySelectorAll(".mdsync-share-person")]
+				.slice(1)
+				.map((row) => [
+					row.querySelector(".mdsync-modal-row-name")?.textContent ?? "",
+					row.querySelector(".mdsync-share-role")?.textContent ?? "",
+				]);
+		}),
+	);
+}
+
+/** The first person's Revoke: their row's button while away, else in its menu. */
+async function revokeFirst(owner: Obsidian): Promise<void> {
+	const inMenu = await owner.evaluate(() => {
+		const row = activeDocument.querySelectorAll(
+			".mdsync-share-modal .mdsync-share-person",
+		)[1];
+		const buttons = [...(row?.querySelectorAll("button") ?? [])];
+		const direct = buttons.find((button) => button.textContent === "Revoke");
+		if (direct) {
+			direct.click();
+			return false;
+		}
+		const more = buttons.find((button) =>
+			button.getAttribute("aria-label")?.startsWith("More for"),
+		);
+		if (!more) throw new Error("no Revoke for the first person");
+		more.click();
+		return true;
+	});
+	if (!inMenu) return;
+	await poll("Revoke access in the menu", () =>
+		owner.evaluate(() => {
+			const item = [
+				...activeDocument.querySelectorAll<HTMLElement>(".menu .menu-item"),
+			].find((each) => each.textContent === "Revoke access");
+			item?.click();
+			return item ? true : undefined;
 		}),
 	);
 }

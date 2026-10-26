@@ -12,11 +12,6 @@ export function formatBytes(bytes: number): string {
 }
 
 /** Signed byte change, or null when nothing moved. */
-export function formatSizeDelta(delta: number): string | null {
-	if (delta === 0) return null;
-	return `${delta > 0 ? "+" : "−"}${formatBytes(Math.abs(delta))}`;
-}
-
 /** "Alex · Laptop, Phone": a person in a share runs several devices under one key. */
 export function withDevices(name: string, devices: readonly string[]): string {
 	return devices.length > 0 ? `${name} · ${devices.join(", ")}` : name;

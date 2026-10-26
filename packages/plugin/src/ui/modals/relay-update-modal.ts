@@ -1,4 +1,4 @@
-import { type ButtonComponent, Modal, Setting } from "obsidian";
+import { ButtonComponent, Modal } from "obsidian";
 
 import type { RelayTarget } from "@/cloudflare";
 import type { PluginHost } from "@/plugin/host";
@@ -7,7 +7,14 @@ import {
 	cloudflareErrorMessage,
 } from "@/settings/cloudflare-login";
 import { activateRelay, deployOwnRelay } from "@/settings/setup/relay";
-import { alertLine, notifyError, notifyInfo } from "@/ui/common";
+import {
+	alertLine,
+	modalFooter,
+	modalHint,
+	notifyError,
+	notifyInfo,
+	renderModalHead,
+} from "@/ui/common";
 
 import { openPromiseModal } from "./promise-modal";
 
@@ -20,13 +27,14 @@ export function openRelayUpdateModal(
 	return openPromiseModal<boolean>((answer) => {
 		const modal = new Modal(plugin.app);
 		const { contentEl } = modal;
-		modal.titleEl.setText("Update the relay");
+		renderModalHead(modal, { icon: "server", title: "Update the relay" });
 		contentEl.createEl("p", {
 			text: "This version of MDSync carries a newer relay with fixes. It takes about a minute; the relay's secret, shared folders and links stay.",
 		});
-		contentEl.createEl("p", {
-			text: "Later: Settings → MDSync → Connection → Update relay.",
-		});
+		modalHint(
+			contentEl,
+			"Later: Settings → MDSync → Connection → Update relay.",
+		);
 		const error = alertLine(contentEl);
 		let update: ButtonComponent | null = null;
 		const submit = async (): Promise<void> => {
@@ -51,14 +59,14 @@ export function openRelayUpdateModal(
 				update?.setDisabled(false).setButtonText("Try again");
 			}
 		};
-		new Setting(contentEl)
-			.addButton((b) => b.setButtonText("Not now").onClick(() => modal.close()))
-			.addButton((b) => {
-				update = b
-					.setButtonText("Update")
-					.setCta()
-					.onClick(() => void submit());
-			});
+		const footer = modalFooter(modal);
+		new ButtonComponent(footer)
+			.setButtonText("Not now")
+			.onClick(() => modal.close());
+		update = new ButtonComponent(footer)
+			.setButtonText("Update")
+			.setCta()
+			.onClick(() => void submit());
 		return modal;
 	}, false);
 }

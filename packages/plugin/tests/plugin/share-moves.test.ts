@@ -22,8 +22,11 @@ const TEAM: SpaceRecord = {
 	},
 };
 
-/** Folder paths to their children; only the count matters here. */
-function setup(folders: Record<string, string[]>) {
+/** Folder paths to their children; only the count matters here. `hidden` is on disk, not in the index. */
+function setup(
+	folders: Record<string, string[]>,
+	hidden: Record<string, string[]> = {},
+) {
 	const settings = {
 		spaces: [TEAM],
 		useSharedFolders: true,
@@ -41,9 +44,16 @@ function setup(folders: Record<string, string[]>) {
 		createFolder: vi.fn(async (path: string) => {
 			folders[path] = [];
 		}),
-		delete: vi.fn(async (folder: TFolder) => {
-			delete folders[folder.path];
-		}),
+		adapter: {
+			list: async (path: string) => ({
+				files: [...(folders[path] ?? []), ...(hidden[path] ?? [])],
+				folders: [],
+			}),
+			// Obsidian mobile ignores `recursive: false`.
+			rmdir: vi.fn(async (path: string) => {
+				delete folders[path];
+			}),
+		},
 		rename: vi.fn(async (folder: TFolder, to: string) => {
 			folders[to] = folders[folder.path] ?? [];
 			delete folders[folder.path];
@@ -121,9 +131,21 @@ describe("following a shared folder moved on another device", () => {
 
 		await follow();
 
-		expect(vault.delete).toHaveBeenCalledOnce();
+		expect(vault.adapter.rmdir).toHaveBeenCalledOnce();
 		expect(vault.rename).toHaveBeenCalledOnce();
 		expect(spaces.moves()).toEqual([]);
+	});
+
+	it("leaves a folder holding what the index hides", async () => {
+		const { vault, follow } = setup(
+			{ Team: ["a.md"], "Projects/Team": [] },
+			{ "Projects/Team": [".keep"] },
+		);
+
+		await follow();
+
+		expect(vault.adapter.rmdir).not.toHaveBeenCalled();
+		expect(vault.rename).not.toHaveBeenCalled();
 	});
 
 	it("settles a folder that is not here, without moving anything", async () => {

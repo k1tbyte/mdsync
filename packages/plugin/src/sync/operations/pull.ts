@@ -2,7 +2,7 @@ import { ESyncLogOperation } from "@/logs/store";
 import { entryAt, formatBytes, sumBytes } from "@/shared";
 import { buildSessionState, mergeWrittenIntoCache } from "@/sync/baseline";
 import { LOG_PATH_LIMIT } from "@/sync/constants";
-import { pullPaths } from "@/sync/engine";
+import { pullPaths } from "@/sync/pull";
 import type { Operation } from "./types";
 
 export const pullPathsOp: Operation<ReadonlyArray<string>> = async (
@@ -22,25 +22,27 @@ export const pullPathsOp: Operation<ReadonlyArray<string>> = async (
 		(path) => (entryAt(files, path)?.size ?? 0) <= deps.maxFileBytes,
 	);
 	const pullSet = new Set(paths);
-	const bytesDownloaded = sumBytes(paths, files);
 	// Coalesced like the push: a broadcast per file costs 0.16 ms of main thread at 20k files.
 	const pulled = await pullPaths(deps, result, paths, (done, total) => {
-		ctx.reportProgressSoon(`Pulling ${done}/${total}…`);
+		ctx.reportProgressSoon(
+			`Pulling ${done}/${total}…`,
+			total > 0 ? done / total : 0,
+		);
 	});
 	ctx.setProgress(null);
 	const hashCache = mergeWrittenIntoCache(pulled.written, result.updatedCache);
 	await ctx.persistState(
 		buildSessionState(deps.state, pulled.baseline, hashCache),
 	);
-	// A cancelled pull landed only these files: report what happened, not what was asked.
-	const landed = pulled.cancelled
-		? [...pulled.written.keys()]
-		: Array.from(pullSet);
+	await deps.journal?.acknowledge(deps.space);
+	if (pulled.failed !== undefined) throw pulled.failed;
+	// What happened, not what was asked: a move that waits or a file edited meanwhile did not land.
+	const landed = [...pullSet].filter((path) => pulled.written.has(path));
 	await ctx.logInfo(
 		ESyncLogOperation.Pull,
 		pulled.cancelled
 			? `Pull cancelled after ${landed.length} of ${pullSet.size} file(s).`
-			: `Pulled ${pullSet.size} file(s) (${formatBytes(bytesDownloaded)}).${tooLarge(asked.length - paths.length)}`,
+			: `Pulled ${landed.length} file(s) (${formatBytes(sumBytes(landed, files))}).${tooLarge(asked.length - paths.length)}`,
 		landed.slice(0, LOG_PATH_LIMIT),
 	);
 	return {

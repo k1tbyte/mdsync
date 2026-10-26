@@ -5,8 +5,13 @@ import {
 	setIcon,
 	type WorkspaceLeaf,
 } from "obsidian";
-import { DIFF_VIEW_TYPE, SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
+import {
+	DIFF_VIEW_TYPE,
+	RELATIVE_TIME_REFRESH_MS,
+	SOURCE_CONTROL_VIEW_TYPE,
+} from "@/constants";
 import type { PluginHost } from "@/plugin/host";
+import { canSync } from "@/settings/model";
 import type { SyncStatusSnapshot } from "@/sync/controller";
 import type { HistoryVersionRef } from "@/sync/projection";
 import { redrawOnPhoneChange } from "@/ui/common";
@@ -41,45 +46,63 @@ const SOURCE_TABS: ReadonlyArray<{
 	{ tab: ESourceTab.Timeline, label: "Timeline", icon: "clock-3" },
 ];
 
-export async function openSourceControlHistory(
+export function openSourceControlHistory(
 	plugin: PluginHost,
 	path?: string,
 ): Promise<void> {
-	await openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
-	const leaf = plugin.app.workspace.getLeavesOfType(
-		SOURCE_CONTROL_VIEW_TYPE,
-	)[0];
-	const view = leaf?.view;
-	if (view instanceof SourceControlView) view.showHistory(path ?? null);
+	return openSourceControlOn(plugin, (view) => view.showHistory(path ?? null));
 }
 
-export async function openSourceControlDeleted(
+export function openSourceControlDeleted(plugin: PluginHost): Promise<void> {
+	return openSourceControlOn(plugin, (view) => view.showDeleted());
+}
+
+/** An open view keeps its tab; conflicts are only on Changes. */
+export function openSourceControlChanges(plugin: PluginHost): Promise<void> {
+	return openSourceControlOn(plugin, (view) => view.showChanges());
+}
+
+async function openSourceControlOn(
 	plugin: PluginHost,
+	show: (view: SourceControlView) => void,
 ): Promise<void> {
-	await openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
-	const leaf = plugin.app.workspace.getLeavesOfType(
+	// The leaf it showed: an older one in a main tab may sit beside the sidebar's.
+	const { view } = await openSourceControlView(
+		plugin.app,
 		SOURCE_CONTROL_VIEW_TYPE,
-	)[0];
-	const view = leaf?.view;
-	if (view instanceof SourceControlView) view.showDeleted();
+	);
+	if (view instanceof SourceControlView) show(view);
 }
 
 export async function openSourceControlView(
 	app: App,
 	viewType: string,
-): Promise<void> {
-	const existing = app.workspace.getLeavesOfType(viewType);
-	const firstExisting = existing[0];
-	if (firstExisting) {
-		await app.workspace.revealLeaf(firstExisting);
-		return;
+): Promise<WorkspaceLeaf> {
+	const { workspace } = app;
+	const existing = workspace.getLeavesOfType(viewType);
+	const shown =
+		existing.find((leaf) => leaf.getRoot() === workspace.rightSplit) ??
+		existing[0];
+	if (shown) {
+		await workspace.revealLeaf(shown);
+		return shown;
 	}
-	const leaf = Platform.isMobile
-		? app.workspace.getLeaf("tab")
-		: (app.workspace.getRightLeaf(false) ?? app.workspace.getLeaf(true));
-	if (!leaf) return;
+	const leaf = workspace.getRightLeaf(false) ?? workspace.getLeaf(true);
 	await leaf.setViewState({ type: viewType, active: true });
-	await app.workspace.revealLeaf(leaf);
+	await workspace.revealLeaf(leaf);
+	return leaf;
+}
+
+/** A mobile's right sidebar lists only the views it holds: one waits there beside backlinks and the outline. */
+export function keepInRightSidebar(app: App): void {
+	const { workspace } = app;
+	const held = workspace
+		.getLeavesOfType(SOURCE_CONTROL_VIEW_TYPE)
+		.some((leaf) => leaf.getRoot() === workspace.rightSplit);
+	if (held) return;
+	void workspace
+		.getRightLeaf(false)
+		?.setViewState({ type: SOURCE_CONTROL_VIEW_TYPE, active: false });
 }
 
 export class SourceControlView extends ItemView {
@@ -95,6 +118,7 @@ export class SourceControlView extends ItemView {
 	private timelineTab!: TimelineTab;
 	/** The file changed while the view was hidden; reloading then would fetch history nobody sees. */
 	private historyStale = false;
+	private comparedOnce = false;
 
 	constructor(leaf: WorkspaceLeaf, plugin: PluginHost) {
 		super(leaf);
@@ -113,6 +137,7 @@ export class SourceControlView extends ItemView {
 			this.actions,
 			() => this.render(this.plugin.controller.getSnapshot(), true),
 			(path) => openDiffView(this.plugin, path),
+			(path) => void openDiffView(this.plugin, path, undefined, true),
 		);
 	}
 
@@ -172,12 +197,32 @@ export class SourceControlView extends ItemView {
 		this.unsubscribe = this.plugin.controller.subscribe((snapshot) =>
 			this.render(snapshot),
 		);
-		if (!this.plugin.controller.getSnapshot().result) {
+		this.registerInterval(
+			window.setInterval(
+				() => this.changes.refreshTimes(),
+				RELATIVE_TIME_REFRESH_MS,
+			),
+		);
+		this.compareOnceShown();
+	}
+
+	/**
+	 * Its first compare waits until it shows: a leaf a mobile's sidebar made at launch must leave the startup
+	 * sync to the scheduler. Not set up, the tab itself says so; a compare would only add a notice.
+	 */
+	private compareOnceShown(): void {
+		if (this.comparedOnce || !this.containerEl.isShown()) return;
+		this.comparedOnce = true;
+		if (
+			!this.plugin.controller.getSnapshot().result &&
+			canSync(this.plugin.settings)
+		) {
 			void this.plugin.controller.refresh();
 		}
 	}
 
 	onResize(): void {
+		this.compareOnceShown();
 		if (!this.historyStale || !this.containerEl.isShown()) return;
 		this.historyStale = false;
 		if (this.tab !== ESourceTab.History) return;
@@ -207,10 +252,19 @@ export class SourceControlView extends ItemView {
 		this.render(this.plugin.controller.getSnapshot(), true);
 	}
 
-	private renderActiveTab(root: HTMLElement): void {
-		if (this.tab === ESourceTab.History) this.historyTab.render(root);
-		else if (this.tab === ESourceTab.Deleted) this.trashTab.render(root);
-		else this.timelineTab.render(root);
+	showChanges(): void {
+		this.activateTab(ESourceTab.Changes);
+	}
+
+	private renderActiveTab(
+		panel: HTMLElement,
+		tools: HTMLElement,
+		overlay: HTMLElement,
+	): void {
+		if (this.tab === ESourceTab.History) this.historyTab.render(panel, tools);
+		else if (this.tab === ESourceTab.Deleted)
+			this.trashTab.render(panel, tools, overlay);
+		else this.timelineTab.render(panel, tools);
 	}
 
 	refreshHistory(): void {
@@ -234,8 +288,8 @@ export class SourceControlView extends ItemView {
 			this.changes.dispose();
 			this.changes.invalidate();
 			root.empty();
-			this.renderTabBar(root);
-			this.renderActiveTab(this.renderTabPanel(root));
+			const tools = this.renderTabBar(root);
+			this.renderActiveTab(this.renderTabPanel(root), tools, root);
 			return;
 		}
 		if (!force && !this.changes.needsRebuild(snapshot)) {
@@ -246,9 +300,9 @@ export class SourceControlView extends ItemView {
 			root.querySelector<HTMLElement>(".mdsync-source-tab-panel")?.scrollTop ??
 			0;
 		root.empty();
-		this.renderTabBar(root);
+		const tools = this.renderTabBar(root);
 		const panel = this.renderTabPanel(root);
-		this.changes.render(panel, snapshot);
+		this.changes.render(panel, snapshot, tools, root);
 		// Emptying the pane clamped the scroll to nothing, so the lists mounted
 		// against the top. Restoring it moves them without a scroll event.
 		panel.scrollTop = scrollTop;
@@ -263,14 +317,15 @@ export class SourceControlView extends ItemView {
 		return panel;
 	}
 
-	private renderTabBar(parent: HTMLElement): void {
+	/** Returns the row's trailing slot, where the Changes tab puts its tools. */
+	private renderTabBar(parent: HTMLElement): HTMLElement {
 		const row = parent.createDiv({ cls: "mdsync-source-tabs-row" });
 		if (Platform.isPhone) {
 			const back = row.createEl("button", { cls: "mdsync-mobile-back" });
 			back.type = "button";
 			back.setAttr("aria-label", "Close source control");
 			setIcon(back, "arrow-left");
-			back.addEventListener("click", () => this.leaf.detach());
+			back.addEventListener("click", () => this.close());
 		}
 		const bar = row.createDiv({
 			cls: "mdsync-settings-tabs mdsync-source-tabs",
@@ -309,6 +364,17 @@ export class SourceControlView extends ItemView {
 			});
 		};
 		for (const { tab, label, icon } of SOURCE_TABS) make(tab, label, icon);
+		return row.createDiv({ cls: "mdsync-source-tools" });
+	}
+
+	/** A sidebar's leaf stays: the drawer lists only the views it holds. */
+	private close(): void {
+		const { leftSplit, rightSplit } = this.app.workspace;
+		const side = [leftSplit, rightSplit].find(
+			(split) => split === this.leaf.getRoot(),
+		);
+		if (side) side.collapse();
+		else this.leaf.detach();
 	}
 
 	private activateTab(tab: ESourceTab, restoreFocus = false): void {
@@ -335,10 +401,12 @@ export interface HistoryDiffTarget extends HistoryVersionRef {
 	previewIfMissing?: boolean;
 }
 
+/** `merge` goes straight into the conflict's merge, as the diff's Merge… does. */
 export async function openDiffView(
 	plugin: PluginHost,
 	path: string,
 	history?: HistoryDiffTarget,
+	merge = false,
 ): Promise<void> {
 	const existing = plugin.app.workspace.getLeavesOfType(DIFF_VIEW_TYPE);
 	const leaf = existing[0] ?? plugin.app.workspace.getLeaf(true);
@@ -355,6 +423,7 @@ export async function openDiffView(
 			againstSize: history?.against?.size,
 			historyChange: history?.change,
 			historyPreviewIfMissing: history?.previewIfMissing,
+			merge: merge || undefined,
 		},
 	});
 	await plugin.app.workspace.revealLeaf(leaf);

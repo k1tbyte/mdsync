@@ -122,10 +122,14 @@ describe("content", () => {
 		const reader = root.querySelector(".reader") as HTMLElement;
 		expect(reader.className).toBe("reader");
 		expect(Array.from(reader.children, (el) => el.tagName)).toEqual([
+			"HEADER",
+			"DIV",
+		]);
+		const body = reader.querySelector(".reader-body") as HTMLElement;
+		expect(Array.from(body.children, (el) => el.tagName)).toEqual([
 			"ASIDE",
 			"ARTICLE",
 		]);
-		expect(reader.firstElementChild?.className).toBe("sidebar");
 		expect(
 			reader.querySelectorAll(".sidebar-panel > nav.outline"),
 		).toHaveLength(count >= 3 ? 1 : 0);
@@ -182,7 +186,9 @@ describe("content", () => {
 		showContent(
 			'<p>Text<sup><a href="#fn-1">[1]</a></sup></p><ol><li id="fn-1">Note</li></ol>',
 		);
-		const anchor = root.querySelector("a") as HTMLAnchorElement;
+		const anchor = root.querySelector(
+			".markdown-rendered a",
+		) as HTMLAnchorElement;
 		const click = new MouseEvent("click", { bubbles: true, cancelable: true });
 		anchor.dispatchEvent(click);
 		expect(click.defaultPrevented).toBe(true);
@@ -192,7 +198,9 @@ describe("content", () => {
 
 	it("jumps to an id with a literal percent sign", () => {
 		showContent('<a href="#100%">top</a><h2 id="100%">100%</h2>');
-		(root.querySelector("a") as HTMLAnchorElement).dispatchEvent(
+		(
+			root.querySelector(".markdown-rendered a") as HTMLAnchorElement
+		).dispatchEvent(
 			new MouseEvent("click", { bubbles: true, cancelable: true }),
 		);
 		expect(scrolled).toEqual([root.querySelector('h2[id="100%"]')]);

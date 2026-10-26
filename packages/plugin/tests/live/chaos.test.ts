@@ -1,4 +1,5 @@
 import { LiveHub, type TestConnection } from "@tests/helpers/live-hub";
+import { seeded } from "@tests/helpers/seeded";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { deriveLiveKeys } from "@/crypto/live-keys";
@@ -23,16 +24,6 @@ const sessions: LiveSession<TextModel>[] = [];
 afterEach(() => {
 	for (const session of sessions.splice(0)) session.dispose();
 });
-
-function seeded(seed: number): () => number {
-	let state = seed;
-	return () => {
-		state = (state + 0x6d2b79f5) | 0;
-		let t = Math.imul(state ^ (state >>> 15), 1 | state);
-		t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-		return ((t ^ (t >>> 14)) >>> 0) / 2 ** 32;
-	};
-}
 
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));

@@ -81,6 +81,14 @@ export class AgreedTexts {
 		this.schedule();
 	}
 
+	/** Saved once it resolves: the sync forgets its own record of the write then. Failed, the delay retries. */
+	async putNow(docId: string, agreed: AgreedText): Promise<void> {
+		this.put(docId, agreed);
+		const write = this.writing.then(() => this.writeUnwritten(docId));
+		this.writing = write.catch(() => undefined);
+		await write;
+	}
+
 	flush(): Promise<void> {
 		if (this.timer !== null) window.clearTimeout(this.timer);
 		this.timer = null;
@@ -101,12 +109,17 @@ export class AgreedTexts {
 		}, WRITE_DELAY_MS);
 	}
 
-	private async writeUnwritten(): Promise<void> {
+	/**
+	 * `only` leaves the others to the delay: an early try counts against a room whose file is not saved yet.
+	 * Its failure goes to the caller.
+	 */
+	private async writeUnwritten(only?: string): Promise<void> {
 		if (this.unwritten.size === 0) return;
 		try {
 			await ensureDir(this.adapter, this.dir);
 			const files = await this.files();
 			for (const [docId, unwritten] of [...this.unwritten]) {
+				if (only !== undefined && docId !== only) continue;
 				const saved = await onDisk(unwritten);
 				if (!saved && ++unwritten.tries < MAX_TRIES) {
 					this.schedule();
@@ -123,6 +136,7 @@ export class AgreedTexts {
 				}
 			}
 		} catch (err) {
+			if (only !== undefined) throw err;
 			reportWarning("Could not save the live editing base.", err);
 		}
 	}

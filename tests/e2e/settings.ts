@@ -25,9 +25,7 @@ await runScenario("settings UX e2e", async () => {
 			() =>
 				new Promise<void>((resolve) => app.workspace.onLayoutReady(resolve)),
 		);
-		await device.evaluate(() => {
-			app.setting.open();
-		});
+		await openOwnWindow(device);
 		const page = await poll("settings navigation ready", async () => {
 			for (const candidate of browser
 				.contexts()
@@ -280,4 +278,29 @@ function scrollTop(device: Obsidian): Promise<number> {
 		if (!root) throw new Error("No settings container");
 		return root.scrollTop;
 	});
+}
+
+/**
+ * Settings open in a window of their own. Now and then Obsidian draws them in the main one and leaves
+ * that window empty, holding `activeDocument`: closed and opened again until they land there.
+ */
+async function openOwnWindow(device: Obsidian): Promise<void> {
+	for (let attempt = 1; ; attempt++) {
+		await device.evaluate(() => app.setting.open());
+		const own = await poll("settings drawn", () =>
+			device.evaluate(() => {
+				if (activeDocument.querySelector(".mod-settings")) return true;
+				return document.querySelector(".mod-settings") ? false : undefined;
+			}),
+		);
+		if (own) return;
+		if (attempt === 3)
+			throw new Error("settings keep opening in the main window");
+		await device.evaluate(() => app.setting.close());
+		await poll("settings closed", () =>
+			device.evaluate(() =>
+				document.querySelector(".mod-settings") ? undefined : true,
+			),
+		);
+	}
 }

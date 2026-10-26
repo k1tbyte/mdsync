@@ -4,6 +4,7 @@
 - ALL domain logic (diffs, merging, concurrency, hunks matching, baseline cache) must have complete unit-test coverage.
 - Tests mirror `src/`: `tests/<area>/<module>.test.ts`, helpers in `tests/helpers/`.
 - Live sessions run against the relay's own hub logic and SQLite store in-process (`tests/helpers/live-hub.ts`, via the `mdsync-relay` devDependency), with switches for lost frames and reconnects. `tests/live/chaos.test.ts` runs three devices through seeded edits, drops and half-open sockets and demands one text with every edit in it.
+- Hunting silent data loss: the brief is `.claude/hunts/data-loss.md`.
 
 ## Driving a real Obsidian
 

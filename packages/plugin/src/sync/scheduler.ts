@@ -145,6 +145,7 @@ export function registerScheduler(
 		(edit: boolean) =>
 		(file: TAbstractFile, oldPath?: string): void => {
 			controller.noteLocalChange();
+			if (edit) controller.refreshSaved(file.path);
 			for (const path of oldPath ? [file.path, oldPath] : [file.path]) {
 				const { id, paused, readOnly } = spaceOf(host.spaces.partition(), path);
 				// Nothing there pushes: queued, it would only refresh.

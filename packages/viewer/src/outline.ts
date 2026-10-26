@@ -3,8 +3,8 @@ import { headingLevel, reveal } from "./sections";
 
 /** Fewer headings than this need no outline. */
 const MIN_HEADINGS = 3;
-/** A heading above this line from the window's top is the one being read. */
-const READING_LINE_PX = 96;
+/** A heading this far below where a jump leaves it still counts as the one being read. */
+const READING_SLACK_PX = 16;
 
 /** The note's headings as a list that jumps to them and marks the one being read. Listeners end with `signal`. */
 export function createOutline(
@@ -39,12 +39,16 @@ export function createOutline(
 	let frame = 0;
 	const markCurrent = () => {
 		frame = 0;
+		// A jump leaves a heading its scroll margin from the top, below the sticky bar.
+		const line =
+			Number.parseFloat(window.getComputedStyle(first).scrollMarginTop) +
+			READING_SLACK_PX;
 		let current = -1;
 		headings.forEach((heading, index) => {
 			// A folded heading has no box, and its zero top would count as passed.
 			if (
 				heading.getClientRects().length > 0 &&
-				heading.getBoundingClientRect().top < READING_LINE_PX
+				heading.getBoundingClientRect().top < line
 			) {
 				current = index;
 			}

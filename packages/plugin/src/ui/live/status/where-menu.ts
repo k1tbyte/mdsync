@@ -1,4 +1,4 @@
-import { Menu } from "obsidian";
+import type { Menu } from "obsidian";
 
 import { isConnected } from "@/hub/status";
 import type { PluginHost } from "@/plugin/host";
@@ -11,7 +11,6 @@ import {
 	personTitle,
 	RELAY_TEXT,
 	relayFixOf,
-	showMenuAt,
 	UNREADABLE_TEXT,
 } from "@/ui/common";
 import { LINK_LIVE_STATE, STATE_ICONS } from "@/ui/live/live-state";
@@ -22,8 +21,8 @@ import {
 	spaceName,
 } from "./live-spaces";
 
-export function openWhereMenu(plugin: PluginHost, anchor?: HTMLElement): void {
-	const menu = new Menu();
+/** The relay of every space, its fixes, who is in shared notes and what others changed. */
+export function addRelaySections(menu: Menu, plugin: PluginHost): void {
 	const spaces = carried(plugin);
 	addStatuses(menu, plugin, spaces);
 	addRelayFixes(menu, plugin, spaces);
@@ -43,9 +42,6 @@ export function openWhereMenu(plugin: PluginHost, anchor?: HTMLElement): void {
 		);
 	}
 	addUnseen(menu, plugin);
-	const { workspace } = plugin.app;
-	const view = workspace.getMostRecentLeaf()?.view;
-	showMenuAt(menu, anchor, view?.containerEl ?? workspace.containerEl);
 }
 
 function addStatuses(

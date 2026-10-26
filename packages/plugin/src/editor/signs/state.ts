@@ -1,21 +1,24 @@
-import type { Chunk } from "@codemirror/merge";
 import {
 	type EditorState,
 	StateEffect,
 	StateField,
-	type Text,
+	Text,
 } from "@codemirror/state";
 import { editorInfoField } from "obsidian";
 
-export interface ChunksData {
-	chunks: readonly Chunk[];
+import type { MarkedChange } from "./helpers";
+
+export interface ChangesData {
+	changes: readonly MarkedChange[];
+	/** What they were computed for: a large edit recomputes them only later. */
+	doc: Text;
 	lastDiffMs: number;
 }
 
-const EMPTY_CHUNKS: ChunksData = { chunks: [], lastDiffMs: 0 };
+const NO_CHANGES: ChangesData = { changes: [], doc: Text.empty, lastDiffMs: 0 };
 
 export const setCompareTextEffect = StateEffect.define<Text | null>();
-export const setChunksEffect = StateEffect.define<ChunksData>();
+export const setChangesEffect = StateEffect.define<ChangesData>();
 
 export const compareTextField = StateField.define<Text | null>({
 	create: () => null,
@@ -31,16 +34,16 @@ export const compareTextField = StateField.define<Text | null>({
 	},
 });
 
-export const chunksField = StateField.define<ChunksData>({
-	create: () => EMPTY_CHUNKS,
+export const changesField = StateField.define<ChangesData>({
+	create: () => NO_CHANGES,
 	update(prev, tr) {
 		if (pathFromState(tr.startState) !== pathFromState(tr.state)) {
-			return EMPTY_CHUNKS;
+			return NO_CHANGES;
 		}
 		let next = prev;
 		for (const effect of tr.effects) {
-			if (effect.is(setChunksEffect)) next = effect.value;
-			if (effect.is(setCompareTextEffect)) next = EMPTY_CHUNKS;
+			if (effect.is(setChangesEffect)) next = effect.value;
+			if (effect.is(setCompareTextEffect)) next = NO_CHANGES;
 		}
 		return next;
 	},

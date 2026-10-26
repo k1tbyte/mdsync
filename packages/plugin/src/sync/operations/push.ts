@@ -47,7 +47,10 @@ export const pushPathsOp: Operation<ReadonlyArray<string>> = async (
 		result,
 		ready,
 		(done, total) => {
-			ctx.reportProgressSoon(`Pushing ${done}/${total}…`);
+			ctx.reportProgressSoon(
+				`Pushing ${done}/${total}…`,
+				total > 0 ? done / total : 0,
+			);
 		},
 		live.marks,
 	);

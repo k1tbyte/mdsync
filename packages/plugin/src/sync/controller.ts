@@ -1,7 +1,8 @@
+import type { LocalOpener } from "@/core/session-factory";
 import { ESyncLogOperation } from "@/logs/store";
 import type { SettingsSyncCategories } from "@/settings/model";
 import { authorOf, type LastEdit } from "./authors";
-import { selectAutoPushPaths } from "./auto-push";
+import { type AutoPushSelector, createAutoPushSelector } from "./auto-push";
 import { clearRemoteTextCache } from "./content";
 import { defaultDeviceName } from "./device";
 import type { EngineDependencies } from "./engine";
@@ -39,6 +40,7 @@ import {
 	type SpaceOperation,
 } from "./runtime/operation-runner";
 import { RefreshQueue } from "./runtime/refresh-queue";
+import { SavedRefresh } from "./runtime/saved-refresh";
 import { pathsBySpace, type Space, spaceOf, VAULT_SPACE } from "./space";
 import type { LocalState } from "./types";
 
@@ -60,6 +62,8 @@ export interface SyncControllerHost {
 		space: Space,
 		partition: readonly Space[],
 	): Promise<EngineDependencies | null>;
+	/** A quick local look at the space's files; null where a session would need a prompt. Never reaches the network. */
+	openLocal?: LocalOpener;
 	persistState(state: LocalState): Promise<void>;
 	getState(): LocalState;
 	/** Another device may want the space now: its channel is signalled. */
@@ -76,6 +80,10 @@ export interface SyncControllerHost {
 	onSpaceGone?(space: Space): void;
 	/** A disk walk found files Obsidian's index lacks: synced, shown after a restart. */
 	onUnindexed?(count: number): void;
+	/** How many deletions one automatic push may publish; null for any number. */
+	autoDeleteLimit?(): number | null;
+	/** An automatic push left these deletions for the person: more than `autoDeleteLimit`. */
+	onDeletionsHeld?(space: Space, paths: readonly string[]): void;
 	logInfo(
 		operation: ESyncLogOperation,
 		message: string,
@@ -119,6 +127,8 @@ export class SyncController {
 	readonly fileDiffs: FileDiffService;
 	private readonly operations: OperationRunner;
 	private readonly refreshes: RefreshQueue;
+	private readonly saved: SavedRefresh;
+	private readonly autoPushPaths: AutoPushSelector;
 	private localRevision = 0;
 	readonly history: HistoryService;
 	readonly maintenance: MaintenanceService;
@@ -139,6 +149,17 @@ export class SyncController {
 			clearFileDiffs: () => this.fileDiffs.clear(),
 			localRevision: () => this.localRevision,
 		});
+		this.autoPushPaths = createAutoPushSelector(
+			() => host.autoDeleteLimit?.() ?? null,
+			(space, held) => {
+				void host.logWarn(
+					ESyncLogOperation.Push,
+					`Held back ${held.length} deleted files for review: more than an automatic push may publish.`,
+					held,
+				);
+				host.onDeletionsHeld?.(space, held);
+			},
+		);
 		this.refreshes = new RefreshQueue(
 			(run) => this.runtimeState.enqueue(run),
 			(request) =>
@@ -147,8 +168,10 @@ export class SyncController {
 					this.operations,
 					request,
 					this.localRevision,
+					this.autoPushPaths,
 				),
 		);
+		this.saved = new SavedRefresh({ runtimeState: this.runtimeState, host });
 		this.history = new HistoryService({
 			openSession: (path) =>
 				open(path === undefined ? VAULT_SPACE : this.spaceFor(path)),
@@ -195,6 +218,7 @@ export class SyncController {
 	}
 
 	dispose(): void {
+		this.saved.dispose();
 		this.runtimeState.dispose();
 		this.fileDiffs.clear();
 		clearRemoteTextCache();
@@ -212,6 +236,11 @@ export class SyncController {
 
 	noteLocalChange(): void {
 		this.localRevision++;
+	}
+
+	/** A saved file's change state, patched into the last compare: local only, no push, no `busy`. */
+	refreshSaved(path: string): void {
+		this.saved.request(path);
 	}
 
 	/** Before a share mounts into an empty folder, or once it closes; see `OperationRunner.forget`. */
@@ -261,7 +290,7 @@ export class SyncController {
 				space,
 				ESyncLogOperation.Push,
 				(deps, result, ctx) => {
-					const ready = selectAutoPushPaths(result.diff, only);
+					const ready = this.autoPushPaths(space, result.diff, only);
 					return ready.length > 0
 						? pushPathsOp(deps, result, ready, ctx)
 						: Promise.resolve({

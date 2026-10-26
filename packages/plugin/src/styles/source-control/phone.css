@@ -1,12 +1,38 @@
+/* The spacing clears the main area's navbar; a drawer ends above its own switcher. */
+body.is-phone .workspace-drawer .mdsync-source-control {
+	--view-bottom-spacing: 0px;
+}
+
+/* Overlay scrollbars reserve no gutter. */
 body.is-phone .mdsync-source-control .mdsync-source-tab-panel {
+	padding-right: var(--size-4-3);
 	padding-bottom: var(--view-bottom-spacing, 0px);
+}
+
+/* Phone buttons are touch height, so the bar is taller. */
+body.is-phone
+	.mdsync-source-control
+	:is(.mdsync-changes-panel, .mdsync-deleted-panel) {
+	padding-bottom: calc(var(--view-bottom-spacing, 0px) + 84px);
+}
+
+/* A pill of icons, the active tab named; the tools live in the summary. */
+body.is-phone .mdsync-source-control .mdsync-source-tabs {
+	flex: 1 1 auto;
+	padding: 3px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: calc(var(--button-radius, var(--radius-m)) + 3px);
+	background: var(--background-primary);
 }
 
 body.is-phone
 	.mdsync-source-control
 	.mdsync-source-tabs
 	.mdsync-settings-tab-button {
+	flex: 1 1 0;
 	min-width: var(--mdsync-touch);
+	height: var(--input-height);
+	padding: 0 var(--size-4-2);
 }
 
 body.is-phone
@@ -14,6 +40,8 @@ body.is-phone
 	.mdsync-source-tabs
 	.mdsync-settings-tab-button.is-active {
 	flex: 1 1 auto;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
 }
 
 body.is-phone .mdsync-source-control .mdsync-source-tab-icon svg {
@@ -21,19 +49,102 @@ body.is-phone .mdsync-source-control .mdsync-source-tab-icon svg {
 	height: var(--mdsync-icon-lg);
 }
 
-body.is-phone .mdsync-source-control .mdsync-toolbar-icon {
-	flex-basis: var(--mdsync-touch);
-	width: var(--mdsync-touch);
-	height: var(--mdsync-touch);
+/* Even in a pane wide enough for every label. */
+body.is-phone .mdsync-source-control .mdsync-source-tab-label {
+	display: none;
 }
 
 body.is-phone
 	.mdsync-source-control
-	.mdsync-section-actions
-	.mdsync-section-icon-action {
-	width: var(--mdsync-touch);
+	.mdsync-settings-tab-button.is-active
+	.mdsync-source-tab-label {
+	display: inline;
+}
+
+body.is-phone
+	.mdsync-source-control
+	.mdsync-sync-summary-tools
+	.mdsync-icon-btn {
 	min-width: var(--mdsync-touch);
-	padding: 0;
+	height: var(--mdsync-touch);
+}
+
+body.is-phone .mdsync-source-control .mdsync-sync-summary-tools svg {
+	width: var(--mdsync-icon-lg);
+	height: var(--mdsync-icon-lg);
+}
+
+body.is-phone .mdsync-source-control .mdsync-sync-summary-chip {
+	height: 32px;
+	min-height: 32px;
+}
+
+/* Name over its folder and detail, like the phone's own lists. */
+body.is-phone .mdsync-source-control .mdsync-section .mdsync-file-copy {
+	display: grid;
+	grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+	align-items: baseline;
+	row-gap: 2px;
+}
+
+body.is-phone .mdsync-source-control .mdsync-section .mdsync-file-name {
+	grid-column: 1 / -1;
+}
+
+body.is-phone
+	.mdsync-source-control
+	.mdsync-section
+	.mdsync-file-parent
+	+ .mdsync-file-parent::before {
+	content: "·";
+	margin: 0 var(--size-2-2);
+}
+
+body.is-phone .mdsync-source-control .mdsync-selection-bar {
+	right: 0;
+	bottom: 0;
+	left: 0;
+	padding: var(--size-4-3) var(--size-4-3)
+		calc(var(--size-4-3) + var(--view-bottom-spacing, 0px));
+	border-width: 1px 0 0;
+	border-radius: 0;
+	background: var(--background-primary);
+	box-shadow: none;
+}
+
+/* One bottom bar, taken out of tab order when not shown: Cancel while a sync runs, else the selection, else Push and Pull. Push and Pull come before the selection bar. */
+body.is-phone
+	.mdsync-source-control.has-selection
+	.mdsync-sync-summary-buttons.is-docked:not(.is-cancellable),
+body.is-phone
+	.mdsync-source-control
+	.is-docked.is-cancellable
+	~ .mdsync-selection-bar {
+	display: none;
+}
+
+/* A wider box column: the box is a touch target. */
+body.is-phone .mdsync-source-control .mdsync-section:is(.is-local, .is-remote) {
+	--mdsync-gutter: 58px;
+}
+
+body.is-phone .mdsync-source-control .mdsync-file-selection {
+	flex-basis: 36px;
+	width: 36px;
+	height: var(--mdsync-touch);
+	margin-right: 0;
+}
+
+body.is-phone
+	.mdsync-source-control
+	:is(.mdsync-file-row, .mdsync-tree-folder).is-selectable
+	> .mdsync-file-selection {
+	left: calc(var(--mdsync-gutter) - 40px);
+	height: auto;
+}
+
+body.is-phone .mdsync-source-control .mdsync-file-checkbox {
+	--checkbox-size: 20px;
 }
 
 body.is-phone .mdsync-source-control .mdsync-file-row {
@@ -43,12 +154,15 @@ body.is-phone .mdsync-source-control .mdsync-file-row {
 	padding-bottom: 0;
 }
 
+body.is-phone .mdsync-source-control .mdsync-conflict-card > .mdsync-file-row {
+	padding: 0;
+}
+
 body.is-phone .mdsync-source-control .mdsync-file-size {
 	font-size: var(--font-ui-smaller);
 }
 
-body.is-phone .mdsync-source-control .mdsync-section-header,
-body.is-phone .mdsync-source-control .mdsync-history-search {
+body.is-phone .mdsync-source-control .mdsync-section-header {
 	min-height: var(--mdsync-touch);
 }
 
@@ -59,23 +173,50 @@ body.is-phone .mdsync-source-control .mdsync-tree-folder {
 	padding-bottom: var(--size-4-2);
 }
 
-body.is-phone .mdsync-source-control .mdsync-file-selection {
-	flex-basis: var(--mdsync-touch);
-	width: var(--mdsync-touch);
-	height: var(--mdsync-touch);
-	margin-left: calc(-1 * var(--size-4-1));
-}
-
-body.is-phone .mdsync-source-control .mdsync-file-checkbox {
-	--checkbox-size: 20px;
-}
-
-body.is-phone .mdsync-source-control .mdsync-section-actions button {
-	font-size: var(--font-ui-small);
-}
-
 body.is-phone .mdsync-source-control .mdsync-tree-folder-toggle svg,
 body.is-phone .mdsync-source-control .mdsync-tree-folder-icon svg {
 	width: var(--mdsync-icon-lg);
 	height: var(--mdsync-icon-lg);
+}
+
+body.is-phone .mdsync-source-control .mdsync-source-tools .mdsync-icon-btn {
+	min-width: var(--mdsync-touch);
+	height: var(--mdsync-touch);
+}
+
+body.is-phone .mdsync-source-control .mdsync-source-tools svg {
+	width: var(--mdsync-icon-lg);
+	height: var(--mdsync-icon-lg);
+}
+
+/* History, Deleted and Timeline rows: touch height, their menus a touch target. */
+body.is-phone .mdsync-source-control .mdsync-history-row {
+	grid-template-columns: 20px minmax(0, 1fr) auto 36px;
+	gap: 10px;
+	min-height: 56px;
+	padding-left: var(--size-4-2);
+}
+
+body.is-phone .mdsync-source-control .mdsync-timeline-actions .mdsync-icon-btn {
+	width: 36px;
+	height: var(--mdsync-touch);
+}
+
+body.is-phone .mdsync-source-control .mdsync-deleted-row {
+	grid-template-columns: var(--mdsync-touch) minmax(0, 1fr) 36px;
+	align-items: center;
+	gap: var(--size-2-2);
+	padding: 6px 0;
+}
+
+body.is-phone
+	.mdsync-source-control
+	.mdsync-deleted-row
+	.mdsync-file-selection {
+	width: var(--mdsync-touch);
+	height: var(--mdsync-touch);
+}
+
+body.is-phone .mdsync-source-control .mdsync-timeline-file {
+	min-height: 48px;
 }

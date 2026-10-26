@@ -13,6 +13,7 @@ const COLD_CAUSES: Record<ColdCause, string> = {
 	"too-large": "Too large to edit live: changes sync on the schedule",
 	"too-many": "Too many notes open live: this one syncs on the schedule",
 	"read-only": ARRIVES_ON_SYNC,
+	unstored: "The relay can't store changes now: they sync on the schedule",
 	unreadable: "Can't read the live room: a different key or access",
 	"moved-away": "Live editing moved elsewhere: changes sync on the schedule",
 	empty: "Nobody is editing it live yet: reopen it to follow them",
@@ -22,11 +23,13 @@ const COLD_CAUSES: Record<ColdCause, string> = {
 export interface LiveStatus {
 	state: LiveState;
 	label: string;
+	/** The pill's word, where the state's own says less. */
+	text?: string;
 }
 
 const NOT_CARRIED: Partial<Record<RelayStatus, LiveStatus>> = {
-	paused: { state: "cold", label: RELAY_TEXT.paused },
-	full: { state: "warning", label: RELAY_TEXT.full },
+	paused: { state: "cold", label: RELAY_TEXT.paused, text: "Paused" },
+	full: { state: "warning", label: RELAY_TEXT.full, text: "Relay full" },
 };
 
 /** Null where no relay carries `space`, the file's. */
@@ -45,7 +48,7 @@ export function liveStatusOf(
 	const note = live.noteState(file.path);
 	if (note === "live") {
 		if (people.unreadable(space.id)) {
-			return { state: "warning", label: UNREADABLE_TEXT };
+			return { state: "warning", label: UNREADABLE_TEXT, text: "Live" };
 		}
 		const label = space.readOnly
 			? "Live: edits arrive as others type"

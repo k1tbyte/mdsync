@@ -1,6 +1,10 @@
 const RETRY_DELAYS_MS: ReadonlyArray<number> = [500, 2_000, 5_000];
 
-export const STORAGE_TIMEOUT_MS = 30_000;
+const STORAGE_TIMEOUT_MS = 30_000;
+/** The slowest link a transfer is still expected to finish on. */
+const FLOOR_BYTES_PER_SECOND = 128 * 1024;
+/** A timeout past this size is not retried in place: requestUrl cannot be cancelled, so the first request is still running. */
+const RETRY_MAX_BYTES = 1024 * 1024;
 
 export class StorageHttpError extends Error {
 	constructor(
@@ -13,7 +17,10 @@ export class StorageHttpError extends Error {
 }
 
 export class StorageTimeoutError extends Error {
-	constructor(ms: number) {
+	constructor(
+		ms: number,
+		readonly bytes = 0,
+	) {
 		super(`Storage operation timed out after ${ms}ms`);
 		this.name = "StorageTimeoutError";
 	}
@@ -23,9 +30,16 @@ function delay(ms: number): Promise<void> {
 	return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+export function withTimeout<T>(
+	promise: Promise<T>,
+	ms: number,
+	bytes = 0,
+): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
-		const id = window.setTimeout(() => reject(new StorageTimeoutError(ms)), ms);
+		const id = window.setTimeout(
+			() => reject(new StorageTimeoutError(ms, bytes)),
+			ms,
+		);
 		promise.then(
 			(value) => {
 				window.clearTimeout(id);
@@ -37,6 +51,24 @@ export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 			},
 		);
 	});
+}
+
+/** What a request moves: its body, else the bytes its answer is expected to carry. */
+export function transferBytes(
+	body: string | { byteLength: number } | undefined,
+	expected = 0,
+): number {
+	if (body === undefined) return expected;
+	return typeof body === "string" ? body.length : body.byteLength;
+}
+
+/** The shared timeout: a fixed allowance plus the time `bytes` take at the floor rate. */
+export function withDeadline<T>(
+	promise: Promise<T>,
+	bytes: number,
+): Promise<T> {
+	const transfer = Math.ceil((bytes / FLOOR_BYTES_PER_SECOND) * 1000);
+	return withTimeout(promise, STORAGE_TIMEOUT_MS + transfer, bytes);
 }
 
 /** 5xx answers patience cannot change. */
@@ -61,7 +93,7 @@ export function isRefusedCredentials(err: unknown): boolean {
 }
 
 export function isRetryableError(err: unknown): boolean {
-	if (err instanceof StorageTimeoutError) return true;
+	if (err instanceof StorageTimeoutError) return err.bytes <= RETRY_MAX_BYTES;
 	if (err instanceof StorageHttpError) return isRetryableStatus(err.status);
 	if (!err || typeof err !== "object") return false;
 	const e = err as { name?: string; message?: string };

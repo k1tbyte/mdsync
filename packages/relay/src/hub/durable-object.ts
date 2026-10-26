@@ -13,7 +13,7 @@ import {
 import { HubCore } from "./core";
 import type { DocSub, Grant, HubPeer } from "./peer";
 import { RevokedGrants } from "./revoked";
-import { SqlDocStore } from "./store";
+import { SqlDocStore, type TransactionalSql } from "./store";
 import { type HubEnv, unauthorizedSocket } from "./stub";
 
 /** Carries the worker's admission to the hub; only the worker can reach the hub. */
@@ -33,11 +33,12 @@ interface Attachment extends Admission {
 }
 
 export class Hub extends DurableObject<HubEnv> {
+	private readonly sql = sqlOf(this.ctx.storage);
 	private readonly core = new HubCore(
 		() => this.open().map(({ peer }) => peer),
-		new SqlDocStore(this.ctx.storage.sql),
+		new SqlDocStore(this.sql),
 	);
-	private readonly revoked = new RevokedGrants(this.ctx.storage.sql);
+	private readonly revoked = new RevokedGrants(this.sql);
 	private readonly staleMs: number;
 	private readonly sweepMs: number;
 
@@ -61,6 +62,8 @@ export class Hub extends DurableObject<HubEnv> {
 		const admission = JSON.parse(header) as Admission;
 		const slots = this.revoked.refuse(admission.slots);
 		if (!slots.some((slot) => slot !== null)) return unauthorizedSocket();
+		// A lone ghost goes unswept; it must not reach the newcomer as someone here.
+		this.sweep();
 		const { 0: client, 1: server } = new WebSocketPair();
 		this.ctx.acceptWebSocket(server);
 		const state: Attachment = {
@@ -72,10 +75,12 @@ export class Hub extends DurableObject<HubEnv> {
 		};
 		server.serializeAttachment(state);
 		this.core.join(attach(server, state).peer);
-		// An alarm set under a longer window would leave this one's ghosts waiting.
-		const sweep = await this.ctx.storage.getAlarm();
-		if (sweep === null || sweep > Date.now() + this.sweepMs) {
-			await this.sweepLater();
+		if (this.open().length > 1) {
+			// An alarm set under a longer window would leave this one's ghosts waiting.
+			const sweep = await this.ctx.storage.getAlarm();
+			if (sweep === null || sweep > Date.now() + this.sweepMs) {
+				await this.sweepLater();
+			}
 		}
 		return new Response(null, { status: 101, webSocket: client });
 	}
@@ -96,17 +101,12 @@ export class Hub extends DurableObject<HubEnv> {
 
 	/**
 	 * Keepalives never wake the hub, so missing pings are the only sign of a half-open socket; sweeping
-	 * twice per window bounds a ghost's life at 1.5 windows.
+	 * twice per window bounds a ghost's life at 1.5 windows. Each sweep is a request and a row, so it runs
+	 * only while someone could see a ghost.
 	 */
 	async alarm(): Promise<void> {
-		const cutoff = Date.now() - this.staleMs;
-		for (const { ws, state } of this.open()) {
-			const pinged = this.ctx.getWebSocketAutoResponseTimestamp(ws);
-			if (Math.max(pinged?.getTime() ?? 0, state.joinedAt) > cutoff) continue;
-			this.leave(ws);
-			ws.close(STALE_CLOSE_CODE, "Stale");
-		}
-		if (this.open().length > 0) await this.sweepLater();
+		this.sweep();
+		if (this.open().length > 1) await this.sweepLater();
 	}
 
 	/** RPC from the broker when a share token is revoked or replaced. */
@@ -147,6 +147,16 @@ export class Hub extends DurableObject<HubEnv> {
 		ws.serializeAttachment(entry.state);
 	}
 
+	private sweep(): void {
+		const cutoff = Date.now() - this.staleMs;
+		for (const { ws, state } of this.open()) {
+			const pinged = this.ctx.getWebSocketAutoResponseTimestamp(ws);
+			if (Math.max(pinged?.getTime() ?? 0, state.joinedAt) > cutoff) continue;
+			this.leave(ws);
+			ws.close(STALE_CLOSE_CODE, "Stale");
+		}
+	}
+
 	private sweepLater(): Promise<void> {
 		return this.ctx.storage.setAlarm(Date.now() + this.sweepMs);
 	}
@@ -175,6 +185,14 @@ function attachedOf(ws: WebSocket): Attached | null {
 	if (known) return known;
 	const state = ws.deserializeAttachment() as Attachment | null;
 	return state ? attach(ws, state) : null;
+}
+
+/** Transactions live on the storage, statements on its `sql`; each keeps its receiver. */
+function sqlOf(storage: DurableObjectStorage): TransactionalSql {
+	return {
+		exec: (query, ...bindings) => storage.sql.exec(query, ...bindings),
+		transactionSync: (run) => storage.transactionSync(run),
+	};
 }
 
 function peerOver(ws: WebSocket, state: Attachment): HubPeer {

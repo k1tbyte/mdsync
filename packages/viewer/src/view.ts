@@ -1,6 +1,8 @@
 import { addAnchors, currentAnchor } from "./anchors";
 import { addCopyButtons } from "./code";
 import { el as create } from "./dom";
+import { factChips } from "./facts";
+import { credit, type IconName, icon, tile } from "./icons";
 import { markLoneImages } from "./images";
 import { noteMarkdown } from "./markdown";
 import { createOutline } from "./outline";
@@ -8,6 +10,7 @@ import { sanitizeNote } from "./sanitize";
 import { foldSections } from "./sections";
 import type { ViewState } from "./session";
 import { createSidebar } from "./sidebar";
+import { createTopbar } from "./topbar";
 
 export interface View {
 	show: (state: ViewState) => void;
@@ -26,13 +29,40 @@ export function createView(root: HTMLElement, handlers: ViewHandlers): View {
 		...children: (Node | string)[]
 	) => create(doc, tag, attrs, ...children);
 
-	const message = (title: string, text: string, ...extra: Node[]) =>
+	/** A page before any note: its content centred, the credit at the foot. */
+	const gate = (...children: Node[]) =>
+		el("div", { class: "gate" }, ...children, credit(doc));
+
+	const message = (tone: string, name: IconName, title: string, text: string) =>
+		gate(
+			el(
+				"section",
+				{ class: "message" },
+				tile(doc, `is-${tone}`, name),
+				el("h1", {}, title),
+				el("p", {}, text),
+			),
+		);
+
+	/** The page's frame in grey while the relay answers. */
+	const loading = () =>
 		el(
-			"section",
-			{ class: "message" },
-			el("h1", {}, title),
-			el("p", {}, text),
-			...extra,
+			"div",
+			{ class: "loading" },
+			el(
+				"div",
+				{ class: "topbar" },
+				el("span", { class: "skeleton is-mark" }),
+				el("span", { class: "skeleton is-name" }),
+			),
+			el(
+				"div",
+				{ class: "loading-body" },
+				el("p", {}, el("span", { class: "spinner" }), "Opening…"),
+				...["is-title", "", "", "is-short", "is-block"].map((cls) =>
+					el("div", { class: `skeleton ${cls}` }),
+				),
+			),
 		);
 
 	// A wrong passphrase draws the form again: the reader's choice must survive it.
@@ -49,14 +79,20 @@ export function createView(root: HTMLElement, handlers: ViewHandlers): View {
 		});
 		const remember = el("input", { type: "checkbox" });
 		remember.checked = rememberChoice;
+		if (problem) input.setAttribute("aria-invalid", "true");
 		const form = el(
 			"form",
 			{ class: "passphrase" },
+			tile(doc, "is-accent", "lock"),
 			el("h1", {}, "This note is protected"),
 			el("label", { for: "passphrase" }, "Passphrase"),
 			input,
+			el(
+				"p",
+				{ class: "problem", role: "alert" },
+				...(problem ? [icon(doc, "circle-alert"), problem] : []),
+			),
 			el("label", { class: "remember" }, remember, "Remember on this browser"),
-			el("p", { class: "problem", role: "alert" }, problem ?? ""),
 			el("button", { type: "submit" }, "Open"),
 		);
 		form.addEventListener("submit", (event) => {
@@ -65,7 +101,7 @@ export function createView(root: HTMLElement, handlers: ViewHandlers): View {
 			handlers.onPassphrase(input.value, rememberChoice);
 		});
 		queueMicrotask(() => input.focus());
-		return form;
+		return gate(form);
 	}
 
 	function content(
@@ -96,25 +132,34 @@ export function createView(root: HTMLElement, handlers: ViewHandlers): View {
 			callout?.classList.toggle("is-collapsed");
 		});
 		doc.title = title || "Shared note";
+		const chips = () => factChips(doc, state, signal);
 		const article = el(
 			"article",
 			{ class: "note" },
 			title && !named ? el("h1", { class: "note-title" }, title) : "",
 			body,
 		);
-		const reader = el("div", { class: "reader" }, article);
-		reader.prepend(
-			createSidebar(
-				reader,
-				outline,
-				state,
-				() =>
+		// A narrow screen has no room for them in the bar: they follow the name.
+		const below = chips();
+		if (below && named) {
+			first.parentElement?.querySelector(".heading-children")?.prepend(below);
+		} else if (below) {
+			body.before(below);
+		}
+		const sidebar = createSidebar(doc, outline, state, signal);
+		const reader = el("div", { class: "reader" });
+		reader.append(
+			createTopbar(reader, {
+				title: title || "Shared note",
+				menu: sidebar.menu,
+				chips: chips(),
+				markdown: () =>
 					noteMarkdown(
 						title && !named ? title : "",
 						sanitizeNote(state.payload.html),
 					),
-				signal,
-			),
+			}),
+			el("div", { class: "reader-body" }, sidebar.aside, article),
 		);
 		return reader;
 	}
@@ -122,23 +167,32 @@ export function createView(root: HTMLElement, handlers: ViewHandlers): View {
 	function render(state: ViewState, signal: AbortSignal): HTMLElement {
 		switch (state.kind) {
 			case "loading":
-				return el("p", { class: "loading" }, "Opening…");
+				return loading();
 			case "passphrase":
 				return passphraseForm(state.problem);
 			case "content":
 				return content(state, signal);
 			case "gone":
 				return message(
+					"muted",
+					"hourglass",
 					"This link is no longer available",
 					"It has expired, reached its view limit or was removed by its owner.",
 				);
 			case "invalid":
 				return message(
+					"warning",
+					"unlink",
 					"This link is incomplete",
 					"The address is missing its key. Ask the sender for the whole link.",
 				);
 			case "error":
-				return message("This note could not be opened", state.message);
+				return message(
+					"error",
+					"triangle-alert",
+					"This note could not be opened",
+					state.message,
+				);
 		}
 	}
 

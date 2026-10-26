@@ -8,12 +8,13 @@ import {
 } from "@/spaces";
 import { isUnder } from "@/sync/space";
 import { notifyError, notifyInfo } from "@/ui";
+import { removeEmptyDir } from "@/vault/io";
 
 import type { PluginHost } from "./host";
 
 type MoveVault = Pick<
 	Vault,
-	"getAbstractFileByPath" | "rename" | "createFolder" | "delete"
+	"getAbstractFileByPath" | "rename" | "createFolder" | "adapter"
 >;
 
 /** Roots the follower is renaming now: their rename events are its own. */
@@ -72,11 +73,12 @@ async function follow(
 	const error = mountError(to, others);
 	if (error) throw new Error(error);
 	const existing = vault.getAbstractFileByPath(to);
-	if (existing) {
-		if (!(existing instanceof TFolder) || existing.children.length > 0) {
-			throw new Error("That path is taken.");
-		}
-		await vault.delete(existing);
+	// The listing also sees what the index hides.
+	if (
+		existing &&
+		!(existing instanceof TFolder && (await removeEmptyDir(vault.adapter, to)))
+	) {
+		throw new Error("That path is taken.");
 	}
 	const parent = to.slice(0, Math.max(0, to.lastIndexOf("/")));
 	if (parent !== "" && !vault.getAbstractFileByPath(parent)) {

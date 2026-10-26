@@ -14,10 +14,10 @@ import { activeStorage, isStorageConfigured } from "@/settings/model";
 import { useR2 } from "@/settings/r2";
 import { backendSection } from "@/settings/sections/backend";
 import { describeStorageTarget } from "@/storage";
-import { alertLine } from "@/ui/common";
+import { alertLine, callout } from "@/ui/common";
 import { choiceCard } from "./choice-card";
 import { renderTokenForm, tokenForm } from "./cloudflare-token";
-import { actionRow, callout } from "./form";
+import { actionRow } from "./form";
 import { runAction } from "./run-action";
 import type { StepView, Wizard } from "./wizard";
 

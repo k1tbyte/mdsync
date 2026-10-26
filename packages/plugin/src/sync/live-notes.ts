@@ -10,6 +10,8 @@ import {
 	loadBaselineText,
 	loadRemoteBytes,
 	loadRemoteText,
+	untouchedSince,
+	type WriteOptions,
 	writeFetched,
 } from "./content";
 import type { CompareResult, EngineDependencies } from "./engine";
@@ -35,7 +37,7 @@ export interface LiveNotes {
 		mark: LiveMark | undefined,
 		texts: () => Promise<IncomingText | null>,
 	): Promise<LiveTake>;
-	/** A snapshot written to a closed note: its next open merges against it. */
+	/** A snapshot written to a closed note: its next open merges against it. Saved once it resolves. */
 	wrote(path: string, mark: LiveMark, text: string): Promise<void>;
 	/** A room has, or is opening, the note: the file sync neither moves nor writes it. */
 	holds(path: string): boolean;
@@ -118,6 +120,17 @@ export async function liveMarks(
 	return { paths: ready, marks };
 }
 
+/** {@link untouchedSince}, and no room came for the note since it was found cold: none is written under. */
+export function coldSince(
+	deps: EngineDependencies,
+	path: string,
+	seen: { size: number; mtime: number } | undefined,
+): () => Promise<boolean> {
+	const untouched = untouchedSince(deps, path, seen);
+	// Asked last, so nothing waits between it and the write.
+	return async () => (await untouched()) && !deps.live?.holds(path);
+}
+
 /** The disk now holds a merge on top of this remote version: a room snapshot becomes the base. */
 export async function grewFrom(
 	deps: EngineDependencies,
@@ -129,19 +142,24 @@ export async function grewFrom(
 	if (text !== null) await deps.live.wrote(path, entry.live, text);
 }
 
-/** Writes a remote version; a room snapshot also becomes its note's merge base. */
+/**
+ * Writes a remote version; a room snapshot also becomes its note's merge base. `ready` false after the
+ * download leaves the file be, and returns null.
+ */
 export async function writeIncoming(
 	deps: EngineDependencies,
 	path: string,
 	entry: ManifestEntry,
-	/** False after the download leaves the file be, and returns null. */
-	ready?: () => Promise<boolean>,
+	options: Omit<WriteOptions, "landed"> = {},
 ): Promise<ManifestEntry | null> {
-	const bytes = await loadRemoteBytes(deps, entry.hash);
+	const bytes = await loadRemoteBytes(deps, entry.hash, entry.size);
 	if (!bytes) throw new Error(`Missing remote object for ${path}`);
-	if (ready && !(await ready())) return null;
-	const written = await writeFetched(deps.adapter, path, entry, bytes);
+	const { live: notes } = deps;
+	const { live } = entry;
 	// After the file: a merge base newer than the disk would read as deletions.
-	if (entry.live) await deps.live?.wrote(path, entry.live, bytesToText(bytes));
-	return written;
+	const landed =
+		notes && live
+			? () => notes.wrote(path, live, bytesToText(bytes))
+			: undefined;
+	return writeFetched(deps, path, entry, bytes, { ...options, landed });
 }

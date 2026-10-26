@@ -1,9 +1,17 @@
-import { type ButtonComponent, Modal, Setting } from "obsidian";
+import { ButtonComponent, Modal, Setting } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
 import { cloudflareErrorMessage } from "@/settings/cloudflare-login";
+import { activeStorage } from "@/settings/model";
 import { r2StorageOf, rekeyR2 } from "@/settings/r2";
-import { alertLine, onEnter, openPluginSettings } from "@/ui/common";
+import { describeStorageTarget } from "@/storage";
+import {
+	alertLine,
+	modalFooter,
+	onEnter,
+	openPluginSettings,
+	renderModalHead,
+} from "@/ui/common";
 
 import { openPromiseModal } from "./promise-modal";
 
@@ -15,7 +23,13 @@ export function openStorageRefusedModal(plugin: PluginHost): Promise<boolean> {
 	return openPromiseModal<boolean>((answer) => {
 		const modal = new Modal(plugin.app);
 		const { contentEl } = modal;
-		modal.titleEl.setText("The storage refused this device's keys");
+		renderModalHead(modal, {
+			icon: "key-round",
+			title: "The storage refused this device's keys",
+			sub: describeStorageTarget(activeStorage(plugin.settings)),
+			tone: "danger",
+		});
+		const footer = modalFooter(modal);
 		const settings = (): void => {
 			modal.close();
 			openPluginSettings(plugin.app);
@@ -24,9 +38,10 @@ export function openStorageRefusedModal(plugin: PluginHost): Promise<boolean> {
 			contentEl.createEl("p", {
 				text: "They were changed, revoked or mistyped. Update them under Settings → MDSync → Connection.",
 			});
-			new Setting(contentEl).addButton((b) =>
-				b.setButtonText("Open settings").setCta().onClick(settings),
-			);
+			new ButtonComponent(footer)
+				.setButtonText("Open settings")
+				.setCta()
+				.onClick(settings);
 			return modal;
 		}
 		contentEl.createEl("p", {
@@ -60,14 +75,13 @@ export function openStorageRefusedModal(plugin: PluginHost): Promise<boolean> {
 			onEnter(t.inputEl, () => void submit());
 		});
 		const error = alertLine(contentEl);
-		new Setting(contentEl)
-			.addButton((b) => b.setButtonText("Open settings").onClick(settings))
-			.addButton((b) => {
-				update = b
-					.setButtonText(UPDATE)
-					.setCta()
-					.onClick(() => void submit());
-			});
+		new ButtonComponent(footer)
+			.setButtonText("Open settings")
+			.onClick(settings);
+		update = new ButtonComponent(footer)
+			.setButtonText(UPDATE)
+			.setCta()
+			.onClick(() => void submit());
 		return modal;
 	}, false);
 }

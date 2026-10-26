@@ -7,6 +7,11 @@ export {
 } from "./actions/maintenance-actions";
 export { addPushMenuItem } from "./actions/push-action";
 export {
+	runCompare,
+	runPullAll,
+	runPushAll,
+} from "./actions/sync-actions";
+export {
 	notifyAction,
 	notifyError,
 	notifyInfo,
@@ -30,11 +35,10 @@ export {
 	updateSharedLinks,
 } from "./links";
 export { createDeletedElsewhere } from "./live/deleted-elsewhere";
+export { CursorFollow } from "./live/header/cursor-follow";
 export { rebuildLiveNote, toggleAuthors } from "./live/header/live-actions";
 export { canRebuild } from "./live/header/note-menu-items";
 export { registerNotePresence } from "./live/header/note-presence";
-export { registerLiveStatusBar } from "./live/status/live-status-bar";
-export { openWhereMenu } from "./live/status/where-menu";
 export {
 	askNewPassphrase,
 	askPassphrase,
@@ -56,13 +60,15 @@ export { createSpaceGone } from "./shares/space-gone";
 export {
 	confirmAdoptNewVault,
 	confirmBatchResolve,
-	showFileList,
 } from "./source-control";
 export {
+	keepInRightSidebar,
 	openDiffView,
+	openSourceControlChanges,
 	openSourceControlDeleted,
 	openSourceControlHistory,
 	openSourceControlView,
 	SourceControlView,
 } from "./source-control-view";
 export { registerStatusBar } from "./status-bar";
+export { openStatusMenu } from "./status-menu";

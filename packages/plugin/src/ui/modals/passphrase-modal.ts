@@ -1,7 +1,7 @@
-import { type App, Modal, Setting } from "obsidian";
+import { type App, ButtonComponent, Modal, Setting } from "obsidian";
 
 import { weakPassphrase } from "@/crypto";
-import { alertLine, onEnter } from "@/ui/common";
+import { alertLine, modalFooter, onEnter, renderModalHead } from "@/ui/common";
 
 import { openPromiseModal } from "./promise-modal";
 
@@ -16,8 +16,8 @@ class PassphraseModal extends Modal {
 	}
 
 	onOpen(): void {
-		const { contentEl, titleEl } = this;
-		titleEl.setText("MDSync passphrase");
+		const { contentEl } = this;
+		renderModalHead(this, { icon: "lock", title: "MDSync passphrase" });
 		contentEl.createEl("p", {
 			text: "Enter the encryption passphrase for this vault. It is never sent to the remote storage.",
 		});
@@ -33,19 +33,15 @@ class PassphraseModal extends Modal {
 
 		this.errorEl = alertLine(contentEl);
 
-		new Setting(contentEl)
-			.addButton((b) =>
-				b.setButtonText("Cancel").onClick(() => {
-					this.resolveValue(null);
-					this.close();
-				}),
-			)
-			.addButton((b) =>
-				b
-					.setButtonText("Continue")
-					.setCta()
-					.onClick(() => this.submit()),
-			);
+		const footer = modalFooter(this);
+		new ButtonComponent(footer).setButtonText("Cancel").onClick(() => {
+			this.resolveValue(null);
+			this.close();
+		});
+		new ButtonComponent(footer)
+			.setButtonText("Continue")
+			.setCta()
+			.onClick(() => this.submit());
 	}
 
 	onClose(): void {
@@ -74,8 +70,8 @@ class NewPassphraseModal extends Modal {
 	}
 
 	onOpen(): void {
-		const { contentEl, titleEl } = this;
-		titleEl.setText("Change passphrase");
+		const { contentEl } = this;
+		renderModalHead(this, { icon: "key-round", title: "Change passphrase" });
 		contentEl.createEl("p", {
 			text: "Re-wraps the vault's data key under a new passphrase. Your notes are not re-encrypted, so this is instant. Every device must switch to the new passphrase afterwards.",
 		});
@@ -105,19 +101,15 @@ class NewPassphraseModal extends Modal {
 		this.errorEl = alertLine(contentEl);
 		this.errorEl.hidden = true;
 
-		new Setting(contentEl)
-			.addButton((b) =>
-				b.setButtonText("Cancel").onClick(() => {
-					this.resolveValue(null);
-					this.close();
-				}),
-			)
-			.addButton((b) =>
-				b
-					.setButtonText("Change")
-					.setCta()
-					.onClick(() => this.submit()),
-			);
+		const footer = modalFooter(this);
+		new ButtonComponent(footer).setButtonText("Cancel").onClick(() => {
+			this.resolveValue(null);
+			this.close();
+		});
+		new ButtonComponent(footer)
+			.setButtonText("Change")
+			.setCta()
+			.onClick(() => this.submit());
 	}
 
 	onClose(): void {

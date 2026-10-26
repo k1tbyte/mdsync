@@ -64,6 +64,7 @@ beforeEach(async () => {
 		moveFile: async () => false,
 		authorsShown: () => authorsShown,
 		nameOf: () => null,
+		sendEvery: () => 250,
 	});
 });
 
@@ -112,6 +113,38 @@ describe("live sessions", () => {
 
 		expect(followed()).toEqual([await idOf("a.md")]);
 		await vi.waitFor(() => expect(bindEditor).toHaveBeenCalledTimes(1));
+	});
+
+	it("leaves a note to a sync that claimed it after the open notes were read", async () => {
+		leaves = [{ view: editorOf(note("a.md")) }];
+		const good = spaceOf;
+		let asked = 0;
+		spaceOf = (path) => (++asked > 1 ? null : good(path));
+
+		await sessions.refresh();
+
+		expect(followed()).toEqual([]);
+	});
+
+	it("holds a note off the file sync while its room is being opened", async () => {
+		leaves = [{ view: editorOf(note("a.md")) }];
+		let release = (): void => undefined;
+		const paused = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const get = vi.spyOn(agreed, "get").mockImplementation(async () => {
+			await paused;
+			return null;
+		});
+
+		const refreshing = sessions.refresh();
+		await vi.waitFor(() => expect(get).toHaveBeenCalled());
+		expect([sessions.joining("a.md"), sessions.spaceOf("a.md")]).toEqual([
+			true,
+			null,
+		]);
+		release();
+		await refreshing;
 	});
 
 	it("reports a failed refresh instead of rejecting, tells its listeners, and recovers on the next", async () => {

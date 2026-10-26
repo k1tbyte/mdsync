@@ -1,9 +1,9 @@
-import { diffArrays } from "diff";
 import { describe, expect, it } from "vitest";
 
-import { anchoredHunks, type LineHunk } from "@/sync/anchored-hunks";
-import { MAX_EDIT_LENGTH } from "@/sync/hunks";
+import { anchoredHunks } from "@/sync/anchored-hunks";
+import { DIFF_BUDGET } from "@/sync/hunks";
 import { threeWayRegions } from "@/sync/merge-model";
+import { type DiffRange, diffRanges } from "@/utils";
 
 /**
  * Rebuilds the right side from the left and the hunks; matches only if the stretches between hunks are
@@ -12,14 +12,14 @@ import { threeWayRegions } from "@/sync/merge-model";
 function rebuild(
 	base: readonly string[],
 	lines: readonly string[],
-	hunks: readonly LineHunk[],
+	hunks: readonly DiffRange[],
 ): string[] {
 	const out: string[] = [];
 	let at = 0;
 	for (const hunk of hunks) {
-		out.push(...base.slice(at, hunk.base[0]));
-		out.push(...lines.slice(hunk.lines[0], hunk.lines[1]));
-		at = hunk.base[1];
+		out.push(...base.slice(at, hunk.a[0]));
+		out.push(...lines.slice(...hunk.b));
+		at = hunk.a[1];
 	}
 	out.push(...base.slice(at));
 	return out;
@@ -43,13 +43,13 @@ describe("anchoredHunks", () => {
 
 	it("reports the whole middle when one side has no middle left", () => {
 		expect(anchoredHunks(["a", "x", "y", "b"], ["a", "b"])).toEqual([
-			{ base: [1, 3], lines: [1, 1] },
+			{ a: [1, 3], b: [1, 1] },
 		]);
 	});
 
 	it("keeps an edit to one line down to that line", () => {
 		expect(anchoredHunks(["a", "b", "c"], ["a", "B", "c"])).toEqual([
-			{ base: [1, 2], lines: [1, 2] },
+			{ a: [1, 2], b: [1, 2] },
 		]);
 	});
 
@@ -70,7 +70,7 @@ describe("anchoredHunks", () => {
 	// Nothing occurs once, so there is no anchor and the gap is the whole file:
 	// the retry costs another budgeted diff and must stay bounded by it.
 	it("falls back to one block when a repetitive file offers no anchor", () => {
-		const base = Array.from({ length: 4000 }, (_, i) => `item ${i % 4}`);
+		const base = Array.from({ length: 8000 }, (_, i) => `item ${i % 4}`);
 		const lines = base.map((line, i) =>
 			i % 5 === 0 ? `${line} edited` : line,
 		);
@@ -82,14 +82,12 @@ describe("anchoredHunks", () => {
 		expect(rebuild(base, lines, hunks)).toEqual(lines);
 	});
 
-	describe("on a file that exhausts the edit budget", () => {
-		const base = noisyFile(3000);
+	describe("on a file that exhausts the diff budget", () => {
+		const base = noisyFile(6000);
 		const lines = editEvery(base, 5);
 
 		it("is the path actually under test", () => {
-			expect(
-				diffArrays(base, lines, { maxEditLength: MAX_EDIT_LENGTH }),
-			).toBeUndefined();
+			expect(diffRanges(base, lines, DIFF_BUDGET)).toBeNull();
 		});
 
 		it("splits it into many small hunks instead of one block", () => {
@@ -97,7 +95,7 @@ describe("anchoredHunks", () => {
 
 			expect(hunks.length).toBeGreaterThan(100);
 			for (const hunk of hunks) {
-				expect(hunk.base[1] - hunk.base[0]).toBeLessThan(20);
+				expect(hunk.a[1] - hunk.a[0]).toBeLessThan(20);
 			}
 		});
 

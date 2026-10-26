@@ -50,6 +50,8 @@ export const ERefusal = {
 	TooLarge: 1,
 	TooManyDocs: 2,
 	ReadOnly: 3,
+	/** The hub's storage failed it, most likely past the day's limits; older clients go cold unlabelled. */
+	Unstored: 4,
 } as const;
 export type Refusal = (typeof ERefusal)[keyof typeof ERefusal];
 

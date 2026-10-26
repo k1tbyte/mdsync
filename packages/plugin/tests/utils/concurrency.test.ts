@@ -44,4 +44,16 @@ describe("runWithConcurrency", () => {
 		// Without the guard the remaining runner drains all 50.
 		expect(started.length).toBeLessThan(items.length);
 	});
+
+	it("rejects only after the items in flight settle", async () => {
+		let settled = false;
+		await expect(
+			runWithConcurrency([0, 1], 2, async (item) => {
+				if (item === 0) throw new Error("boom");
+				await new Promise((resolve) => setTimeout(resolve, 20));
+				settled = true;
+			}),
+		).rejects.toThrow("boom");
+		expect(settled).toBe(true);
+	});
 });

@@ -8,6 +8,7 @@ import type { BoundEditor } from "@/live/model";
 import { closedBefore, type LiveSession } from "@/live/session";
 import type { Rotation } from "@/live/session/session-deps";
 import { reportWarning } from "@/shared";
+import { isRecaseStep } from "@/vault/io";
 import { EDITORS, type OpenNote, openNotes } from "./editors";
 import { JoinPatience, type Waiting, waitingSince } from "./patience";
 import { moveRoom } from "./rename";
@@ -45,6 +46,8 @@ type ShownSpaces = Map<string, LiveSpace>;
 
 export class LiveSessions {
 	private readonly rooms = new Map<string, Room>();
+	/** Notes whose room is being opened: the file sync leaves them be already. */
+	private readonly opening = new Set<string>();
 	private readonly bound = new Map<WorkspaceLeaf, Binding>();
 	/** Open notes left to the file sync: their room moved elsewhere, or the hub cannot carry them. */
 	private readonly cold = new Map<string, ColdCause>();
@@ -130,7 +133,7 @@ export class LiveSessions {
 
 	/** On its way to a room the hub can deliver; a dead hub or a silent room leaves the file to the sync. */
 	joining(path: string): boolean {
-		return this.noteState(path) === "joining";
+		return this.opening.has(path) || this.noteState(path) === "joining";
 	}
 
 	/** The space whose room holds the note, open or joining; null while it is cold. */
@@ -199,7 +202,10 @@ export class LiveSessions {
 			}
 		}
 		for (const [path, room] of this.rooms) {
-			const moving = room.lineage !== path && room.renamingTo === null;
+			const moving =
+				room.lineage !== path &&
+				room.renamingTo === null &&
+				!isRecaseStep(path);
 			if (!moving || !room.session.synced) continue;
 			room.renamingTo = path;
 			void this.relocate(path, room);
@@ -317,9 +323,18 @@ export class LiveSessions {
 		editor: OpenNote["editor"],
 		at?: OpenAt,
 	): Promise<Room | null> {
-		const room = await this.opener.open(file, space, editor, at);
-		if (room) this.rooms.set(file.path, room);
-		return room;
+		const { path } = file;
+		// Marked, then the gate asked again: a sync claims a note before its last look for a room, so one of the
+		// two sees the other.
+		this.opening.add(path);
+		try {
+			if (!(await this.deps.liveSpace(path))) return null;
+			const room = await this.opener.open(file, space, editor, at);
+			if (room) this.rooms.set(path, room);
+			return room;
+		} finally {
+			this.opening.delete(path);
+		}
 	}
 
 	private async follow(path: string, from: Room): Promise<void> {

@@ -77,6 +77,7 @@ describe("live status of a note", () => {
 		expect(statusOf({ status: "paused" })).toEqual({
 			state: "cold",
 			label: RELAY_TEXT.paused,
+			text: "Paused",
 		});
 	});
 
@@ -103,6 +104,7 @@ describe("live status of a note", () => {
 		expect(statusOf({ unreadable: true, room: true })).toEqual({
 			state: "warning",
 			label: UNREADABLE_TEXT,
+			text: "Live",
 		});
 		expect(statusOf({ unreadable: true })?.state).toBe("cold");
 	});

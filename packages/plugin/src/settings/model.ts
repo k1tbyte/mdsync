@@ -3,8 +3,11 @@ import {
 	AUTO_PUSH_SETTLE_MIN_SECONDS,
 	AUTO_SYNC_MAX_MINUTES,
 	AUTO_SYNC_MIN_MINUTES,
+	BULK_DELETE_LIMIT_MAX,
+	BULK_DELETE_LIMIT_MIN,
 	FILE_HISTORY_MAX_SNAPSHOTS,
 	FILE_HISTORY_MIN_SNAPSHOTS,
+	LIVE_SEND_MS,
 } from "@/constants";
 import { parseStoredLink, type StoredLink } from "@/links/record";
 import { isCleartextRemote } from "@/shared";
@@ -59,12 +62,17 @@ export interface MdsyncSettings {
 	autoPushAfterChange: boolean;
 	autoPushSettleSeconds: number;
 	autoPushChangedFilesOnly: boolean;
+	/** An automatic push publishing more than `bulkDeleteLimit` deletions holds them all for review. */
+	confirmBulkDeletes: boolean;
+	bulkDeleteLimit: number;
 	fileHistoryEnabled: boolean;
 	fileHistoryMaxSnapshots: number;
 	historyAutoRefresh: boolean;
 	realtimeSync: boolean;
 	/** Notes open in the editor edit together across devices, over the relay. */
 	liveEditing: boolean;
+	/** Live edits go out at most this often (ms), on this device. Never transferred. */
+	liveSendMs: number;
 	/** Others' text in live notes tinted by author, on this device. */
 	showLiveAuthors: boolean;
 	showOpenNote: boolean;
@@ -97,6 +105,8 @@ export interface MdsyncSettings {
 	showStatusBar: boolean;
 	showRibbonIcon: boolean;
 	showFileExplorerIndicators: boolean;
+	/** The dot, arrow or warning beside a changed name in the file tree; the name keeps its colour. */
+	showChangeMarks: boolean;
 	showEditorChangeSigns: boolean;
 	showFileSizes: boolean;
 	uiLayout: "tree" | "flat";
@@ -117,11 +127,14 @@ export const DEFAULT_SETTINGS: MdsyncSettings = {
 	autoPushAfterChange: false,
 	autoPushSettleSeconds: 10,
 	autoPushChangedFilesOnly: false,
+	confirmBulkDeletes: true,
+	bulkDeleteLimit: 5,
 	fileHistoryEnabled: false,
 	fileHistoryMaxSnapshots: DEFAULT_FILE_HISTORY_MAX_SNAPSHOTS,
 	historyAutoRefresh: true,
 	realtimeSync: false,
 	liveEditing: true,
+	liveSendMs: LIVE_SEND_MS.balanced,
 	showLiveAuthors: false,
 	showOpenNote: true,
 	spaces: [],
@@ -141,6 +154,7 @@ export const DEFAULT_SETTINGS: MdsyncSettings = {
 	showStatusBar: true,
 	showRibbonIcon: true,
 	showFileExplorerIndicators: true,
+	showChangeMarks: true,
 	showEditorChangeSigns: true,
 	showFileSizes: true,
 	uiLayout: "tree",
@@ -216,6 +230,10 @@ export const NUMERIC_BOUNDS = {
 		min: AUTO_PUSH_SETTLE_MIN_SECONDS,
 		max: AUTO_PUSH_SETTLE_MAX_SECONDS,
 	},
+	bulkDeleteLimit: {
+		min: BULK_DELETE_LIMIT_MIN,
+		max: BULK_DELETE_LIMIT_MAX,
+	},
 	fileHistoryMaxSnapshots: {
 		min: FILE_HISTORY_MIN_SNAPSHOTS,
 		max: FILE_HISTORY_MAX_SNAPSHOTS,
@@ -284,6 +302,12 @@ export function mergeSettings(
 		...(stored ?? {}),
 		storageConfigs,
 		activeStorageKind,
+		// A preset only: the dropdown shows nothing else.
+		liveSendMs: Object.values<unknown>(LIVE_SEND_MS).includes(
+			stored?.liveSendMs,
+		)
+			? (stored?.liveSendMs as number)
+			: DEFAULT_SETTINGS.liveSendMs,
 		settingsSync: {
 			...DEFAULT_SETTINGS_SYNC,
 			...((stored?.settingsSync as

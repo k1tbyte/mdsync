@@ -1,8 +1,10 @@
+body.is-phone .mdsync-diff-view .mdsync-diff-header {
+	flex-wrap: wrap;
+	padding: var(--size-4-2) var(--size-4-3) 0;
+}
+
 body.is-phone .mdsync-diff-view .mdsync-diff-title {
-	display: flex;
-	flex: 1 1 100%;
-	align-items: center;
-	gap: var(--size-4-2);
+	flex: 1 1 0;
 	min-width: 0;
 }
 
@@ -18,22 +20,122 @@ body.is-phone .mdsync-diff-view .mdsync-diff-path .mdsync-file-parent {
 	flex: 0 0 auto;
 }
 
-body.is-phone .mdsync-diff-view .mdsync-diff-file-actions > button {
-	flex: 1 1 auto;
+body.is-phone .mdsync-diff-view .mdsync-diff-spacer,
+body.is-phone .mdsync-diff-view .mdsync-compare-position,
+body.is-phone .mdsync-diff-view .mdsync-diff-separator,
+body.is-phone .mdsync-diff-view .mdsync-pending-kind {
+	display: none;
+}
+
+/* Its own row under the title: no divider from what stood beside it on a desktop. */
+body.is-phone .mdsync-diff-view .mdsync-diff-file-nav {
+	padding-left: 0;
+}
+
+body.is-phone .mdsync-diff-view .mdsync-diff-file-nav::before {
+	display: none;
+}
+
+body.is-phone .mdsync-diff-view .mdsync-diff-info {
+	order: 1;
+	flex: 1 1 100%;
+	padding: var(--size-4-1) var(--size-4-2) var(--size-4-3);
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+}
+
+body.is-phone .mdsync-diff-view .mdsync-diff-info:empty {
+	display: none;
+}
+
+body.is-phone .mdsync-diff-view .mdsync-compare-context {
+	display: inline;
+}
+
+body.is-phone .mdsync-diff-view .mdsync-compare-info {
+	gap: var(--size-2-2);
+	flex-wrap: wrap;
+}
+
+/* Its native header is hidden, so the space Obsidian keeps for it goes too. */
+body.is-phone
+	.mod-root
+	.workspace-leaf-content[data-type="mdsync-diff"]
+	.view-content {
+	--view-top-spacing: var(--safe-area-inset-top);
+}
+
+/* At the thumb, under the panes, until the phone gets its own layout. */
+body.is-phone .mdsync-diff-view .mdsync-diff-action-bar {
+	order: 1;
+	padding: var(--size-4-3) var(--size-4-4)
+		calc(var(--size-4-3) + env(safe-area-inset-bottom, 0px));
+	border-top: 1px solid var(--background-modifier-border);
+	border-bottom: none;
+	background: var(--background-secondary);
+}
+
+/* The floating navbar covers the bottom of the view. */
+body.is-phone.is-floating-nav .mdsync-diff-view .mdsync-diff-action-bar {
+	padding-bottom: calc(
+		var(--navbar-height) +
+		var(--navbar-bottom-offset) +
+		var(--size-4-2)
+	);
+}
+
+/* On a phone only buttons or a reason earn the bar. */
+body.is-phone .mdsync-diff-view .mdsync-compare-pending .mdsync-diff-hint,
+body.is-phone
+	.mdsync-diff-view
+	.mdsync-diff-action-bar.has-button
+	.mdsync-diff-hint {
+	display: none;
 }
 
 body.is-phone
 	.mdsync-diff-view
-	.mdsync-diff-file-actions:not(.has-buttons):not(.has-pending) {
+	.mdsync-diff-action-bar:not(.has-button, .has-reason) {
 	display: none;
 }
 
-body.is-phone .mdsync-diff-view .mdsync-merge-toolbar select {
-	min-height: var(--mdsync-touch);
+body.is-phone .mdsync-diff-view .mdsync-compare-pending {
+	padding: 0;
+}
+
+body.is-phone .mdsync-diff-view .mdsync-compare-choice-actions,
+body.is-phone .mdsync-diff-view .mdsync-diff-file-actions,
+body.is-phone .mdsync-diff-view .mdsync-diff-resolution {
+	flex: 1 1 auto;
+	width: 100%;
+}
+
+body.is-phone .mdsync-diff-view .mdsync-diff-resolution {
+	padding-left: 0;
+}
+
+body.is-phone .mdsync-diff-view .mdsync-diff-resolution::before {
+	display: none;
+}
+
+body.is-phone .mdsync-diff-view .mdsync-diff-action-bar button {
+	min-height: 48px;
+	flex: 1 1 0;
+}
+
+/* On a phone `--interactive-normal` is the bar's own colour. */
+body.is-phone .mdsync-diff-view .mdsync-diff-action-bar button:not(.mod-cta) {
+	background: var(--background-modifier-border);
+}
+
+body.is-phone
+	.mdsync-diff-view
+	:is(.mdsync-compare-choice-actions, .mdsync-diff-resolution)
+	.mod-cta {
+	flex-grow: 2;
 }
 
 body.is-phone .mdsync-diff-view .mdsync-merge-pane-head,
-body.is-phone .mdsync-diff-view .mdsync-compare-head,
 body.is-phone .mdsync-diff-view .mdsync-source-head {
 	display: flex;
 	align-items: center;

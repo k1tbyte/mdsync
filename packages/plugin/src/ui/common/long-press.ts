@@ -43,8 +43,8 @@ export function onLongPress(
 
 	const open = (event: MouseEvent): void => {
 		stopTimer();
-		// The row may have been re-rendered away while the finger was down.
-		if (!el.isConnected) return;
+		// The row may have been re-rendered away, or locked, while the finger was down.
+		if (!el.isConnected || el.closest("[inert]")) return;
 		held = true;
 		handler(event);
 	};

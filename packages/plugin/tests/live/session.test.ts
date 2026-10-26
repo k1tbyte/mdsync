@@ -27,6 +27,21 @@ const live = useLiveRoom();
 const { device, synced, roomState } = live;
 
 describe("live session", () => {
+	it("sends a typed edit at once and holds the next for its device's send interval", async () => {
+		live.sendEvery = 60_000;
+		const slow = await synced("a");
+		const send = vi.spyOn(slow.connection, "send");
+		const updates = () =>
+			send.mock.calls.filter(([frame]) => frame.type === EFrame.Update).length;
+
+		type(slow, 1, "b");
+		await waitUntil(() => expect(updates()).toBe(1));
+		type(slow, 2, "c");
+		await sleep(FLUSHED_MS);
+
+		expect(updates()).toBe(1);
+	});
+
 	it("seeds an empty room from disk once when two devices open it together", async () => {
 		const a = device("hello");
 		const b = device("hello");
@@ -185,6 +200,22 @@ describe("live session", () => {
 		expect(sent.mock.calls.map(([frame]) => frame.type)).toEqual([EFrame.Sub]);
 		expect(huge.session.synced).toBe(false);
 		sent.mockRestore();
+	});
+
+	it("leaves a refusal it had queued unsaid once closed: the note may be in its next room", async () => {
+		const closing = await synced("x");
+		const { docId } = closing.session;
+
+		closing.session.onFrame({
+			type: EFrame.Refused,
+			slot: 0,
+			doc: docId,
+			reason: ERefusal.Unstored,
+		});
+		closing.session.dispose();
+		await sleep(FLUSHED_MS);
+
+		expect(closing.refused).toBeNull();
 	});
 
 	it("goes cold when the hub refuses to follow one more document", async () => {

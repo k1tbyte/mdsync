@@ -1,24 +1,9 @@
-.mdsync-modal-buttons {
-	display: flex;
-	justify-content: flex-end;
-	gap: var(--size-4-2);
-	margin-top: var(--size-4-3);
-}
-
 .modal-content p.mod-warning:empty {
 	display: none;
 }
 
-.mdsync-confirm-modal p {
-	overflow-wrap: anywhere;
-}
-
 .mdsync-prompt-input {
 	width: 100%;
-}
-
-body.is-phone .mdsync-modal-buttons button {
-	flex: 1 1 0;
 }
 
 .mdsync-button-row {

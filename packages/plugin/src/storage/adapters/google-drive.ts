@@ -18,6 +18,8 @@ const DRIVE_API = "https://www.googleapis.com/drive/v3/files";
 const DRIVE_PAGE_SIZE = "1000";
 const TOKEN_REFRESH_MARGIN_MS = 60_000;
 const PREPARE_READS_MIN = 256;
+/** Priming lists at most this many pages per page of hinted keys; the rest are looked up exactly. */
+const PRIME_PAGE_SLACK = 2;
 const NOT_FOUND = 404;
 
 interface GoogleDriveListResponse {
@@ -110,16 +112,16 @@ export function createGoogleDriveAdapter(
 	};
 
 	/** Drive answers 401 mid-run (not retryable); replaces the token so long syncs do not fail. */
-	const authorized: AuthorizedRequest = async (params) => {
+	const authorized: AuthorizedRequest = async (params, expected) => {
 		const build = async (): Promise<RequestUrlParam> => ({
 			...params,
 			headers: { ...(await getHeaders()), ...params.headers },
 			throw: false,
 		});
-		const first = await driveRequest(await build());
+		const first = await driveRequest(await build(), expected);
 		if (first.status !== 401) return first;
 		await refreshOnce();
-		return driveRequest(await build());
+		return driveRequest(await build(), expected);
 	};
 
 	const findFolder = async (): Promise<string | null> => {
@@ -210,13 +212,19 @@ export function createGoogleDriveAdapter(
 		if (id) fileIdCache.set(key, id);
 	};
 
-	const download = async (key: string): Promise<Uint8Array | null> => {
+	const download = async (
+		key: string,
+		size?: number,
+	): Promise<Uint8Array | null> => {
 		const id = await findFileId(key);
 		if (!id) return null;
-		const res = await authorized({
-			url: `${DRIVE_API}/${id}?alt=media`,
-			method: "GET",
-		});
+		const res = await authorized(
+			{
+				url: `${DRIVE_API}/${id}?alt=media`,
+				method: "GET",
+			},
+			size,
+		);
 		if (res.status === NOT_FOUND) {
 			fileIdCache.delete(key);
 			return null;
@@ -254,12 +262,21 @@ export function createGoogleDriveAdapter(
 			: null;
 	};
 
+	/**
+	 * Every page, unless `prime` bounds it: then it stops after a few pages per page of hinted keys, or as
+	 * soon as all of them have ids. `complete` is false only for a listing cut short with keys unseen.
+	 */
 	const listObjects = async (
 		prefix: string,
 		detailed: boolean,
-	): Promise<ListedObject[]> => {
+		prime?: { keys: Set<string> },
+	): Promise<{ objects: ListedObject[]; complete: boolean }> => {
 		const objects: ListedObject[] = [];
 		let pageToken: string | undefined;
+		let pages = 0;
+		const maxPages = prime
+			? Math.ceil(prime.keys.size / Number(DRIVE_PAGE_SIZE)) * PRIME_PAGE_SLACK
+			: Number.POSITIVE_INFINITY;
 		const folderId = await getFolderId();
 
 		const parentQuery = `'${escapeDriveQueryValue(folderId)}' in parents and trashed = false`;
@@ -297,9 +314,18 @@ export function createGoogleDriveAdapter(
 				}
 			}
 			pageToken = data.nextPageToken;
+			pages++;
+			if (
+				pageToken &&
+				prime &&
+				[...prime.keys].every((key) => fileIdCache.has(key))
+			) {
+				return { objects, complete: true };
+			}
+			if (pageToken && pages >= maxPages) return { objects, complete: false };
 		} while (pageToken);
 
-		return objects;
+		return { objects, complete: true };
 	};
 
 	return {
@@ -319,10 +345,10 @@ export function createGoogleDriveAdapter(
 			writeHint = hintOf(keys);
 		},
 
-		async get(key: string): Promise<Uint8Array | null> {
+		async get(key: string, size?: number): Promise<Uint8Array | null> {
 			if (readHint?.keys.has(key) && !fileIdCache.has(key)) {
 				const hint = readHint;
-				hint.ready ??= listObjects(hint.prefix, false).then(
+				hint.ready ??= listObjects(hint.prefix, false, hint).then(
 					() => undefined,
 					() => undefined,
 				);
@@ -330,9 +356,9 @@ export function createGoogleDriveAdapter(
 				if (readHint === hint) readHint = null;
 			}
 			const cached = fileIdCache.has(key);
-			const body = await download(key);
+			const body = await download(key, size);
 			// The cached id may name a file deleted and recreated since.
-			return body ?? (cached ? download(key) : null);
+			return body ?? (cached ? download(key, size) : null);
 		},
 
 		async getIfChanged(key, etag): Promise<ConditionalRead> {
@@ -359,8 +385,10 @@ export function createGoogleDriveAdapter(
 		async put(key, body, contentType) {
 			const hint = writeHint;
 			if (hint?.keys.has(key) && !fileIdCache.has(key)) {
-				hint.ready ??= listObjects(hint.prefix, false).then(
-					() => {
+				hint.ready ??= listObjects(hint.prefix, false, hint).then(
+					({ complete }) => {
+						// A cut-short listing proves nothing absent: the rest are looked up exactly.
+						if (!complete) return;
 						hint.absent = new Set(
 							[...hint.keys].filter((name) => !fileIdCache.has(name)),
 						);
@@ -400,9 +428,13 @@ export function createGoogleDriveAdapter(
 		},
 
 		async list(prefix: string): Promise<string[]> {
-			return (await listObjects(prefix, false)).map((object) => object.key);
+			return (await listObjects(prefix, false)).objects.map(
+				(object) => object.key,
+			);
 		},
-		listDetailed: (prefix: string) => listObjects(prefix, true),
+		async listDetailed(prefix: string): Promise<ListedObject[]> {
+			return (await listObjects(prefix, true)).objects;
+		},
 	};
 }
 

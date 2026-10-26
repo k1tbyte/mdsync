@@ -2,7 +2,7 @@
 import { EditorState } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
 import { installElementFactories } from "@tests/helpers/obsidian-dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Awareness } from "y-protocols/awareness";
 import * as Y from "yjs";
 import { remoteSelections } from "@/live/text/remote-selections";
@@ -54,6 +54,47 @@ function editor(content: string, hidden?: { from: number; to: number }) {
 }
 
 describe("remote selections", () => {
+	it("publish the local cursor on selection changes, not on every update", () => {
+		const doc = new Y.Doc();
+		const text = doc.getText("body");
+		text.insert(0, "hello world");
+		const awareness = new Awareness(doc);
+		awareness.setLocalState({});
+		const view = new EditorView({
+			state: EditorState.create({
+				doc: "hello world",
+				extensions: [remoteSelections(text, awareness)],
+			}),
+			parent: document.body,
+		});
+		vi.spyOn(document, "hasFocus").mockReturnValue(true);
+		view.focus();
+		const indexOf = () => {
+			const { cursor } = awareness.getLocalState() as {
+				cursor?: { head: Y.RelativePosition };
+			};
+			if (!cursor) return null;
+			const abs = Y.createAbsolutePositionFromRelativePosition(
+				Y.createRelativePositionFromJSON(cursor.head),
+				doc,
+			);
+			return abs?.index ?? null;
+		};
+
+		view.dispatch({ selection: { anchor: 4 } });
+		expect(indexOf()).toBe(4);
+
+		awareness.setLocalStateField("cursor", {
+			anchor: Y.createRelativePositionFromTypeIndex(text, 1),
+			head: Y.createRelativePositionFromTypeIndex(text, 1),
+		});
+		view.dispatch({});
+		expect(indexOf()).toBe(1);
+
+		view.dispatch({ selection: { anchor: 6 } });
+		expect(indexOf()).toBe(6);
+	});
+
 	it("draw a remote caret under its name", () => {
 		const { view, select } = editor("hello world\n");
 		select(3, 3);

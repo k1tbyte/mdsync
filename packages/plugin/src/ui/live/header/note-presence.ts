@@ -7,8 +7,7 @@ import {
 	makeActivatable,
 	renderAvatarStack,
 } from "@/ui/common";
-import { STATE_ICONS } from "@/ui/live/live-state";
-import { CursorFollow } from "./cursor-follow";
+import { STATE_TEXT } from "@/ui/live/live-state";
 import { type HeaderState, headerOf, showsHeader } from "./header-state";
 import type { LiveStatus } from "./live-status";
 import { openActiveNoteMenu, openNoteMenu } from "./note-menu";
@@ -16,6 +15,7 @@ import { LOCKED } from "./note-menu-items";
 
 /** A room answers in well under this: a note just opened keeps the last mark meanwhile, not a blink through joining. */
 const SETTLE_MS = 1_000;
+const TONES = Object.keys(STATE_TEXT).map((state) => `is-${state}`);
 
 interface Shown {
 	el: HTMLElement;
@@ -33,8 +33,6 @@ export function registerNotePresence(
 	const { workspace } = plugin.app;
 	const { people, live } = plugin.realtime;
 	const shown = new Map<WorkspaceLeaf, Shown>();
-	const follows = new CursorFollow(plugin);
-	plugin.register(() => follows.stop());
 	let frame: number | null = null;
 	let settle: number | null = null;
 
@@ -55,7 +53,7 @@ export function registerNotePresence(
 			let entry = shown.get(leaf);
 			if (entry?.el.parentElement !== actions) {
 				entry?.el.remove();
-				const el = createHeader(plugin, leaf, actions, follows);
+				const el = createHeader(plugin, leaf, actions);
 				entry = { el, key: "", status: null, path: file.path, since: now };
 				shown.set(leaf, entry);
 			}
@@ -106,19 +104,18 @@ export function registerNotePresence(
 		for (const { el } of shown.values()) el.remove();
 		shown.clear();
 	});
-	return (checking) => openActiveNoteMenu(plugin, follows, checking);
+	return (checking) => openActiveNoteMenu(plugin, checking);
 }
 
 function createHeader(
 	plugin: PluginHost,
 	leaf: WorkspaceLeaf,
 	actions: HTMLElement,
-	follows: CursorFollow,
 ): HTMLElement {
 	// Not `clickable-icon`: themes size those to one icon, and avatars spill out.
 	const el = actions.createSpan({ cls: "mdsync-note-presence mdsync-hidden" });
 	actions.prepend(el);
-	makeActivatable(el, null, () => openNoteMenu(plugin, leaf, follows, el));
+	makeActivatable(el, null, () => openNoteMenu(plugin, leaf, el));
 	return el;
 }
 
@@ -131,10 +128,15 @@ function fillHeader(el: HTMLElement, state: HeaderState): void {
 	const { status, here, locked } = state;
 	el.empty();
 	el.toggleClass("mdsync-hidden", !showsHeader(state));
+	el.removeClass(...TONES);
 	if (locked) setIcon(el.createSpan({ cls: "mdsync-note-lock" }), "lock");
 	if (status) {
-		const icon = el.createSpan({ cls: `mdsync-note-state is-${status.state}` });
-		setIcon(icon, STATE_ICONS[status.state]);
+		el.addClass(`is-${status.state}`);
+		el.createSpan({ cls: `mdsync-live-dot is-${status.state}` });
+		el.createSpan({
+			cls: "mdsync-note-text",
+			text: status.text ?? STATE_TEXT[status.state],
+		});
 	}
 	if (here.length > 0) renderAvatarStack(el, here);
 	const lines = [locked ? LOCKED : undefined, status?.label];

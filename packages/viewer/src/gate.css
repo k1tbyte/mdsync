@@ -1,0 +1,218 @@
+/* Pages before any note: the passphrase, the loading frame and the messages. */
+.gate {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	min-height: 100dvh;
+	padding: 18vh 1.5rem 1.25rem;
+}
+
+.gate > .credit {
+	margin-top: auto;
+	padding-top: 2rem;
+}
+
+.message {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	max-width: 22.5rem;
+	text-align: center;
+}
+
+.message .tile {
+	width: 52px;
+	height: 52px;
+	border-radius: 14px;
+}
+
+.tile.is-muted {
+	background: var(--code-background);
+	color: var(--text-muted);
+}
+
+.tile.is-warning {
+	background: rgba(var(--color-orange-rgb), 0.15);
+	color: rgb(var(--color-orange-rgb));
+}
+
+.tile.is-error {
+	background: rgba(var(--color-red-rgb), 0.15);
+	color: var(--text-error);
+}
+
+.message h1,
+.passphrase h1 {
+	margin: 18px 0 0;
+	font-size: 1.125rem;
+	font-weight: 600;
+	line-height: var(--line-height-tight);
+}
+
+.message p {
+	margin: 8px 0 0;
+	color: var(--text-muted);
+	font-size: 0.875rem;
+	line-height: 1.55;
+	text-wrap: pretty;
+}
+
+.passphrase {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	max-width: 21.25rem;
+}
+
+.passphrase .tile {
+	width: 44px;
+	height: 44px;
+	border-radius: 10px;
+}
+
+.passphrase h1 {
+	font-size: 1.25rem;
+}
+
+.passphrase label[for] {
+	margin: 20px 0 6px;
+	color: var(--text-muted);
+	font-size: 0.8125rem;
+}
+
+.passphrase input[type="password"] {
+	height: 40px;
+	padding: 0 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-secondary);
+	color: inherit;
+	font: inherit;
+	font-size: 0.9375rem;
+}
+
+.passphrase input[aria-invalid="true"] {
+	border-color: rgba(var(--color-red-rgb), 0.6);
+}
+
+.passphrase input:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 1px;
+}
+
+.passphrase .problem {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 8px 0 0;
+	color: var(--text-error);
+	font-size: 0.8125rem;
+}
+
+.passphrase .problem:empty {
+	display: none;
+}
+
+.passphrase .problem .icon {
+	width: 14px;
+	height: 14px;
+}
+
+.passphrase .remember {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 16px;
+	font-size: 0.8125rem;
+	cursor: pointer;
+}
+
+.passphrase .remember input {
+	margin: 0;
+	accent-color: var(--interactive-accent);
+}
+
+.passphrase button {
+	height: 40px;
+	margin-top: 20px;
+	border: 0;
+	border-radius: 6px;
+	background: var(--interactive-accent);
+	color: #fff;
+	font: inherit;
+	font-size: 0.875rem;
+	font-weight: 500;
+	cursor: pointer;
+}
+
+.loading-body {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	max-width: var(--file-line-width);
+	margin: 0 auto;
+	padding: 2.5rem 1.25rem;
+}
+
+.loading-body p {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 0;
+	color: var(--text-muted);
+	font-size: 0.875rem;
+}
+
+.spinner {
+	width: 14px;
+	height: 14px;
+	border: 2px solid var(--background-modifier-border);
+	border-top-color: var(--interactive-accent);
+	border-radius: 50%;
+	animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.skeleton {
+	height: 12px;
+	border-radius: 4px;
+	background: var(--background-secondary);
+}
+
+.skeleton.is-mark {
+	width: 28px;
+	height: 28px;
+	border-radius: 7px;
+}
+
+.skeleton.is-name {
+	width: 160px;
+}
+
+.skeleton.is-title {
+	width: 58%;
+	height: 22px;
+	margin-top: 14px;
+	border-radius: 5px;
+}
+
+.skeleton.is-short {
+	width: 72%;
+}
+
+.skeleton.is-block {
+	height: 64px;
+	margin-top: 14px;
+	border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.spinner {
+		animation-duration: 2.4s;
+	}
+}

@@ -247,12 +247,21 @@ describe("hunkHintText", () => {
 		expect(text).toContain("Comparing two stored versions");
 	});
 
-	it("mentions missing vault file as default", () => {
+	it("mentions a missing vault file", () => {
+		const text = hunkHintText({
+			model: fakeModel({ rightPresent: false }),
+			historyChange: null,
+			against: null,
+		});
+		expect(text).toContain("not in the vault");
+	});
+
+	it("has nothing to say when per-change actions are on", () => {
 		const text = hunkHintText({
 			model: fakeModel(),
 			historyChange: null,
 			against: null,
 		});
-		expect(text).toContain("not in the vault");
+		expect(text).toBeNull();
 	});
 });
