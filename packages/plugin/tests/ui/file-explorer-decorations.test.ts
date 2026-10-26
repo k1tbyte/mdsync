@@ -200,6 +200,22 @@ describe("change marks", () => {
 			else expect(setIcon).not.toHaveBeenCalled();
 		},
 	);
+
+	it("keeps the colour and drops the mark when change marks are off", () => {
+		const target = new BadgeElement();
+		const plugin = host([], []);
+		plugin.settings.showChangeMarks = false;
+
+		renderDecoration(
+			target as unknown as HTMLElement,
+			{ change: { kind: "conflict", incoming: false } },
+			plugin,
+		);
+
+		expect(target.classes.has("mdsync-changed-conflict")).toBe(true);
+		expect(target.children).toEqual([]);
+		expect(target.classes.has("mdsync-has-path-badge")).toBe(false);
+	});
 });
 
 function publishedBadge(stale = false) {

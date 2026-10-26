@@ -31,6 +31,18 @@ const INTERFACE_FIELDS: ReadonlyArray<SettingsField> = [
 		set: (v) => ({ showFileExplorerIndicators: v }),
 		after: (plugin) =>
 			plugin.refreshFileIndicators(plugin.settings.showFileExplorerIndicators),
+		rerender: true,
+	},
+	{
+		kind: EFieldKind.Toggle,
+		name: "Change marks beside names",
+		desc: "A dot, arrow or warning sign beside a changed file. Its name keeps its colour either way.",
+		when: (s) => s.showFileExplorerIndicators,
+		sub: true,
+		get: (s) => s.showChangeMarks,
+		set: (v) => ({ showChangeMarks: v }),
+		after: (plugin) =>
+			plugin.refreshFileIndicators(plugin.settings.showFileExplorerIndicators),
 	},
 	{
 		kind: EFieldKind.Toggle,

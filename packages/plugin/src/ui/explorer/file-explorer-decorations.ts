@@ -151,7 +151,8 @@ export function renderDecoration(
 		);
 	}
 	renderPresenceMarks(target, decoration, plugin);
-	if (change) renderChangeMark(target, change);
+	if (change && plugin.settings.showChangeMarks)
+		renderChangeMark(target, change);
 	if (target.querySelector(".mdsync-path-badge")) {
 		target.addClass("mdsync-has-path-badge");
 	}

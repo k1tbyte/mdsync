@@ -20,6 +20,8 @@ export function registerFileExplorerIndicators(
 	let indicators = false;
 	let disposed = false;
 	let renderFrame: number | null = null;
+	/** A setting changed how rows look: every row redraws. */
+	let repaint = false;
 	let rowsChanged = false;
 	let observer: MutationObserver | null = null;
 	let observedContainer: HTMLElement | null = null;
@@ -34,6 +36,11 @@ export function registerFileExplorerIndicators(
 		if (disposed) return;
 		const explorer = readFileExplorer(plugin.app.workspace);
 		if (!explorer) return;
+		if (repaint) {
+			// Cleared in the frame that paints again: no row blinks bare.
+			decorator.clear();
+			repaint = false;
+		}
 		if (links.followSetting()) rowsChanged = true;
 		decorator.apply(explorer, links.links, indicators, rowsChanged);
 	};
@@ -119,6 +126,7 @@ export function registerFileExplorerIndicators(
 	return {
 		refresh(showIndicators) {
 			indicators = showIndicators;
+			repaint = true;
 			observeExplorer();
 			schedule(true);
 		},

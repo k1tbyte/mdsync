@@ -105,6 +105,8 @@ export interface MdsyncSettings {
 	showStatusBar: boolean;
 	showRibbonIcon: boolean;
 	showFileExplorerIndicators: boolean;
+	/** The dot, arrow or warning beside a changed name in the file tree; the name keeps its colour. */
+	showChangeMarks: boolean;
 	showEditorChangeSigns: boolean;
 	showFileSizes: boolean;
 	uiLayout: "tree" | "flat";
@@ -152,6 +154,7 @@ export const DEFAULT_SETTINGS: MdsyncSettings = {
 	showStatusBar: true,
 	showRibbonIcon: true,
 	showFileExplorerIndicators: true,
+	showChangeMarks: true,
 	showEditorChangeSigns: true,
 	showFileSizes: true,
 	uiLayout: "tree",
