@@ -3,9 +3,7 @@ body.is-phone .workspace-drawer .mdsync-source-control {
 	--view-bottom-spacing: 0px;
 }
 
-/* Overlay scrollbars reserve no gutter. */
 body.is-phone .mdsync-source-control .mdsync-source-tab-panel {
-	padding-right: var(--size-4-3);
 	padding-bottom: var(--view-bottom-spacing, 0px);
 }
 
@@ -61,12 +59,21 @@ body.is-phone
 	display: inline;
 }
 
-body.is-phone
-	.mdsync-source-control
-	.mdsync-sync-summary-tools
-	.mdsync-icon-btn {
-	min-width: var(--mdsync-touch);
-	height: var(--mdsync-touch);
+/* A narrow card: its tools take a full-width row under the title, named. */
+body.is-phone .mdsync-source-control .mdsync-sync-summary-head {
+	flex-wrap: wrap;
+}
+
+body.is-phone .mdsync-source-control .mdsync-sync-summary-tools {
+	flex: 1 0 100%;
+	gap: var(--size-4-2);
+	margin-left: 0;
+}
+
+body.is-phone .mdsync-source-control .mdsync-sync-summary-tools > button {
+	flex: 1 1 0;
+	min-width: 0;
+	height: 36px;
 }
 
 body.is-phone .mdsync-source-control .mdsync-sync-summary-tools svg {
@@ -82,7 +89,7 @@ body.is-phone .mdsync-source-control .mdsync-sync-summary-chip {
 /* Name over its folder and detail, like the phone's own lists. */
 body.is-phone .mdsync-source-control .mdsync-section .mdsync-file-copy {
 	display: grid;
-	grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+	grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
 	align-items: baseline;
 	row-gap: 2px;
 }
@@ -108,7 +115,7 @@ body.is-phone .mdsync-source-control .mdsync-selection-bar {
 		calc(var(--size-4-3) + var(--view-bottom-spacing, 0px));
 	border-width: 1px 0 0;
 	border-radius: 0;
-	background: var(--background-primary);
+	background: var(--mdsync-view-bg);
 	box-shadow: none;
 }
 
@@ -160,6 +167,14 @@ body.is-phone .mdsync-source-control .mdsync-conflict-card > .mdsync-file-row {
 
 body.is-phone .mdsync-source-control .mdsync-file-size {
 	font-size: var(--font-ui-smaller);
+}
+
+body.is-phone .mdsync-source-control .mdsync-file-copy .mdsync-file-size {
+	grid-column: -2;
+	flex-direction: row;
+	align-self: baseline;
+	gap: var(--size-2-2);
+	padding-left: var(--size-2-2);
 }
 
 body.is-phone .mdsync-source-control .mdsync-section-header {
@@ -219,4 +234,11 @@ body.is-phone
 
 body.is-phone .mdsync-source-control .mdsync-timeline-file {
 	min-height: 48px;
+}
+
+/* A row's menu opens with its whole path; one inline block is one line to the label's 3-line clamp. */
+.mdsync-menu-path {
+	display: inline-block;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }

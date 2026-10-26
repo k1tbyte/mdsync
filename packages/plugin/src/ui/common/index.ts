@@ -10,6 +10,7 @@ export { focusKey, renderKeepingFocus } from "./focus";
 export { appendIconButton, appendLabeledButton } from "./icon-button";
 export { lastEditLabel, lastEditor } from "./last-edit";
 export { onLongPress } from "./long-press";
+export { measureSlide, slideWhenCut } from "./marquee";
 export { infoTitle, personTitle, showMenuAt } from "./menu";
 export {
 	asDrawer,

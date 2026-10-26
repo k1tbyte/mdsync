@@ -18,7 +18,7 @@ import {
 	getNextConflictPath,
 	getOrderedPaths,
 } from "./diff/file-navigation";
-import { renderDiffFrame } from "./diff/header";
+import { refitDiffTitle, renderDiffFrame } from "./diff/header";
 import {
 	buildHistoryRequest,
 	changesDiffer,
@@ -200,6 +200,7 @@ export class DiffView extends ItemView {
 
 	/** Obsidian resizes a tab when it is shown again: the reload a hidden tab skipped. */
 	onResize(): void {
+		refitDiffTitle(this.containerEl);
 		if (!this.stale || !this.path || this.mergePanel.isEditing) return;
 		if (!this.containerEl.isShown()) return;
 		this.stale = false;

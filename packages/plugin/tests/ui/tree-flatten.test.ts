@@ -86,6 +86,28 @@ describe("flattening rows for display", () => {
 		expect(visual.every((v) => v.row !== undefined)).toBe(true);
 	});
 
+	it("joins a chain of lone subfolders into one row", () => {
+		const chain = buildTree([
+			file("a/b/c/one.md"),
+			file("a/b/c/d/two.md"),
+			file("a/x.md"),
+		]);
+		const open = new Set(["a", "a/b/c", "a/b/c/d"]);
+
+		expect(shape(flattenTree(chain, (path) => open.has(path)))).toEqual([
+			"[a]",
+			"  [b/c]",
+			"    one.md",
+			"    [d]",
+			"      two.md",
+			"  x.md",
+		]);
+		expect(
+			flattenTree(chain, (path) => open.has(path)).find((v) => v.name === "b/c")
+				?.folderPath,
+		).toBe("a/b/c");
+	});
+
 	it("flattens nothing to nothing", () => {
 		expect(flattenTree(buildTree([]), () => true)).toEqual([]);
 	});

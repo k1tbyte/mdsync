@@ -1,0 +1,51 @@
+/* `slideWhenCut`: a cut line slides to its end and back. Inline until it slides, so the ellipsis still works. */
+.mdsync-marquee {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mdsync-marquee.is-sliding {
+	text-overflow: clip;
+	mask-image: linear-gradient(
+		to right,
+		transparent,
+		#000 var(--size-2-3),
+		#000 calc(100% - var(--size-2-3)),
+		transparent
+	);
+}
+
+.mdsync-marquee.is-sliding .mdsync-marquee-text {
+	display: inline-block;
+	animation: mdsync-slide var(--mdsync-slide-time) ease-in-out infinite;
+}
+
+/* Sliding takes 35% of the cycle each way: SLIDE_SHARE in ui/common/marquee.ts. */
+@keyframes mdsync-slide {
+	0%,
+	15% {
+		transform: translateX(0);
+	}
+
+	/* Past the fade, so the last letter shows whole. */
+	50%,
+	65% {
+		transform: translateX(calc(var(--mdsync-slide) - var(--size-2-3)));
+	}
+
+	100% {
+		transform: translateX(0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.mdsync-marquee.is-sliding {
+		text-overflow: ellipsis;
+	}
+
+	.mdsync-marquee.is-sliding .mdsync-marquee-text {
+		display: inline;
+		animation: none;
+	}
+}

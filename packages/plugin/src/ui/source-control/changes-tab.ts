@@ -5,6 +5,7 @@ import type { SyncStatusSnapshot } from "@/sync/controller";
 import type { DiffResult, ManifestEntry } from "@/sync/types";
 import {
 	appendIconButton,
+	appendLabeledButton,
 	lastEditLabel,
 	lastEditor,
 	notifyError,
@@ -176,7 +177,11 @@ export class ChangesTab {
 			this.actions,
 			phone ? overlay : undefined,
 		);
-		this.renderTools(phone ? this.summary.toolsEl : tools, snapshot.busy);
+		this.renderTools(
+			phone ? this.summary.toolsEl : tools,
+			snapshot.busy,
+			phone,
+		);
 		this.summary.update(snapshot);
 
 		const result = snapshot.result;
@@ -234,19 +239,29 @@ export class ChangesTab {
 		this.selectionBar.update(snapshot.busy);
 	}
 
-	private renderTools(tools: HTMLElement, busy: boolean): void {
-		this.refreshButtonEl = appendIconButton(
-			tools,
+	/** `named`: a phone's tools fill a row of the summary, so they show short names. */
+	private renderTools(tools: HTMLElement, busy: boolean, named: boolean): void {
+		const add = (
+			icon: string,
+			label: string,
+			name: string,
+			run: () => void,
+		): HTMLButtonElement =>
+			named
+				? appendLabeledButton(tools, icon, name, run)
+				: appendIconButton(tools, icon, label, run);
+		this.refreshButtonEl = add(
 			"refresh-cw",
 			"Refresh changes",
+			"Refresh",
 			() => void this.plugin.controller.refreshFromDisk(),
 		);
 		this.refreshButtonEl.disabled = busy;
 		const tree = this.layout === "tree";
-		appendIconButton(
-			tools,
+		add(
 			tree ? "list" : "list-tree",
 			tree ? "Show flat list" : "Show folder tree",
+			tree ? "List" : "Tree",
 			() => {
 				this.layout = tree ? "flat" : "tree";
 				this.plugin.settings.uiLayout = this.layout;

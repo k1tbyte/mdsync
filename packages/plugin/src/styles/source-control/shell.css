@@ -10,6 +10,15 @@
 	container-type: inline-size;
 }
 
+/* What the view sits on, for bars over it: a sidebar paints secondary, a tab primary. */
+.mdsync-source-control {
+	--mdsync-view-bg: var(--background-primary);
+}
+
+:is(.mod-sidedock, .workspace-drawer) .mdsync-source-control {
+	--mdsync-view-bg: var(--background-secondary);
+}
+
 .mdsync-source-tabs-row {
 	position: sticky;
 	top: 0;

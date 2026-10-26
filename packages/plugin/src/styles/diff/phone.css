@@ -8,16 +8,30 @@ body.is-phone .mdsync-diff-view .mdsync-diff-title {
 	min-width: 0;
 }
 
+/* The name, sliding when cut, over the folder and the status. */
 body.is-phone .mdsync-diff-view .mdsync-diff-title .mdsync-diff-path {
+	display: grid;
 	flex: 1 1 0;
-	flex-direction: column;
-	align-items: stretch;
-	gap: 0;
+	grid-template-columns: minmax(0, auto) minmax(0, auto);
+	justify-content: start;
+	column-gap: var(--size-2-2);
 }
 
-body.is-phone .mdsync-diff-view .mdsync-diff-path .mdsync-file-name,
-body.is-phone .mdsync-diff-view .mdsync-diff-path .mdsync-file-parent {
-	flex: 0 0 auto;
+body.is-phone .mdsync-diff-view .mdsync-diff-path .mdsync-file-name {
+	grid-column: 1 / -1;
+}
+
+.mdsync-diff-path-status {
+	min-width: 0;
+	overflow: hidden;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mdsync-diff-path .mdsync-file-parent + .mdsync-diff-path-status::before {
+	content: "· ";
 }
 
 body.is-phone .mdsync-diff-view .mdsync-diff-spacer,
@@ -29,6 +43,7 @@ body.is-phone .mdsync-diff-view .mdsync-pending-kind {
 
 /* Its own row under the title: no divider from what stood beside it on a desktop. */
 body.is-phone .mdsync-diff-view .mdsync-diff-file-nav {
+	flex-basis: 100%;
 	padding-left: 0;
 }
 

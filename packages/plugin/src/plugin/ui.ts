@@ -37,7 +37,10 @@ export function registerPluginUi(
 	);
 	plugin.registerView(DIFF_VIEW_TYPE, (leaf) => new DiffView(leaf, plugin));
 	if (Platform.isMobile) {
-		plugin.app.workspace.onLayoutReady(() => keepInRightSidebar(plugin.app));
+		// After onload: re-enabled, Obsidian gives back our emptied leaves only then, and one kept sooner doubles.
+		plugin.app.workspace.onLayoutReady(() =>
+			window.setTimeout(() => keepInRightSidebar(plugin.app)),
+		);
 	}
 
 	const refreshStatusBar = plugin.settings.showStatusBar

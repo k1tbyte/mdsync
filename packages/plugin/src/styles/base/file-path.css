@@ -24,3 +24,9 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
+
+/* RTL clips the start, so the nearest folders stay; the bdi keeps the path LTR. */
+.mdsync-path-tail {
+	direction: rtl;
+	text-align: left;
+}

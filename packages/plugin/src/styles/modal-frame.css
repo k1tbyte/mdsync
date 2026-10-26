@@ -34,6 +34,8 @@
 	margin-inline: 0;
 	padding-inline-end: var(--size-4-8);
 	text-align: start;
+	/* A phone's title is one clipped line; a long path must wrap. */
+	white-space: normal;
 }
 
 .mdsync-modal-tile {

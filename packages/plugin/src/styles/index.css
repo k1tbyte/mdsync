@@ -5,6 +5,7 @@
 
 @import "./tokens.css";
 @import "./base/file-path.css";
+@import "./base/marquee.css";
 @import "./base/segments.css";
 @import "./base/callout.css";
 

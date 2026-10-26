@@ -133,7 +133,9 @@ export function renderFileRow(
 				: null);
 	if (detail) copy.createSpan({ cls: "mdsync-file-parent", text: detail });
 
-	if (row.size !== undefined) renderSize(item, row.size, row.sizeDelta);
+	// On a phone the size joins the line under the name; a tree row there stays one line.
+	if (row.size !== undefined && !(Platform.isPhone && ctx.layout === "tree"))
+		renderSize(Platform.isPhone ? copy : item, row.size, row.sizeDelta);
 	renderRowActions(item, row.path, ctx);
 	renderStatus(item, row);
 	item.addEventListener("contextmenu", (event) => {

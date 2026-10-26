@@ -34,6 +34,13 @@
 	flex: 0 1 auto;
 }
 
+/* The whole folder, scrolled sideways; RTL starts it at its end. An ellipsis would blank on scroll. */
+.mdsync-diff-path .mdsync-file-parent {
+	overflow-x: auto;
+	scrollbar-width: none;
+	text-overflow: clip;
+}
+
 .mdsync-diff-title {
 	min-width: 0;
 }

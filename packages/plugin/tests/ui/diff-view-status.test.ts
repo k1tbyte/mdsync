@@ -5,7 +5,10 @@ import type { CompareResult } from "@/sync/engine";
 import { DiffView } from "@/ui/diff-view";
 import { installElementMethods } from "../settings/setup/element-methods";
 
-vi.mock("@/ui/diff/header", () => ({ renderDiffFrame: vi.fn() }));
+vi.mock("@/ui/diff/header", () => ({
+	renderDiffFrame: vi.fn(),
+	refitDiffTitle: vi.fn(),
+}));
 vi.mock("@/ui/common", () => ({
 	notifyError: vi.fn(),
 	redrawOnPhoneChange: vi.fn(),

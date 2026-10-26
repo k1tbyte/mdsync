@@ -43,14 +43,16 @@ export function flattenTree(
 			out.push({ depth, name: child.name, row: child.row });
 			continue;
 		}
-		const collapsed = !isExpanded(child.fullPath);
-		out.push({
-			depth,
-			name: child.name,
-			folderPath: child.fullPath,
-			collapsed,
-		});
-		if (!collapsed) flattenTree(child, isExpanded, depth + 1, out);
+		// A chain of lone subfolders is one row, keyed by its deepest folder.
+		let folder = child;
+		let name = child.name;
+		while (folder.children.length === 1 && !folder.children[0]?.row) {
+			folder = folder.children[0] as TreeNode;
+			name = `${name}/${folder.name}`;
+		}
+		const collapsed = !isExpanded(folder.fullPath);
+		out.push({ depth, name, folderPath: folder.fullPath, collapsed });
+		if (!collapsed) flattenTree(folder, isExpanded, depth + 1, out);
 	}
 	return out;
 }

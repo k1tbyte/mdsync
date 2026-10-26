@@ -4,7 +4,12 @@ import type {
 	FileDiffModel,
 	HistoryVersionRef,
 } from "@/sync/projection";
-import { appendIconButton, renderPath } from "@/ui/common";
+import {
+	appendIconButton,
+	measureSlide,
+	renderPath,
+	slideWhenCut,
+} from "@/ui/common";
 import { renderActionBar } from "./action-bar";
 import { type FilePosition, getFilePosition } from "./file-navigation";
 import { type HistoryChange, hunkHintText } from "./history-state";
@@ -108,6 +113,14 @@ const STATUS: Record<EDiffDirection, string> = {
 	history: "Version",
 };
 
+/** A resize, or a tab shown again, changes the room of a sliding title. */
+export function refitDiffTitle(root: HTMLElement): void {
+	const name = root.querySelector<HTMLElement>(
+		".mdsync-diff-path .mdsync-marquee",
+	);
+	if (name) measureSlide(name);
+}
+
 export function renderDiffHeader(
 	parent: HTMLElement,
 	state: DiffHeaderState,
@@ -123,6 +136,8 @@ export function renderDiffHeader(
 	const title = parent.createDiv({ cls: "mdsync-diff-title" });
 	const path = renderPath(title, state.path);
 	path.addClass("mdsync-diff-path");
+	const name = path.querySelector<HTMLElement>(".mdsync-file-name");
+	if (Platform.isPhone && name) slideWhenCut(name);
 	const status = state.direction
 		? state.isEditing
 			? "Merging"
@@ -130,10 +145,7 @@ export function renderDiffHeader(
 		: null;
 	if (status) {
 		if (Platform.isPhone) {
-			const folder =
-				path.querySelector<HTMLElement>(".mdsync-file-parent") ??
-				path.createSpan({ cls: "mdsync-file-parent" });
-			folder.appendText(`${folder.textContent ? " · " : ""}${status}`);
+			path.createSpan({ cls: "mdsync-diff-path-status", text: status });
 		} else if (!state.isEditing) {
 			// While merging, the panel's own status stands here.
 			parent.createSpan({

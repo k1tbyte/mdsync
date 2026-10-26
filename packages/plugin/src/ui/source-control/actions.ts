@@ -1,4 +1,4 @@
-import { Menu } from "obsidian";
+import { Menu, Platform } from "obsidian";
 
 import type { PluginHost } from "@/plugin/host";
 import { EConflictStrategy } from "@/sync/controller";
@@ -19,6 +19,18 @@ import {
 import { ESection } from "./types";
 
 const BATCH_RESOLVE_CONFIRM_THRESHOLD = 5;
+
+/** A phone row shows part of its path, so its menu opens with the whole. */
+function pathMenu(path: string): Menu {
+	const menu = new Menu();
+	if (!Platform.isPhone) return menu;
+	const title = createFragment((frag) =>
+		frag.createSpan({ cls: "mdsync-menu-path", text: path }),
+	);
+	menu.addItem((item) => item.setTitle(title).setIsLabel(true));
+	menu.addSeparator();
+	return menu;
+}
 
 interface SourceControlActionDeps {
 	plugin: PluginHost;
@@ -42,7 +54,7 @@ export class SourceControlActions {
 	}
 
 	createContextMenu(path: string, section: ESection): Menu {
-		const menu = new Menu();
+		const menu = pathMenu(path);
 		menu.addItem((item) =>
 			item
 				.setTitle("Open diff")
@@ -114,7 +126,7 @@ export class SourceControlActions {
 	}
 
 	showFolderContextMenu(event: MouseEvent, path: string): void {
-		const menu = new Menu();
+		const menu = pathMenu(path);
 		menu.addItem((item) =>
 			item
 				.setTitle("Reveal in file explorer")
