@@ -32,6 +32,7 @@ export class SummaryCard {
 
 	/** Trailing slot of the head, for tools that have no room elsewhere. */
 	readonly toolsEl: HTMLElement;
+	private showTimes = (): void => {};
 
 	/** `dock` takes Push and Pull out of the card, to the bottom of a phone screen. */
 	constructor(
@@ -81,6 +82,11 @@ export class SummaryCard {
 		this.spaceErrorsEl = parent.createDiv({ cls: "mdsync-space-errors" });
 	}
 
+	/** "Compared ..." and "Last push ..." age while nothing broadcasts; the rest stays, focus included. */
+	refreshTimes(): void {
+		this.showTimes();
+	}
+
 	update(snapshot: SyncStatusSnapshot): void {
 		const { pendingLocal, pendingRemote, conflicts, busy, error } = snapshot;
 		const pending = pendingLocal + pendingRemote + conflicts;
@@ -117,16 +123,23 @@ export class SummaryCard {
 									? "Some shared folders did not compare"
 									: `${pending.toLocaleString()} ${pending === 1 ? "change" : "changes"} to sync`,
 		);
-		const compared = snapshot.lastCompareAt
-			? `Compared ${formatRelativeTime(snapshot.lastCompareAt)}`
-			: "Compare to see what changed";
-		this.subtitleEl.setText(
-			mismatch
-				? "The remote vault id does not match this one. Nothing was pushed or pulled."
-				: (error ??
-						snapshot.staleReason ??
-						(clean ? `This vault matches the remote. ${compared}.` : compared)),
-		);
+		const remote = clean ? snapshot.result?.remote : null;
+		this.showTimes = () => {
+			const compared = snapshot.lastCompareAt
+				? `Compared ${formatRelativeTime(snapshot.lastCompareAt)}`
+				: "Compare to see what changed";
+			this.subtitleEl.setText(
+				mismatch
+					? "The remote vault id does not match this one. Nothing was pushed or pulled."
+					: (error ??
+							snapshot.staleReason ??
+							(clean
+								? `This vault matches the remote. ${compared}.`
+								: compared)),
+			);
+			this.footerEl.setText(remote ? this.lastPush(remote) : "");
+		};
+		this.showTimes();
 		const ratio = busy ? snapshot.progressRatio : null;
 		this.progressEl.toggleClass("mdsync-hidden", ratio === null);
 		if (ratio !== null) {
@@ -135,8 +148,6 @@ export class SummaryCard {
 			this.progressEl.setAttr("aria-valuenow", String(Math.round(ratio * 100)));
 		}
 		this.compareButton.toggleClass("mdsync-hidden", !clean);
-		const remote = clean ? snapshot.result?.remote : null;
-		this.footerEl.setText(remote ? this.lastPush(remote) : "");
 		this.footerEl.toggleClass("mdsync-hidden", !remote);
 
 		const cancellable = snapshot.cancellable;

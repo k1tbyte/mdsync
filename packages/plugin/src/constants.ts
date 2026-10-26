@@ -32,3 +32,6 @@ export const LIVE_SEND_MS = {
 	balanced: 250,
 	economical: 1000,
 } as const;
+
+/** Relative times are in minutes: their text is redrawn this often while nothing else redraws it. */
+export const RELATIVE_TIME_REFRESH_MS = 60_000;

@@ -98,6 +98,10 @@ export class ChangesTab {
 	}
 
 	/** In-place updates to status/progress keep scrolling usable mid-push. */
+	refreshTimes(): void {
+		this.summary?.refreshTimes();
+	}
+
 	refreshInPlace(snapshot: SyncStatusSnapshot): void {
 		const { busy } = snapshot;
 		this.summary?.update(snapshot);

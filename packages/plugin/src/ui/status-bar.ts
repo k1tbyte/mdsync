@@ -1,5 +1,6 @@
 import { type Plugin, setIcon } from "obsidian";
 
+import { RELATIVE_TIME_REFRESH_MS } from "@/constants";
 import type { PluginHost } from "@/plugin/host";
 import { canSync } from "@/settings/model";
 import { formatRelativeTime, pluralize } from "@/shared";
@@ -47,6 +48,10 @@ export function registerStatusBar(plugin: Plugin & PluginHost): () => void {
 	const renderCurrent = (): void => render(controller.getSnapshot());
 	plugin.registerDomEvent(window, "online", renderCurrent);
 	plugin.registerDomEvent(window, "offline", renderCurrent);
+	// The tooltip's "Compared ..." ages while nothing broadcasts.
+	plugin.registerInterval(
+		window.setInterval(renderCurrent, RELATIVE_TIME_REFRESH_MS),
+	);
 	return renderCurrent;
 }
 

@@ -5,7 +5,11 @@ import {
 	setIcon,
 	type WorkspaceLeaf,
 } from "obsidian";
-import { DIFF_VIEW_TYPE, SOURCE_CONTROL_VIEW_TYPE } from "@/constants";
+import {
+	DIFF_VIEW_TYPE,
+	RELATIVE_TIME_REFRESH_MS,
+	SOURCE_CONTROL_VIEW_TYPE,
+} from "@/constants";
 import type { PluginHost } from "@/plugin/host";
 import { canSync } from "@/settings/model";
 import type { SyncStatusSnapshot } from "@/sync/controller";
@@ -176,6 +180,12 @@ export class SourceControlView extends ItemView {
 		);
 		this.unsubscribe = this.plugin.controller.subscribe((snapshot) =>
 			this.render(snapshot),
+		);
+		this.registerInterval(
+			window.setInterval(
+				() => this.changes.refreshTimes(),
+				RELATIVE_TIME_REFRESH_MS,
+			),
 		);
 		// Not set up, the tab itself says so; a compare would only add a notice.
 		if (
