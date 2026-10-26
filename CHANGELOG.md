@@ -3,6 +3,45 @@
 This file is the source of truth for release notes: the section of a version becomes the notes of its GitHub release.
 The newest section must match `version` in `manifest.json`. Headings are `## [x.y.z] - YYYY-MM-DD`, then `### Important`, `### Features`, `### Improvements` and `### Fixes` as needed. Write for users, in plain sentences, not commit titles.
 
+## [1.4.0] - 2026-10-26
+
+### Important
+
+- Update the relay to get the live editing changes below. A device that keeps your Cloudflare token offers it on its own; elsewhere select **Update relay** in **Settings → MDSync → Connection**. Live notes already on the relay move to the new format at the first start.
+
+### Features
+
+- **A new look.** Source control, compare and merge, History, every window, the status bar, the note header, the shared note page and the settings are redrawn. On a phone, windows open as sheets from the bottom.
+- **Changes tab.** A summary card shows what waits and when you last compared and pushed. Check several files to push, pull or revert them at once. The **ignored** and **not synced** counts open a list of those files, grouped by rule or reason, with **Stop ignoring**.
+- **Changes as cards.** In Inline mode and on a phone, compare and merge show each change as a card: Push or Revert for a local one, Local, Remote or Both for a conflict, and every choice can be undone. Unchanged lines fold away.
+- **One status bar item.** It shows where sync stands, the relay state and who is in shared notes. Select it for Push, Pull, Compare and Resolve. On a phone, **Show sync and relay status** opens the same menu.
+- **Changes in the file explorer.** A changed file takes its change's colour, with a dot for your changes, an arrow for ones to pull and an alert for conflicts. Ignored and skipped files are dimmed. **Change marks beside names** in **Settings → MDSync → Interface** hides the marks and keeps the colours.
+- **Following.** The note header shows whether the note is live and who has it open. **Follow** is also in the shared folder's window, and a banner under the header names who you follow, with **Stop following**. Typing no longer ends it.
+- **Settings at a glance.** The settings open on cards for the storage, encryption and the relay, each with its state and the next step.
+- **Source control in the phone's sidebar.** On a phone or tablet it sits in the right sidebar beside backlinks and the outline.
+- **Live editing speed** in **Settings → MDSync → Sync** sends your live edits at most every 100 ms, 250 ms or 1 s. A slower speed uses less of the relay's daily limit.
+- **Deletion limit.** An automatic push that would delete more than 5 files holds the deletions back for review. A push by hand still sends them. Set the limit, or turn it off with **Ask before pushing many deletions**, in **Settings → MDSync → Sync**.
+
+### Improvements
+
+- Compare and merge are faster on large notes.
+- Large files get more time to upload and download, and saving a note updates source control without a new compare.
+- The relay writes about half as much for every live edit, so the free Cloudflare plan goes further. Cursors are sent only while someone else has the note open.
+- A connection lost to a network change is noticed within seconds.
+- When the relay runs out of its daily writes, live editing waits and retries, and the rest keeps working.
+- "Compared" and "Last push" times update every minute.
+
+### Fixes
+
+- On phones, pulling a deletion or a move no longer removes the folders above it with everything inside (#9).
+- A file is taken as deleted only when its folder no longer lists it, so a storage that briefly loses a folder (ChromeOS shared folders) no longer turns its files into deletions.
+- A write cut short (Obsidian closed, the phone out of memory) is finished at the next start instead of syncing as a half-empty note.
+- A pull or merge stopped by an error keeps the files that already landed, instead of showing them as your edits.
+- A note open for live editing takes pulled changes through its editor, so a pull never overwrites what is being typed.
+- A moved file syncs as one move: an edit made elsewhere follows it instead of conflicting, and push, pull and revert take both paths.
+- Change marks in the editor show exactly what Push and Revert move.
+- Many smaller fixes under the hood.
+
 ## [1.3.0] - 2026-10-19
 
 ### Important
