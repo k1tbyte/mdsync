@@ -24,7 +24,10 @@ export interface FileChange {
 export interface SnapshotChanges {
 	added: Record<string, ManifestEntry>;
 	modified: Record<string, FileChange>;
+	/** The parent's entry, which replay restores. */
 	deleted: Record<string, ManifestEntry>;
+	/** A merged record's content right before the deletion, where it differs from `deleted`. */
+	deletedLast?: Record<string, ManifestEntry>;
 }
 
 export interface HistoryLog {
