@@ -1,0 +1,141 @@
+import { type Plugin, setIcon, type WorkspaceLeaf } from "obsidian";
+import type { PluginHost } from "@/app/host";
+import { makeActivatable } from "@/core/ui";
+import { STATE_TEXT } from "@/features/live";
+import { describePeople, renderAvatarStack } from "@/features/presence";
+import { watchReadOnlyRoots } from "@/features/spaces";
+import { type HeaderState, headerOf, showsHeader } from "./header-state";
+import type { LiveStatus } from "./live-status";
+import { openActiveNoteMenu, openNoteMenu } from "./note-menu";
+import { LOCKED } from "./note-menu-items";
+
+/** A room answers in well under this: a note just opened keeps the last mark meanwhile, not a blink through joining. */
+const SETTLE_MS = 1_000;
+const TONES = Object.keys(STATE_TEXT).map((state) => `is-${state}`);
+
+interface Shown {
+	el: HTMLElement;
+	/** What it shows: an unchanged header is not redrawn. */
+	key: string;
+	status: LiveStatus | null;
+	path: string;
+	since: number;
+}
+
+/** Returns the active note's menu opener, as a command's check callback. */
+export function registerNotePresence(
+	plugin: Plugin & PluginHost,
+): (checking: boolean) => boolean {
+	const { workspace } = plugin.app;
+	const { people, live } = plugin.realtime;
+	const shown = new Map<WorkspaceLeaf, Shown>();
+	let frame: number | null = null;
+	let settle: number | null = null;
+
+	const render = (): void => {
+		frame = null;
+		const now = Date.now();
+		const seen = new Set<WorkspaceLeaf>();
+		let settleAt = Number.POSITIVE_INFINITY;
+		workspace.iterateAllLeaves((leaf) => {
+			const header = headerOf(plugin, leaf);
+			if (!header) return;
+			const actions = header.view.containerEl.querySelector<HTMLElement>(
+				".view-header .view-actions",
+			);
+			if (!actions) return;
+			seen.add(leaf);
+			const { state, file } = header;
+			let entry = shown.get(leaf);
+			if (entry?.el.parentElement !== actions) {
+				entry?.el.remove();
+				const el = createHeader(plugin, leaf, actions);
+				entry = { el, key: "", status: null, path: file.path, since: now };
+				shown.set(leaf, entry);
+			}
+			if (entry.path !== file.path) {
+				entry.path = file.path;
+				entry.since = now;
+			}
+			let next = state;
+			if (isPassing(state) && now - entry.since < SETTLE_MS) {
+				settleAt = Math.min(settleAt, entry.since + SETTLE_MS);
+				// The last mark holds while this note settles; the last note's people do not.
+				next = { ...state, status: entry.status };
+			}
+			const key = JSON.stringify(next);
+			if (entry.key === key) return;
+			entry.key = key;
+			entry.status = next.status;
+			fillHeader(entry.el, next);
+		});
+		for (const [leaf, { el }] of shown) {
+			if (seen.has(leaf)) continue;
+			el.remove();
+			shown.delete(leaf);
+		}
+		if (settleAt === Number.POSITIVE_INFINITY) return;
+		if (settle !== null) window.clearTimeout(settle);
+		settle = window.setTimeout(() => {
+			settle = null;
+			schedule();
+		}, settleAt - now);
+	};
+	const schedule = (): void => {
+		frame ??= window.requestAnimationFrame(render);
+	};
+
+	plugin.register(people.subscribe(schedule));
+	plugin.register(live.subscribe(schedule));
+	// A compare may leave the open file out of the sync, or take it back.
+	plugin.register(plugin.controller.subscribe(schedule));
+	plugin.register(watchReadOnlyRoots(plugin, schedule));
+	plugin.registerEvent(plugin.app.vault.on("rename", schedule));
+	plugin.registerEvent(workspace.on("layout-change", schedule));
+	plugin.registerEvent(workspace.on("file-open", schedule));
+	workspace.onLayoutReady(schedule);
+	plugin.register(() => {
+		if (frame !== null) window.cancelAnimationFrame(frame);
+		if (settle !== null) window.clearTimeout(settle);
+		for (const { el } of shown.values()) el.remove();
+		shown.clear();
+	});
+	return (checking) => openActiveNoteMenu(plugin, checking);
+}
+
+function createHeader(
+	plugin: PluginHost,
+	leaf: WorkspaceLeaf,
+	actions: HTMLElement,
+): HTMLElement {
+	// Not `clickable-icon`: themes size those to one icon, and avatars spill out.
+	const el = actions.createSpan({ cls: "mdsync-note-presence mdsync-hidden" });
+	actions.prepend(el);
+	makeActivatable(el, null, () => openNoteMenu(plugin, leaf, el));
+	return el;
+}
+
+/** On the way to live, or not there yet: the room has not answered. */
+function isPassing({ status }: HeaderState): boolean {
+	return status?.state === "joining" || status?.state === "cold";
+}
+
+function fillHeader(el: HTMLElement, state: HeaderState): void {
+	const { status, here, locked } = state;
+	el.empty();
+	el.toggleClass("mdsync-hidden", !showsHeader(state));
+	el.removeClass(...TONES);
+	if (locked) setIcon(el.createSpan({ cls: "mdsync-note-lock" }), "lock");
+	if (status) {
+		el.addClass(`is-${status.state}`);
+		el.createSpan({ cls: `mdsync-live-dot is-${status.state}` });
+		el.createSpan({
+			cls: "mdsync-note-text",
+			text: status.text ?? STATE_TEXT[status.state],
+		});
+	}
+	if (here.length > 0) renderAvatarStack(el, here);
+	const lines = [locked ? LOCKED : undefined, status?.label];
+	if (here.length > 0) lines.push(`Here: ${describePeople(here)}`);
+	el.setAttr("aria-label", lines.filter(Boolean).join("\n"));
+}

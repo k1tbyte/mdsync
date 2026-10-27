@@ -1,12 +1,12 @@
 import { beforeAll } from "vitest";
-import { deriveKey, type EncryptionKey } from "@/crypto";
-import { DEFAULT_SETTINGS_SYNC } from "@/settings/model";
-import { compare, type EngineDependencies } from "@/sync/engine";
-import { WriteJournal } from "@/sync/journal";
-import type { OperationContext } from "@/sync/operations";
-import { VAULT_SPACE } from "@/sync/space";
-import type { SessionState } from "@/sync/types";
-import { createScopePolicy } from "@/vault/scope";
+import { deriveKey, type EncryptionKey } from "@/core/crypto/cipher";
+import { DEFAULT_SETTINGS_SYNC } from "@/core/settings/model";
+import { compare, type EngineDependencies } from "@/features/sync/engine";
+import type { OperationContext } from "@/features/sync/operations/types";
+import { WriteJournal } from "@/features/sync/recovery/journal";
+import { VAULT_SPACE } from "@/features/sync/remote/space";
+import { createScopePolicy } from "@/features/sync/scope/scope";
+import type { SessionState } from "@/features/sync/types";
 import { FakeStorage } from "./fake-storage";
 import { InMemoryAdapter } from "./in-memory-adapter";
 

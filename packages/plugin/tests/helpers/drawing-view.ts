@@ -2,10 +2,14 @@ import { afterEach, beforeEach, vi } from "vitest";
 import { Awareness } from "y-protocols/awareness";
 import * as Y from "yjs";
 
-import { type SceneElement, wins } from "@/drawing";
-import type { ExcalidrawLib, ExcalidrawView } from "@/live/drawing/excalidraw";
-import { DRAWING, type DrawingModel } from "@/live/drawing/model";
-import type { LiveSession } from "@/live/session/session";
+import type { SceneElement } from "@/core/drawing/format";
+import { wins } from "@/core/drawing/merge";
+import type {
+	ExcalidrawLib,
+	ExcalidrawView,
+} from "@/features/live/drawing/excalidraw";
+import { DRAWING, type DrawingModel } from "@/features/live/drawing/model";
+import type { LiveSession } from "@/features/live/session/session";
 
 export const LIB: ExcalidrawLib = {
 	reconcileElements(local, remote, appState) {

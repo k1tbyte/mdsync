@@ -1,4 +1,4 @@
-import type { ListedObject, StorageAdapter } from "@/storage/types";
+import type { ListedObject, StorageAdapter } from "@/features/storage/types";
 
 export class FakeStorage implements StorageAdapter {
 	readonly map = new Map<string, Uint8Array>();

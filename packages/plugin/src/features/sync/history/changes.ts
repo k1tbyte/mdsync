@@ -1,0 +1,91 @@
+import { entryAt } from "@/core/shared";
+import type { Manifest, ManifestEntry } from "../types";
+
+import type { SnapshotChanges, SnapshotEntry } from "./types";
+
+function sameEntry(a: ManifestEntry, b: ManifestEntry): boolean {
+	return (
+		a.hash === b.hash &&
+		a.size === b.size &&
+		a.mtime === b.mtime &&
+		a.kind === b.kind
+	);
+}
+
+/** Every differing field counts, not just the hash, so replaying backwards reproduces the parent exactly. */
+export function diffManifests(
+	parent: Manifest | null,
+	next: Manifest,
+): SnapshotChanges {
+	const changes: SnapshotChanges = { added: {}, modified: {}, deleted: {} };
+	const parentFiles = parent?.files ?? {};
+	for (const [path, entry] of Object.entries(next.files)) {
+		const before = entryAt(parentFiles, path);
+		if (!before) {
+			changes.added[path] = entry;
+		} else if (!sameEntry(before, entry)) {
+			changes.modified[path] = { from: before, to: entry };
+		}
+	}
+	for (const [path, entry] of Object.entries(parentFiles)) {
+		if (!entryAt(next.files, path)) changes.deleted[path] = entry;
+	}
+	return changes;
+}
+
+/** Undoes one snapshot's changes in place, mutating the given file map into its parent's. */
+export function undoChanges(
+	files: Record<string, ManifestEntry>,
+	changes: SnapshotChanges,
+): void {
+	for (const path of Object.keys(changes.added)) delete files[path];
+	for (const [path, change] of Object.entries(changes.modified)) {
+		files[path] = change.from;
+	}
+	for (const [path, entry] of Object.entries(changes.deleted)) {
+		files[path] = entry;
+	}
+}
+
+/** Undoes one snapshot for a single path. `null` means the path did not exist. */
+export function undoChangesForPath(
+	entry: ManifestEntry | null,
+	changes: SnapshotChanges,
+	path: string,
+): ManifestEntry | null {
+	if (entryAt(changes.added, path)) return null;
+	const modified = entryAt(changes.modified, path);
+	if (modified) return modified.from;
+	return entryAt(changes.deleted, path) ?? entry;
+}
+
+/** Every version a record names, so all it can restore stays reachable. */
+export function changeEntries(changes: SnapshotChanges): ManifestEntry[] {
+	return [
+		...Object.values(changes.added),
+		...Object.values(changes.modified).flatMap(({ from, to }) => [from, to]),
+		...Object.values(changes.deleted),
+	];
+}
+
+export function collectChangeHashes(
+	changes: SnapshotChanges,
+	into: Set<string>,
+): void {
+	for (const { hash } of changeEntries(changes)) into.add(hash);
+}
+
+/**
+ * History is best-effort: a dropped update leaves a parent/child mismatch, and walking past it would
+ * attribute one snapshot's changes to another.
+ */
+export function contiguousLength(snapshots: readonly SnapshotEntry[]): number {
+	let length = 0;
+	for (const [index, entry] of snapshots.entries()) {
+		length = index + 1;
+		const parent = snapshots[index + 1];
+		if (!parent) break;
+		if (entry.parentId !== parent.id) break;
+	}
+	return length;
+}

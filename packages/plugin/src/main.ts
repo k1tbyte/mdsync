@@ -1,77 +1,71 @@
 import { Plugin } from "obsidian";
-
-import { registerCommands } from "@/commands";
+import { bootstrapPluginRuntime, disposePluginRuntime } from "@/app/bootstrap";
+import { registerCommands } from "@/app/commands";
 import {
-	DeviceName,
-	type LogService,
-	type PassphraseManager,
-	type StatePersister,
-} from "@/core";
-import { DeviceKey } from "@/crypto/device-key";
-import { registerReadOnlyLock } from "@/editor/read-only";
-import { registerEditorSigns, type SignsHandle } from "@/editor/signs";
-import { SharedLinks } from "@/links";
-import type { Unseen } from "@/presence";
-import { SettingsEnvelope } from "@/settings/envelope";
+	registerHashCarry,
+	registerStatePersistenceFlush,
+	registerWorkspaceMenus,
+} from "@/app/events";
+import type { PluginHost } from "@/app/host";
+import { registerProtocolHandlers } from "@/app/protocols";
+import { createRealtime, type Realtime } from "@/app/realtime";
+import { SettingsEnvelope } from "@/app/settings-envelope";
+import {
+	refreshOpenHistoryViewsAfterPush,
+	refreshOpenSourceControlViews,
+	registerPluginUi,
+} from "@/app/views";
+import { DeviceKey } from "@/core/crypto";
+import type { LogService } from "@/core/logs";
 import {
 	canSync,
 	DEFAULT_SETTINGS,
 	isStorageConfigured,
 	type MdsyncSettings,
 	mergeSettings,
-} from "@/settings/model";
+} from "@/core/settings";
+import { reportWarning } from "@/core/shared";
+import { notifyAction, notifyInfo } from "@/core/ui";
+import { loadNodeFs } from "@/core/vault";
+import { registerEditorSigns, type SignsHandle } from "@/features/editor-signs";
+import type { IndicatorHandle } from "@/features/explorer";
+import { registerLinkPaths, SharedLinks } from "@/features/links";
+import { createDeletedElsewhere } from "@/features/live";
+import type { Unseen } from "@/features/presence";
+import {
+	type CursorFollow,
+	markTheirs,
+	registerFollows,
+	registerUnseen,
+} from "@/features/presence";
+import { type RelayUpdate, registerRelayUpdate } from "@/features/relay";
+import type { MdsyncSettingTab } from "@/features/settings";
 import {
 	closeSetupWizard,
 	type ESetupStep,
 	openSetupWizard,
-} from "@/settings/setup";
-import type { MdsyncSettingTab } from "@/settings/tab";
-import { SettingsTransferController } from "@/settings/transfer-controller";
-import { reportWarning } from "@/shared";
-import type { SpaceRecords } from "@/spaces";
-import type { SyncController } from "@/sync/controller";
-import type { WriteJournal } from "@/sync/journal";
-import { registerScheduler } from "@/sync/scheduler";
+} from "@/features/setup";
+import { openSourceControlChanges } from "@/features/source-control";
+import type { SpaceRecords } from "@/features/spaces";
 import {
-	type CursorFollow,
 	createAccessEnded,
-	createDeletedElsewhere,
+	createShareRegistration,
 	createSpaceGone,
-	type IndicatorHandle,
-	notifyAction,
-	notifyInfo,
-	openSourceControlChanges,
-} from "@/ui";
-import { loadNodeFs } from "@/vault/symlinks";
+	registerReadOnlyLock,
+	registerShareRenames,
+} from "@/features/spaces";
+import { createStorageRefused } from "@/features/storage";
+import type { SyncController, WriteJournal } from "@/features/sync";
 import {
-	bootstrapPluginRuntime,
-	disposePluginRuntime,
-} from "./plugin/bootstrap";
-import {
-	registerHashCarry,
-	registerStatePersistenceFlush,
-	registerWorkspaceMenus,
-} from "./plugin/events";
-import { registerFollows } from "./plugin/follows";
-import type { PluginHost } from "./plugin/host";
-import {
+	DeviceName,
 	type IgnoreStateHandle,
+	type PassphraseManager,
 	registerIgnoreState,
-} from "./plugin/ignore-state";
-import { registerLinkPaths } from "./plugin/links";
-import { registerProtocolHandlers } from "./plugin/protocols";
-import { createRealtime, type Realtime } from "./plugin/realtime";
-import { type RelayUpdate, registerRelayUpdate } from "./plugin/relay-update";
-import { registerShareRenames } from "./plugin/share-moves";
-import { createShareRegistration } from "./plugin/share-registration";
-import { createStorageRefused } from "./plugin/storage-refused";
-import {
-	refreshOpenHistoryViewsAfterPush,
-	refreshOpenSourceControlViews,
-	registerPluginUi,
-} from "./plugin/ui";
-import { markTheirs, registerUnseen } from "./plugin/unseen";
-import { registerVaultAdoptionPrompt } from "./plugin/vault-adoption";
+	registerScheduler,
+	registerVaultAdoptionPrompt,
+	type StatePersister,
+} from "@/features/sync";
+import { SettingsTransferController } from "@/features/transfer";
 
 const SCOPE_REFRESH_DEBOUNCE_MS = 800;
 

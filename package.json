@@ -12,6 +12,7 @@
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"typecheck": "pnpm -r --if-present run typecheck && tsc -p tests",
+		"arch": "pnpm --filter mdsync run arch",
 		"version": "node version-bump.mjs",
 		"obsidian": "node tools/obsidian.mjs",
 		"e2e:hub": "jiti tests/e2e/hub.ts",

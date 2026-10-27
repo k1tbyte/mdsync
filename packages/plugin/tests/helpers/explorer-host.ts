@@ -1,9 +1,10 @@
-import { type LinkRecord, SharedLinks } from "@/links";
-import type { PluginHost } from "@/plugin/host";
-import type { Person } from "@/presence/people";
-import { Unseen } from "@/presence/unseen";
-import { DEFAULT_SETTINGS } from "@/settings/model";
-import type { Space } from "@/sync/space";
+import type { PluginHost } from "@/app/host";
+import { DEFAULT_SETTINGS } from "@/core/settings/model";
+import type { LinkRecord } from "@/features/links/record";
+import { SharedLinks } from "@/features/links/shared-links";
+import type { Person } from "@/features/presence/people";
+import { Unseen } from "@/features/presence/unseen";
+import type { Space } from "@/features/sync/remote/space";
 
 export const ALEX: Person = {
 	key: "p1",

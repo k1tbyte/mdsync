@@ -2,13 +2,13 @@ import { EFrame, type ServerFrame } from "@mdsync/protocol";
 import { afterEach, beforeEach, expect, vi } from "vitest";
 import * as Y from "yjs";
 
-import { LIVE_SEND_MS } from "@/constants";
-import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
-import { seal } from "@/crypto/seal";
-import { docIdFor } from "@/live/doc-id";
-import { LiveSession } from "@/live/session/session";
-import type { Refused } from "@/live/session/session-deps";
-import { TEXT, type TextModel } from "@/live/text/model";
+import { LIVE_SEND_MS } from "@/core/constants";
+import { deriveLiveKeys, type LiveKeys } from "@/core/crypto/live-keys";
+import { seal } from "@/core/crypto/seal";
+import { docIdFor } from "@/features/live/doc-id";
+import { LiveSession } from "@/features/live/session/session";
+import type { Refused } from "@/features/live/session/session-deps";
+import { TEXT, type TextModel } from "@/features/live/text/model";
 import { LiveHub, type TestConnection } from "./live-hub";
 
 /** Longer than the default send interval, so a typed edit has left. */
