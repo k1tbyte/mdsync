@@ -9,13 +9,15 @@ import {
 	type EMergeSide,
 	MERGE_SIDES,
 	type MergeChange,
-	patchTaken,
 	type Span,
+	type Taken,
+} from "@/features/sync";
+import {
+	patchTaken,
 	type StatusPatch,
 	sameStatus,
-	type Taken,
 	type TakenPatch,
-} from "@/features/sync";
+} from "./edit-plan";
 
 export interface ChangeStateUpdate {
 	index: number;

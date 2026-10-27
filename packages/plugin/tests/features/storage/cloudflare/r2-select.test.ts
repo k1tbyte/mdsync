@@ -8,8 +8,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PluginHost } from "@/app/host";
 import { mergeSettings } from "@/app/settings";
 import * as cloudflareModule from "@/core/cloudflare";
+import { StorageHttpError } from "@/core/shared/transport-errors";
 import { defaultS3Config } from "@/features/storage/backends/s3";
-import { StorageHttpError } from "@/features/storage/backends/util";
 import * as cloudflare from "@/features/storage/cloudflare/cloudflare-login";
 import { R2NotEnabledError } from "@/features/storage/cloudflare/r2";
 import {

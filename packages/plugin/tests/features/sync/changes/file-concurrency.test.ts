@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	LARGE_FILE_BYTES,
 	runWithFileConcurrency,
-} from "@/core/utils/file-concurrency";
+} from "@/features/sync/changes/file-concurrency";
 
 const pause = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 

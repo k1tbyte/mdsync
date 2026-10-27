@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "@/app/settings";
 import type { DeviceKey } from "@/core/crypto/device-key";
 import {
+	clearCachedPassphrase,
 	loadCachedPassphrase,
 	saveCachedPassphrase,
 } from "@/core/crypto/passphrase-cache";
@@ -135,6 +136,80 @@ describe("PassphraseManager", () => {
 
 		vi.mocked(resolveContentKey).mockResolvedValue(resolved("key"));
 		await passphrase.resolveKey(STORAGE);
+		expect(saveCachedPassphrase).toHaveBeenCalledOnce();
+	});
+});
+
+describe("PassphraseManager.resolveKeyRecovering", () => {
+	const say = () => ({ warn: vi.fn(), notify: vi.fn() });
+
+	it("forgets the rotated passphrase, asks again and retries once", async () => {
+		vi.mocked(resolveContentKey)
+			.mockRejectedValueOnce(new PassphraseRotatedError())
+			.mockResolvedValueOnce(resolved("new"));
+		const passphrase = manager(["old", "new"]);
+		await passphrase.prompt(false);
+		const feedback = say();
+
+		const key = await passphrase.resolveKeyRecovering(STORAGE, feedback);
+
+		expect(key).toBe("new");
+		expect(passphrase.current()).toBe("new");
+		expect(feedback.notify).toHaveBeenCalledWith(
+			"Passphrase changed on another device. Enter the new one.",
+		);
+	});
+
+	it("gives up when the second passphrase is also rotated", async () => {
+		vi.mocked(resolveContentKey).mockRejectedValue(
+			new PassphraseRotatedError(),
+		);
+		const passphrase = manager(["old", "still-old"]);
+		await passphrase.prompt(false);
+		const feedback = say();
+
+		expect(await passphrase.resolveKeyRecovering(STORAGE, feedback)).toBeNull();
+		expect(feedback.notify).toHaveBeenLastCalledWith(
+			"Passphrase still incorrect.",
+		);
+	});
+
+	it("returns null when the prompt is declined", async () => {
+		vi.mocked(resolveContentKey).mockRejectedValue(
+			new PassphraseRotatedError(),
+		);
+		const passphrase = manager(["old"]);
+		await passphrase.prompt(false);
+
+		expect(await passphrase.resolveKeyRecovering(STORAGE, say())).toBeNull();
+		expect(passphrase.has()).toBe(false);
+	});
+
+	it("rethrows other failures untouched", async () => {
+		vi.mocked(resolveContentKey).mockRejectedValue(new Error("offline"));
+		const passphrase = manager(["secret"]);
+		await passphrase.prompt(false);
+		const feedback = say();
+
+		await expect(
+			passphrase.resolveKeyRecovering(STORAGE, feedback),
+		).rejects.toThrow("offline");
+		expect(feedback.notify).not.toHaveBeenCalled();
+		expect(passphrase.has()).toBe(true);
+	});
+});
+
+describe("PassphraseManager.applyCachePreference", () => {
+	it("removes the saved copy when caching is off and saves it when on", async () => {
+		const settings = { ...DEFAULT_SETTINGS, cachePassphrase: false };
+		const passphrase = vaultManager(settings);
+		await passphrase.replacePassphrase("secret");
+		await passphrase.applyCachePreference();
+		expect(clearCachedPassphrase).toHaveBeenCalledOnce();
+		expect(saveCachedPassphrase).not.toHaveBeenCalled();
+
+		settings.cachePassphrase = true;
+		await passphrase.applyCachePreference();
 		expect(saveCachedPassphrase).toHaveBeenCalledOnce();
 	});
 });

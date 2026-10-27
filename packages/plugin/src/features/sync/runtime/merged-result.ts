@@ -1,4 +1,4 @@
-import { sortedByPath } from "@/core/shared";
+import { sortedByPath } from "../changes/records";
 import type { CompareResult } from "../engine";
 import type { Manifest } from "../types";
 

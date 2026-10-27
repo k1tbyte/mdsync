@@ -14,7 +14,18 @@ import {
 	type ObjectStorage,
 	storageIdentity,
 } from "@/features/storage";
-import { readKeyfile, resolveContentKey, rotatePassphrase } from "./keyfile";
+import {
+	PassphraseRotatedError,
+	readKeyfile,
+	resolveContentKey,
+	rotatePassphrase,
+} from "./keyfile";
+
+/** How {@link PassphraseManager.resolveKeyRecovering} tells the log and the person what it is doing. */
+export interface RotationFeedback {
+	warn(message: string): void | Promise<void>;
+	notify(message: string): void;
+}
 
 interface CachedKey {
 	key: EncryptionKey;
@@ -73,11 +84,21 @@ export class PassphraseManager {
 		this.setPassphrase(null);
 		this.unverified = false;
 		this.cachedKey = null;
+		await this.dropDiskCopy();
+	}
+
+	private async dropDiskCopy(): Promise<void> {
 		try {
 			await clearCachedPassphrase(this.adapter, this.configDir);
 		} catch (err) {
 			reportWarning("Could not clear the cached passphrase.", err);
 		}
+	}
+
+	/** After `cachePassphrase` changed: turning it on saves the verified passphrase, off removes the saved copy. */
+	async applyCachePreference(): Promise<void> {
+		if (this.settings.cachePassphrase) await this.persistIfEnabled();
+		else await this.dropDiskCopy();
 	}
 
 	dispose(): void {
@@ -211,6 +232,34 @@ export class PassphraseManager {
 		};
 		key.then(done, done);
 		return key;
+	}
+
+	/** Recovers from a passphrase rotated on another device: forget it, ask once more, retry; a second mismatch gives up. */
+	async resolveKeyRecovering(
+		storage: ObjectStorage,
+		say: RotationFeedback,
+	): Promise<EncryptionKey | null> {
+		try {
+			return await this.resolveKey(storage);
+		} catch (err) {
+			if (!(err instanceof PassphraseRotatedError)) throw err;
+			await say.warn(
+				"Passphrase no longer matches the remote (rotated elsewhere); re-prompting.",
+			);
+			say.notify("Passphrase changed on another device. Enter the new one.");
+			await this.forget();
+			if (!(await this.prompt(true))) return null;
+			try {
+				return await this.resolveKey(storage);
+			} catch (retryErr) {
+				if (!(retryErr instanceof PassphraseRotatedError)) throw retryErr;
+				await say.warn(
+					"Session blocked: passphrase still does not match after re-prompt.",
+				);
+				say.notify("Passphrase still incorrect.");
+				return null;
+			}
+		}
 	}
 
 	private async derive(

@@ -6,13 +6,11 @@ import {
 	type Text,
 } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView } from "@codemirror/view";
-import { firstIndex } from "@/core/utils";
 import {
 	type EMergeSide,
 	isResolved,
 	MERGE_SIDES,
 	type MergeChange,
-	snapToLines,
 } from "@/features/sync";
 import { addCodeMarks } from "../lines/code-lines";
 import { numberUnchangedLines } from "../lines/gap-widgets";
@@ -23,7 +21,9 @@ import {
 	tintLine,
 	viewportTints,
 } from "../lines/line-tints";
+import { firstIndex } from "../lines/search";
 import { type SourceBlock, SourceBlockWidget } from "../lines/source-widget";
+import { snapToLines } from "./edit-plan";
 import type { MergeActions } from "./merge-actions";
 import {
 	type CombinedMergeConfig,

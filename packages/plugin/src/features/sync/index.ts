@@ -38,24 +38,17 @@ export {
 	type SyncHunk,
 } from "./hunks/hunks";
 export {
-	applyPlan,
 	buildMergeSession,
 	countUnresolved,
-	type EditPlan,
 	type EMergeSide,
 	type ESideStatus,
 	isResolved,
 	MERGE_SIDES,
 	type MergeChange,
-	patchTaken,
-	revertPlan,
+	type SideStatus,
 	type Span,
-	type StatusPatch,
 	sameLines,
-	sameStatus,
-	snapToLines,
 	type Taken,
-	type TakenPatch,
 	threeWayRegions,
 	toLines,
 } from "./hunks/merge-model";
@@ -67,6 +60,7 @@ export {
 } from "./hunks/projection";
 export { defaultDeviceName, deviceLabel } from "./identity/device";
 export { DeviceName } from "./identity/device-name";
+export { isVaultMismatch } from "./identity/vault-mismatch";
 export {
 	type IncomingText,
 	isNewerMark,
@@ -118,6 +112,7 @@ export {
 	type SkippedFile,
 } from "./types";
 export { type ChangeAction, changeActionOf } from "./ui/change-action";
+export { encryptionSection } from "./ui/encryption-section";
 export {
 	addIgnoreMenuItem,
 	carryVaultIgnores,

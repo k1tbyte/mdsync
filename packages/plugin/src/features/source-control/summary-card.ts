@@ -7,6 +7,7 @@ import {
 	canPullAll,
 	canPushAll,
 	deviceLabel,
+	isVaultMismatch,
 	type SyncStatusSnapshot,
 	splitSpaceErrors,
 } from "@/features/sync";
@@ -109,7 +110,7 @@ export class SummaryCard {
 			pending === 0;
 		// Nothing but the connection to say, so the card is an empty state with a retry.
 		const parked = offline || (waiting && pending === 0);
-		const mismatch = isVaultMismatch(snapshot);
+		const mismatch = isVaultMismatch(snapshot.error);
 		this.el.toggleClass("is-error", Boolean(error) && !snapshot.offline);
 		this.el.toggleClass("is-warning", failed && !error);
 		this.el.toggleClass("is-offline", parked);
@@ -235,7 +236,7 @@ export class SummaryCard {
 		const plugin = this.plugin;
 		const extras = this.extrasEl;
 		extras.empty();
-		if (isVaultMismatch(snapshot)) {
+		if (isVaultMismatch(snapshot.error)) {
 			actionButton(extras, "warning")
 				.setButtonText("Resolve vault mismatch")
 				.onClick(() => void this.actions.adoptNewVault())
@@ -326,12 +327,6 @@ function spaceErrorText({
 		};
 	}
 	return { title: `"${root}" did not compare`, desc: message };
-}
-
-function isVaultMismatch(snapshot: SyncStatusSnapshot): boolean {
-	return (
-		snapshot.error?.includes("Remote vault id does not match local") ?? false
-	);
 }
 
 function note(parent: HTMLElement, text: string): void {

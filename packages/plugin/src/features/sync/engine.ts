@@ -2,18 +2,20 @@ import type { DataAdapter } from "obsidian";
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
 import { type EncryptionKey, encryptBytes, sha256Hex } from "@/core/crypto";
 import { sceneOfBytes } from "@/core/drawing";
-import { entryAt, reportWarning, sortedByPath } from "@/core/shared";
-import { runWithFileConcurrency } from "@/core/utils";
+import { reportWarning } from "@/core/shared";
 import type { VaultIndex } from "@/core/vault";
 import { readBinary } from "@/core/vault";
 import type { StorageAdapter } from "@/features/storage";
 import { throwIfCancelled } from "./cancel";
 import { diffWithin } from "./changes/diff";
+import { runWithFileConcurrency } from "./changes/file-concurrency";
+import { entryAt, sortedByPath } from "./changes/records";
 import { skipUnholdableNames } from "./changes/remote-names";
 import { REMOTE_OBJECTS_PREFIX } from "./constants";
 import { publishManifestWithHistory } from "./history/publish";
 import type { HistoryConfig } from "./history/types";
 import { attribute, publisher } from "./identity/authors";
+import { VAULT_MISMATCH_MESSAGE } from "./identity/vault-mismatch";
 import type { LiveNotes } from "./live-notes";
 import { finishCutShort, withLanded } from "./recovery/cut-short";
 import type { WriteJournal } from "./recovery/journal";
@@ -374,8 +376,6 @@ function assertVaultCompatibility(
 ): void {
 	if (!remote) return;
 	if (state.vaultId && state.vaultId !== remote.vaultId) {
-		throw new Error(
-			"Remote vault id does not match local. Refusing to sync to a different vault.",
-		);
+		throw new Error(VAULT_MISMATCH_MESSAGE);
 	}
 }

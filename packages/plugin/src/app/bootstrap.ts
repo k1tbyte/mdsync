@@ -33,7 +33,7 @@ export interface PluginRuntime {
 	journal: WriteJournal;
 }
 
-interface BootstrapPluginRuntimeOptions {
+export interface BootstrapPluginRuntimeOptions {
 	app: App;
 	settings: MdsyncSettings;
 	deviceKey: DeviceKey;
@@ -160,13 +160,4 @@ export async function bootstrapPluginRuntime(
 		spaces,
 		journal,
 	};
-}
-
-/** For an onload that has to abandon what it built, see `MdsyncPlugin.onload`. */
-export function disposePluginRuntime(runtime: PluginRuntime): void {
-	runtime.statePersister.dispose();
-	runtime.journal.dispose();
-	runtime.controller.dispose();
-	runtime.passphraseManager.dispose();
-	runtime.logs.dispose();
 }

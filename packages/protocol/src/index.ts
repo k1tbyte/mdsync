@@ -1,3 +1,4 @@
+export { ADMIN_HEADER } from "./admin";
 export { fromBase64Url, toBase64Url, toHex } from "./bytes";
 export * from "./codec";
 export * from "./frames";

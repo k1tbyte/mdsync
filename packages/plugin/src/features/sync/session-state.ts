@@ -1,6 +1,5 @@
-import { entryAt } from "@/core/shared";
-
 import { diff } from "./changes/diff";
+import { entryAt } from "./changes/records";
 import type { CompareResult, EngineDependencies } from "./engine";
 import type { OperationOutcome } from "./operations/types";
 import { type Space, spaceOf } from "./remote/space";

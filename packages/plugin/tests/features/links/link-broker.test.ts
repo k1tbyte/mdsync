@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { StorageHttpError } from "@/core/shared/transport-errors";
 import {
 	createLink,
 	linkStatus,
@@ -6,7 +7,6 @@ import {
 	replaceLink,
 	revokeLink,
 } from "@/features/links/link-broker";
-import { StorageHttpError } from "@/features/storage/backends/util";
 import { StorageRequestError } from "@/features/storage/types";
 
 interface Recorded {

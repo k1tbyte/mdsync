@@ -1,6 +1,7 @@
 import { ESyncLogOperation } from "@/core/logs";
-import { entryAt, formatBytes, sumBytes } from "@/core/shared";
+import { formatBytes, sumBytes } from "@/core/shared";
 import { pullPaths } from "../apply/pull";
+import { entryAt } from "../changes/records";
 import { LOG_PATH_LIMIT } from "../constants";
 import { buildSessionState, mergeWrittenIntoCache } from "../remote/baseline";
 import type { Operation } from "./types";

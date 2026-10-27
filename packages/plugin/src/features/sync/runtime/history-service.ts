@@ -1,10 +1,6 @@
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
 import { sha256Hex } from "@/core/crypto";
-import {
-	runWithConcurrency,
-	runWithFileConcurrency,
-	withEolOf,
-} from "@/core/utils";
+import { runWithConcurrency, withEolOf } from "@/core/utils";
 import { diskRefuses, trashPath } from "@/core/vault";
 import {
 	bytesToText,
@@ -14,6 +10,7 @@ import {
 	writeLocalFile,
 	writeRemoteObject,
 } from "../changes/content";
+import { runWithFileConcurrency } from "../changes/file-concurrency";
 import type { EngineDependencies } from "../engine";
 import {
 	loadVersionBytes,

@@ -11,6 +11,7 @@ import { sharesSection } from "@/features/spaces";
 import { backendSection } from "@/features/storage";
 import {
 	configurationScopeSection,
+	encryptionSection,
 	exclusionsSection,
 	maintenanceSection,
 } from "@/features/sync";
@@ -21,7 +22,6 @@ import { overviewGroup } from "./overview";
 import { advancedSection } from "./sections/advanced";
 import { automationSection } from "./sections/automation";
 import { interfaceSection } from "./sections/interface";
-import { securitySection } from "./sections/security";
 
 export class MdsyncSettingTab extends PluginSettingTab {
 	private readonly plugin: Plugin & SettingsTabHost;
@@ -54,7 +54,7 @@ export class MdsyncSettingTab extends PluginSettingTab {
 						desc: "Storage, encryption, relay and device transfer.",
 						items: [
 							backendSection(ctx),
-							securitySection(ctx),
+							encryptionSection(ctx),
 							relaySection(ctx),
 							deviceTransferSection(ctx),
 							advancedSection(ctx),

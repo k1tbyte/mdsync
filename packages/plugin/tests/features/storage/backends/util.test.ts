@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+	StorageHttpError,
+	StorageTimeoutError,
+} from "@/core/shared/transport-errors";
 import { toArrayBuffer } from "@/core/utils/bytes";
 import {
 	assertOk,
 	isRetryableError,
 	isRetryableStatus,
-	StorageHttpError,
-	StorageTimeoutError,
 	transferBytes,
 	withDeadline,
 	withRetry,

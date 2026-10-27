@@ -1,14 +1,10 @@
-import { LINK_HEADERS, type LinkStatus } from "@mdsync/protocol";
+import { ADMIN_HEADER, LINK_HEADERS, type LinkStatus } from "@mdsync/protocol";
 import { requestUrl } from "obsidian";
 
-import { relayBase } from "@/core/shared";
+import { relayBase, StorageHttpError } from "@/core/shared";
 import { toArrayBuffer } from "@/core/utils";
-import { ADMIN_HEADER, type BrokerAdmin } from "@/features/spaces";
-import {
-	errorCode,
-	StorageHttpError,
-	StorageRequestError,
-} from "@/features/storage";
+import type { BrokerAdmin } from "@/features/spaces";
+import { errorCode, StorageRequestError } from "@/features/storage";
 
 const OUTDATED_RELAY =
 	"This relay is out of date for share links. Redeploy it with the Deploy Relay workflow.";

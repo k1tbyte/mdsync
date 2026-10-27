@@ -3,8 +3,6 @@
  * room snapshot; a note with an open room is never written.
  */
 
-import { entryAt } from "@/core/shared";
-
 import {
 	bytesToText,
 	loadBaselineText,
@@ -14,6 +12,7 @@ import {
 	type WriteOptions,
 	writeFetched,
 } from "./changes/content";
+import { entryAt } from "./changes/records";
 import type { CompareResult, EngineDependencies } from "./engine";
 import type { LiveMark, ManifestEntry } from "./types";
 

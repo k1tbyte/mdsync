@@ -1,8 +1,8 @@
 import type { EditorView } from "@codemirror/view";
-import { firstIndex } from "@/core/utils";
 import type { Span } from "@/features/sync";
 import { type RailAction, renderRailButton } from "../rail";
 import { type Bounds, shiftBounds, spanBounds } from "./geometry";
+import { firstIndex } from "./search";
 
 /** One change as the strip sees it: where it sits in each pane, how to draw it, what it offers. */
 export interface DividerItem {

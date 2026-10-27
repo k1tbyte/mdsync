@@ -26,4 +26,4 @@ export {
 	relayBase,
 	stripTrailingSlash,
 } from "./path";
-export { entryAt, sortedByPath } from "./records";
+export { StorageHttpError, StorageTimeoutError } from "./transport-errors";

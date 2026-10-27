@@ -1,7 +1,8 @@
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
 import { decryptBytes, type EncryptionKey, sha256Hex } from "@/core/crypto";
-import { runWithConcurrency, runWithFileConcurrency } from "@/core/utils";
+import { runWithConcurrency } from "@/core/utils";
 import type { StorageAdapter } from "@/features/storage";
+import { runWithFileConcurrency } from "../changes/file-concurrency";
 import { REMOTE_OBJECTS_PREFIX, REMOTE_PINS_PREFIX } from "../constants";
 import { changeEntries } from "../history/changes";
 import { pinKey, readHistoryLog, readPinManifest } from "../history/store";

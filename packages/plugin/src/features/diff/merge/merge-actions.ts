@@ -2,16 +2,18 @@ import { isolateHistory } from "@codemirror/commands";
 import { ChangeSet, type EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import {
-	applyPlan,
-	type EditPlan,
 	type EMergeSide,
 	type ESideStatus,
 	MERGE_SIDES,
 	type MergeChange,
+} from "@/features/sync";
+import {
+	applyPlan,
+	type EditPlan,
 	revertPlan,
 	type StatusPatch,
 	sameStatus,
-} from "@/features/sync";
+} from "./edit-plan";
 import { fullTaken, mergeChangesField, setChangeState } from "./merge-state";
 
 export interface MergeActions {

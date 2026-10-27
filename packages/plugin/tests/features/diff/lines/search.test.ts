@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstIndex } from "@/core/utils/search";
+import { firstIndex } from "@/features/diff/lines/search";
 
 describe("firstIndex", () => {
 	const values = [1, 3, 3, 7, 9];

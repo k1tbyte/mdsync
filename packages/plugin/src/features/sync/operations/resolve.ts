@@ -1,8 +1,6 @@
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
 import { sceneOfBytes } from "@/core/drawing";
 import { ESyncLogOperation } from "@/core/logs";
-import { entryAt } from "@/core/shared";
-import { runWithFileConcurrency } from "@/core/utils";
 import { trashPath, unchangedSince } from "@/core/vault";
 import { freeConflictCopyPath } from "../apply/conflict-copy";
 import {
@@ -12,6 +10,8 @@ import {
 	withLocalMtime,
 	writeLocalFile,
 } from "../changes/content";
+import { runWithFileConcurrency } from "../changes/file-concurrency";
+import { entryAt } from "../changes/records";
 import { LOG_PATH_LIMIT } from "../constants";
 import {
 	type CompareResult,

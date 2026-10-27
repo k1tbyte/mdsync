@@ -12,12 +12,12 @@ import {
 	isResolved,
 	MERGE_SIDES,
 	type MergeChange,
-	snapToLines,
 } from "@/features/sync";
 import { addUnchangedGaps } from "../lines/gap-widgets";
 import { rangeLabel } from "../lines/geometry";
 import { type SourceBlock, SourceBlockWidget } from "../lines/source-widget";
 import type { RailAction } from "../rail";
+import { snapToLines } from "./edit-plan";
 import type { MergeActions } from "./merge-actions";
 import { settleActions } from "./merge-controls";
 import type { SideMarks } from "./merge-marks";

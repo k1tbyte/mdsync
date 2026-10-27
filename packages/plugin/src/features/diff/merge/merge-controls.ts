@@ -1,12 +1,9 @@
 import type { Text } from "@codemirror/state";
-import {
-	type EMergeSide,
-	type MergeChange,
-	snapToLines,
-} from "@/features/sync";
+import type { EMergeSide, MergeChange } from "@/features/sync";
 import type { DividerItem } from "../lines/divider";
 import { sideSpan } from "../lines/geometry";
 import type { RailAction } from "../rail";
+import { snapToLines } from "./edit-plan";
 import type { MergeActions } from "./merge-actions";
 
 export type MergeTone = "conflict" | EMergeSide | "base" | "shared";

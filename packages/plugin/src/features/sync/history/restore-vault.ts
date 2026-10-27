@@ -1,4 +1,4 @@
-import { entryAt } from "@/core/shared";
+import { entryAt } from "../changes/records";
 import type { LocalSnapshot, Manifest, ManifestEntry } from "../types";
 
 export interface VaultRestoreWrite {

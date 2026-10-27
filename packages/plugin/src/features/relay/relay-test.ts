@@ -1,3 +1,4 @@
+import { ADMIN_HEADER } from "@mdsync/protocol";
 import { requestUrl } from "obsidian";
 
 import {
@@ -28,7 +29,7 @@ export async function testRelay(relay: RelayConfig): Promise<RelayTestResult> {
 		const res = await requestUrl({
 			url: `${relayBase(relay.relayUrl)}/status`,
 			method: "GET",
-			headers: { "X-Mdsync-Admin": relay.relaySecret },
+			headers: { [ADMIN_HEADER]: relay.relaySecret },
 			throw: false,
 		});
 		const body = jsonOf(res) as {

@@ -19,7 +19,6 @@ import {
 	isResolved,
 	MERGE_SIDES,
 	type MergeChange,
-	snapToLines,
 } from "@/features/sync";
 import type { PanelHosts } from "../header";
 import type { DiffHost } from "../host";
@@ -41,6 +40,7 @@ import {
 	spanAnchors,
 } from "../lines/scroll-sync";
 import { changeNavigation } from "../rail";
+import { snapToLines } from "./edit-plan";
 import { mergeActions } from "./merge-actions";
 import { toggleMergeGap } from "./merge-cards";
 import { dividerItems } from "./merge-controls";

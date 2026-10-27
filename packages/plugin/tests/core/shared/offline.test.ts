@@ -9,7 +9,7 @@ import {
 import {
 	StorageHttpError,
 	StorageTimeoutError,
-} from "@/features/storage/backends/util";
+} from "@/core/shared/transport-errors";
 
 function browserOnline(online: boolean): void {
 	vi.stubGlobal("navigator", { onLine: online });

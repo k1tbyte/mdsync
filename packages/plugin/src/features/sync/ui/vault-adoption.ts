@@ -1,9 +1,8 @@
 import type { Plugin } from "obsidian";
 import { notifyError, notifyInfo } from "@/core/ui";
 import type { SyncController, SyncStatusSnapshot } from "../controller";
+import { isVaultMismatch } from "../identity/vault-mismatch";
 import { confirmAdoptNewVault } from "./modals";
-
-const VAULT_MISMATCH_ERROR = "Remote vault id does not match local";
 
 /**
  * Offers to adopt the remote vault when its id stopped matching ours, usually because another device reset
@@ -17,9 +16,7 @@ export function registerVaultAdoptionPrompt(
 	let active = false;
 
 	const maybePrompt = async (snapshot: SyncStatusSnapshot): Promise<void> => {
-		if (active || !(snapshot.error?.includes(VAULT_MISMATCH_ERROR) ?? false)) {
-			return;
-		}
+		if (active || !isVaultMismatch(snapshot.error)) return;
 		active = true;
 		try {
 			if (!(await confirmAdoptNewVault(plugin.app))) return;

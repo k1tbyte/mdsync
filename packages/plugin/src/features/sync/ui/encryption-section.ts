@@ -1,5 +1,4 @@
 import type { SettingDefinitionGroup } from "obsidian";
-import { clearCachedPassphrase } from "@/core/crypto";
 import { type FieldContext, group } from "@/core/settings";
 import {
 	askNewPassphrase,
@@ -8,11 +7,11 @@ import {
 	reportError,
 } from "@/core/ui";
 import { isStorageConfigured } from "@/features/storage";
-import { PassphraseRotatedError } from "@/features/sync";
-import type { SettingsTabHost } from "../host";
+import type { SyncHost } from "../host";
+import { PassphraseRotatedError } from "../remote/keyfile";
 
-export function securitySection(
-	ctx: FieldContext<SettingsTabHost>,
+export function encryptionSection(
+	ctx: FieldContext<SyncHost>,
 ): SettingDefinitionGroup {
 	const { plugin, rerender } = ctx;
 	return group("Encryption", [
@@ -24,14 +23,7 @@ export function securitySection(
 					t.setValue(plugin.settings.cachePassphrase).onChange(async (v) => {
 						Object.assign(plugin.settings, { cachePassphrase: v });
 						await plugin.saveSettings();
-						if (v) {
-							await plugin.passphrase.persistIfEnabled();
-							return;
-						}
-						await clearCachedPassphrase(
-							plugin.app.vault.adapter,
-							plugin.app.vault.configDir,
-						);
+						await plugin.passphrase.applyCachePreference();
 					}),
 				);
 			},

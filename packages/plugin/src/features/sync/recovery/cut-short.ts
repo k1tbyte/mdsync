@@ -6,9 +6,10 @@
 import type { DataAdapter } from "obsidian";
 import { sha256Hex } from "@/core/crypto";
 import { sceneOfBytes } from "@/core/drawing";
-import { entryAt, reportWarning } from "@/core/shared";
+import { reportWarning } from "@/core/shared";
 import { readBinary, writeBinary } from "@/core/vault";
 import { bytesToText, withLocalMtime } from "../changes/content";
+import { entryAt } from "../changes/records";
 import type { EngineDependencies } from "../engine";
 import { grewFrom } from "../live-notes";
 import type { Space } from "../remote/space";
