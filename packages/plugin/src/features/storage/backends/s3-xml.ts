@@ -1,0 +1,83 @@
+/**
+ * Reads the two S3 responses that carry XML without a parser: a dependency would undo what dropping the SDK
+ * bought, `DOMParser` is missing in the test runner, and a value never contains a raw `<`, so a non-greedy
+ * match is exact for well-formed documents.
+ */
+
+import type { ListedObject } from "../types";
+import { dateOf } from "./util";
+
+export interface ListPage {
+	objects: ListedObject[];
+	/** Present while the listing has more pages. */
+	nextToken?: string;
+}
+
+/**
+ * Throws rather than under-report: a listing that silently loses keys reads as "the remote lacks these",
+ * which decides what is deleted and uploaded.
+ */
+export function parseListObjects(xml: string): ListPage {
+	if (!LIST_ROOT.test(xml)) {
+		throw new Error(
+			"S3 listing response was not a ListBucketResult; something between the plugin and the bucket answered instead.",
+		);
+	}
+	const objects: ListedObject[] = [];
+	for (const match of xml.matchAll(CONTENTS)) {
+		const entry = match[1] ?? "";
+		// A key may legitimately begin or end with a space, so it is never trimmed.
+		const key = tagValue(entry, "Key");
+		if (!key) throw new Error("S3 listing contained an object without a key.");
+		objects.push({
+			key,
+			etag: tagValue(entry, "ETag")?.trim() || null,
+			modified: dateOf(tagValue(entry, "LastModified")),
+		});
+	}
+	const nextToken = tagValue(xml, "NextContinuationToken")?.trim();
+	// S3 always names the token with a truncated listing: a backend that does not has said the page is
+	// partial without saying how to continue.
+	if (!nextToken && tagValue(xml, "IsTruncated")?.trim() === "true") {
+		throw new Error(
+			"S3 reported a truncated listing without a continuation token, so the object list would be incomplete.",
+		);
+	}
+	return nextToken ? { objects, nextToken } : { objects };
+}
+
+/** The `Code` of an S3 error document, e.g. `NoSuchBucket`. */
+export function parseErrorCode(xml: string): string | null {
+	return tagValue(xml, "Code")?.trim() ?? null;
+}
+
+/** Namespace prefixes and attributes are tolerated; S3 itself uses neither. */
+const LIST_ROOT =
+	/<(?:\w+:)?ListBucketResult[\s>][\s\S]*<\/(?:\w+:)?ListBucketResult\s*>/;
+const CONTENTS =
+	/<(?:\w+:)?Contents(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?Contents>/g;
+
+function tagValue(xml: string, tag: string): string | null {
+	const match = new RegExp(
+		String.raw`<(?:\w+:)?${tag}(?:\s[^>]*)?>([\s\S]*?)</(?:\w+:)?${tag}>`,
+	).exec(xml);
+	return match?.[1] === undefined ? null : decodeEntities(match[1]);
+}
+
+function decodeEntities(value: string): string {
+	return (
+		value
+			.replace(/&#x([0-9a-f]+);/gi, (_, hex: string) =>
+				String.fromCodePoint(Number.parseInt(hex, 16)),
+			)
+			.replace(/&#(\d+);/g, (_, dec: string) =>
+				String.fromCodePoint(Number.parseInt(dec, 10)),
+			)
+			.replace(/&lt;/g, "<")
+			.replace(/&gt;/g, ">")
+			.replace(/&quot;/g, '"')
+			.replace(/&apos;/g, "'")
+			// Last: an ampersand decoded first would corrupt the entities above.
+			.replace(/&amp;/g, "&")
+	);
+}

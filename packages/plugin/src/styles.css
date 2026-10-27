@@ -1,0 +1,65 @@
+/*
+ * Bundled to packages/plugin/styles.css by esbuild.config.mjs.
+ * Import order is the cascade (equal specificity): append within a slice rather than reordering.
+ */
+
+@import "./core/ui/styles/tokens.css";
+@import "./core/ui/styles/file-path.css";
+@import "./core/ui/styles/marquee.css";
+@import "./core/ui/styles/segments.css";
+@import "./core/ui/styles/callout.css";
+
+@import "./features/settings/tabs-and-logs.css";
+
+@import "./features/source-control/styles/shell.css";
+@import "./features/source-control/styles/toolbar.css";
+@import "./features/source-control/styles/summary.css";
+@import "./features/source-control/styles/states.css";
+@import "./features/source-control/styles/sections.css";
+@import "./features/source-control/styles/file-rows.css";
+@import "./features/source-control/styles/tree.css";
+@import "./features/source-control/styles/containers.css";
+
+@import "./features/diff/styles/view.css";
+@import "./core/ui/styles/icon-button.css";
+@import "./core/ui/styles/notice.css";
+@import "./features/diff/styles/tones.css";
+@import "./features/diff/styles/toolbars.css";
+@import "./features/diff/styles/pane-grid.css";
+@import "./features/diff/styles/divider.css";
+@import "./features/diff/styles/rail.css";
+@import "./features/diff/styles/cm-lines.css";
+@import "./features/diff/styles/source-blocks.css";
+@import "./features/diff/styles/code-lines.css";
+@import "./features/diff/styles/gaps.css";
+@import "./features/diff/styles/cards.css";
+@import "./features/diff/styles/merge.css";
+@import "./features/diff/styles/hunk-preview.css";
+
+@import "./features/transfer/ui/transfer.css";
+@import "./features/settings/overview.css";
+@import "./features/setup/styles/setup.css";
+@import "./features/setup/styles/setup-stepper.css";
+@import "./features/setup/styles/setup-cards.css";
+@import "./features/setup/styles/setup-forms.css";
+@import "./features/setup/styles/setup-progress.css";
+@import "./features/explorer/explorer.css";
+@import "./features/status/status-bar.css";
+@import "./features/status/ribbon.css";
+@import "./core/ui/styles/modals.css";
+@import "./core/ui/styles/modal-frame.css";
+@import "./features/source-control/styles/file-list.css";
+@import "./features/spaces/ui/shares.css";
+@import "./features/links/ui/links.css";
+
+@import "./features/source-control/history/history.css";
+@import "./features/editor-signs/signs.css";
+@import "./features/editor-signs/hunk-popup.css";
+@import "./features/source-control/timeline/restore.css";
+@import "./features/source-control/timeline/timeline.css";
+@import "./features/presence/ui/presence.css";
+@import "./features/source-control/styles/phone.css";
+@import "./features/diff/styles/phone.css";
+
+/* Last: phone overrides win on specificity, but stay last as documented. */
+@import "./core/ui/styles/mobile.css";

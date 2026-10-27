@@ -1,0 +1,65 @@
+import type { EncryptionKey } from "@/core/crypto";
+import { reportWarning } from "@/core/shared";
+import type { ObjectStorage } from "@/features/storage";
+import { publishManifestWithGuard } from "../remote/manifest";
+import type { Manifest } from "../types";
+import { diffManifests } from "./changes";
+import { collectGarbage, shouldRunGc } from "./gc";
+import { prependSnapshot, updateHistoryLog } from "./store";
+import type { HistoryConfig, SnapshotEntry } from "./types";
+
+/**
+ * Records the change set only on the guard's winner, which proved remote head equals `parent`.
+ * Best-effort: failures log but never fail the push. GC is safe, as the guard serialises publishers.
+ */
+export async function publishManifestWithHistory(
+	storage: ObjectStorage,
+	key: EncryptionKey,
+	root: string,
+	manifest: Manifest,
+	parent: Manifest | null,
+	history: HistoryConfig | undefined,
+	baseline: Manifest | null = null,
+): Promise<void> {
+	await publishManifestWithGuard(
+		storage,
+		key,
+		root,
+		manifest,
+		parent?.snapshotId ?? null,
+		baseline,
+	);
+	if (!history) return;
+	try {
+		const entry: SnapshotEntry = {
+			id: manifest.snapshotId,
+			parentId: manifest.parentSnapshotId,
+			createdAt: manifest.createdAt,
+			deviceId: manifest.deviceId,
+			deviceName: manifest.deviceName,
+		};
+		const changes = diffManifests(parent, manifest);
+		const log = await updateHistoryLog(
+			storage,
+			key,
+			root,
+			(current) => prependSnapshot(current, entry, changes),
+			(current) => current.snapshots.some((s) => s.id === entry.id),
+		);
+		if (shouldRunGc(log, history.maxSnapshots)) {
+			await collectGarbage({
+				storage,
+				key,
+				root,
+				log,
+				maxSnapshots: history.maxSnapshots,
+				headManifest: manifest,
+			});
+		}
+	} catch (err) {
+		reportWarning(
+			"File history could not be updated; the push itself succeeded.",
+			err,
+		);
+	}
+}

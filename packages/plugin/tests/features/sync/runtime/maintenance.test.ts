@@ -1,0 +1,176 @@
+import { FakeStorage } from "@tests/helpers/fake-storage";
+import { publishManifest } from "@tests/helpers/manifest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { deriveKey, type EncryptionKey } from "@/core/crypto/cipher";
+import {
+	REMOTE_OBJECTS_PREFIX,
+	REMOTE_PINS_PREFIX,
+} from "@/features/sync/constants";
+import { diffManifests } from "@/features/sync/history/changes";
+import { writeHistoryLog } from "@/features/sync/history/store";
+import { objectKey } from "@/features/sync/remote/manifest";
+import {
+	deepCleanOrphans,
+	verifyRemote,
+} from "@/features/sync/runtime/maintenance";
+import type { EFileKind, Manifest } from "@/features/sync/types";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+let key: EncryptionKey;
+beforeAll(async () => {
+	key = await deriveKey("pw", new Uint8Array(16));
+});
+
+function manifest(snapshotId: string, files: Record<string, string>): Manifest {
+	const entries: Manifest["files"] = {};
+	for (const [path, hash] of Object.entries(files)) {
+		entries[path] = { hash, size: 1, mtime: 1, kind: "vault" as EFileKind };
+	}
+	return {
+		version: 1,
+		vaultId: "v",
+		snapshotId,
+		parentSnapshotId: null,
+		createdAt: 1,
+		deviceId: "d",
+		files: entries,
+	};
+}
+
+describe("verifyRemote", () => {
+	it("passes on a complete remote and flags a missing object", async () => {
+		const storage = new FakeStorage();
+		const head = manifest("s1", { "a.md": "H1" });
+		await publishManifest(storage, key, head);
+		await storage.put(objectKey("H1"), new Uint8Array([1]));
+
+		const ok = await verifyRemote(storage, key, "", false);
+		expect(ok.checked).toBe(1);
+		expect(ok.missing).toHaveLength(0);
+
+		await storage.delete(objectKey("H1"));
+		const bad = await verifyRemote(storage, key, "", false);
+		expect(bad.missing).toEqual(["H1"]);
+	});
+
+	it("announces every object read before the first get", async () => {
+		const calls: string[] = [];
+		class PreparingStorage extends FakeStorage {
+			prepareReads(keys: string[]): void {
+				calls.push(`prepare:${[...keys].sort().join(",")}`);
+			}
+			override get(path: string): Promise<Uint8Array | null> {
+				if (path.startsWith(REMOTE_OBJECTS_PREFIX)) calls.push("get");
+				return super.get(path);
+			}
+		}
+		const storage = new PreparingStorage();
+		await publishManifest(
+			storage,
+			key,
+			manifest("s1", { "a.md": "H1", "b.md": "H2" }),
+		);
+		await storage.put(objectKey("H1"), new Uint8Array([1]));
+		await storage.put(objectKey("H2"), new Uint8Array([1]));
+
+		await verifyRemote(storage, key, "", false);
+		expect(calls[0]).toBe(`prepare:${objectKey("H1")},${objectKey("H2")}`);
+		expect(calls.filter((c) => c === "get")).toHaveLength(2);
+	});
+});
+
+describe("deepCleanOrphans", () => {
+	it("removes unreachable blobs, keeps reachable ones", async () => {
+		const storage = new FakeStorage();
+		const head = manifest("s1", { "a.md": "H1" });
+		await publishManifest(storage, key, head);
+		await storage.put(objectKey("H1"), new Uint8Array([1]));
+		await writeHistoryLog(storage, key, "", {
+			version: 2,
+			snapshots: [{ id: "s1", parentId: null, createdAt: 1, deviceId: "d" }],
+			changes: { s1: diffManifests(null, head) },
+		});
+
+		await storage.put(objectKey("ORPHAN"), new Uint8Array([9]));
+		await storage.put(`${REMOTE_OBJECTS_PREFIX}stray`, new Uint8Array([9]));
+		storage.age(DAY_MS + 1);
+
+		const res = await deepCleanOrphans(storage, key, "");
+		expect(res.deletedObjects).toBe(2);
+		expect(res.deletedPins).toBe(0);
+		expect(await storage.exists(objectKey("H1"))).toBe(true);
+		expect(await storage.exists(objectKey("ORPHAN"))).toBe(false);
+		expect((await storage.list(REMOTE_PINS_PREFIX)).length).toBe(0);
+
+		const again = await deepCleanOrphans(storage, key, "");
+		expect(again.deletedObjects).toBe(0);
+		expect(again.deletedPins).toBe(0);
+	});
+
+	it("keeps what was written in the last day: another device's push, a pin before its flag", async () => {
+		const storage = new FakeStorage();
+		const head = manifest("s1", { "a.md": "H1" });
+		await publishManifest(storage, key, head);
+		await storage.put(objectKey("H1"), new Uint8Array([1]));
+		await writeHistoryLog(storage, key, "", {
+			version: 2,
+			snapshots: [{ id: "s1", parentId: null, createdAt: 1, deviceId: "d" }],
+			changes: { s1: diffManifests(null, head) },
+		});
+		await storage.put(objectKey("OLD"), new Uint8Array([9]));
+		storage.age(DAY_MS + 1);
+		await storage.put(objectKey("UPLOADING"), new Uint8Array([9]));
+		await storage.put(`${REMOTE_PINS_PREFIX}s0.json.enc`, new Uint8Array([9]));
+
+		const res = await deepCleanOrphans(storage, key, "");
+
+		expect(res).toEqual({ deletedObjects: 1, deletedPins: 0 });
+		expect(await storage.exists(objectKey("OLD"))).toBe(false);
+		expect(await storage.exists(objectKey("UPLOADING"))).toBe(true);
+	});
+});
+
+describe("deepCleanOrphans concurrency", () => {
+	it("bails when another device pins a snapshot while it lists", async () => {
+		// Pinning does not move HEAD, so only a log re-read can catch it.
+		class PinRacingStorage extends FakeStorage {
+			raceOnce: (() => Promise<void>) | null = null;
+			override async list(prefix: string): Promise<string[]> {
+				const keys = await super.list(prefix);
+				const race = this.raceOnce;
+				this.raceOnce = null;
+				if (race) await race();
+				return keys;
+			}
+		}
+
+		const storage = new PinRacingStorage();
+		const head = manifest("s2", { "a.md": "H2" });
+		await publishManifest(storage, key, head);
+		await storage.put(objectKey("H2"), new Uint8Array([1]));
+		const snapshots = [
+			{ id: "s2", parentId: "s1", createdAt: 2, deviceId: "d" },
+			{ id: "s1", parentId: null, createdAt: 1, deviceId: "d" },
+		];
+		const changes = {
+			s2: diffManifests(manifest("s1", { "a.md": "H1" }), head),
+			s1: diffManifests(null, manifest("s1", { "a.md": "H1" })),
+		};
+		await writeHistoryLog(storage, key, "", { version: 2, snapshots, changes });
+
+		storage.raceOnce = async () => {
+			await writeHistoryLog(storage, key, "", {
+				version: 2,
+				snapshots: snapshots.map((entry) =>
+					entry.id === "s1" ? { ...entry, pinned: true } : entry,
+				),
+				changes,
+			});
+		};
+
+		await expect(deepCleanOrphans(storage, key, "")).rejects.toThrow(
+			/pinned snapshot while cleaning/,
+		);
+	});
+});

@@ -1,8 +1,11 @@
 import { vi } from "vitest";
-import type { SyncControllerHost } from "@/sync/controller";
-import { mergeSessionIntoLocal, projectSession } from "@/sync/session-state";
-import { VAULT_SPACE } from "@/sync/space";
-import type { LocalState } from "@/sync/types";
+import type { SyncControllerHost } from "@/features/sync/controller";
+import { VAULT_SPACE } from "@/features/sync/remote/space";
+import {
+	mergeSessionIntoLocal,
+	projectSession,
+} from "@/features/sync/session-state";
+import type { LocalState } from "@/features/sync/types";
 import type { TestSession } from "./session";
 
 export function createTestControllerHost(session: TestSession) {

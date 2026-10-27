@@ -1,0 +1,71 @@
+import {
+	deriveLiveKeys,
+	type EncryptionKey,
+	importAesKey,
+	type LiveKeys,
+} from "@/core/crypto";
+import { base64ToBytes } from "@/core/utils";
+import {
+	createStorageAdapter,
+	type StorageAdapter,
+	type StorageAdapterConfig,
+} from "@/features/storage";
+import { createBrokerAdapter } from "./broker/share-broker";
+
+import { ownerStorageConfig } from "./owner";
+import type { SpaceRecord } from "./record";
+
+export interface ShareStorage {
+	/** Equal while the adapter can be reused: its manifest caches hold vault paths, so the root counts. */
+	memo: string;
+	concurrency: number;
+	create: () => StorageAdapter;
+}
+
+/**
+ * The owner reaches a share with the device's own S3 credentials, a participant through the owner's relay;
+ * null when this device cannot. `root` is where the folder is on this device, which a pending move keeps
+ * apart from the record's.
+ */
+export function shareStorage(
+	record: SpaceRecord,
+	active: StorageAdapterConfig,
+	root: string,
+): ShareStorage | null {
+	const { access } = record;
+	const { concurrency } = active;
+	if (access.kind === "participant") {
+		return {
+			memo: JSON.stringify([root, access]),
+			concurrency,
+			create: () => createBrokerAdapter(record.id, access),
+		};
+	}
+	const config = ownerStorageConfig(record.id, access.location, active);
+	if (!config) return null;
+	return {
+		memo: JSON.stringify([root, config]),
+		concurrency,
+		create: () => createStorageAdapter(config),
+	};
+}
+
+/** One CryptoKey per key material: the manifest cache validates a 304 by key identity. */
+const shareKeys = new Map<string, Promise<EncryptionKey>>();
+/** Far over the shares one mounts, so only keys of shares long left go. */
+const SHARE_KEYS_MAX = 64;
+
+export function shareKey(record: SpaceRecord): Promise<EncryptionKey> {
+	const cached = shareKeys.get(record.key);
+	if (cached) return cached;
+	const key = importAesKey(base64ToBytes(record.key));
+	shareKeys.set(record.key, key);
+	const [oldest] = shareKeys.keys();
+	if (shareKeys.size > SHARE_KEYS_MAX && oldest) shareKeys.delete(oldest);
+	key.catch(() => shareKeys.delete(record.key));
+	return key;
+}
+
+export function shareLiveKeys(record: SpaceRecord): Promise<LiveKeys> {
+	return deriveLiveKeys(base64ToBytes(record.key));
+}

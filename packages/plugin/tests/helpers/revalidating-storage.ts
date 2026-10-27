@@ -1,4 +1,4 @@
-import type { ConditionalRead, ListedObject } from "@/storage/types";
+import type { ConditionalRead, ListedObject } from "@/features/storage/types";
 import { FakeStorage } from "./fake-storage";
 
 /** A backend that hands out a validator, as S3 and WebDAV do. */

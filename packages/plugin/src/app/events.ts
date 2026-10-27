@@ -1,0 +1,114 @@
+import {
+	type Menu,
+	type Plugin,
+	type TAbstractFile,
+	TFile,
+	TFolder,
+} from "obsidian";
+import { reportWarning } from "@/core/shared";
+import { addLinkMenuItems } from "@/features/links";
+import {
+	openSourceControlDeleted,
+	openSourceControlHistory,
+} from "@/features/source-control";
+import { addShareMenuItem } from "@/features/spaces";
+import type { StatePersister } from "@/features/sync";
+import { addIgnoreMenuItem, addPushMenuItem } from "@/features/sync";
+import type { PluginHost } from "./host";
+
+/**
+ * History is otherwise only in the side panel and a deleted file has no menu, so the entry rides on whatever
+ * the user right-clicks.
+ */
+export function registerWorkspaceMenus(plugin: Plugin & PluginHost): void {
+	plugin.registerEvent(
+		plugin.app.workspace.on("file-menu", (menu, file) => {
+			addIgnoreItem(menu, plugin, file);
+			addPushMenuItem(menu, plugin, file.path, file instanceof TFolder);
+			addLinkMenuItems(menu, plugin, file);
+			if (file instanceof TFolder && !file.isRoot()) {
+				addShareMenuItem(menu, plugin, file.path);
+			}
+			if (plugin.settings.fileHistoryEnabled) {
+				if (file instanceof TFile) addHistoryItem(menu, plugin, file.path);
+				addDeletedItem(menu, plugin);
+			}
+		}),
+	);
+	plugin.registerEvent(
+		plugin.app.workspace.on("editor-menu", (menu, _editor, view) => {
+			const path = view.file?.path;
+			if (path) addPushMenuItem(menu, plugin, path, false);
+			if (!plugin.settings.fileHistoryEnabled) return;
+			if (path) addHistoryItem(menu, plugin, path);
+			addDeletedItem(menu, plugin);
+		}),
+	);
+}
+
+function addIgnoreItem(
+	menu: Menu,
+	plugin: Plugin & PluginHost,
+	file: TAbstractFile,
+): void {
+	addIgnoreMenuItem(
+		menu,
+		plugin,
+		file.path,
+		file instanceof TFolder,
+		"MDSync: ",
+	);
+}
+
+function addHistoryItem(
+	menu: Menu,
+	plugin: Plugin & PluginHost,
+	path: string,
+): void {
+	menu.addItem((item) =>
+		item
+			.setTitle("MDSync: File history")
+			.setIcon("history")
+			.onClick(() => void openSourceControlHistory(plugin, path)),
+	);
+}
+
+function addDeletedItem(menu: Menu, plugin: Plugin & PluginHost): void {
+	menu.addItem((item) =>
+		item
+			.setTitle("MDSync: Restore deleted files")
+			.setIcon("trash-2")
+			.onClick(() => void openSourceControlDeleted(plugin)),
+	);
+}
+
+export function registerHashCarry(
+	plugin: Plugin,
+	statePersister: StatePersister,
+): void {
+	plugin.registerEvent(
+		plugin.app.vault.on("rename", (file, oldPath) =>
+			statePersister.carry({
+				from: oldPath,
+				to: file.path,
+				folder: file instanceof TFolder,
+			}),
+		),
+	);
+}
+
+export function registerStatePersistenceFlush(
+	plugin: Plugin & PluginHost,
+	statePersister: StatePersister,
+): void {
+	const flush = (): void => {
+		statePersister
+			.flush()
+			.catch((err) => reportWarning("Could not save the sync state.", err));
+	};
+
+	plugin.registerDomEvent(document, "visibilitychange", () => {
+		if (document.visibilityState === "hidden") flush();
+	});
+	plugin.registerDomEvent(window, "beforeunload", flush);
+}

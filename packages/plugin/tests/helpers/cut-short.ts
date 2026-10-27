@@ -1,6 +1,6 @@
 import { expect } from "vitest";
-import { SyncController } from "@/sync/controller";
-import { pullPaths } from "@/sync/pull";
+import { pullPaths } from "@/features/sync/apply/pull";
+import { SyncController } from "@/features/sync/controller";
 import { createTestControllerHost } from "./controller";
 import { killNextWrite } from "./faults";
 import { pairedSessions, type TestSession } from "./session";

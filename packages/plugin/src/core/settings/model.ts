@@ -1,0 +1,338 @@
+import {
+	AUTO_PUSH_SETTLE_MAX_SECONDS,
+	AUTO_PUSH_SETTLE_MIN_SECONDS,
+	AUTO_SYNC_MAX_MINUTES,
+	AUTO_SYNC_MIN_MINUTES,
+	BULK_DELETE_LIMIT_MAX,
+	BULK_DELETE_LIMIT_MIN,
+	FILE_HISTORY_MAX_SNAPSHOTS,
+	FILE_HISTORY_MIN_SNAPSHOTS,
+	LIVE_SEND_MS,
+} from "@/core/constants";
+import { isCleartextRemote } from "@/core/shared";
+import { parseStoredLink, type StoredLink } from "@/features/links/record";
+import type { BrokerAdmin } from "@/features/spaces/broker/share-broker";
+import { isSpaceRecord, type SpaceRecord } from "@/features/spaces/record";
+import { defaultS3Config } from "@/features/storage/backends/s3";
+import {
+	EStorageBackend,
+	type S3StorageConfig,
+	type StorageAdapterConfig,
+} from "@/features/storage/config";
+import { CONCURRENCY_FIELD } from "@/features/storage/field-spec";
+import {
+	getDescriptor,
+	isAdapterConfigured,
+	isKnownBackend,
+} from "@/features/storage/registry";
+
+const DEFAULT_MAX_FILE_BYTES = 100 * 1024 * 1024;
+
+const DEFAULT_FILE_HISTORY_MAX_SNAPSHOTS = 50;
+
+export interface SettingsSyncCategories {
+	coreSettings: boolean;
+	hotkeys: boolean;
+	pluginList: boolean;
+	pluginConfigs: boolean;
+	snippets: boolean;
+	themes: boolean;
+}
+
+export const DEFAULT_SETTINGS_SYNC: SettingsSyncCategories = {
+	coreSettings: false,
+	hotkeys: false,
+	pluginList: false,
+	pluginConfigs: false,
+	snippets: false,
+	themes: false,
+};
+
+export interface MdsyncSettings {
+	storageConfigs: Record<string, StorageAdapterConfig>;
+	activeStorageKind: EStorageBackend;
+	settingsSync: SettingsSyncCategories;
+	ignorePatterns: string;
+	/** Skip symlinks and directory links pointing outside the vault. */
+	ignoreSymlinks: boolean;
+	maxFileBytes: number;
+	/** Master switch for scheduled sync; the interval alone does not enable it. */
+	autoSyncEnabled: boolean;
+	autoSyncIntervalMinutes: number;
+	/** Push local changes after a scheduled pull; off means a pull-only device. */
+	autoPushAfterSync: boolean;
+	autoPushAfterChange: boolean;
+	autoPushSettleSeconds: number;
+	autoPushChangedFilesOnly: boolean;
+	/** An automatic push publishing more than `bulkDeleteLimit` deletions holds them all for review. */
+	confirmBulkDeletes: boolean;
+	bulkDeleteLimit: number;
+	fileHistoryEnabled: boolean;
+	fileHistoryMaxSnapshots: number;
+	historyAutoRefresh: boolean;
+	realtimeSync: boolean;
+	/** Notes open in the editor edit together across devices, over the relay. */
+	liveEditing: boolean;
+	/** Live edits go out at most this often (ms), on this device. Never transferred. */
+	liveSendMs: number;
+	/** Others' text in live notes tinted by author, on this device. */
+	showLiveAuthors: boolean;
+	showOpenNote: boolean;
+	/** This device's copy of the shared folders it syncs; see `spaces/`. */
+	spaces: SpaceRecord[];
+	/** Off: every share is paused here and kept out of sight. Never published. */
+	useSharedFolders: boolean;
+	/** Shares this device holds out of sync; never published, unlike `spaces`. */
+	pausedSpaces: string[];
+	/** Shares this person adds on other devices arrive paused here. Never published. */
+	pauseArrivingShares: boolean;
+	/** A change in a shared folder is pushed once the folder is quiet a moment, not with the vault. */
+	pushSharesRightAway: boolean;
+	/** Only added, moved and deleted files go right away; edits wait for a push. */
+	shareEditsWait: boolean;
+	/** Shares moved on another device, by id: where the folder still is here. Never published. */
+	localRoots: Record<string, string>;
+	/** The vault storage (identity) the records were traded with: another vault's never reach this one. */
+	spacesVault: string | null;
+	/** This person's share links, keys included: traded sealed through the vault storage, never transferred. */
+	links: StoredLink[];
+	/** Self-hosted worker (packages/relay): realtime signals. */
+	relayUrl: string;
+	/** The worker's RELAY_SECRET; relay room tokens derive from it. */
+	relaySecret: string;
+	/** Deploys and updates the relay, and made the R2 keys. Device-local, never transferred. */
+	cloudflareToken: string;
+	cloudflareAccountId: string;
+	cachePassphrase: boolean;
+	showStatusBar: boolean;
+	showRibbonIcon: boolean;
+	showFileExplorerIndicators: boolean;
+	/** The dot, arrow or warning beside a changed name in the file tree; the name keeps its colour. */
+	showChangeMarks: boolean;
+	showEditorChangeSigns: boolean;
+	showFileSizes: boolean;
+	uiLayout: "tree" | "flat";
+}
+
+const DEFAULT_STORAGE = defaultS3Config();
+
+export const DEFAULT_SETTINGS: MdsyncSettings = {
+	storageConfigs: { [DEFAULT_STORAGE.kind]: DEFAULT_STORAGE },
+	activeStorageKind: DEFAULT_STORAGE.kind,
+	settingsSync: DEFAULT_SETTINGS_SYNC,
+	ignorePatterns: "",
+	ignoreSymlinks: true,
+	maxFileBytes: DEFAULT_MAX_FILE_BYTES,
+	autoSyncEnabled: false,
+	autoSyncIntervalMinutes: 0,
+	autoPushAfterSync: true,
+	autoPushAfterChange: false,
+	autoPushSettleSeconds: 10,
+	autoPushChangedFilesOnly: false,
+	confirmBulkDeletes: true,
+	bulkDeleteLimit: 5,
+	fileHistoryEnabled: false,
+	fileHistoryMaxSnapshots: DEFAULT_FILE_HISTORY_MAX_SNAPSHOTS,
+	historyAutoRefresh: true,
+	realtimeSync: false,
+	liveEditing: true,
+	liveSendMs: LIVE_SEND_MS.balanced,
+	showLiveAuthors: false,
+	showOpenNote: true,
+	spaces: [],
+	useSharedFolders: true,
+	pausedSpaces: [],
+	pauseArrivingShares: false,
+	pushSharesRightAway: true,
+	shareEditsWait: true,
+	localRoots: {},
+	spacesVault: null,
+	links: [],
+	relayUrl: "",
+	relaySecret: "",
+	cloudflareToken: "",
+	cloudflareAccountId: "",
+	cachePassphrase: true,
+	showStatusBar: true,
+	showRibbonIcon: true,
+	showFileExplorerIndicators: true,
+	showChangeMarks: true,
+	showEditorChangeSigns: true,
+	showFileSizes: true,
+	uiLayout: "tree",
+};
+
+export function activeStorage(settings: MdsyncSettings): StorageAdapterConfig {
+	return (
+		settings.storageConfigs[settings.activeStorageKind] ?? defaultS3Config()
+	);
+}
+
+export function isStorageConfigured(settings: MdsyncSettings): boolean {
+	return isAdapterConfigured(activeStorage(settings));
+}
+
+/** No vault storage, only shares joined by invite: those sync, the vault stays on this device. */
+export function isGuest(settings: MdsyncSettings): boolean {
+	return (
+		!isStorageConfigured(settings) &&
+		settings.spaces.some(
+			(record) => !record.closed && record.access.kind === "participant",
+		)
+	);
+}
+
+export function canSync(settings: MdsyncSettings): boolean {
+	return isStorageConfigured(settings) || isGuest(settings);
+}
+
+/** A share pins its location for good, so only a complete S3 setup may own one. */
+export function ownerStorage(settings: MdsyncSettings): S3StorageConfig | null {
+	const storage = activeStorage(settings);
+	if (storage.kind !== EStorageBackend.S3) return null;
+	return isStorageConfigured(settings) ? storage : null;
+}
+
+export type RelayConfig = Pick<MdsyncSettings, "relayUrl" | "relaySecret">;
+
+/** Both or nothing: the URL alone opens no room and signs nothing. A relay that takes the secret in the clear is none. */
+export function isRelayConfigured(relay: RelayConfig): boolean {
+	return (
+		Boolean(relay.relayUrl && relay.relaySecret) &&
+		!isCleartextRemote(relay.relayUrl)
+	);
+}
+
+/** The owner's side of the relay: shares and links both speak to it with the secret. */
+export function relayAdmin({
+	relayUrl,
+	relaySecret,
+}: RelayConfig): BrokerAdmin {
+	return { relayUrl, secret: relaySecret };
+}
+
+/** Dropped settings. Several held secrets - share keys among them - so they are deleted, not kept. */
+const RETIRED_KEYS = [
+	"realtimeServerUrl",
+	"realtimeToken",
+	"shareBrokerUrl",
+	"shareBrokerAdminSecret",
+	"sharedFolders",
+	"shareStorageKind",
+] as const;
+
+/** Bounds for numeric settings. Clamping here prevents invalid values from files or tokens. */
+export const NUMERIC_BOUNDS = {
+	maxFileBytes: { min: 1, max: 2 * 1024 * 1024 * 1024 },
+	autoSyncIntervalMinutes: {
+		min: AUTO_SYNC_MIN_MINUTES,
+		max: AUTO_SYNC_MAX_MINUTES,
+	},
+	autoPushSettleSeconds: {
+		min: AUTO_PUSH_SETTLE_MIN_SECONDS,
+		max: AUTO_PUSH_SETTLE_MAX_SECONDS,
+	},
+	bulkDeleteLimit: {
+		min: BULK_DELETE_LIMIT_MIN,
+		max: BULK_DELETE_LIMIT_MAX,
+	},
+	fileHistoryMaxSnapshots: {
+		min: FILE_HISTORY_MIN_SNAPSHOTS,
+		max: FILE_HISTORY_MAX_SNAPSHOTS,
+	},
+} as const satisfies Partial<Record<keyof MdsyncSettings, Bounds>>;
+
+const CONCURRENCY_BOUNDS: Bounds = {
+	min: CONCURRENCY_FIELD.min,
+	max: CONCURRENCY_FIELD.max,
+};
+
+interface Bounds {
+	min: number;
+	max: number;
+}
+
+/** Returns fallback if below minimum; caps if above maximum. */
+function clamp(value: unknown, bounds: Bounds, fallback: number): number {
+	if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+	if (value < bounds.min) return fallback;
+	return Math.min(bounds.max, Math.round(value));
+}
+
+/** Non-empty strings only: a root decides which files a space owns. */
+function stringValues(value: unknown): Record<string, string> {
+	if (typeof value !== "object" || value === null) return {};
+	return Object.fromEntries(
+		Object.entries(value).filter(
+			(entry): entry is [string, string] =>
+				typeof entry[1] === "string" && entry[1] !== "",
+		),
+	);
+}
+
+type StoredSettings = Partial<MdsyncSettings>;
+
+export function mergeSettings(
+	stored: StoredSettings | null | undefined,
+): MdsyncSettings {
+	const storageConfigs: Record<string, StorageAdapterConfig> = {
+		...(stored?.storageConfigs ?? {}),
+	};
+	// Backfill fields added after initial save from backend defaults.
+	for (const [kind, config] of Object.entries(storageConfigs)) {
+		if (!isKnownBackend(kind) || !config || typeof config !== "object") {
+			delete storageConfigs[kind];
+			continue;
+		}
+		config.concurrency = clamp(
+			config.concurrency,
+			CONCURRENCY_BOUNDS,
+			getDescriptor(kind).defaults().concurrency,
+		);
+	}
+	if (Object.keys(storageConfigs).length === 0) {
+		storageConfigs[DEFAULT_STORAGE.kind] = DEFAULT_STORAGE;
+	}
+	const requested = stored?.activeStorageKind;
+	const activeStorageKind =
+		requested && storageConfigs[requested]
+			? requested
+			: (Object.keys(storageConfigs)[0] as EStorageBackend);
+
+	const merged: MdsyncSettings = {
+		...DEFAULT_SETTINGS,
+		...(stored ?? {}),
+		storageConfigs,
+		activeStorageKind,
+		// A preset only: the dropdown shows nothing else.
+		liveSendMs: Object.values<unknown>(LIVE_SEND_MS).includes(
+			stored?.liveSendMs,
+		)
+			? (stored?.liveSendMs as number)
+			: DEFAULT_SETTINGS.liveSendMs,
+		settingsSync: {
+			...DEFAULT_SETTINGS_SYNC,
+			...((stored?.settingsSync as
+				| Partial<SettingsSyncCategories>
+				| undefined) ?? {}),
+		},
+		spaces: Array.isArray(stored?.spaces)
+			? stored.spaces.filter(isSpaceRecord)
+			: [],
+		pausedSpaces: Array.isArray(stored?.pausedSpaces)
+			? stored.pausedSpaces.filter((id) => typeof id === "string")
+			: [],
+		localRoots: stringValues(stored?.localRoots),
+		links: Array.isArray(stored?.links)
+			? stored.links.flatMap((link) => parseStoredLink(link) ?? [])
+			: [],
+		spacesVault:
+			typeof stored?.spacesVault === "string" ? stored.spacesVault : null,
+	};
+	for (const [key, bounds] of Object.entries(NUMERIC_BOUNDS)) {
+		const field = key as keyof typeof NUMERIC_BOUNDS;
+		merged[field] = clamp(merged[field], bounds, DEFAULT_SETTINGS[field]);
+	}
+	for (const key of RETIRED_KEYS) Reflect.deleteProperty(merged, key);
+	return merged;
+}

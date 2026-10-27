@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 
-import type { StoredLink } from "@/links/record";
-import { SharedLinks } from "@/links/shared-links";
+import type { StoredLink } from "@/features/links/record";
+import { SharedLinks } from "@/features/links/shared-links";
 
 const PUBLISHED = 1_760_000_000_000;
 
