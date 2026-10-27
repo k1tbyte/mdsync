@@ -12,11 +12,7 @@ import { createRealtime, type Realtime } from "@/app/realtime";
 import { DEFAULT_SETTINGS, mergeSettings } from "@/app/settings";
 import { SettingsEnvelope } from "@/app/settings-envelope";
 import { createStorageRefused } from "@/app/storage-refused";
-import {
-	refreshOpenHistoryViewsAfterPush,
-	refreshOpenSourceControlViews,
-	registerPluginUi,
-} from "@/app/views";
+import { registerPluginUi } from "@/app/views";
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/core/constants";
 import { DeviceKey } from "@/core/crypto";
 import type { LogService } from "@/core/logs";
@@ -45,6 +41,8 @@ import {
 import {
 	openSourceControlChanges,
 	openSourceControlView,
+	refreshHistoryAfterPush,
+	refreshSourceControlViews,
 } from "@/features/source-control";
 import type { SpaceRecords } from "@/features/spaces";
 import {
@@ -133,7 +131,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 			links: this.sharedLinks,
 			onPushComplete: (space) => {
 				this.realtime.hub.signal(space.id);
-				refreshOpenHistoryViewsAfterPush(this);
+				refreshHistoryAfterPush(this);
 			},
 			onSpaceRefreshed: (space) => void registerShare(space),
 			onShareRefused: createAccessEnded(this),
@@ -294,7 +292,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 	}
 
 	refreshSourceControlView(): void {
-		refreshOpenSourceControlViews(this);
+		refreshSourceControlViews(this.app);
 	}
 
 	openSetup(step?: ESetupStep): void {

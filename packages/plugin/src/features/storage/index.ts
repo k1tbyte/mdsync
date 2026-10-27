@@ -40,7 +40,6 @@ export {
 	createStorageAdapter,
 	describeStorageTarget,
 	getDescriptor,
-	handleStorageProtocol,
 	isAdapterConfigured,
 	isKnownBackend,
 	storageDefaults,
@@ -58,6 +57,7 @@ export {
 	type StorageAdapter,
 	StorageRequestError,
 } from "./types";
+export { authorizeStorage } from "./ui/authorize";
 export { backendSection } from "./ui/backend-section";
 export { testConnection } from "./ui/connection-test";
 export { openStorageRefusedModal } from "./ui/storage-refused-modal";

@@ -11,7 +11,7 @@ Paths in this file are relative to `packages/plugin/src/`.
 ## Layout
 
 - `main.ts` - lifecycle only (onload, onunload, `saveSettings`, `scheduleScopeRefresh`). `styles.css` - the cascade order of every stylesheet.
-- `app/` - composition root: the host container (`app/host.ts`), bootstrap, commands, events, protocol handlers, realtime coordinator, session factory, settings envelope, views. Only `app/` and `main.ts` call a feature's `register*()`.
+- `app/` - composition root: the host container (`app/host.ts`), bootstrap, commands, events, protocol handlers, realtime coordinator, session factory, settings (`app/settings.ts`) and its envelope, views. It holds only what spans slices: their order (menus in `app/events.ts`, the vault refresh in `app/bootstrap.ts`) and wiring; a slice's own flow lives in the slice. Only `app/` and `main.ts` call a feature's `register*()`.
 - `core/` - infra that knows no feature: `cloudflare crypto drawing hub logs settings shared ui utils vault`, plus `core/constants.ts`. Code moves here when a second feature needs it and it knows no feature.
 - `features/` - one slice per feature. **Domain** (state, logic, own flows and modals), lowest first: `storage < sync < live < presence < spaces < links < relay < transfer`. **Surface** (where domains meet in Obsidian): `diff editor-signs explorer note-header settings setup source-control status`.
 - Domain order is not enforced by `pnpm arch` (`no-circular` is): import downward. Upward edges that exist are debt, never add one: `live` and `presence` -> `relay` types, `live` -> `spaces` type.

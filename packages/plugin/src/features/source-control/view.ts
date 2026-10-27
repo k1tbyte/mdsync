@@ -1,10 +1,4 @@
-import {
-	type App,
-	ItemView,
-	Platform,
-	setIcon,
-	type WorkspaceLeaf,
-} from "obsidian";
+import { ItemView, Platform, setIcon, type WorkspaceLeaf } from "obsidian";
 import {
 	RELATIVE_TIME_REFRESH_MS,
 	SOURCE_CONTROL_VIEW_TYPE,
@@ -41,69 +35,6 @@ const SOURCE_TABS: ReadonlyArray<{
 	{ tab: ESourceTab.Deleted, label: "Deleted", icon: "trash-2" },
 	{ tab: ESourceTab.Timeline, label: "Timeline", icon: "clock-3" },
 ];
-
-export function openSourceControlHistory(
-	plugin: SourceControlHost,
-	path?: string,
-): Promise<void> {
-	return openSourceControlOn(plugin, (view) => view.showHistory(path ?? null));
-}
-
-export function openSourceControlDeleted(
-	plugin: SourceControlHost,
-): Promise<void> {
-	return openSourceControlOn(plugin, (view) => view.showDeleted());
-}
-
-/** An open view keeps its tab; conflicts are only on Changes. */
-export function openSourceControlChanges(
-	plugin: SourceControlHost,
-): Promise<void> {
-	return openSourceControlOn(plugin, (view) => view.showChanges());
-}
-
-async function openSourceControlOn(
-	plugin: SourceControlHost,
-	show: (view: SourceControlView) => void,
-): Promise<void> {
-	// The leaf it showed: an older one in a main tab may sit beside the sidebar's.
-	const { view } = await openSourceControlView(
-		plugin.app,
-		SOURCE_CONTROL_VIEW_TYPE,
-	);
-	if (view instanceof SourceControlView) show(view);
-}
-
-export async function openSourceControlView(
-	app: App,
-	viewType: string,
-): Promise<WorkspaceLeaf> {
-	const { workspace } = app;
-	const existing = workspace.getLeavesOfType(viewType);
-	const shown =
-		existing.find((leaf) => leaf.getRoot() === workspace.rightSplit) ??
-		existing[0];
-	if (shown) {
-		await workspace.revealLeaf(shown);
-		return shown;
-	}
-	const leaf = workspace.getRightLeaf(false) ?? workspace.getLeaf(true);
-	await leaf.setViewState({ type: viewType, active: true });
-	await workspace.revealLeaf(leaf);
-	return leaf;
-}
-
-/** A mobile's right sidebar lists only the views it holds: one waits there beside backlinks and the outline. */
-export function keepInRightSidebar(app: App): void {
-	const { workspace } = app;
-	const held = workspace
-		.getLeavesOfType(SOURCE_CONTROL_VIEW_TYPE)
-		.some((leaf) => leaf.getRoot() === workspace.rightSplit);
-	if (held) return;
-	void workspace
-		.getRightLeaf(false)
-		?.setViewState({ type: SOURCE_CONTROL_VIEW_TYPE, active: false });
-}
 
 export class SourceControlView extends ItemView {
 	private readonly plugin: SourceControlHost;

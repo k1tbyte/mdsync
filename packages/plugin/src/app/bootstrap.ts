@@ -5,7 +5,11 @@ import type { MdsyncSettings } from "@/core/settings";
 import { reportWarning } from "@/core/shared";
 import { askPassphrase, notifyError, notifyInfo } from "@/core/ui";
 import type { SharedLinks } from "@/features/links";
-import { createMoveFollower, SpaceRecords } from "@/features/spaces";
+import {
+	createInertWarning,
+	createMoveFollower,
+	SpaceRecords,
+} from "@/features/spaces";
 import { isStorageConfigured } from "@/features/storage";
 import type { LiveNotes } from "@/features/sync";
 import {
@@ -165,18 +169,4 @@ export function disposePluginRuntime(runtime: PluginRuntime): void {
 	runtime.controller.dispose();
 	runtime.passphraseManager.dispose();
 	runtime.logs.dispose();
-}
-
-/** Once per record and session: two devices shared one folder offline, and this one lost. */
-function createInertWarning(spaces: SpaceRecords): () => void {
-	const warned = new Set<string>();
-	return () => {
-		for (const { id, name, root } of spaces.inert()) {
-			if (warned.has(id)) continue;
-			warned.add(id);
-			notifyError(
-				`"${name}" is not syncing: another shared folder already holds "${root}". Stop sharing it in the Sync settings.`,
-			);
-		}
-	};
 }

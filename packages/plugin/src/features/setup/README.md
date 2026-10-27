@@ -30,7 +30,6 @@ One modal stepper takes a fresh install to a syncing vault: storage (Cloudflare 
 - `features/setup/stepper.ts`, `features/setup/choice-card.ts`, `features/setup/form.ts` (`actionRow`, `busyLine`), `features/setup/passphrase-meter.ts`, `features/setup/run-action.ts` (busy and error wrapper for every async button), `features/setup/styles/`.
 - `features/setup/steps/cloudflare-token.ts` - the token form shared by the Storage and Relay steps: **Open Cloudflare** (`tokenTemplateUrl`, permissions preselected), paste, account picker when the token reaches several accounts, then `connectCloudflare`.
 - Non-UI logic lives with its domain: Cloudflare login and R2 in `features/storage/cloudflare/`, deploy and update in `features/relay/deploy/` and `features/relay/update/`, `importWith` in `features/transfer/`, `unlock` and `vaultHasKey` in `PassphraseManager` (`features/sync/remote/passphrase-manager.ts`).
-- Deep imports that bypass facades are baselined debt (`pnpm arch`): `features/source-control/view.ts` (**Open changes**), `features/spaces/ui/invites/invite-action.ts`, `features/settings/sections/automation.ts`, `features/relay/deploy/*`, `features/sync/remote/keyfile.ts`. Do not add more.
 
 ## Relay step
 

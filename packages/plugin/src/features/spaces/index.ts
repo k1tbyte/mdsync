@@ -22,6 +22,7 @@ export {
 	type SpaceAccessHost,
 } from "./space-access";
 export { createAccessEnded } from "./ui/access-ended";
+export { createInertWarning } from "./ui/inert-warning";
 export { openInvite } from "./ui/invites/invite-action";
 export { lastEditLabel, lastEditor } from "./ui/last-edit";
 export { registerReadOnlyLock, watchReadOnlyRoots } from "./ui/read-only";

@@ -64,28 +64,3 @@ export function registerPluginUi(
 
 	return { settingsTab, fileIndicators, openNoteMenu, refreshStatusBar };
 }
-
-export function refreshOpenHistoryViewsAfterPush(
-	plugin: Plugin & PluginHost,
-): void {
-	if (!plugin.settings.historyAutoRefresh) return;
-	for (const leaf of plugin.app.workspace.getLeavesOfType(
-		SOURCE_CONTROL_VIEW_TYPE,
-	)) {
-		if (leaf.view instanceof SourceControlView) {
-			leaf.view.refreshHistory();
-		}
-	}
-}
-
-export function refreshOpenSourceControlViews(
-	plugin: Plugin & PluginHost,
-): void {
-	for (const leaf of plugin.app.workspace.getLeavesOfType(
-		SOURCE_CONTROL_VIEW_TYPE,
-	)) {
-		if (leaf.view instanceof SourceControlView) {
-			leaf.view.refreshDisplaySettings();
-		}
-	}
-}
