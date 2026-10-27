@@ -5,7 +5,9 @@ Scenarios run real processes (Obsidian, `wrangler dev`, headless Chrome, in-memo
 ## Prerequisites
 
 - **Obsidian** at the default Windows path, or set `OBSIDIAN_EXE`. On macOS: `OBSIDIAN_EXE=/Applications/Obsidian.app/Contents/MacOS/Obsidian pnpm e2e:live`. Each scenario starts a throwaway Obsidian (own `--user-data-dir`, temp vault, the trust modal clicked) with the built `packages/plugin/main.js`, `packages/plugin/styles.css` and `manifest.json`.
-- **Ports** 8799 (relay), 8801 (WebDAV), 8802 (S3), 9223 and 9224 (CDP) must be free; a few scenarios use their own (listed below). A run killed midway can leave `wrangler dev` holding 8799: kill that tree.
+- **Headless Chrome** for `links-obsidian` (`links` falls back to an installed Chrome): `pnpm exec playwright-core install chromium-headless-shell` once.
+- Each Obsidian turns native menus off once the plugin loads: macOS defaults to them, and they never reach the DOM the scenarios read.
+- **Ports** 8799 (relay), 8801 (WebDAV), 8802 (S3), 9223 and 9224 (CDP) must be free; a few scenarios use their own (listed below). A run killed midway can leave `wrangler dev` holding 8799 or an Obsidian holding its CDP port, and the next run attaches to the stale one: kill that tree.
 - The relay keeps its storage in `packages/relay/.wrangler/e2e-state`, wiped when a run starts it first: tables an older build left would break the hub.
 - Several Obsidians need distinct CDP ports. On Windows they run on a desktop of their own (`tests/e2e/hidden-desktop.ps1`) and never take focus; `E2E_VISIBLE=1` shows them. `E2E_SHOTS=1` saves screenshots under `artifacts/e2e-shots/`.
 

@@ -140,6 +140,8 @@ export async function launchObsidian(options: {
 			);
 			return loaded || undefined;
 		});
+		// macOS defaults to native menus, which never reach the DOM the scenarios read.
+		await page.evaluate(() => app.vault.setConfig("nativeMenus", false));
 		return obsidian;
 	} catch (error) {
 		await stopProcess();
@@ -147,7 +149,10 @@ export async function launchObsidian(options: {
 	}
 }
 
-declare const app: { plugins: { plugins: Record<string, unknown> } };
+declare const app: {
+	plugins: { plugins: Record<string, unknown> };
+	vault: { setConfig(key: string, value: unknown): void };
+};
 
 async function attach(port: number) {
 	const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
