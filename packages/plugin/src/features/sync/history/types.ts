@@ -1,18 +1,8 @@
 import type { EFileKind, ManifestEntry } from "../types";
 
 export interface HistoryConfig {
-	maxSnapshots: number;
-}
-
-export interface SnapshotEntry {
-	id: string;
-	parentId: string | null;
-	createdAt: number;
-	deviceId: string;
-	deviceName?: string;
-	/** Pinned snapshots are never evicted and keep a full manifest under `pins/`. */
-	pinned?: boolean;
-	label?: string;
+	/** ms past which only activity counts are kept; null keeps every tier forever. */
+	horizon: number | null;
 }
 
 export interface FileChange {
@@ -24,14 +14,10 @@ export interface FileChange {
 export interface SnapshotChanges {
 	added: Record<string, ManifestEntry>;
 	modified: Record<string, FileChange>;
+	/** The parent's entry, which replay restores. */
 	deleted: Record<string, ManifestEntry>;
-}
-
-export interface HistoryLog {
-	version: number;
-	/** Newest first. */
-	snapshots: SnapshotEntry[];
-	changes: Record<string, SnapshotChanges>;
+	/** A merged record's content right before the deletion, where it differs from `deleted`. */
+	deletedLast?: Record<string, ManifestEntry>;
 }
 
 export interface FileVersion {
@@ -60,11 +46,10 @@ export interface DeletedFile {
 	createdAt: number;
 	deviceId: string;
 	deviceName?: string;
-	/**
-	 * Position among non-pinned snapshots, newest first: survives `retentionLimit - rank` more pushes. `null`
-	 * when a pin holds the file.
-	 */
-	rank: number | null;
+	/** A pin holds this content, so retention never drops it. */
+	pinned: boolean;
+	/** The earliest time retention may drop this content; null while pinned or nothing expires. */
+	keptUntil: number | null;
 }
 
 export interface DeletedFilesResult {
@@ -87,8 +72,8 @@ export interface SnapshotSummary {
 	label?: string;
 	/** Null when no change record explains this snapshot, so its contents are unknown. */
 	files: SnapshotChanges | null;
-	/** Rank among non-pinned snapshots; see `DeletedFile.rank`. Null when pinned. */
-	rank: number | null;
+	/** See `DeletedFile.keptUntil`; null when pinned. */
+	keptUntil: number | null;
 	/** Reachable by replay from HEAD, which a restore needs. */
 	restorable: boolean;
 	/** True when this snapshot is the actual remote HEAD, determined by snapshotId. */

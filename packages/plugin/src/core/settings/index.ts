@@ -19,6 +19,7 @@ export {
 	clamp,
 	DEFAULT_CORE_SETTINGS,
 	DEFAULT_SETTINGS_SYNC,
+	type HistoryKeep,
 	isRelayConfigured,
 	type MdsyncSettings,
 	mergeCoreSettings,

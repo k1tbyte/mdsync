@@ -77,7 +77,7 @@ function device(
 				state: projectSession(local, storage.identity(), space.root),
 				maxFileBytes: 1_000_000,
 				concurrency: 2,
-				history: { maxSnapshots: 50 },
+				history: { horizon: null },
 			};
 		},
 		persistState: async (state) => {

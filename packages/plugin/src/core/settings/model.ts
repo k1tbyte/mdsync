@@ -5,15 +5,14 @@ import {
 	AUTO_SYNC_MIN_MINUTES,
 	BULK_DELETE_LIMIT_MAX,
 	BULK_DELETE_LIMIT_MIN,
-	FILE_HISTORY_MAX_SNAPSHOTS,
-	FILE_HISTORY_MIN_SNAPSHOTS,
+	HISTORY_KEEP_MS,
 	LIVE_SEND_MS,
 } from "@/core/constants";
 import { isCleartextRemote } from "@/core/shared";
 
 const DEFAULT_MAX_FILE_BYTES = 100 * 1024 * 1024;
 
-const DEFAULT_FILE_HISTORY_MAX_SNAPSHOTS = 50;
+export type HistoryKeep = keyof typeof HISTORY_KEEP_MS;
 
 export interface SettingsSyncCategories {
 	coreSettings: boolean;
@@ -52,7 +51,7 @@ export interface CoreSettings {
 	confirmBulkDeletes: boolean;
 	bulkDeleteLimit: number;
 	fileHistoryEnabled: boolean;
-	fileHistoryMaxSnapshots: number;
+	fileHistoryKeep: HistoryKeep;
 	historyAutoRefresh: boolean;
 	realtimeSync: boolean;
 	/** Notes open in the editor edit together across devices, over the relay. */
@@ -110,7 +109,7 @@ export const DEFAULT_CORE_SETTINGS: CoreSettings = {
 	confirmBulkDeletes: true,
 	bulkDeleteLimit: 5,
 	fileHistoryEnabled: false,
-	fileHistoryMaxSnapshots: DEFAULT_FILE_HISTORY_MAX_SNAPSHOTS,
+	fileHistoryKeep: "quarter",
 	historyAutoRefresh: true,
 	realtimeSync: false,
 	liveEditing: true,
@@ -156,6 +155,7 @@ const RETIRED_KEYS = [
 	"shareBrokerAdminSecret",
 	"sharedFolders",
 	"shareStorageKind",
+	"fileHistoryMaxSnapshots",
 ] as const;
 
 /** Bounds for numeric settings. Clamping here prevents invalid values from files or tokens. */
@@ -172,10 +172,6 @@ export const NUMERIC_BOUNDS = {
 	bulkDeleteLimit: {
 		min: BULK_DELETE_LIMIT_MIN,
 		max: BULK_DELETE_LIMIT_MAX,
-	},
-	fileHistoryMaxSnapshots: {
-		min: FILE_HISTORY_MIN_SNAPSHOTS,
-		max: FILE_HISTORY_MAX_SNAPSHOTS,
 	},
 } as const satisfies Partial<Record<keyof CoreSettings, Bounds>>;
 
@@ -219,6 +215,11 @@ export function mergeCoreSettings(
 		)
 			? (stored?.liveSendMs as number)
 			: DEFAULT_CORE_SETTINGS.liveSendMs,
+		fileHistoryKeep: Object.keys(HISTORY_KEEP_MS).includes(
+			stored?.fileHistoryKeep as string,
+		)
+			? (stored?.fileHistoryKeep as HistoryKeep)
+			: DEFAULT_CORE_SETTINGS.fileHistoryKeep,
 		settingsSync: {
 			...DEFAULT_SETTINGS_SYNC,
 			...((stored?.settingsSync as

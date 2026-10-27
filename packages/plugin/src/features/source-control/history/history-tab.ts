@@ -74,7 +74,7 @@ export class HistoryTab {
 			renderHistoryOff(
 				pane,
 				this.plugin.app,
-				"File version history is disabled. Enable it in settings.",
+				"History is off. Turn on History in MDSync settings.",
 			);
 			return;
 		}

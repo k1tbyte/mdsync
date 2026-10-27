@@ -17,7 +17,7 @@ const ignoringDrafts = createScopePolicy({
 });
 
 function withHistory(session: TestSession): EngineDependencies {
-	return { ...session.deps(), history: { maxSnapshots: 10 } };
+	return { ...session.deps(), history: { horizon: null } };
 }
 
 async function pushAll(session: TestSession): Promise<void> {

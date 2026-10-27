@@ -1,7 +1,7 @@
 import { entryAt } from "../changes/records";
 import type { Manifest, ManifestEntry } from "../types";
 
-import type { SnapshotChanges, SnapshotEntry } from "./types";
+import type { SnapshotChanges } from "./types";
 
 function sameEntry(a: ManifestEntry, b: ManifestEntry): boolean {
 	return (
@@ -65,27 +65,71 @@ export function changeEntries(changes: SnapshotChanges): ManifestEntry[] {
 		...Object.values(changes.added),
 		...Object.values(changes.modified).flatMap(({ from, to }) => [from, to]),
 		...Object.values(changes.deleted),
+		...Object.values(changes.deletedLast ?? {}),
 	];
 }
 
-export function collectChangeHashes(
-	changes: SnapshotChanges,
-	into: Set<string>,
-): void {
-	for (const { hash } of changeEntries(changes)) into.add(hash);
+/**
+ * One record for a contiguous run, oldest first: the first parent's state to the last record's. A path back
+ * where it started drops out, and a file added and deleted inside the run leaves no trace.
+ */
+export function composeChanges(
+	run: readonly SnapshotChanges[],
+): SnapshotChanges {
+	const merged: SnapshotChanges = { added: {}, modified: {}, deleted: {} };
+	const deletedLast: Record<string, ManifestEntry> = {};
+	for (const changes of run) {
+		for (const path of touchedPaths(changes)) {
+			const start = touches(merged, path)
+				? startOf(merged, path)
+				: startOf(changes, path);
+			delete merged.added[path];
+			delete merged.modified[path];
+			delete merged.deleted[path];
+			delete deletedLast[path];
+			const end = endOf(changes, path);
+			if (end) {
+				if (!start) merged.added[path] = end;
+				else if (!sameEntry(start, end)) {
+					merged.modified[path] = { from: start, to: end };
+				}
+			} else if (start) {
+				merged.deleted[path] = start;
+				const last =
+					entryAt(changes.deletedLast ?? {}, path) ??
+					entryAt(changes.deleted, path);
+				if (last && !sameEntry(last, start)) deletedLast[path] = last;
+			}
+		}
+	}
+	if (Object.keys(deletedLast).length > 0) merged.deletedLast = deletedLast;
+	return merged;
 }
 
-/**
- * History is best-effort: a dropped update leaves a parent/child mismatch, and walking past it would
- * attribute one snapshot's changes to another.
- */
-export function contiguousLength(snapshots: readonly SnapshotEntry[]): number {
-	let length = 0;
-	for (const [index, entry] of snapshots.entries()) {
-		length = index + 1;
-		const parent = snapshots[index + 1];
-		if (!parent) break;
-		if (entry.parentId !== parent.id) break;
-	}
-	return length;
+function touchedPaths(changes: SnapshotChanges): string[] {
+	return [
+		...Object.keys(changes.added),
+		...Object.keys(changes.modified),
+		...Object.keys(changes.deleted),
+	];
+}
+
+function touches(changes: SnapshotChanges, path: string): boolean {
+	return (
+		entryAt(changes.added, path) !== undefined ||
+		entryAt(changes.modified, path) !== undefined ||
+		entryAt(changes.deleted, path) !== undefined
+	);
+}
+
+/** A touched path before the record; null when it did not exist. */
+function startOf(changes: SnapshotChanges, path: string): ManifestEntry | null {
+	return undoChangesForPath(null, changes, path);
+}
+
+/** A touched path after the record; null when it is gone. */
+function endOf(changes: SnapshotChanges, path: string): ManifestEntry | null {
+	return (
+		entryAt(changes.added, path) ?? entryAt(changes.modified, path)?.to ?? null
+	);
 }

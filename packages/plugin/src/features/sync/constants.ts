@@ -2,8 +2,11 @@
 
 export const REMOTE_OBJECTS_PREFIX = "objects/";
 
-/** Single change log: snapshot metadata plus one parent-relative delta per snapshot. */
+/** The 1.x change log: deleted after the first v3 push (`clearLegacyHistory`), never read. */
 export const REMOTE_HISTORY_LOG_KEY = "history.json.enc";
+
+/** Push records (`p/`) and the objects GC packs them into (`b/`). */
+export const REMOTE_HISTORY_PREFIX = "history/";
 
 /** Full manifests for pinned snapshots, so a pin survives its chain being evicted. */
 export const REMOTE_PINS_PREFIX = "pins/";
@@ -12,7 +15,8 @@ export const REMOTE_SALT_KEY = "salt.bin";
 
 export const REMOTE_KEYFILE_KEY = "keys.json";
 
-export const MANIFEST_VERSION = 2;
+/** Every publish carries it, and a client refuses a higher one: 3 is the history layout under `history/`. */
+export const MANIFEST_VERSION = 3;
 
 /** Max paths attached to a single log entry, so one big sync cannot flood the log. */
 export const LOG_PATH_LIMIT = 50;

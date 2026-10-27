@@ -1,39 +1,32 @@
 import type { Manifest } from "../types";
-import { contiguousLength, undoChanges } from "./changes";
-import type { HistoryLog } from "./types";
+import { undoChanges } from "./changes";
+import type { Cover } from "./model/cover";
 
 /**
- * Null when the log does not start at HEAD or the chain breaks before the target: a partial replay would
- * invent a state. Empty folders are not tracked per snapshot, so the result carries none.
+ * Null when the walk does not start at HEAD or never reaches the target: a partial replay would invent a state.
+ * Empty folders are not tracked per snapshot, so the result carries none.
  */
 export function replayTo(
 	head: Manifest,
-	log: HistoryLog,
+	cover: Cover,
 	snapshotId: string,
 ): Manifest | null {
-	const snapshots = log.snapshots;
-	if (snapshots[0]?.id !== head.snapshotId) return null;
-	const reachable = contiguousLength(snapshots);
-
+	if (cover.lagging) return null;
 	const files = { ...head.files };
-	for (let index = 0; index < reachable; index++) {
-		const entry = snapshots[index];
-		if (!entry) return null;
-		if (entry.id === snapshotId) {
+	for (const { record } of cover.chain) {
+		if (record.id === snapshotId) {
 			return {
 				version: head.version,
 				vaultId: head.vaultId,
-				snapshotId: entry.id,
-				parentSnapshotId: entry.parentId,
-				createdAt: entry.createdAt,
-				deviceId: entry.deviceId,
-				deviceName: entry.deviceName,
+				snapshotId: record.id,
+				parentSnapshotId: record.parentId,
+				createdAt: record.createdAt,
+				deviceId: record.deviceId,
+				deviceName: record.deviceName,
 				files,
 			};
 		}
-		const changes = log.changes[entry.id];
-		if (!changes) return null;
-		undoChanges(files, changes);
+		undoChanges(files, record.changes);
 	}
 	return null;
 }

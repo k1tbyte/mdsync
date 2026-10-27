@@ -1,4 +1,5 @@
 import { type App, TFile } from "obsidian";
+import { HISTORY_KEEP_MS } from "@/core/constants";
 import type { EncryptionKey } from "@/core/crypto";
 import type { LogService } from "@/core/logs";
 import { ESyncLogOperation } from "@/core/logs";
@@ -98,7 +99,7 @@ function sessionOpener(
 			key: opened.key,
 			concurrency: opened.concurrency,
 			history: settings.fileHistoryEnabled
-				? { maxSnapshots: settings.fileHistoryMaxSnapshots }
+				? { horizon: HISTORY_KEEP_MS[settings.fileHistoryKeep] }
 				: undefined,
 			live: deps.liveNotes?.(space),
 			author: opened.author,

@@ -1,6 +1,5 @@
 import { ESyncLogOperation } from "@/core/logs";
 import type { SettingsSyncCategories } from "@/core/settings";
-import { MANIFEST_VERSION } from "../constants";
 import {
 	type CompareResult,
 	compare,
@@ -42,8 +41,6 @@ export async function runCategoryResetFlow(
 		remote,
 		{ files, emptyFolders: folders },
 	);
-	// Older clients must refuse a reset instead of propagating it as local deletions.
-	manifest.version = MANIFEST_VERSION;
 	const categoryKey = `${deps.scope.configDir}/${category}`;
 	manifest.resetGenerations = {
 		...remote.resetGenerations,

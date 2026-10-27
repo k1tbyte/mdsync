@@ -48,6 +48,7 @@ export {
 } from "./settings";
 export {
 	type ConditionalRead,
+	type ListedObject,
 	type ObjectStorage,
 	ShareRefusedError,
 	type StorageAdapter,

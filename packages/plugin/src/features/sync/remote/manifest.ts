@@ -190,7 +190,7 @@ export function buildManifest(
 	snapshot: Pick<LocalSnapshot, "files" | "emptyFolders">,
 ): Manifest {
 	return {
-		version: parent?.version ?? 1,
+		version: MANIFEST_VERSION,
 		vaultId,
 		snapshotId: randomId(),
 		parentSnapshotId: parent?.snapshotId ?? null,

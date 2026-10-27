@@ -3,6 +3,7 @@ import { runWithConcurrency } from "@/core/utils";
 import type { StorageAdapter } from "@/features/storage";
 import {
 	REMOTE_HISTORY_LOG_KEY,
+	REMOTE_HISTORY_PREFIX,
 	REMOTE_OBJECTS_PREFIX,
 	REMOTE_PINS_PREFIX,
 } from "../constants";
@@ -17,10 +18,11 @@ export async function resetRemoteStorage(
 	concurrency = DEFAULT_CONCURRENCY,
 	onProgress?: (done: number, total: number) => void,
 ): Promise<RemoteResetResult> {
-	// History must go with its objects; leaving pins behind breaks the log.
-	const [objectKeys, pinKeys] = await Promise.all([
+	// History must go with its objects: records and pins left behind would name what is gone.
+	const [objectKeys, pinKeys, historyKeys] = await Promise.all([
 		storage.list(REMOTE_OBJECTS_PREFIX),
 		storage.list(REMOTE_PINS_PREFIX),
+		storage.list(REMOTE_HISTORY_PREFIX),
 	]);
 	const keys = Array.from(
 		new Set([
@@ -28,6 +30,7 @@ export async function resetRemoteStorage(
 			REMOTE_HISTORY_LOG_KEY,
 			...objectKeys,
 			...pinKeys,
+			...historyKeys,
 		]),
 	);
 	let done = 0;

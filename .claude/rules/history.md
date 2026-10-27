@@ -10,23 +10,25 @@ paths:
 
 # File history, restore and GC
 
-History is a change log, not an archive. Model, publish order, windows and accepted limits: `features/sync/README.md` (History). Engine invariants: `.claude/rules/sync-integrity.md`; hunk restore: `.claude/rules/hunks.md`.
+History is one encrypted record per push under `history/`, which GC thins into objects per period. Model, publish order, windows and accepted limits: `features/sync/README.md` (History). Engine invariants: `.claude/rules/sync-integrity.md`; hunk restore: `.claude/rules/hunks.md`.
 
-## Change log
+## Records
 
-- `history.json.enc` holds one record per push: the diff from that snapshot's parent, which is `compareResult.remote`, not `state.baseline` (they differ whenever another device pushed since the last compare). `publishManifestWithHistory` passes the remote as `parent`.
-- A record carries both sides (`modified.from` / `.to`, the departed entry on `deleted`) and compares every field (`sameEntry`), so a restore never needs a replay and a lost update leaves a detectable gap, not a corrupted chain.
-- Walk the chain only while `entry.parentId === next.id` (`contiguousLength`), starting at HEAD (`walkableChain`); past a gap the log is not evidence of anything. Order by log position, never `createdAt` (clock skew).
-- History is best-effort: a failed log update warns and never fails the push, and GC runs only for the guard's winner. A log that is there but unreadable, malformed or newer is an error, never read as empty (a fresh log would overwrite the real one and orphan its blobs): `readHistoryLog` asks twice before returning empty.
-- Log writes go through `updateHistoryLog` (read, mutate, write, read back, redo once if the change did not survive): the manifest guard does not serialize them. Callers act on what it returns.
-- Queue anything that rewrites the log on the operation queue (`setSnapshotPinned` does): a push or GC of this device rewrites it too.
+- Every push writes `history/p/<id>.enc` before it publishes (`publishManifestWithHistory` in `features/sync/history/publish.ts`), so a won push always has its record; a lost one leaves a sibling the walk never takes. It holds the diff from the snapshot's parent, which is `compareResult.remote`, not `state.baseline` (they differ whenever another device pushed since the last compare).
+- A record write is best-effort: a failure warns and never fails the push; the sealed record waits in memory, keyed by storage identity (a share move or token refresh rebuilds the adapter), and the next push writes it first. A failed publish keeps its record waiting: the manifest may have landed, and a sibling costs only GC. A held-back record lands only under the same key and vault and while every blob it names exists (`stillLands`): a sweep or a reset meanwhile would leave it dangling, so it is dropped as a gap. Records and pins are sealed in space paths, so a retry after a move still names the right files.
+- A record carries both sides (`modified.from` / `.to`, the departed entry on `deleted`) and compares every field (`sameEntry`), so a restore never needs a replay and a missing record leaves a detectable gap, not a corrupted chain.
+- A merged record (`composeChanges`, used by the GC model in `features/sync/history/model/`) runs from its first parent to its last push: `deleted` keeps the parent's entry for replay, `deletedLast` the content right before the deletion, and `changeEntries` names both. Merge only chain-contiguous runs.
+- Readers walk from HEAD only while a record's `parentId` names the next one (`coverOf` in `features/sync/history/model/cover.ts`); past a gap history is not evidence of anything. Order by the walk, never `createdAt` (clock skew). Storage time (the listing's `modified`) dates a record; an undated push takes its parent's listed time, else the newest.
+- Storage times run forward along the walk (`forwardTimes` in `coverOf`), so every period is one run of the chain; a stored object is still split into runs (`runsOf`) and every record ends a candidate, so a sibling may fork from inside a run. Within the horizon a GC build replaces only inputs the walk took whole (an off-walk part may be a sibling or lie behind a gap); a counts build takes its whole group. Counts views merge by the larger per hour (`mergeCounts`, `activityOf`), never a sum.
+- `readHistory` (`features/sync/history/remote.ts`) lists `history/` once and decodes only keys it has not seen (records never change, objects are named by content); a key gone between listing and GET (a GC retired it) re-lists once. A listed key that does not decode, a newer format included, is `unreadable`: readers show a gap, GC and deep clean must not run on it.
 
 ## Listings
 
-- `listDeletedFiles` walks deletions, never absences: `changes[snapshot].deleted` newest first, first hit per path, so a file deleted, recreated and deleted again reports its latest death; anything back in HEAD is skipped.
-- Pinned snapshots outside the walked chain are diffed against HEAD separately; those rows are `source: "pinned"` and say "last seen", never "deleted": a pin proves the file existed, not when it went. A pin clears the eviction `rank` only of the hash it holds.
-- A log that lags HEAD sets `lagging` (and a gap `truncated`); the UI warns instead of showing an empty vault as an empty trash (`features/source-control/trash/trash-tab.ts`, `features/source-control/timeline/timeline-tab.ts`). The Trash tab and `listDeletedFiles` skip paths the scope no longer includes.
-- A snapshot is `restorable` only when replay reaches it from HEAD (`replayTo`) or it is pinned. `replayTo` returns null on any gap: a partial replay would invent a state.
+- `listDeletedFiles` walks deletions, never absences: newest first, a path counts only at its newest change along the walk, so a file deleted, recreated and deleted again reports its latest death, and a lagging walk (starting below HEAD's own deletions) never reports an older one; anything back in HEAD is skipped. A merged record restores `deletedLast`, the content right before the deletion.
+- Pins outside the walk are diffed against HEAD separately; those rows are `source: "pinned"` and say "last seen", never "deleted": a pin proves the file existed, not when it went. A pin marks a deleted row `pinned` only for the hash it holds.
+- `keptUntil` is the earliest time retention may drop a version: the end of its counts group plus the horizon (`keptUntil` in `features/sync/history/model/periods.ts`), null while pinned or without a horizon.
+- HEAD without its record sets `lagging`, a walk stopped at a missing parent `truncated`; the UI warns instead of showing an empty vault as an empty trash (`features/source-control/trash/trash-tab.ts`, `features/source-control/timeline/timeline-tab.ts`). The Trash tab and `listDeletedFiles` skip paths the scope no longer includes.
+- A snapshot is `restorable` only when replay reaches it from HEAD (`replayTo` in `features/sync/history/replay.ts`) or it is pinned. `replayTo` returns null when lagging or past the walk: a partial replay would invent a state.
 
 ## Restore
 
@@ -37,15 +39,24 @@ History is a change log, not an archive. Model, publish order, windows and accep
 
 ## Pins
 
-- Write the pin manifest under `pins/` before setting the flag (`setSnapshotPinned`): a flag without its manifest makes GC believe objects are protected that nothing references. A pin whose manifest cannot be read is replaced, never trusted.
-- Unpinning removes the flag first; a leftover manifest is inert (GC reads only flagged pins; deep clean removes it). No rollback on failure.
-- A pin keeps its own full manifest so it outlives the chain once the snapshots between HEAD and the pin are evicted.
+- A pin is one object, `pins/<id>.json.enc` (`features/sync/history/pins.ts`): `{ v: 1, manifest, label?, pinnedAt }` with the snapshot's full manifest, so it outlives the records it was replayed from. Nothing else flags it: a pin is on exactly while its object reads.
+- `setSnapshotPinned` (`features/sync/history/query.ts`) keeps a readable pin's manifest and replays only for a new one; a pin that cannot be read is rewritten, never trusted. Unpinning deletes the object. Both run on the operation queue (`features/sync/runtime/history-service.ts`).
+- A listed pin that does not read (corrupt, or a 1.x bare manifest) is `unreadable` in `readPins`: what it holds is unknown. Decoded pins are cached only by etag: a timestamp may not move on a rewrite.
 
 ## GC and deep clean
 
-- Never delete an object reachable from HEAD, from a retained change record (every version it names: `changeEntries`), or from a pinned snapshot's manifest. If any of those cannot be read, delete no objects at all (`skippedObjectSweep` in `collectGarbage`; deep clean and verify throw): a bounded blob leak is acceptable, a dangling reference is not.
+- Never delete an object reachable from HEAD, from any listed push record or history object (every version it names: `changeEntries`, off the walk too), or from a pin (`reachableHashes` in `features/sync/history/sweep.ts`). If any of those cannot be read, delete nothing (deep clean and verify throw): a bounded blob leak is acceptable, a dangling reference is not.
 - Sweep only blobs older than any push in flight: `settledKeys` / `keysByAge` list them by age, `SETTLED_AFTER_MS` is twice `UPLOAD_TRUST_MS`. Another device may have re-uploaded an old hash for a push it has not published. A storage that cannot report object ages cannot be swept (`listDetailed` is required).
-- Evict a record only when it is past the limit, unpinned and at least `SETTLED_AFTER_MS` old (`evictable`); a record naming a blob still settling stays, or nothing would name that blob again. GC fires only past `gcExcessBuffer` (amortized).
-- Order in `collectGarbage`: list ages, prune the log, re-read HEAD late, then sweep. Prune before sweeping: a crash between leaves orphan blobs deep clean collects, never log versions whose content is gone. An unreadable or moved HEAD, an unreadable kept record, or a snapshot pinned meanwhile (`pinnedAmong` checks storage, not just the log) withholds the sweep.
-- Deep clean (`deepCleanOrphans` in `features/sync/runtime/maintenance.ts`) needs a published HEAD and a complete live set, deletes nothing written in the last day, and bails if HEAD or the pinned set changed while it listed (a pin does not move HEAD).
-- GC, verify and deep clean list only `objects/` and `pins/` of their own space.
+- Deep clean and GC's phase 2 share one sweep (`sweepObjects` in `features/sync/history/sweep.ts`; phase 2 passes `freedOnly`): it needs a published HEAD, deletes nothing written in the last day nor any hash a candidate file younger than a day names (one it cannot read fails closed), and bails if HEAD, the pin listing or a new history key changed while it listed (neither a pin nor a retried record moves HEAD). It deletes no history record, object or pin; settled candidate files go after the sweep.
+- GC (`collectHistoryGarbage` in `features/sync/history/gc.ts`) runs after a push this device published, at most every 10 min per space, on the quiet queue (`MaintenanceService.afterPush`); a failure only logs. Without object ages (`listDetailed`) it does nothing.
+- The horizon is this device's **Keep history for** (`fileHistoryKeep`, a key of `HISTORY_KEEP_MS` in `core/constants.ts`; `forever` is `null`), read per session in `app/session-factory.ts`. Each device's GC applies its own, so the shortest wins.
+- Phase 1 stops on any unreadable history key: a gap only this run sees would let counts or the horizon take what lies behind it. Each planned object is written under the digest of its whole content, `consumed` included, and read back before anything it replaces goes (`writeHistoryObject`); only keys this run listed are deleted, and what the verified object names in `consumed`, never the plan. Readers recompute every object's key: one whose content does not match is unreadable, never trusted to consume anything.
+- Phase 1 deletes no blob: the hashes its retired keys named and the verified objects do not go to `history/g/<runId>.enc` before any delete. Phase 2 sweeps a candidate file only once it is settled (`isSettled`, `SETTLED_AFTER_MS`), so a pin or record written around phase 1 is listed by then and keeps its blobs. `readHistory` lists `history/g/` in its one call.
+- `planGc` deletes only: keys a present object consumes, a settled push that lost the guard (its parent's chain child is another id), another vault's settled keys, and settled keys off the walk whose newest record is past the horizon.
+- Maintenance lists only `objects/`, `pins/` and `history/` of its own space.
+
+## Format fence
+
+- Every manifest carries `MANIFEST_VERSION` 3 (`buildManifest`), and `fetchRemoteManifest` refuses a higher one: a 1.x client stops at HEAD before any GC or deep clean. Raise it whenever an older client would destroy what the new format keeps.
+- 1.x history is deleted, never read: after the first published push of a session per space, history on or off, `clearLegacyHistory` (`features/sync/history/legacy.ts`) deletes every pin that decrypts to a bare manifest, then `history.json.enc`; a failed run is retried at the next push. Pins are scanned even without the log (an interrupted reset can leave them, and one blocks every sweep); a pin it cannot decrypt stays.
+- A sweep refuses a HEAD below `MANIFEST_VERSION`: 1.x clients still sync there, and their history names what looks orphaned.

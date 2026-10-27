@@ -1,19 +1,32 @@
+import { DEFAULT_CONCURRENCY } from "@/core/constants";
 import type { EncryptionKey } from "@/core/crypto";
 import { reportWarning } from "@/core/shared";
-import type { ObjectStorage } from "@/features/storage";
-import { publishManifestWithGuard } from "../remote/manifest";
+import { runWithConcurrency } from "@/core/utils";
+import type { StorageAdapter } from "@/features/storage";
+import { objectKey, publishManifestWithGuard } from "../remote/manifest";
 import type { Manifest } from "../types";
-import { diffManifests } from "./changes";
-import { collectGarbage, shouldRunGc } from "./gc";
-import { prependSnapshot, updateHistoryLog } from "./store";
-import type { HistoryConfig, SnapshotEntry } from "./types";
+import { changeEntries, diffManifests } from "./changes";
+import { pushKey, sealPushRecord } from "./remote";
+import type { HistoryConfig } from "./types";
+
+/** A sealed record whose write failed, with what decides whether it may still land. */
+interface Unwritten {
+	blob: Uint8Array;
+	key: EncryptionKey;
+	vaultId: string;
+	hashes: string[];
+}
+
+// A gap in the chain until a later push writes them. Keyed by identity, as a share move or a token refresh
+// rebuilds the adapter.
+const unwritten = new Map<string, Map<string, Unwritten>>();
 
 /**
- * Records the change set only on the guard's winner, which proved remote head equals `parent`.
- * Best-effort: failures log but never fail the push. GC is safe, as the guard serialises publishers.
+ * The record lands before the publish, so a won push always has one; a lost push leaves a sibling GC removes.
+ * Best-effort: a failed write warns and never fails the push.
  */
 export async function publishManifestWithHistory(
-	storage: ObjectStorage,
+	storage: StorageAdapter,
 	key: EncryptionKey,
 	root: string,
 	manifest: Manifest,
@@ -21,6 +34,29 @@ export async function publishManifestWithHistory(
 	history: HistoryConfig | undefined,
 	baseline: Manifest | null = null,
 ): Promise<void> {
+	if (history) {
+		const waiting = unwritten.get(storage.identity()) ?? new Map();
+		unwritten.set(storage.identity(), waiting);
+		const changes = diffManifests(parent, manifest);
+		const own: Unwritten = {
+			blob: await sealPushRecord(key, root, {
+				v: 1,
+				vaultId: manifest.vaultId,
+				id: manifest.snapshotId,
+				parentId: manifest.parentSnapshotId,
+				createdAt: manifest.createdAt,
+				deviceId: manifest.deviceId,
+				deviceName: manifest.deviceName,
+				changes,
+			}),
+			key,
+			vaultId: manifest.vaultId,
+			hashes: [...new Set(changeEntries(changes).map(({ hash }) => hash))],
+		};
+		waiting.set(pushKey(manifest.snapshotId), own);
+		await writeWaiting(storage, waiting, own);
+	}
+	// A failed publish keeps its record waiting: the manifest may have landed, and a sibling costs only GC.
 	await publishManifestWithGuard(
 		storage,
 		key,
@@ -29,37 +65,40 @@ export async function publishManifestWithHistory(
 		parent?.snapshotId ?? null,
 		baseline,
 	);
-	if (!history) return;
-	try {
-		const entry: SnapshotEntry = {
-			id: manifest.snapshotId,
-			parentId: manifest.parentSnapshotId,
-			createdAt: manifest.createdAt,
-			deviceId: manifest.deviceId,
-			deviceName: manifest.deviceName,
-		};
-		const changes = diffManifests(parent, manifest);
-		const log = await updateHistoryLog(
-			storage,
-			key,
-			root,
-			(current) => prependSnapshot(current, entry, changes),
-			(current) => current.snapshots.some((s) => s.id === entry.id),
-		);
-		if (shouldRunGc(log, history.maxSnapshots)) {
-			await collectGarbage({
-				storage,
-				key,
-				root,
-				log,
-				maxSnapshots: history.maxSnapshots,
-				headManifest: manifest,
-			});
+}
+
+/** Oldest first; stops at the first failure, as the rest would likely fail the same way. */
+async function writeWaiting(
+	storage: StorageAdapter,
+	waiting: Map<string, Unwritten>,
+	own: Unwritten,
+): Promise<void> {
+	for (const [storageKey, record] of waiting) {
+		try {
+			if (record === own || (await stillLands(storage, record, own))) {
+				await storage.put(storageKey, record.blob, "application/octet-stream");
+			}
+			waiting.delete(storageKey);
+		} catch (err) {
+			reportWarning(
+				"A file history record could not be written; the next push retries it.",
+				err,
+			);
+			return;
 		}
-	} catch (err) {
-		reportWarning(
-			"File history could not be updated; the push itself succeeded.",
-			err,
-		);
 	}
+}
+
+/** A held-back record lands only in its own vault and while every blob it names survived a sweep or a reset. */
+async function stillLands(
+	storage: StorageAdapter,
+	record: Unwritten,
+	own: Unwritten,
+): Promise<boolean> {
+	if (record.key !== own.key || record.vaultId !== own.vaultId) return false;
+	let missing = false;
+	await runWithConcurrency(record.hashes, DEFAULT_CONCURRENCY, async (hash) => {
+		if (!(await storage.exists(objectKey(hash)))) missing = true;
+	});
+	return !missing;
 }

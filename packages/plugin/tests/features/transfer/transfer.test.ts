@@ -170,7 +170,7 @@ describe("settings transfer", () => {
 			confirmBulkDeletes: !DEFAULT_SETTINGS.confirmBulkDeletes,
 			bulkDeleteLimit: DEFAULT_SETTINGS.bulkDeleteLimit + 20,
 			fileHistoryEnabled: !DEFAULT_SETTINGS.fileHistoryEnabled,
-			fileHistoryMaxSnapshots: DEFAULT_SETTINGS.fileHistoryMaxSnapshots + 7,
+			fileHistoryKeep: "forever",
 			historyAutoRefresh: !DEFAULT_SETTINGS.historyAutoRefresh,
 			realtimeSync: !DEFAULT_SETTINGS.realtimeSync,
 			showOpenNote: !DEFAULT_SETTINGS.showOpenNote,
@@ -211,9 +211,7 @@ describe("settings transfer", () => {
 		expect(imported.confirmBulkDeletes).toBe(settings.confirmBulkDeletes);
 		expect(imported.bulkDeleteLimit).toBe(settings.bulkDeleteLimit);
 		expect(imported.fileHistoryEnabled).toBe(settings.fileHistoryEnabled);
-		expect(imported.fileHistoryMaxSnapshots).toBe(
-			settings.fileHistoryMaxSnapshots,
-		);
+		expect(imported.fileHistoryKeep).toBe(settings.fileHistoryKeep);
 		expect(imported.historyAutoRefresh).toBe(settings.historyAutoRefresh);
 		expect(imported.realtimeSync).toBe(settings.realtimeSync);
 		expect(imported.showOpenNote).toBe(false);
@@ -280,9 +278,9 @@ describe("settings transfer", () => {
 		expect(imported.fileHistoryEnabled).toBe(
 			!DEFAULT_SETTINGS.fileHistoryEnabled,
 		);
-		expect(imported.fileHistoryMaxSnapshots).toBe(
-			DEFAULT_SETTINGS.fileHistoryMaxSnapshots + 7,
-		);
+		// Its version count (`j`) is retired: the default horizon applies.
+		expect(imported.fileHistoryKeep).toBe(DEFAULT_SETTINGS.fileHistoryKeep);
+		expect(imported).not.toHaveProperty("fileHistoryMaxSnapshots");
 		expect(imported.historyAutoRefresh).toBe(
 			!DEFAULT_SETTINGS.historyAutoRefresh,
 		);

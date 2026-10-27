@@ -37,7 +37,7 @@ function snapshot(overrides: Partial<SnapshotSummary> = {}): SnapshotSummary {
 		deviceId: "device-abcdef123456",
 		pinned: false,
 		files: changes({ added: { "a.md": entry("A1", 10) } }),
-		rank: 0,
+		keptUntil: null,
 		restorable: true,
 		isHead: false,
 		...overrides,
