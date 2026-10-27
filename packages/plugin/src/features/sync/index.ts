@@ -5,7 +5,7 @@ export {
 	textToBytes,
 } from "./changes/content";
 export { movesByPath } from "./changes/moves";
-export { HUNK_TEXT_MAX_BYTES, REMOTE_MANIFEST_KEY } from "./constants";
+export { HUNK_TEXT_MAX_BYTES } from "./constants";
 export {
 	EConflictStrategy,
 	SyncController,

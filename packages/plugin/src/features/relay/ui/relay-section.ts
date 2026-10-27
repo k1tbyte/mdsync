@@ -1,5 +1,4 @@
 import type { SettingDefinitionGroup } from "obsidian";
-
 import { randomSecret } from "@/core/crypto";
 import {
 	checkRow,
@@ -11,7 +10,8 @@ import {
 import { relayBase } from "@/core/shared";
 import { runWithNotice } from "@/core/ui";
 import { ESetupStep } from "@/features/setup/step-state";
-import { EFieldKind, forgetCloudflare, testRelay } from "@/features/storage";
+import { EFieldKind, forgetCloudflare } from "@/features/storage";
+import { testRelay } from "../relay-test";
 
 function secretButtonLabel(secret: string): string {
 	return secret ? "Copy" : "Generate";

@@ -1,7 +1,5 @@
 /** Remote object layout and engine-wide limits. */
 
-export const REMOTE_MANIFEST_KEY = "manifest.json.enc";
-
 export const REMOTE_OBJECTS_PREFIX = "objects/";
 
 /** Single change log: snapshot metadata plus one parent-relative delta per snapshot. */

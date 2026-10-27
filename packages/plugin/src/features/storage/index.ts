@@ -45,7 +45,6 @@ export {
 	storageDefaults,
 	storageIdentity,
 } from "./registry";
-export { createStorageRefused } from "./storage-refused";
 export {
 	type ConditionalRead,
 	type ObjectStorage,
@@ -56,8 +55,6 @@ export {
 export { backendSection } from "./ui/backend-section";
 export {
 	type ConnectionTestResult,
-	type RelayTestResult,
 	testConnection,
-	testRelay,
 } from "./ui/connection-test";
 export { openStorageRefusedModal } from "./ui/storage-refused-modal";

@@ -2,7 +2,8 @@ import { MarkdownView, Menu, type WorkspaceLeaf } from "obsidian";
 
 import type { PluginHost } from "@/app/host";
 import { openPluginSettings, relayFixOf } from "@/core/hub";
-import { infoTitle, personTitle, showMenuAt } from "@/core/ui";
+import { infoTitle, showMenuAt } from "@/core/ui";
+import { personTitle } from "@/features/presence";
 import { lastEditLabel, openShareWindow } from "@/features/spaces";
 import { headerOf, showsHeader } from "./header-state";
 import { rebuildLiveNote, toggleAuthors } from "./live-actions";

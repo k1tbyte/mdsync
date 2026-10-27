@@ -23,5 +23,6 @@ export {
 	relayUrlOf,
 } from "./deploy/relay-account";
 export { ERelayDeployStep } from "./deploy/relay-deploy";
+export { type RelayTestResult, testRelay } from "./relay-test";
 export { relaySection } from "./ui/relay-section";
 export { type RelayUpdate, registerRelayUpdate } from "./update/relay-update";

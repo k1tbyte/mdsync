@@ -1,7 +1,7 @@
 import { TestSession, useEncryptionKey } from "@tests/helpers/session";
 import { describe, expect, it } from "vitest";
+import { REMOTE_MANIFEST_KEY } from "@/core/constants";
 import { decryptJson } from "@/core/crypto/cipher";
-import { REMOTE_MANIFEST_KEY } from "@/features/sync/constants";
 import { compare, pushPaths } from "@/features/sync/engine";
 import { advanceSessionAfterPush } from "@/features/sync/remote/baseline";
 import {

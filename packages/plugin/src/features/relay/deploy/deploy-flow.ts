@@ -4,7 +4,7 @@ import type { PluginHost } from "@/app/host";
 import { randomBytes, randomSecret } from "@/core/crypto";
 import { isRelayConfigured, type RelayConfig } from "@/core/settings";
 import type { CloudflareLogin } from "@/features/storage";
-import { testRelay } from "@/features/storage";
+import { testRelay } from "../relay-test";
 import {
 	type AccountRelays,
 	ownRelayName,

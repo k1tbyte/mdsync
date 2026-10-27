@@ -1,9 +1,8 @@
-import { DEFAULT_CONCURRENCY } from "@/core/constants";
+import { DEFAULT_CONCURRENCY, REMOTE_MANIFEST_KEY } from "@/core/constants";
 import { runWithConcurrency } from "@/core/utils";
 import type { StorageAdapter } from "@/features/storage";
 import {
 	REMOTE_HISTORY_LOG_KEY,
-	REMOTE_MANIFEST_KEY,
 	REMOTE_OBJECTS_PREFIX,
 	REMOTE_PINS_PREFIX,
 } from "../constants";

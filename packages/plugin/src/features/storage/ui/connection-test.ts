@@ -1,18 +1,7 @@
-import { requestUrl } from "obsidian";
-
 import type { PluginHost } from "@/app/host";
-import {
-	activeStorage,
-	isRelayConfigured,
-	type RelayConfig,
-} from "@/core/settings";
-import {
-	errorMessage,
-	isCleartextRemote,
-	relayBase,
-	reportWarning,
-} from "@/core/shared";
-import { REMOTE_MANIFEST_KEY } from "@/features/sync/constants";
+import { REMOTE_MANIFEST_KEY } from "@/core/constants";
+import { activeStorage } from "@/core/settings";
+import { errorMessage, reportWarning } from "@/core/shared";
 import {
 	createStorageAdapter,
 	describeStorageTarget,
@@ -22,11 +11,6 @@ import {
 export interface ConnectionTestResult {
 	ok: boolean;
 	message: string;
-}
-
-export interface RelayTestResult extends ConnectionTestResult {
-	/** The build the relay runs; null for one deployed outside MDSync. */
-	version?: string | null;
 }
 
 /**
@@ -60,55 +44,5 @@ export async function testConnection(
 			ok: false,
 			message: `Could not reach ${target}: ${errorMessage(err)}`,
 		};
-	}
-}
-
-/** Tells a wrong URL (unreachable, HTTP 404) apart from a wrong secret. */
-export async function testRelay(relay: RelayConfig): Promise<RelayTestResult> {
-	if (isCleartextRemote(relay.relayUrl)) {
-		return {
-			ok: false,
-			message:
-				"Use an https:// relay URL: the secret is sent with every request.",
-		};
-	}
-	if (!isRelayConfigured(relay)) {
-		return { ok: false, message: "Enter the relay URL and secret first." };
-	}
-	try {
-		const res = await requestUrl({
-			url: `${relayBase(relay.relayUrl)}/status`,
-			method: "GET",
-			headers: { "X-Mdsync-Admin": relay.relaySecret },
-			throw: false,
-		});
-		const body = jsonOf(res) as {
-			message?: string;
-			version?: string | null;
-		} | null;
-		return res.status === 200
-			? {
-					ok: true,
-					message: "Connected. The relay accepts this secret.",
-					version: body?.version ?? null,
-				}
-			: {
-					ok: false,
-					message: `Relay error: ${body?.message ?? `HTTP ${res.status}`}`,
-				};
-	} catch (err) {
-		return { ok: false, message: errorMessage(err) };
-	}
-}
-
-/**
- * An edge error page is HTML and Obsidian parses `.json` lazily: reading it would throw a SyntaxError over
- * the status the caller needs.
- */
-function jsonOf(res: { json?: unknown }): unknown {
-	try {
-		return res.json ?? null;
-	} catch {
-		return null;
 	}
 }

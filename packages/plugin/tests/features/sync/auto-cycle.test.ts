@@ -1,11 +1,11 @@
 import { createTestControllerHost } from "@tests/helpers/controller";
 import { pairedSessions, useEncryptionKey } from "@tests/helpers/session";
 import { describe, expect, it, vi } from "vitest";
+import { REMOTE_MANIFEST_KEY } from "@/core/constants";
 
 import { decryptJson, sha256Hex } from "@/core/crypto/cipher";
 import { DEFAULT_SETTINGS_SYNC } from "@/core/settings/model";
 import { OFFLINE_MESSAGE } from "@/core/shared/offline";
-import { REMOTE_MANIFEST_KEY } from "@/features/sync/constants";
 import { SyncController } from "@/features/sync/controller";
 import { pushPaths } from "@/features/sync/engine";
 import { createScopePolicy } from "@/features/sync/scope/scope";

@@ -10,6 +10,7 @@ import type { PluginHost } from "@/app/host";
 import { registerProtocolHandlers } from "@/app/protocols";
 import { createRealtime, type Realtime } from "@/app/realtime";
 import { SettingsEnvelope } from "@/app/settings-envelope";
+import { createStorageRefused } from "@/app/storage-refused";
 import {
 	refreshOpenHistoryViewsAfterPush,
 	refreshOpenSourceControlViews,
@@ -54,7 +55,6 @@ import {
 	registerReadOnlyLock,
 	registerShareRenames,
 } from "@/features/spaces";
-import { createStorageRefused } from "@/features/storage";
 import type { SyncController, WriteJournal } from "@/features/sync";
 import {
 	DeviceName,

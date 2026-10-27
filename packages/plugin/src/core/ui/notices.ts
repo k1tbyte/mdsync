@@ -1,7 +1,6 @@
 import { ButtonComponent, Notice } from "obsidian";
 
 import { errorMessage } from "@/core/shared";
-import type { SyncOperationResult } from "@/features/sync/controller";
 
 const NOTICE_DURATION_MS = 8000;
 
@@ -44,7 +43,9 @@ export function attempt(task: Promise<unknown>, failureLabel: string): void {
 }
 
 export async function runWithNotice(
-	action: () => Promise<void> | Promise<boolean | SyncOperationResult>,
+	action: () =>
+		| Promise<void>
+		| Promise<boolean | { ok: boolean; error?: string }>,
 	successMessage: string,
 	failureLabel = "Operation failed",
 ): Promise<boolean> {

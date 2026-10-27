@@ -2,6 +2,7 @@ import { Setting, setIcon } from "obsidian";
 import { randomSecret } from "@/core/crypto";
 import { isRelayConfigured } from "@/core/settings";
 import { alertLine, callout, focusKey, serial } from "@/core/ui";
+import { testRelay } from "@/features/relay";
 import {
 	activateRelay,
 	deployOwnRelay,
@@ -23,7 +24,6 @@ import {
 	cloudflareErrorMessage,
 	cloudflareOf,
 	forgetCloudflare,
-	testRelay,
 } from "@/features/storage";
 import { actionRow, busyLine } from "../form";
 import type { Wizard } from "../wizard";

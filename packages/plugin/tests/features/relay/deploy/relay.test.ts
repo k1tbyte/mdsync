@@ -22,9 +22,9 @@ import {
 	RELAY_VERSION,
 } from "@/features/relay/deploy/relay-account";
 import { ERelayDeployStep } from "@/features/relay/deploy/relay-deploy";
-import { testRelay } from "@/features/storage/ui/connection-test";
+import { testRelay } from "@/features/relay/relay-test";
 
-vi.mock("@/features/storage/ui/connection-test", () => ({
+vi.mock("@/features/relay/relay-test", () => ({
 	testRelay: vi.fn(),
 }));
 

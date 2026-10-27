@@ -174,77 +174,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/core/shared/format.ts",
-    "to": "src/features/sync/types.ts",
-    "unresolvedTo": "@/features/sync/types",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "core-independent"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/core/ui/menu.ts",
-    "to": "src/features/presence/ui/avatars.ts",
-    "unresolvedTo": "@/features/presence/ui/avatars",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "core-independent"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/core/ui/menu.ts",
-    "to": "src/features/presence/views.ts",
-    "unresolvedTo": "@/features/presence/views",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "core-independent"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/core/ui/notices.ts",
-    "to": "src/features/sync/controller.ts",
-    "unresolvedTo": "@/features/sync/controller",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "core-independent"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/links/ui/link-menu.ts",
     "to": "src/features/setup/step-state.ts",
     "unresolvedTo": "@/features/setup/step-state",
@@ -1447,24 +1376,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/storage/storage-refused.ts",
-    "to": "src/app/host.ts",
-    "unresolvedTo": "@/app/host",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "features-not-app"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/storage/ui/connection-test.ts",
     "to": "src/app/host.ts",
     "unresolvedTo": "@/app/host",
@@ -1809,77 +1720,6 @@
       "aliased-tsconfig",
       "aliased-tsconfig-paths",
       "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "slice-via-facade"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/core/shared/format.ts",
-    "to": "src/features/sync/types.ts",
-    "unresolvedTo": "@/features/sync/types",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "slice-via-facade"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/core/ui/menu.ts",
-    "to": "src/features/presence/ui/avatars.ts",
-    "unresolvedTo": "@/features/presence/ui/avatars",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "slice-via-facade"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/core/ui/menu.ts",
-    "to": "src/features/presence/views.ts",
-    "unresolvedTo": "@/features/presence/views",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "slice-via-facade"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/core/ui/notices.ts",
-    "to": "src/features/sync/controller.ts",
-    "unresolvedTo": "@/features/sync/controller",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "type-only",
       "import"
     ],
     "rule": {
@@ -3693,57 +3533,6 @@
     "from": "src/features/spaces/ui/window/share-window.ts",
     "to": "src/features/sync/remote/space.ts",
     "unresolvedTo": "@/features/sync/remote/space",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "slice-via-facade"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/storage/cloudflare/r2-select.ts",
-    "to": "src/features/sync/constants.ts",
-    "unresolvedTo": "@/features/sync/constants",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "slice-via-facade"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/storage/storage-refused.ts",
-    "to": "src/features/sync/remote/space.ts",
-    "unresolvedTo": "@/features/sync/remote/space",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "slice-via-facade"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/storage/ui/connection-test.ts",
-    "to": "src/features/sync/constants.ts",
-    "unresolvedTo": "@/features/sync/constants",
     "dependencyTypes": [
       "aliased",
       "aliased-tsconfig",

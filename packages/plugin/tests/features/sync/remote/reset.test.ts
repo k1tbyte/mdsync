@@ -1,10 +1,10 @@
 import { FakeStorage } from "@tests/helpers/fake-storage";
 import { beforeAll, describe, expect, it } from "vitest";
+import { REMOTE_MANIFEST_KEY } from "@/core/constants";
 import { deriveKey, type EncryptionKey } from "@/core/crypto/cipher";
 import {
 	REMOTE_HISTORY_LOG_KEY,
 	REMOTE_KEYFILE_KEY,
-	REMOTE_MANIFEST_KEY,
 	REMOTE_PINS_PREFIX,
 	REMOTE_SALT_KEY,
 } from "@/features/sync/constants";

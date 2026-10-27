@@ -12,9 +12,9 @@ import {
 	runningRelayDeploy,
 	useRelay,
 } from "@/features/relay/deploy/deploy-flow";
+import { testRelay } from "@/features/relay/relay-test";
 import { createRelayStep } from "@/features/setup/steps/relay-step";
 import type { StepView, Wizard } from "@/features/setup/wizard";
-import { testRelay } from "@/features/storage/ui/connection-test";
 
 installElementMethods();
 
@@ -74,7 +74,7 @@ vi.mock("obsidian", async (original) => {
 		Setting,
 	};
 });
-vi.mock("@/features/storage/ui/connection-test", () => ({
+vi.mock("@/features/relay/relay-test", () => ({
 	testRelay: vi.fn(),
 }));
 vi.mock("@/features/storage/cloudflare/cloudflare-login", () => ({

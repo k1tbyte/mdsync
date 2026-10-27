@@ -7,8 +7,9 @@ import {
 	relayFixOf,
 	UNREADABLE_TEXT,
 } from "@/core/hub";
-import { infoTitle, openNote, personTitle } from "@/core/ui";
+import { infoTitle, openNote } from "@/core/ui";
 import { LINK_LIVE_STATE, STATE_ICONS } from "@/features/live";
+import { personTitle } from "@/features/presence";
 import { lastEditLabel } from "@/features/spaces";
 import { VAULT_SPACE } from "@/features/sync";
 import {

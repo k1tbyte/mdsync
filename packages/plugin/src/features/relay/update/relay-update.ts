@@ -1,7 +1,7 @@
 import type { Plugin } from "obsidian";
 import type { PluginHost } from "@/app/host";
 import { reportWarning } from "@/core/shared";
-import { cloudflareOf, testRelay } from "@/features/storage";
+import { cloudflareOf } from "@/features/storage";
 import { runningRelayDeploy } from "../deploy/deploy-flow";
 import {
 	accountRelays,
@@ -10,6 +10,7 @@ import {
 	type RelayTarget,
 	relayBehind,
 } from "../deploy/relay-account";
+import { testRelay } from "../relay-test";
 import { openRelayUpdateModal } from "./relay-update-modal";
 
 const SKIPPED_KEY = "mdsync-relay-update-skipped";
