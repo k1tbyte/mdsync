@@ -7,7 +7,7 @@ const SURFACES = {
 	settings: [],
 	setup: ["settings"],
 	"source-control": ["diff", "setup"],
-	status: ["diff", "note-header", "source-control"],
+	status: ["diff", "source-control"],
 };
 const SLICE = "^src/(features|core)/[^/]+/";
 const FACADE = "^src/(features|core)/[^/]+/index\\.ts$";

@@ -37,7 +37,7 @@ Paths in this file are relative to `packages/plugin/src/`.
 ## `pnpm arch` (`packages/plugin/.dependency-cruiser.cjs`)
 
 - Rules: `no-circular` (runtime), `slice-via-facade`, `root-via-facade` (`app/`, `main.ts`), `core-independent` (core imports no feature or app), `features-not-app`, `domain-not-surface`, `surface-<name>`.
-- Surface -> surface only: `setup` -> `settings`; `source-control` -> `diff`, `setup`; `status` -> `diff`, `note-header`, `source-control`. `diff`, `editor-signs`, `explorer`, `note-header`, `settings` reach no other surface.
+- Surface -> surface only: `setup` -> `settings`; `source-control` -> `diff`, `setup`; `status` -> `diff`, `source-control`. `diff`, `editor-signs`, `explorer`, `note-header`, `settings` reach no other surface.
 - No baseline: a violation fails `pnpm arch`; fix the import, never add an exception.
 - Folder cap: at most 12 `.ts` modules per source folder, css excluded (`packages/plugin/tests/arch/folders.test.ts`, runs in `pnpm test`).
 
