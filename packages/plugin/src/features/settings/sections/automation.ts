@@ -26,7 +26,7 @@ import {
 import type { LiveSessions } from "@/features/live";
 import type { People } from "@/features/presence";
 import type { HubConnection } from "@/features/relay";
-import { clampMaxSnapshots, VAULT_SPACE } from "@/features/sync";
+import { VAULT_SPACE } from "@/features/sync";
 import type { SettingsTabHost } from "../host";
 
 /** The wizard shows these too, so they ask only what its host has. */
@@ -168,7 +168,7 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 	{
 		kind: EFieldKind.Toggle,
 		name: "File version history",
-		desc: "Keep past versions of files so you can view or restore them. Each push appends what it changed to one small encrypted log; old versions are pruned automatically.",
+		desc: "Keep past versions of files so you can view or restore them. Each push stores what it changed as a small encrypted record; old versions thin out automatically.",
 		get: (s) => s.fileHistoryEnabled,
 		set: (v) => ({ fileHistoryEnabled: v }),
 		rerender: true,
@@ -180,7 +180,13 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 		when: (s) => s.fileHistoryEnabled,
 		sub: true,
 		get: (s) => String(s.fileHistoryMaxSnapshots),
-		parse: (raw) => clampMaxSnapshots(Number.parseInt(raw, 10)),
+		parse: (raw) =>
+			clampInt(
+				raw,
+				FILE_HISTORY_MIN_SNAPSHOTS,
+				FILE_HISTORY_MAX_SNAPSHOTS,
+				FILE_HISTORY_MIN_SNAPSHOTS,
+			),
 		set: (v) => ({ fileHistoryMaxSnapshots: v }),
 	},
 	{

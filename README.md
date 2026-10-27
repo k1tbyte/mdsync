@@ -336,7 +336,7 @@ Storage credentials, share keys, share links, the relay secret and the Cloudflar
 
 ```text
 <prefix>/manifest.json.enc        encrypted file list
-<prefix>/history.json.enc         encrypted change log, one entry per push
+<prefix>/history/...              encrypted change records, one per push, thinned over time
 <prefix>/salt.bin
 <prefix>/keys.json                vault key wrapped by your passphrase
 <prefix>/objects/<sha256>.enc     encrypted file contents

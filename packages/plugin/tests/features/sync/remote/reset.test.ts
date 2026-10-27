@@ -8,6 +8,7 @@ import {
 	REMOTE_PINS_PREFIX,
 	REMOTE_SALT_KEY,
 } from "@/features/sync/constants";
+import { pushKey } from "@/features/sync/history/remote";
 import { objectKey } from "@/features/sync/remote/manifest";
 import { resetRemoteStorage } from "@/features/sync/remote/reset";
 
@@ -24,6 +25,7 @@ function seed(): FakeStorage {
 	storage.map.set(objectKey("bbb"), bytes);
 	storage.map.set(`${REMOTE_PINS_PREFIX}snap1.json.enc`, bytes);
 	storage.map.set(REMOTE_HISTORY_LOG_KEY, bytes);
+	storage.map.set(pushKey("s1"), bytes);
 	storage.map.set(REMOTE_SALT_KEY, bytes);
 	storage.map.set(REMOTE_KEYFILE_KEY, bytes);
 	return storage;
@@ -39,6 +41,7 @@ describe("resetRemoteStorage", () => {
 		expect(storage.map.has(objectKey("bbb"))).toBe(false);
 		expect(storage.map.has(`${REMOTE_PINS_PREFIX}snap1.json.enc`)).toBe(false);
 		expect(storage.map.has(REMOTE_HISTORY_LOG_KEY)).toBe(false);
+		expect(storage.map.has(pushKey("s1"))).toBe(false);
 		expect(result.deletedKeys).toContain(REMOTE_MANIFEST_KEY);
 	});
 

@@ -12,7 +12,7 @@ export interface TrashRow {
 	/** Short enough to head a diff pane: "deleted 3 days ago". */
 	label: string;
 	meta: string;
-	/** Back in the vault but unpushed, else how much longer the record survives. */
+	/** Back in the vault but unpushed, else how long history keeps it. */
 	note: TrashNote | null;
 	pinned: boolean;
 }
@@ -23,12 +23,10 @@ export interface TrashNote {
 	icon: string;
 }
 
-/** Pushes left at which a record's end is worth a colour. */
-const SOON_PUSHES = 3;
+/** Time left at which a version's end is worth a colour. */
+const SOON_MS = 7 * 24 * 60 * 60_000;
 
 export interface TrashRowOptions {
-	/** Non-pinned snapshots kept before eviction, from settings. */
-	maxSnapshots: number;
 	now?: number;
 	/** Lets rows name this device instead of showing a raw id. */
 	currentDevice?: { id: string; name: string } | null;
@@ -66,20 +64,17 @@ export function buildTrashRows(
 						tone: "restored",
 						icon: "check",
 					}
-				: retentionNote(file.rank, options.maxSnapshots),
-			pinned: file.rank === null,
+				: retentionNote(file, now),
+			pinned: file.pinned,
 		};
 	});
 }
 
-function retentionNote(
-	rank: number | null,
-	maxSnapshots: number,
-): TrashNote | null {
-	const text = retentionText(rank, maxSnapshots);
+function retentionNote(file: DeletedFile, now: number): TrashNote | null {
+	const text = retentionText(file);
 	if (text === null) return null;
-	if (rank === null) return { text, tone: "pinned", icon: "pin" };
-	const soon = maxSnapshots - rank <= SOON_PUSHES;
+	if (file.pinned) return { text, tone: "pinned", icon: "pin" };
+	const soon = file.keptUntil !== null && file.keptUntil - now <= SOON_MS;
 	return { text, tone: soon ? "soon" : "plain", icon: "hourglass" };
 }
 
@@ -102,17 +97,11 @@ export function resolveRestoreTarget(input: string): string | null {
 	return normalized;
 }
 
-/**
- * Remaining lifetime in pushes, which is what retention counts; amortised GC can leave a record listed past
- * the limit.
- */
+/** Retention promises "at least": GC may keep a version past this date, never drops it before. */
 export function retentionText(
-	rank: number | null,
-	maxSnapshots: number,
+	file: Pick<DeletedFile, "pinned" | "keptUntil">,
 ): string | null {
-	if (rank === null) return "Kept by a pinned snapshot";
-	const remaining = maxSnapshots - rank;
-	if (remaining <= 0) return "Drops out of history at the next cleanup";
-	if (remaining === 1) return "Drops out of history after 1 more push";
-	return `Drops out of history after ${remaining} more pushes`;
+	if (file.pinned) return "Kept by a pinned snapshot";
+	if (file.keptUntil === null) return null;
+	return `Kept in history until ${new Date(file.keptUntil).toLocaleDateString()}`;
 }

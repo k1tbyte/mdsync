@@ -1,7 +1,7 @@
 import { FakeStorage } from "@tests/helpers/fake-storage";
 import { InMemoryAdapter } from "@tests/helpers/in-memory-adapter";
 import { TestSession, useEncryptionKey } from "@tests/helpers/session";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { REMOTE_MANIFEST_KEY } from "@/core/constants";
 import { deriveKey, type EncryptionKey } from "@/core/crypto/cipher";
 import { DEFAULT_SETTINGS_SYNC } from "@/core/settings/model";
@@ -12,10 +12,10 @@ import {
 	type EngineDependencies,
 	pushPaths,
 } from "@/features/sync/engine";
-import { readHistoryLog } from "@/features/sync/history/store";
+import { pushKey, readHistory } from "@/features/sync/history/remote";
+import type { HistoryConfig } from "@/features/sync/history/types";
 import { advanceSessionAfterPush } from "@/features/sync/remote/baseline";
 import { VAULT_SPACE } from "@/features/sync/remote/space";
-import { SETTLED_AFTER_MS } from "@/features/sync/remote/uploads";
 import { createScopePolicy } from "@/features/sync/scope/scope";
 import { EChangeType, type SessionState } from "@/features/sync/types";
 
@@ -43,7 +43,7 @@ function deps(
 	adapter: InMemoryAdapter,
 	storage: FakeStorage,
 	state: SessionState,
-	history?: { maxSnapshots: number },
+	history?: HistoryConfig,
 ): EngineDependencies {
 	return {
 		space: VAULT_SPACE,
@@ -219,35 +219,46 @@ describe("engine round-trip", () => {
 		expect(cmpA.diff.conflicts.map((c) => c.path)).toEqual(["note.md"]);
 	});
 
-	it("history records every push and GC bounds the log", async () => {
+	it("history writes one push record per push, chained by parent", async () => {
 		const storage = new FakeStorage();
 		const adapter = new InMemoryAdapter();
-		const history = { maxSnapshots: 2 };
+		const history: HistoryConfig = { horizon: null };
 		let state = freshState("A");
-		// A day between pushes: GC evicts only records whose blobs have settled.
-		vi.useFakeTimers({ toFake: ["Date"] });
-		try {
-			for (let i = 0; i < 14; i++) {
-				vi.setSystemTime(Date.now() + SETTLED_AFTER_MS + 1);
-				adapter.putText("note.md", `rev ${i}`);
-				const cmp = await compare(deps(adapter, storage, state, history));
-				const m = await pushPaths(deps(adapter, storage, state, history), cmp, [
-					"note.md",
-				]);
-				state = advanceSessionAfterPush(state, cmp, m);
-			}
-		} finally {
-			vi.useRealTimers();
+		const ids: string[] = [];
+		for (let i = 0; i < 14; i++) {
+			adapter.putText("note.md", `rev ${i}`);
+			const cmp = await compare(deps(adapter, storage, state, history));
+			const m = await pushPaths(deps(adapter, storage, state, history), cmp, [
+				"note.md",
+			]);
+			ids.push(m.snapshotId);
+			state = advanceSessionAfterPush(state, cmp, m);
 		}
-		const log = await readHistoryLog(storage, key, "");
-		// buffer floor is 10 → GC fires once count exceeds max(2)+10, prunes to 2.
-		expect(log.snapshots.length).toBeLessThanOrEqual(12);
-		expect(log.snapshots.length).toBeGreaterThanOrEqual(2);
-		// Change records are pruned with their snapshots, never left dangling.
-		expect(Object.keys(log.changes).sort()).toEqual(
-			log.snapshots.map((s) => s.id).sort(),
-		);
+
+		const { view, unreadable } = await readHistory(storage, key, "");
+
+		expect(unreadable).toEqual([]);
+		expect([...view.pushes.keys()].sort()).toEqual(ids.map(pushKey).sort());
+		for (const [index, id] of ids.entries()) {
+			expect(view.pushes.get(pushKey(id))?.push.parentId).toBe(
+				ids[index - 1] ?? null,
+			);
+		}
+		const last = view.pushes.get(pushKey(ids[13] ?? ""))?.push;
+		expect(Object.keys(last?.changes.modified ?? {})).toEqual(["note.md"]);
 	});
+
+	it("writes no push record without a history config", async () => {
+		const storage = new FakeStorage();
+		const adapter = new InMemoryAdapter();
+		adapter.putText("note.md", "hello");
+		const state = freshState("A");
+		const cmp = await compare(deps(adapter, storage, state));
+		await pushPaths(deps(adapter, storage, state), cmp, ["note.md"]);
+
+		expect(await storage.list("history/")).toEqual([]);
+	});
+
 	it("probes no blob it has not uploaded itself", async () => {
 		const adapter = new InMemoryAdapter();
 		const storage = new FakeStorage();

@@ -144,7 +144,6 @@ export class TrashTab implements SelectionSource {
 			);
 		}
 		const rows = buildTrashRows(deleted.files, {
-			maxSnapshots: this.plugin.settings.fileHistoryMaxSnapshots,
 			currentDevice: this.plugin.controller.currentDevice(),
 			inVault: (path) =>
 				this.plugin.app.vault.getAbstractFileByPath(path) instanceof TFile,
@@ -158,7 +157,7 @@ export class TrashTab implements SelectionSource {
 					icon: "circle-check",
 					tone: "success",
 					title: "Nothing to restore",
-					text: `Nothing deleted in the last ${this.plugin.settings.fileHistoryMaxSnapshots} snapshots. Older deletions are dropped from history unless their snapshot is pinned.`,
+					text: "Nothing deleted within history. Deletions older than it are gone unless a pinned snapshot holds them.",
 				});
 			}
 			return;

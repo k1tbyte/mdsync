@@ -1,7 +1,7 @@
 import { entryAt } from "../changes/records";
 import type { Manifest, ManifestEntry } from "../types";
 
-import type { SnapshotChanges, SnapshotEntry } from "./types";
+import type { SnapshotChanges } from "./types";
 
 function sameEntry(a: ManifestEntry, b: ManifestEntry): boolean {
 	return (
@@ -132,26 +132,4 @@ function endOf(changes: SnapshotChanges, path: string): ManifestEntry | null {
 	return (
 		entryAt(changes.added, path) ?? entryAt(changes.modified, path)?.to ?? null
 	);
-}
-
-export function collectChangeHashes(
-	changes: SnapshotChanges,
-	into: Set<string>,
-): void {
-	for (const { hash } of changeEntries(changes)) into.add(hash);
-}
-
-/**
- * History is best-effort: a dropped update leaves a parent/child mismatch, and walking past it would
- * attribute one snapshot's changes to another.
- */
-export function contiguousLength(snapshots: readonly SnapshotEntry[]): number {
-	let length = 0;
-	for (const [index, entry] of snapshots.entries()) {
-		length = index + 1;
-		const parent = snapshots[index + 1];
-		if (!parent) break;
-		if (entry.parentId !== parent.id) break;
-	}
-	return length;
 }

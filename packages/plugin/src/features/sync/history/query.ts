@@ -1,349 +1,275 @@
 import type { EncryptionKey } from "@/core/crypto";
-import { runWithConcurrency } from "@/core/utils";
 import type { ObjectStorage } from "@/features/storage";
 import { loadRemoteBytes } from "../changes/content";
 import { entryAt } from "../changes/records";
 import { fetchRemoteManifest } from "../remote/manifest";
 import type { Manifest, ManifestEntry } from "../types";
-import { contiguousLength, undoChangesForPath } from "./changes";
-import { readHistoryLog, readPinManifest } from "./store";
+import { undoChangesForPath } from "./changes";
+import { type Cover, coverOf } from "./model/cover";
+import { keptUntil } from "./model/periods";
+import {
+	deletePin,
+	type PinInfo,
+	readPinById,
+	readPins,
+	writePin,
+} from "./pins";
+import { readHistory } from "./remote";
+import { replayTo } from "./replay";
 import type {
 	DeletedFile,
 	DeletedFilesResult,
 	FileVersion,
-	HistoryLog,
-	SnapshotEntry,
 	SnapshotListResult,
 	SnapshotSummary,
 } from "./types";
 
-const PIN_READ_CONCURRENCY = 4;
-/** Manifests are big, so only a few stay. */
-const PIN_CACHE_SIZE = 4;
-
-// A pin's manifest never changes once written, so a query can reuse it.
-const pinCache = new WeakMap<
-	ObjectStorage,
-	{ key: EncryptionKey; root: string; manifests: Map<string, Manifest> }
->();
-
-/** Keeps only what `pick` takes from each pin, so no more than the cache's manifests are held at once. */
-async function readPins<T>(
-	storage: ObjectStorage,
-	key: EncryptionKey,
-	root: string,
-	ids: readonly string[],
-	pick: (manifest: Manifest) => T,
-): Promise<(T | null)[]> {
-	let cache = pinCache.get(storage);
-	if (cache?.key !== key || cache.root !== root) {
-		cache = { key, root, manifests: new Map() };
-		pinCache.set(storage, cache);
-	}
-	const { manifests } = cache;
-	const out: (T | null)[] = [];
-	await runWithConcurrency(ids, PIN_READ_CONCURRENCY, async (id, index) => {
-		let manifest = manifests.get(id) ?? null;
-		if (!manifest) {
-			manifest = await readPinManifest(storage, key, root, id);
-			if (!manifest) return;
-			manifests.set(id, manifest);
-			for (const oldest of manifests.keys()) {
-				if (manifests.size <= PIN_CACHE_SIZE) break;
-				manifests.delete(oldest);
-			}
-		}
-		out[index] = pick(manifest);
-	});
-	return ids.map((_, index) => out[index] ?? null);
-}
-
-export interface FileHistoryQuery {
+export interface HistoryQuery {
 	storage: ObjectStorage;
 	key: EncryptionKey;
 	root: string;
-	path: string;
+	/** See `HistoryConfig.horizon`. */
+	horizon: number | null;
 }
 
-export interface DeletedFilesQuery {
-	storage: ObjectStorage;
-	key: EncryptionKey;
-	root: string;
-}
+type Source = Pick<HistoryQuery, "storage" | "key" | "root">;
 
-/** Distinct-version timeline for one path from one log read plus HEAD; cost scales with snapshots, not vault size. */
-export async function getFileHistory(
-	query: FileHistoryQuery,
-): Promise<FileVersion[]> {
-	const { storage, key, root, path } = query;
-	const [log, head] = await Promise.all([
-		readHistoryLog(storage, key, root),
+/** Who made a snapshot and when, as a row shows it. */
+type Meta = Pick<PinInfo, "id" | "createdAt" | "deviceId" | "deviceName">;
+
+/** HEAD and the walk back from it: the one read every query starts from. */
+export async function readTimeline(
+	source: Source,
+): Promise<{ head: Manifest | null; cover: Cover }> {
+	const { storage, key, root } = source;
+	const [head, history] = await Promise.all([
 		fetchRemoteManifest(storage, key, root),
+		readHistory(storage, key, root),
 	]);
+	const cover = coverOf(
+		history.view,
+		head && {
+			id: head.snapshotId,
+			parentId: head.parentSnapshotId,
+			vaultId: head.vaultId,
+		},
+	);
+	return { head, cover };
+}
+
+/** Distinct versions of one path, newest first; pinned ones follow. */
+export async function getFileHistory(
+	query: Source & { path: string },
+): Promise<FileVersion[]> {
+	const { path } = query;
+	const { head, cover } = await readTimeline(query);
 	if (!head) return [];
-
-	const chain = walkableChain(log, head);
-	const { versions, visited } = walkChain(log, head, chain, path);
-	versions.push(
-		...(await pinnedVersions(storage, key, root, log, visited, path)),
+	const pins = await readPins(
+		query.storage,
+		query.key,
+		query.root,
+		(pin) => entryAt(pin.manifest.files, path) ?? null,
 	);
-	return orderByChain(versions, log);
-}
-
-/** Position in the log, never `createdAt`: device clock skew could order a snapshot before its parent. */
-function logPositions(log: HistoryLog): Map<string, number> {
-	return new Map(log.snapshots.map((entry, index) => [entry.id, index]));
-}
-
-/** Newest first. */
-function orderByChain(versions: FileVersion[], log: HistoryLog): FileVersion[] {
-	const position = logPositions(log);
-	return versions.sort(
-		(a, b) =>
-			(position.get(a.snapshotId) ?? -1) - (position.get(b.snapshotId) ?? -1),
-	);
-}
-
-/**
- * The contiguous run from HEAD. History is best-effort (the log can lag or have gaps), so only provably
- * consecutive snapshots are walked; pins cover the rest.
- */
-function walkableChain(log: HistoryLog, head: Manifest): SnapshotEntry[] {
-	if (log.snapshots[0]?.id !== head.snapshotId) return [];
-	return log.snapshots.slice(0, contiguousLength(log.snapshots));
-}
-
-/** Also reports which snapshots it actually reached, since the walk stops at a gap. */
-function walkChain(
-	log: HistoryLog,
-	head: Manifest,
-	chain: readonly SnapshotEntry[],
-	path: string,
-): { versions: FileVersion[]; visited: Set<string> } {
+	const labels = new Map(pins.pins.map(({ info }) => [info.id, info.label]));
 	const versions: FileVersion[] = [];
-	const visited = new Set<string>();
+	const visited = new Set([head.snapshotId]);
 	let entry = entryAt(head.files, path) ?? null;
+	// Without HEAD's own record nothing older can be anchored to HEAD's files.
+	const chain = cover.lagging ? [] : cover.chain;
+	if (chain.length === 0 && entry) {
+		versions.push(toVersion(metaOf(head), entry, labels));
+	}
 	let lastHash: string | null = null;
-	for (const meta of chain.length > 0 ? chain : [headEntry(head)]) {
-		visited.add(meta.id);
+	for (const { record } of chain) {
+		visited.add(record.id);
 		if (entry === null) {
 			lastHash = null;
 		} else if (entry.hash !== lastHash) {
-			versions.push(toVersion(meta, entry));
+			versions.push(toVersion(record, entry, labels));
 			lastHash = entry.hash;
 		}
-		const changes = entryAt(log.changes, meta.id);
-		if (!changes) break;
-		entry = undoChangesForPath(entry, changes, path);
+		entry = undoChangesForPath(entry, record.changes, path);
 	}
-	return { versions, visited };
-}
-
-/** Pins outlive the chain, so they are the only way back to an evicted snapshot. */
-async function pinnedVersions(
-	storage: ObjectStorage,
-	key: EncryptionKey,
-	root: string,
-	log: HistoryLog,
-	visited: ReadonlySet<string>,
-	path: string,
-): Promise<FileVersion[]> {
-	const pins = log.snapshots.filter((m) => m.pinned && !visited.has(m.id));
-	const manifests = await readPins(
-		storage,
-		key,
-		root,
-		pins.map((m) => m.id),
-		(manifest) => entryAt(manifest.files, path),
-	);
-	const versions: FileVersion[] = [];
-	for (const [index, meta] of pins.entries()) {
-		const entry = manifests[index];
-		if (entry) versions.push(toVersion(meta, entry));
+	for (const { info, picked } of pins.pins) {
+		if (picked && !visited.has(info.id)) {
+			versions.push(toVersion(info, picked, labels));
+		}
 	}
 	return versions;
 }
 
-function headEntry(head: Manifest): SnapshotEntry {
-	return {
-		id: head.snapshotId,
-		parentId: head.parentSnapshotId,
-		createdAt: head.createdAt,
-		deviceId: head.deviceId,
-		deviceName: head.deviceName,
-	};
-}
-
-function toVersion(meta: SnapshotEntry, entry: ManifestEntry): FileVersion {
-	return {
-		snapshotId: meta.id,
-		hash: entry.hash,
-		size: entry.size,
-		mtime: entry.mtime,
-		kind: entry.kind,
-		createdAt: meta.createdAt,
-		deviceId: meta.deviceId,
-		deviceName: meta.deviceName,
-		pinned: meta.pinned === true,
-		label: meta.label,
-	};
-}
-
 /**
- * Files gone from HEAD but restorable. Newest first, so a path deleted, recreated and deleted again reports
- * its latest death; pins are folded in after.
+ * Files gone from HEAD but restorable, newest death first: a path deleted, recreated and deleted again
+ * reports its latest. Pins are folded in after.
  */
 export async function listDeletedFiles(
-	query: DeletedFilesQuery,
+	query: HistoryQuery,
 ): Promise<DeletedFilesResult> {
-	const { storage, key, root } = query;
-	const [log, head] = await Promise.all([
-		readHistoryLog(storage, key, root),
-		fetchRemoteManifest(storage, key, root),
-	]);
+	const { head, cover } = await readTimeline(query);
 	if (!head) return { files: [], lagging: false, truncated: false };
-
-	const chain = walkableChain(log, head);
-	const { found, walked } = collectDeletions(log, head, chain);
-	await applyPins(storage, key, root, log, head, found);
-	const position = logPositions(log);
+	const found = new Map<string, DeletedFile>();
+	// Only a path's newest change can be its latest death: a lagging walk starts below HEAD's own deletions.
+	const touched = new Set<string>();
+	for (const { record } of cover.chain) {
+		const { added, modified, deleted } = record.changes;
+		for (const [path, from] of Object.entries(deleted)) {
+			if (touched.has(path) || entryAt(head.files, path)) continue;
+			found.set(path, {
+				path,
+				entry: entryAt(record.changes.deletedLast ?? {}, path) ?? from,
+				snapshotId: record.id,
+				source: "deleted",
+				createdAt: record.createdAt,
+				deviceId: record.deviceId,
+				deviceName: record.deviceName,
+				pinned: false,
+				keptUntil: keptUntil(record.at, query.horizon),
+			});
+		}
+		for (const changed of [added, modified, deleted]) {
+			for (const path of Object.keys(changed)) touched.add(path);
+		}
+	}
+	await applyPins(query, head, found);
 	return {
-		files: [...found.values()].sort(
-			(a, b) =>
-				(position.get(a.snapshotId) ?? 0) - (position.get(b.snapshotId) ?? 0),
-		),
-		lagging: chain.length === 0,
-		truncated: walked < chain.length,
+		files: [...found.values()],
+		lagging: cover.lagging,
+		truncated: cover.truncated,
 	};
 }
 
-/** Also reports how far it got, since the walk stops at a missing record. */
-function collectDeletions(
-	log: HistoryLog,
-	head: Manifest,
-	chain: readonly SnapshotEntry[],
-): { found: Map<string, DeletedFile>; walked: number } {
-	const found = new Map<string, DeletedFile>();
-	let rank = 0;
-	let walked = 0;
-	for (const meta of chain) {
-		const changes = entryAt(log.changes, meta.id);
-		// Past a missing record nothing is attributable to a snapshot.
-		if (!changes) break;
-		walked++;
-		for (const [path, entry] of Object.entries(changes.deleted)) {
-			// Back in HEAD means it was recreated; the newest death wins otherwise.
-			if (entryAt(head.files, path) || found.has(path)) continue;
-			found.set(path, {
-				path,
-				entry,
-				snapshotId: meta.id,
-				source: "deleted",
-				createdAt: meta.createdAt,
-				deviceId: meta.deviceId,
-				deviceName: meta.deviceName,
-				rank: meta.pinned ? null : rank,
-			});
-		}
-		if (!meta.pinned) rank++;
-	}
-	return { found, walked };
-}
-
 /**
- * Folds pinned manifests in: adds files no change record explains and clears the eviction countdown on files
- * they hold.
+ * A pin proves a file existed, not when it went: its rows say "last seen". It holds only its own hash, so it
+ * clears the retention of that version alone.
  */
 async function applyPins(
-	storage: ObjectStorage,
-	key: EncryptionKey,
-	root: string,
-	log: HistoryLog,
+	source: Source,
 	head: Manifest,
 	found: Map<string, DeletedFile>,
 ): Promise<void> {
-	const pinned = log.snapshots.filter((meta) => meta.pinned);
-	if (pinned.length === 0) return;
-	const manifests = await readPins(
-		storage,
-		key,
-		root,
-		pinned.map((meta) => meta.id),
-		(manifest) =>
-			Object.entries(manifest.files).filter(
+	const { pins } = await readPins(
+		source.storage,
+		source.key,
+		source.root,
+		(pin) =>
+			Object.entries(pin.manifest.files).filter(
 				([path]) => !entryAt(head.files, path),
 			),
 	);
-	// Newest first, so the freshest pinned version of a path wins.
-	for (const [index, meta] of pinned.entries()) {
-		for (const [path, entry] of manifests[index] ?? []) {
+	for (const { info, picked } of pins) {
+		for (const [path, entry] of picked) {
 			const existing = found.get(path);
 			if (existing) {
-				// The pin only holds its own hash reachable; a newer death still ages out.
-				if (existing.entry.hash === entry.hash) existing.rank = null;
+				if (existing.entry.hash === entry.hash) {
+					existing.pinned = true;
+					existing.keptUntil = null;
+				}
 				continue;
 			}
 			found.set(path, {
 				path,
 				entry,
-				snapshotId: meta.id,
+				snapshotId: info.id,
 				source: "pinned",
-				label: meta.label,
-				createdAt: meta.createdAt,
-				deviceId: meta.deviceId,
-				deviceName: meta.deviceName,
-				rank: null,
+				label: info.label,
+				createdAt: info.createdAt,
+				deviceId: info.deviceId,
+				deviceName: info.deviceName,
+				pinned: true,
+				keptUntil: null,
 			});
 		}
 	}
 }
 
-/** The vault's push timeline; file lists are the change records from the log already read for HEAD. */
+/** The vault's push timeline, newest first; a pin no longer on the walk follows. */
 export async function listSnapshots(
-	query: DeletedFilesQuery,
+	query: HistoryQuery,
 ): Promise<SnapshotListResult> {
-	const { storage, key, root } = query;
-	const [log, head] = await Promise.all([
-		readHistoryLog(storage, key, root),
-		fetchRemoteManifest(storage, key, root),
-	]);
+	const { head, cover } = await readTimeline(query);
 	if (!head) return { snapshots: [], lagging: false };
-
-	const chain = walkableChain(log, head);
-	const replayable = new Set(
-		chain.slice(0, chainDepth(log, chain)).map((meta) => meta.id),
+	const { pins } = await readPins(
+		query.storage,
+		query.key,
+		query.root,
+		() => null,
 	);
-	let rank = 0;
-	const snapshots = log.snapshots.map((meta) => {
-		const changes = entryAt(log.changes, meta.id);
-		const summary: SnapshotSummary = {
+	const pinned = new Map(pins.map(({ info }) => [info.id, info]));
+	const summary = (
+		meta: Meta,
+		files: SnapshotSummary["files"],
+		kept: number | null,
+	): SnapshotSummary => {
+		const pin = pinned.get(meta.id);
+		return {
 			id: meta.id,
 			createdAt: meta.createdAt,
 			deviceId: meta.deviceId,
 			deviceName: meta.deviceName,
-			pinned: meta.pinned === true,
-			label: meta.label,
-			files: changes ?? null,
-			rank: meta.pinned ? null : rank,
-			restorable: replayable.has(meta.id) || meta.pinned === true,
+			pinned: pin !== undefined,
+			label: pin?.label,
+			files,
+			keptUntil: pin ? null : kept,
+			restorable: !cover.lagging || pin !== undefined,
 			isHead: meta.id === head.snapshotId,
 		};
-		if (!meta.pinned) rank++;
-		return summary;
-	});
-	return { snapshots, lagging: chain.length === 0 };
+	};
+	const snapshots = cover.chain.map(({ record }) =>
+		summary(record, record.changes, keptUntil(record.at, query.horizon)),
+	);
+	const onChain = new Set(snapshots.map((snapshot) => snapshot.id));
+	for (const { info } of pins) {
+		if (!onChain.has(info.id)) snapshots.push(summary(info, null, null));
+	}
+	return { snapshots, lagging: cover.lagging };
 }
 
-/** How far the chain replays: it stops at the first snapshot with no record. */
-function chainDepth(log: HistoryLog, chain: readonly SnapshotEntry[]): number {
-	let depth = 0;
-	for (const meta of chain) {
-		// The oldest reachable snapshot is reached by undoing the one before it,
-		// so its own record is not needed to arrive at it.
-		depth++;
-		if (!entryAt(log.changes, meta.id)) break;
+/** Replay first; a pin's stored manifest covers snapshots the walk no longer reaches. */
+export async function resolveSnapshotManifest(
+	source: Source,
+	snapshotId: string,
+): Promise<Manifest | null> {
+	const { head, cover } = await readTimeline(source);
+	const replayed = head ? replayTo(head, cover, snapshotId) : null;
+	if (replayed) return replayed;
+	const pin = await readPinById(
+		source.storage,
+		source.key,
+		source.root,
+		snapshotId,
+	);
+	return pin?.manifest ?? null;
+}
+
+/**
+ * Pinning stores the snapshot's whole manifest; a readable pin keeps its manifest and takes the new label.
+ * `label` undefined keeps the pin's name, "" clears it.
+ */
+export async function setSnapshotPinned(
+	source: Source,
+	snapshotId: string,
+	pinned: boolean,
+	label?: string,
+): Promise<void> {
+	const { storage, key, root } = source;
+	if (!pinned) {
+		await deletePin(storage, snapshotId);
+		return;
 	}
-	return depth;
+	const existing = await readPinById(storage, key, root, snapshotId);
+	const manifest =
+		existing?.manifest ?? (await resolveSnapshotManifest(source, snapshotId));
+	if (!manifest) {
+		throw new Error(
+			"That snapshot can no longer be rebuilt from history, so it cannot be pinned.",
+		);
+	}
+	await writePin(storage, key, root, {
+		id: snapshotId,
+		manifest,
+		label: label === undefined ? existing?.label : label || undefined,
+		pinnedAt: existing?.pinnedAt ?? Date.now(),
+	});
 }
 
 export async function loadVersionBytes(
@@ -356,4 +282,32 @@ export async function loadVersionBytes(
 		throw new Error(`Version content is no longer available (${hash})`);
 	}
 	return plaintext;
+}
+
+function metaOf(manifest: Manifest): Meta {
+	return {
+		id: manifest.snapshotId,
+		createdAt: manifest.createdAt,
+		deviceId: manifest.deviceId,
+		deviceName: manifest.deviceName,
+	};
+}
+
+function toVersion(
+	meta: Meta,
+	entry: ManifestEntry,
+	labels: ReadonlyMap<string, string | undefined>,
+): FileVersion {
+	return {
+		snapshotId: meta.id,
+		hash: entry.hash,
+		size: entry.size,
+		mtime: entry.mtime,
+		kind: entry.kind,
+		createdAt: meta.createdAt,
+		deviceId: meta.deviceId,
+		deviceName: meta.deviceName,
+		pinned: labels.has(meta.id),
+		label: labels.get(meta.id),
+	};
 }

@@ -5,6 +5,9 @@ export const REMOTE_OBJECTS_PREFIX = "objects/";
 /** Single change log: snapshot metadata plus one parent-relative delta per snapshot. */
 export const REMOTE_HISTORY_LOG_KEY = "history.json.enc";
 
+/** Push records (`p/`) and the objects GC packs them into (`b/`). */
+export const REMOTE_HISTORY_PREFIX = "history/";
+
 /** Full manifests for pinned snapshots, so a pin survives its chain being evicted. */
 export const REMOTE_PINS_PREFIX = "pins/";
 

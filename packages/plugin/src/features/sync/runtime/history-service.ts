@@ -13,20 +13,19 @@ import {
 import { runWithFileConcurrency } from "../changes/file-concurrency";
 import type { EngineDependencies } from "../engine";
 import {
+	type HistoryQuery,
 	loadVersionBytes,
 	listDeletedFiles as queryDeletedFiles,
 	getFileHistory as queryFileHistory,
 	listSnapshots as querySnapshots,
+	resolveSnapshotManifest,
+	setSnapshotPinned as storeSetSnapshotPinned,
 } from "../history/query";
 import {
 	planVaultRestore,
 	sameRestorePlan,
 	type VaultRestorePlan,
 } from "../history/restore-vault";
-import {
-	resolveSnapshotManifest,
-	setSnapshotPinned as storeSetSnapshotPinned,
-} from "../history/store";
 import type {
 	DeletedFilesResult,
 	FileVersion,
@@ -64,22 +63,13 @@ export class HistoryService {
 	async getFileHistory(path: string): Promise<FileVersion[]> {
 		const session = await this.deps.openSession(path);
 		if (!session) return [];
-		return queryFileHistory({
-			storage: session.storage,
-			key: session.key,
-			root: session.space.root,
-			path,
-		});
+		return queryFileHistory({ ...queryOf(session), path });
 	}
 
 	async listDeletedFiles(): Promise<DeletedFilesResult> {
 		const session = await this.deps.openSession();
 		if (!session) return { files: [], lagging: false, truncated: false };
-		const deleted = await queryDeletedFiles({
-			storage: session.storage,
-			key: session.key,
-			root: session.space.root,
-		});
+		const deleted = await queryDeletedFiles(queryOf(session));
 		return {
 			...deleted,
 			files: deleted.files.filter(({ path }) => session.scope.includes(path)),
@@ -89,11 +79,7 @@ export class HistoryService {
 	async listSnapshots(): Promise<SnapshotListResult> {
 		const session = await this.deps.openSession();
 		if (!session) return { snapshots: [], lagging: false };
-		return querySnapshots({
-			storage: session.storage,
-			key: session.key,
-			root: session.space.root,
-		});
+		return querySnapshots(queryOf(session));
 	}
 
 	/** What a restore would change, computed against a fresh scan of the vault. */
@@ -168,12 +154,7 @@ export class HistoryService {
 		session: EngineDependencies,
 		snapshotId: string,
 	): Promise<Manifest> {
-		const target = await resolveSnapshotManifest(
-			session.storage,
-			session.key,
-			session.space.root,
-			snapshotId,
-		);
+		const target = await resolveSnapshotManifest(queryOf(session), snapshotId);
 		if (!target) {
 			throw new Error(
 				"That snapshot can no longer be rebuilt from history, so the vault cannot be restored to it.",
@@ -182,7 +163,7 @@ export class HistoryService {
 		return { ...target, files: ownedFiles(target.files, session.scope) };
 	}
 
-	/** Queued: it rewrites the history log a push or GC of this device also rewrites. */
+	/** Queued with pushes: the pin is replayed from the history they write. */
 	setSnapshotPinned(
 		snapshotId: string,
 		pinned: boolean,
@@ -190,14 +171,7 @@ export class HistoryService {
 	): Promise<void> {
 		return this.deps.enqueue(async () => {
 			const session = await this.requireSession();
-			await storeSetSnapshotPinned(
-				session.storage,
-				session.key,
-				session.space.root,
-				snapshotId,
-				pinned,
-				label,
-			);
+			await storeSetSnapshotPinned(queryOf(session), snapshotId, pinned, label);
 		});
 	}
 
@@ -269,6 +243,15 @@ export class HistoryService {
 		if (!session) throw new Error(NO_SESSION);
 		return session;
 	}
+}
+
+function queryOf(session: EngineDependencies): HistoryQuery {
+	return {
+		storage: session.storage,
+		key: session.key,
+		root: session.space.root,
+		horizon: session.history?.horizon ?? null,
+	};
 }
 
 /** The local half of a compare: a restore plan needs only the disk, not the remote manifest download. */

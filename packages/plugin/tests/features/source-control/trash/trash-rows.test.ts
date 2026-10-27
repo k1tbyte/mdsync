@@ -12,6 +12,7 @@ const NOW = 1_700_000_000_000;
 const KIND = "vault" as EFileKind;
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
+const KEPT_UNTIL = NOW + 30 * DAY;
 
 function deleted(overrides: Partial<DeletedFile> = {}): DeletedFile {
 	return {
@@ -21,7 +22,8 @@ function deleted(overrides: Partial<DeletedFile> = {}): DeletedFile {
 		source: "deleted",
 		createdAt: NOW - 3 * DAY,
 		deviceId: "device-abcdef123456",
-		rank: 0,
+		pinned: false,
+		keptUntil: KEPT_UNTIL,
 		...overrides,
 	};
 }
@@ -47,37 +49,40 @@ describe("formatRelativeTime", () => {
 });
 
 describe("retentionText", () => {
-	it("counts remaining pushes against the retention limit", () => {
-		expect(retentionText(0, 50)).toBe(
-			"Drops out of history after 50 more pushes",
-		);
-		expect(retentionText(49, 50)).toBe(
-			"Drops out of history after 1 more push",
+	it("names the date history keeps the record until", () => {
+		expect(retentionText({ pinned: false, keptUntil: KEPT_UNTIL })).toBe(
+			`Kept in history until ${new Date(KEPT_UNTIL).toLocaleDateString()}`,
 		);
 	});
 
-	it("warns when GC has not caught up with the limit yet", () => {
-		// GC is amortised, so records can outlive the limit and still be listed.
-		expect(retentionText(55, 50)).toBe(
-			"Drops out of history at the next cleanup",
+	it("still names a date that has passed while cleanup has not caught up", () => {
+		// Retention promises "at least": a record can outlive its date and still be listed.
+		const past = NOW - DAY;
+		expect(retentionText({ pinned: false, keptUntil: past })).toBe(
+			`Kept in history until ${new Date(past).toLocaleDateString()}`,
 		);
 	});
 
-	it("warns on the exact push that reaches the limit", () => {
-		expect(retentionText(50, 50)).toBe(
-			"Drops out of history at the next cleanup",
-		);
+	it("says nothing when no date applies", () => {
+		expect(retentionText({ pinned: false, keptUntil: null })).toBeNull();
 	});
 
 	it("says a pin holds the record", () => {
-		expect(retentionText(null, 50)).toBe("Kept by a pinned snapshot");
+		expect(retentionText({ pinned: true, keptUntil: null })).toBe(
+			"Kept by a pinned snapshot",
+		);
+	});
+
+	it("lets a pin win over a date", () => {
+		expect(retentionText({ pinned: true, keptUntil: KEPT_UNTIL })).toBe(
+			"Kept by a pinned snapshot",
+		);
 	});
 });
 
 describe("buildTrashRows", () => {
 	it("describes a deletion with time, device and size", () => {
 		const [row] = buildTrashRows([deleted()], {
-			maxSnapshots: 50,
 			now: NOW,
 			currentDevice: null,
 		});
@@ -86,7 +91,7 @@ describe("buildTrashRows", () => {
 		expect(row?.hash).toBe("H1");
 		expect(row?.meta).toBe("deleted 3 days ago · Device device-a · 2.0 KB");
 		expect(row?.note).toEqual({
-			text: "Drops out of history after 50 more pushes",
+			text: `Kept in history until ${new Date(KEPT_UNTIL).toLocaleDateString()}`,
 			tone: "plain",
 			icon: "hourglass",
 		});
@@ -94,22 +99,39 @@ describe("buildTrashRows", () => {
 	});
 
 	it("has nothing to build from an empty list", () => {
-		expect(buildTrashRows([], { maxSnapshots: 50 })).toEqual([]);
+		expect(buildTrashRows([], {})).toEqual([]);
 	});
 
-	it("colours a record that drops out within a few pushes", () => {
+	it("colours a record whose retention ends within a week or already has", () => {
 		const rows = buildTrashRows(
-			[deleted({ rank: 47 }), deleted({ rank: 46 })],
-			{ maxSnapshots: 50, now: NOW },
+			[
+				deleted({ keptUntil: NOW - DAY }),
+				deleted({ keptUntil: NOW + 6 * DAY }),
+				deleted({ keptUntil: NOW + 7 * DAY }),
+				deleted({ keptUntil: NOW + 8 * DAY }),
+			],
+			{ now: NOW },
 		);
-		expect(rows.map((row) => row.note?.tone)).toEqual(["soon", "plain"]);
+		expect(rows.map((row) => row.note?.tone)).toEqual([
+			"soon",
+			"soon",
+			"soon",
+			"plain",
+		]);
+	});
+
+	it("leaves a deletion with no end date without a note", () => {
+		const [row] = buildTrashRows([deleted({ keptUntil: null })], {
+			now: NOW,
+		});
+		expect(row?.note).toBeNull();
+		expect(row?.pinned).toBe(false);
 	});
 
 	it("marks a file that is back in the vault as restored", () => {
 		const rows = buildTrashRows(
 			[deleted(), deleted({ path: "notes/other.md" })],
 			{
-				maxSnapshots: 50,
 				now: NOW,
 				inVault: (path) => path === "notes/gone.md",
 			},
@@ -118,21 +140,19 @@ describe("buildTrashRows", () => {
 	});
 
 	it("treats every file as still deleted without a vault to ask", () => {
-		const [row] = buildTrashRows([deleted()], { maxSnapshots: 50, now: NOW });
+		const [row] = buildTrashRows([deleted()], { now: NOW });
 		expect(row?.note?.tone).toBe("plain");
 	});
 
 	it("dates against the wall clock when no time is supplied", () => {
-		const [row] = buildTrashRows([deleted({ createdAt: Date.now() })], {
-			maxSnapshots: 50,
-		});
+		const [row] = buildTrashRows([deleted({ createdAt: Date.now() })], {});
 		expect(row?.meta).toContain("deleted just now");
 	});
 
 	it("reports an empty file without collapsing its size", () => {
 		const [row] = buildTrashRows(
 			[deleted({ entry: { hash: "E", size: 0, mtime: 1, kind: KIND } })],
-			{ maxSnapshots: 50, now: NOW },
+			{ now: NOW },
 		);
 		expect(row?.meta).toContain("0 B");
 		expect(row?.size).toBe(0);
@@ -140,7 +160,6 @@ describe("buildTrashRows", () => {
 
 	it("names this device instead of showing a raw id", () => {
 		const [row] = buildTrashRows([deleted()], {
-			maxSnapshots: 50,
 			now: NOW,
 			currentDevice: { id: "device-abcdef123456", name: "Laptop" },
 		});
@@ -149,42 +168,54 @@ describe("buildTrashRows", () => {
 
 	it("prefers the recorded device name over the id", () => {
 		const [row] = buildTrashRows([deleted({ deviceName: "Phone" })], {
-			maxSnapshots: 50,
 			now: NOW,
 		});
 		expect(row?.meta).toContain("Phone");
 	});
 
 	it("keeps a bare age apart from the prefixed label", () => {
-		const [row] = buildTrashRows([deleted()], { maxSnapshots: 50, now: NOW });
+		const [row] = buildTrashRows([deleted()], { now: NOW });
 		expect(row?.age).toBe("3 days ago");
 		expect(row?.label).toBe("deleted 3 days ago");
 	});
 
 	it("names the pin a file was last seen in", () => {
 		const [row] = buildTrashRows(
-			[deleted({ source: "pinned", rank: null, label: "before the rewrite" })],
-			{ maxSnapshots: 50, now: NOW },
+			[
+				deleted({
+					source: "pinned",
+					pinned: true,
+					keptUntil: null,
+					label: "before the rewrite",
+				}),
+			],
+			{ now: NOW },
 		);
 		expect(row?.label).toBe('last seen in "before the rewrite"');
 	});
 
-	it("still counts down for a deletion no pin covers", () => {
-		const [row] = buildTrashRows([deleted({ rank: null })], {
-			maxSnapshots: 50,
+	it("marks a deletion a pin also holds as pinned, whatever the source says", () => {
+		const [row] = buildTrashRows([deleted({ pinned: true, keptUntil: null })], {
 			now: NOW,
 		});
-		// rank null means a pin holds it, whatever the source says.
 		expect(row?.pinned).toBe(true);
 		expect(row?.note?.text).toBe("Kept by a pinned snapshot");
 		expect(row?.note?.tone).toBe("pinned");
 	});
 
+	it("keeps a pinned note from turning into a countdown", () => {
+		const [row] = buildTrashRows(
+			[deleted({ pinned: true, keptUntil: NOW + DAY })],
+			{ now: NOW },
+		);
+		expect(row?.note?.tone).toBe("pinned");
+	});
+
 	it("says last seen, not deleted, for a file only a pin still holds", () => {
-		const [row] = buildTrashRows([deleted({ source: "pinned", rank: null })], {
-			maxSnapshots: 50,
-			now: NOW,
-		});
+		const [row] = buildTrashRows(
+			[deleted({ source: "pinned", pinned: true, keptUntil: null })],
+			{ now: NOW },
+		);
 		expect(row?.meta).toContain("last seen 3 days ago");
 		expect(row?.pinned).toBe(true);
 		expect(row?.note?.text).toBe("Kept by a pinned snapshot");

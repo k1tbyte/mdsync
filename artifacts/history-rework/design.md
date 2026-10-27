@@ -432,3 +432,36 @@ Side finding: two pushes on one parent can both read their own id back when the 
 first verify (`publishManifestWithGuard`, a device stalled between precheck and put); the first device's
 changes leave HEAD while it believes them published. Pre-existing, outside history; history keeps the sibling
 only for the settle window.
+
+## 17. Step 4 plan: write and read on the new layout
+
+Paths relative to `packages/plugin/src/features/sync/`. Steps 3-6 release together, so the branch may sit
+between formats; no commit may leave a destructive path reading the wrong one.
+
+| Module | Holds |
+|---|---|
+| `history/remote.ts` (new) | keys (`history/p/<id>.enc`, `history/b/<res>-<group>-<digest>.enc`); `sealPushRecord`; `readHistory(storage, key, root)` -> `{ view, unreadable, now }`: one `listDetailed("history/")`, decode only keys not cached, one re-list on a 404. Cache: per storage adapter, key and root, decoded entries by storage key (immutable: ids for pushes, digests for objects), pruned to the listing. In memory; IndexedDB is a later perf step |
+| `history/pins.ts` (new) | `pins/<id>.json.enc` = `{ v: 1, manifest, label?, pinnedAt }`; `readPins(pick)` (listing + decode, newest snapshot first, LRU of 4 by key and etag/modified), `readPinById`, `writePin`, `deletePin`. A legacy bare-manifest pin reads as unreadable until step 6. The pinned set is the listing: no flags anywhere. Pin, unpin and relabel run on the operation queue as today |
+| `history/query.ts` | `readTimeline(...)`: HEAD + `readHistory` + `coverOf` + pins, the one entry for every query. `getFileHistory`, `listDeletedFiles`, `listSnapshots`, `resolveSnapshotManifest`, `setSnapshotPinned` over `cover.chain`; a pin not on the chain is diffed against HEAD as today |
+| `history/replay.ts` | `replayTo(head, cover, id)` over walked records |
+| `history/publish.ts` | build the `PushRecord` (`diffManifests(parent, manifest)`), PUT it, publish with the guard. A failed PUT warns, publishes anyway and stays pending in memory for this storage; the next push writes pending records first (heals the gap while the app runs). No GC call (step 5) |
+| `history/store.ts` | shrinks to the legacy log reader (`readHistoryLog`), kept for step 6's import and for deep clean's live set until then; `updateHistoryLog`, `prependSnapshot`, `writeHistoryLog` and the old pin flag code go |
+| `history/gc.ts` | deleted with its tests; step 5 writes the new GC. Until then nothing thins or sweeps |
+| `remote/space-paths.ts` | `changesToSpace` / `changesToVault` (with `deletedLast`), used by `remote.ts` for records and objects and by the legacy log rekey |
+| `runtime/maintenance.ts` | live set = HEAD + every present push record and object (`changeEntries`, off-walk included) + every listed pin + every record of the legacy log until it is imported (unreadable fails closed, legacy pins included). Deep clean deletes settled orphan objects only; pins are live by being listed. Bails if HEAD or the pin listing changed |
+| `remote/reset.ts` | also deletes `history/` |
+| `history/types.ts` | `DeletedFile.rank` and `SnapshotSummary.rank` -> `keptUntil: number \| null` (null: a pin holds it, or no horizon). `DeletedFile.pinned` says a pin holds that hash. `HistoryConfig` is `{ horizon }` (3 months until step 7's setting); `pushes` and `at` on `SnapshotSummary` wait for the UI step |
+| `source-control/trash/trash-rows.ts` | retention note "kept until <date>" from `keptUntil` |
+
+`keptUntil` for a record: the end of its counts group plus the horizon (`groupEnd("counts", groupStart("counts", at)) + horizon`), the latest moment it can still be read: retention promises "at least".
+
+Rows come from walked records: a merged record is one row (`pushes` > 1). Order by chain position, never `createdAt`.
+
+Deviation from section 7 (ranged, block-by-block reads): step 4 lists `history/` and decodes every key
+not yet cached, holding the decoded view in memory per storage. Records are small and, once GC runs,
+bounded by the horizon; ranged reads and the IndexedDB cache come with the Timeline UI (step 8), behind
+`readHistory`.
+Tests: the legacy query, log and GC tests are rewritten on `FakeStorage` with real pushes (`pairedSessions`):
+push records land before publish; queries over a packed view (objects written by hand through the model);
+a failed record PUT then a later push heals the gap; space paths round-trip with `deletedLast`; deep clean
+keeps every blob named only by new history and every new-shape pin.

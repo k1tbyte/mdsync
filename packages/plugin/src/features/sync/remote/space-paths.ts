@@ -3,7 +3,7 @@
  * everything is vault paths.
  */
 
-import type { HistoryLog } from "../history/types";
+import type { HistoryLog, SnapshotChanges } from "../history/types";
 import type { Manifest } from "../types";
 
 type Rekey = (path: string) => string;
@@ -27,10 +27,6 @@ export function manifestMoved(
 		: manifestToVault(manifestToSpace(manifest, from), to);
 }
 
-export function historyLogToSpace(log: HistoryLog, root: string): HistoryLog {
-	return root === "" ? log : rekeyLog(log, stripRoot(root));
-}
-
 export function historyLogToVault(log: HistoryLog, root: string): HistoryLog {
 	return root === "" ? log : rekeyLog(log, addRoot(root));
 }
@@ -43,18 +39,38 @@ function rekeyManifest(manifest: Manifest, rekey: Rekey): Manifest {
 	};
 }
 
+export function changesToSpace(
+	changes: SnapshotChanges,
+	root: string,
+): SnapshotChanges {
+	return root === "" ? changes : rekeyChanges(changes, stripRoot(root));
+}
+
+export function changesToVault(
+	changes: SnapshotChanges,
+	root: string,
+): SnapshotChanges {
+	return root === "" ? changes : rekeyChanges(changes, addRoot(root));
+}
+
 function rekeyLog(log: HistoryLog, rekey: Rekey): HistoryLog {
 	const changes: HistoryLog["changes"] = {};
-	for (const [id, { added, modified, deleted }] of Object.entries(
-		log.changes,
-	)) {
-		changes[id] = {
-			added: rekeyRecord(added, rekey),
-			modified: rekeyRecord(modified, rekey),
-			deleted: rekeyRecord(deleted, rekey),
-		};
+	for (const [id, record] of Object.entries(log.changes)) {
+		changes[id] = rekeyChanges(record, rekey);
 	}
 	return { ...log, changes };
+}
+
+function rekeyChanges(changes: SnapshotChanges, rekey: Rekey): SnapshotChanges {
+	const rekeyed: SnapshotChanges = {
+		added: rekeyRecord(changes.added, rekey),
+		modified: rekeyRecord(changes.modified, rekey),
+		deleted: rekeyRecord(changes.deleted, rekey),
+	};
+	if (changes.deletedLast) {
+		rekeyed.deletedLast = rekeyRecord(changes.deletedLast, rekey);
+	}
+	return rekeyed;
 }
 
 function rekeyRecord<V>(

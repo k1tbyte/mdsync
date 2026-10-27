@@ -1,8 +1,9 @@
 import { TestSession, useEncryptionKey } from "@tests/helpers/session";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS_SYNC } from "@/core/settings/model";
+import { REMOTE_HISTORY_PREFIX } from "@/features/sync/constants";
 import { compare, pushPaths } from "@/features/sync/engine";
-import { readHistoryLog } from "@/features/sync/history/store";
+import { pushKey, readHistory } from "@/features/sync/history/remote";
 import { advanceSessionAfterPush } from "@/features/sync/remote/baseline";
 import {
 	forgetDroppedForeign,
@@ -11,6 +12,7 @@ import {
 } from "@/features/sync/remote/foreign";
 import { objectKey } from "@/features/sync/remote/manifest";
 import { SETTLED_AFTER_MS } from "@/features/sync/remote/uploads";
+import { deepCleanOrphans } from "@/features/sync/runtime/maintenance";
 import { createScopePolicy } from "@/features/sync/scope/scope";
 import {
 	EFileKind,
@@ -169,7 +171,7 @@ describe("publishing from a space with another space's folder in it", () => {
 		const deps = {
 			...session.deps(),
 			scope: vaultScope,
-			history: { maxSnapshots: 50 },
+			history: { horizon: null },
 		};
 		const result = await compare(deps);
 		expect(result.remote?.files["Shared/p/b.md"]).toBeDefined();
@@ -177,13 +179,16 @@ describe("publishing from a space with another space's folder in it", () => {
 		const published = await pushPaths(deps, result, ["a.md"]);
 
 		expect(Object.keys(published.files)).toEqual(["a.md"]);
-		const log = await readHistoryLog(
+		const { view } = await readHistory(
 			session.storage,
 			deps.key,
 			deps.space.root,
 		);
 		expect(
-			Object.keys(log.changes[published.snapshotId]?.deleted ?? {}),
+			Object.keys(
+				view.pushes.get(pushKey(published.snapshotId))?.push.changes.deleted ??
+					{},
+			),
 		).toEqual(["Shared/p/b.md"]);
 	});
 
@@ -203,35 +208,26 @@ describe("publishing from a space with another space's folder in it", () => {
 		expect(published.folders).toEqual(["mine"]);
 	});
 
-	it("frees the folder's blobs once the prune rolls off the history", async () => {
+	it("frees the folder's blobs once no history record names them", async () => {
 		const session = await vaultWithFrozenCopy();
 		const frozenBlob = objectKey(
 			(await session.compare()).remote?.files["Shared/p/b.md"]?.hash ?? "",
 		);
-		expect(await session.storage.exists(frozenBlob)).toBe(true);
-		// GC sweeps only blobs, and evicts only records, past any push still in flight: a day between pushes.
-		vi.useFakeTimers({ toFake: ["Date"] });
-		try {
-			for (let edit = 2; edit < 40; edit++) {
-				vi.setSystemTime(Date.now() + SETTLED_AFTER_MS + 1);
-				const deps = {
-					...session.deps(),
-					scope: vaultScope,
-					history: { maxSnapshots: 1 },
-				};
-				session.adapter.putText("a.md", `A${edit}`);
-				const result = await compare(deps);
-				const published = await pushPaths(deps, result, ["a.md"]);
-				session.state = advanceSessionAfterPush(
-					session.state,
-					result,
-					published,
-				);
-			}
-		} finally {
-			vi.useRealTimers();
-		}
+		const deps = {
+			...session.deps(),
+			scope: vaultScope,
+			history: { horizon: null },
+		};
+		await pushPaths(deps, await compare(deps), ["a.md"]);
+		session.storage.age(SETTLED_AFTER_MS + 1);
 
+		await deepCleanOrphans(session.storage, deps.key, deps.space.root);
+		expect(await session.storage.exists(frozenBlob)).toBe(true);
+
+		for (const record of await session.storage.list(REMOTE_HISTORY_PREFIX)) {
+			await session.storage.delete(record);
+		}
+		await deepCleanOrphans(session.storage, deps.key, deps.space.root);
 		expect(await session.storage.exists(frozenBlob)).toBe(false);
 	});
 

@@ -5,8 +5,9 @@ import type { StorageAdapter } from "@/features/storage";
 import { runWithFileConcurrency } from "../changes/file-concurrency";
 import { REMOTE_OBJECTS_PREFIX, REMOTE_PINS_PREFIX } from "../constants";
 import { changeEntries } from "../history/changes";
-import { pinKey, readHistoryLog, readPinManifest } from "../history/store";
-import type { HistoryLog } from "../history/types";
+import { pinKey, readPins } from "../history/pins";
+import { type HistoryRead, readHistory } from "../history/remote";
+import { readHistoryLog } from "../history/store";
 import { fetchRemoteManifest, objectKey } from "../remote/manifest";
 import { settledKeys } from "../remote/uploads";
 import type { Manifest, ManifestEntry } from "../types";
@@ -24,54 +25,64 @@ export interface VerifyResult {
 
 export interface CleanResult {
 	deletedObjects: number;
-	deletedPins: number;
 }
 
 interface ReachableSet {
 	/** Each reachable hash with its largest known size. */
 	hashes: Map<string, number>;
 	head: Manifest | null;
-	log: HistoryLog;
-	/** False when a pinned manifest could not be read, so the live set is unknown. */
+	/** Pin keys listed when the set was read. */
+	pinned: string;
+	/** History keys listed when the set was read. */
+	history: ReadonlySet<string>;
+	/** False when a history record or pin could not be read, so the live set is unknown. */
 	complete: boolean;
 }
 
-/** Every hash reachable from HEAD, the retained change records, and the pins. */
+/**
+ * Every hash HEAD, any listed history record (off the walk too: a superset only keeps more), any pin or the
+ * legacy log names: its versions stay until it is imported.
+ */
 async function reachableHashes(
 	storage: StorageAdapter,
 	key: EncryptionKey,
 	root: string,
 ): Promise<ReachableSet> {
-	const [head, log] = await Promise.all([
-		fetchRemoteManifest(storage, key, root),
-		readHistoryLog(storage, key, root),
-	]);
 	const hashes = new Map<string, number>();
 	const reach = (entries: Iterable<ManifestEntry>): void => {
 		for (const { hash, size } of entries) {
 			hashes.set(hash, Math.max(hashes.get(hash) ?? 0, size));
 		}
 	};
+	const [head, history, legacy, pins] = await Promise.all([
+		fetchRemoteManifest(storage, key, root),
+		readHistory(storage, key, root),
+		readHistoryLog(storage, key, root),
+		// Reached as each pin is read, so no more than a few manifests are held at once.
+		readPins(storage, key, root, (pin) =>
+			reach(Object.values(pin.manifest.files)),
+		),
+	]);
 	if (head) reach(Object.values(head.files));
-	let complete = true;
-	for (const entry of log.snapshots) {
-		const changes = log.changes[entry.id];
-		if (!changes) {
-			complete = false;
-			continue;
-		}
+	for (const { push } of history.view.pushes.values()) {
+		reach(changeEntries(push.changes));
+	}
+	for (const { object } of history.view.objects.values()) {
+		for (const record of object.records) reach(changeEntries(record.changes));
+	}
+	for (const changes of Object.values(legacy.changes)) {
 		reach(changeEntries(changes));
 	}
-	for (const entry of log.snapshots) {
-		if (!entry.pinned) continue;
-		const manifest = await readPinManifest(storage, key, root, entry.id);
-		if (!manifest) {
-			complete = false;
-			continue;
-		}
-		reach(Object.values(manifest.files));
-	}
-	return { hashes, head, log, complete };
+	return {
+		hashes,
+		head,
+		pinned: pins.pins
+			.map(({ info }) => pinKey(info.id))
+			.sort()
+			.join(","),
+		history: new Set(historyKeys(history)),
+		complete: history.unreadable.length === 0 && pins.unreadable.length === 0,
+	};
 }
 
 /** Catches missing objects or silent backend corruption; `deep` also decrypts and hashes. */
@@ -117,7 +128,7 @@ export async function verifyRemote(
 	return { checked: list.length, missing, corrupt };
 }
 
-/** Removes objects and pin manifests unreachable from HEAD or the history log. Needs a backend that can list. */
+/** Removes objects nothing reaches: HEAD, a history record, a pin. Needs a backend that can list. */
 export async function deepCleanOrphans(
 	storage: StorageAdapter,
 	key: EncryptionKey,
@@ -139,16 +150,7 @@ export async function deepCleanOrphans(
 		);
 	}
 
-	const livePinKeys = new Set(
-		reachable.log.snapshots
-			.filter((entry) => entry.pinned)
-			.map((entry) => pinKey(entry.id)),
-	);
-
-	const [objectKeys, pinKeys] = await Promise.all([
-		settledKeys(storage, REMOTE_OBJECTS_PREFIX),
-		settledKeys(storage, REMOTE_PINS_PREFIX),
-	]);
+	const objectKeys = await settledKeys(storage, REMOTE_OBJECTS_PREFIX);
 
 	// Another device publishing during the listing makes its new objects look like orphans: bail.
 	const headNow = await fetchRemoteManifest(storage, key, root);
@@ -158,48 +160,46 @@ export async function deepCleanOrphans(
 		);
 	}
 	// Pinning does not move HEAD, so a pin created during the listing needs its own check.
-	const logNow = await readHistoryLog(storage, key, root);
-	if (pinnedSignature(logNow) !== pinnedSignature(reachable.log)) {
+	const pinnedNow = (await storage.list(REMOTE_PINS_PREFIX)).sort().join(",");
+	if (pinnedNow !== reachable.pinned) {
 		throw new Error(
 			"Another device changed a pinned snapshot while cleaning; nothing was deleted. Try again.",
+		);
+	}
+
+	// A record retried meanwhile does not move HEAD either, and may name what looks orphaned.
+	const historyNow = await readHistory(storage, key, root);
+	if (
+		historyKeys(historyNow).some((listed) => !reachable.history.has(listed))
+	) {
+		throw new Error(
+			"Another device wrote file history while cleaning; nothing was deleted. Try again.",
 		);
 	}
 
 	const liveObjectKeys = new Set(
 		[...reachable.hashes.keys()].map((hash) => objectKey(hash)),
 	);
-	const orphanObjects = objectKeys.filter(
+	const orphans = objectKeys.filter(
 		(storageKey) => !liveObjectKeys.has(storageKey),
 	);
-	const orphanPins = pinKeys.filter(
-		(storageKey) => !livePinKeys.has(storageKey),
-	);
-
-	const targets = [...orphanObjects, ...orphanPins];
 	let done = 0;
-	await runWithConcurrency(targets, concurrency, async (storageKey) => {
+	await runWithConcurrency(orphans, concurrency, async (storageKey) => {
 		await storage.delete(storageKey);
-		options.onProgress?.(++done, targets.length);
+		options.onProgress?.(++done, orphans.length);
 	});
-	return {
-		deletedObjects: orphanObjects.length,
-		deletedPins: orphanPins.length,
-	};
+	return { deletedObjects: orphans.length };
 }
 
-function pinnedSignature(log: HistoryLog): string {
-	return log.snapshots
-		.filter((entry) => entry.pinned)
-		.map((entry) => entry.id)
-		.sort()
-		.join(",");
+function historyKeys(read: HistoryRead): string[] {
+	return [
+		...read.view.pushes.keys(),
+		...read.view.objects.keys(),
+		...read.unreadable,
+	];
 }
 
 /** One sentence for the log and the notice, so both stay in step. */
 export function cleanSummary(result: CleanResult): string {
-	const parts = [
-		`${result.deletedObjects} object(s)`,
-		`${result.deletedPins} pinned snapshot(s)`,
-	];
-	return `removed ${parts.join(", ")}.`;
+	return `removed ${result.deletedObjects} object(s).`;
 }

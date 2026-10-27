@@ -42,6 +42,9 @@ import {
 	VAULT_SPACE,
 } from "@/features/sync";
 
+/** Three months: the history horizon until **Keep history for** becomes a setting. */
+const HISTORY_HORIZON_MS = 91 * 24 * 60 * 60_000;
+
 export interface SessionFactoryDeps {
 	app: App;
 	settings: MdsyncSettings;
@@ -98,7 +101,7 @@ function sessionOpener(
 			key: opened.key,
 			concurrency: opened.concurrency,
 			history: settings.fileHistoryEnabled
-				? { maxSnapshots: settings.fileHistoryMaxSnapshots }
+				? { horizon: HISTORY_HORIZON_MS }
 				: undefined,
 			live: deps.liveNotes?.(space),
 			author: opened.author,

@@ -4,7 +4,8 @@ import type {
 	SnapshotChanges,
 } from "@/features/sync/history/types";
 import {
-	historyLogToSpace,
+	changesToSpace,
+	changesToVault,
 	historyLogToVault,
 	manifestToSpace,
 	manifestToVault,
@@ -51,38 +52,97 @@ describe("manifestToSpace / manifestToVault", () => {
 	});
 });
 
-describe("historyLogToSpace / historyLogToVault", () => {
+describe("changesToSpace / changesToVault", () => {
 	const changes: SnapshotChanges = {
 		added: { "Shared/p/new.md": entry("N") },
 		modified: {
 			"Shared/p/edit.md": { from: entry("E1"), to: entry("E2") },
 		},
-		deleted: { "Shared/p/gone.md": entry("G") },
-	};
-	const log: HistoryLog = {
-		version: 2,
-		snapshots: [{ id: "s1", parentId: null, createdAt: 1, deviceId: "d" }],
-		changes: { s1: changes },
+		deleted: { "Shared/p/gone.md": entry("G1") },
+		deletedLast: { "Shared/p/gone.md": entry("G2") },
 	};
 
 	it("translates change keys to root-relative", () => {
-		const spaced = historyLogToSpace(log, "Shared/p");
-		const sc = spaced.changes.s1 as SnapshotChanges;
-		expect(Object.keys(sc.added)).toEqual(["new.md"]);
-		expect(Object.keys(sc.modified)).toEqual(["edit.md"]);
-		expect(Object.keys(sc.deleted)).toEqual(["gone.md"]);
+		const spaced = changesToSpace(changes, "Shared/p");
+		expect(Object.keys(spaced.added)).toEqual(["new.md"]);
+		expect(Object.keys(spaced.modified)).toEqual(["edit.md"]);
+		expect(Object.keys(spaced.deleted)).toEqual(["gone.md"]);
+		expect(spaced.modified["edit.md"]).toEqual({
+			from: entry("E1"),
+			to: entry("E2"),
+		});
+	});
+
+	it("rekeys deletedLast with the rest", () => {
+		const spaced = changesToSpace(changes, "Shared/p");
+		expect(spaced.deletedLast).toEqual({ "gone.md": entry("G2") });
+		expect(changesToVault(spaced, "Shared/p").deletedLast).toEqual({
+			"Shared/p/gone.md": entry("G2"),
+		});
+	});
+
+	it("adds no deletedLast to a record that had none", () => {
+		const { deletedLast: _, ...plain } = changes;
+		expect(changesToSpace(plain, "Shared/p")).not.toHaveProperty("deletedLast");
+		expect(changesToVault(plain, "Shared/p")).not.toHaveProperty("deletedLast");
 	});
 
 	it("round-trips back to vault paths", () => {
-		const spaced = historyLogToSpace(log, "Shared/p");
-		const back = historyLogToVault(spaced, "Shared/p");
-		expect(Object.keys(back.changes.s1?.added ?? {})).toEqual([
-			"Shared/p/new.md",
-		]);
+		const back = changesToVault(
+			changesToSpace(changes, "Shared/p"),
+			"Shared/p",
+		);
+		expect(back).toEqual(changes);
 	});
 
 	it('returns the same object for root ""', () => {
-		expect(historyLogToSpace(log, "")).toBe(log);
+		expect(changesToSpace(changes, "")).toBe(changes);
+		expect(changesToVault(changes, "")).toBe(changes);
+	});
+
+	it("throws when a path is outside the root, deletedLast included", () => {
+		expect(() => changesToSpace(changes, "Other")).toThrow("outside the space");
+		const stray: SnapshotChanges = {
+			added: {},
+			modified: {},
+			deleted: {},
+			deletedLast: { "Other/x.md": entry("X") },
+		};
+		expect(() => changesToSpace(stray, "Shared/p")).toThrow(
+			"outside the space",
+		);
+	});
+});
+
+describe("historyLogToVault", () => {
+	const log: HistoryLog = {
+		version: 2,
+		snapshots: [{ id: "s1", parentId: null, createdAt: 1, deviceId: "d" }],
+		changes: {
+			s1: {
+				added: { "new.md": entry("N") },
+				modified: {},
+				deleted: { "gone.md": entry("G1") },
+				deletedLast: { "gone.md": entry("G2") },
+			},
+		},
+	};
+
+	it("translates every record's keys to vault paths", () => {
+		const back = historyLogToVault(log, "Shared/p");
+		expect(Object.keys(back.changes.s1?.added ?? {})).toEqual([
+			"Shared/p/new.md",
+		]);
+		expect(Object.keys(back.changes.s1?.deleted ?? {})).toEqual([
+			"Shared/p/gone.md",
+		]);
+		expect(Object.keys(back.changes.s1?.deletedLast ?? {})).toEqual([
+			"Shared/p/gone.md",
+		]);
+		expect(back.snapshots).toBe(log.snapshots);
+	});
+
+	it('returns the same object for root ""', () => {
 		expect(historyLogToVault(log, "")).toBe(log);
 	});
 });

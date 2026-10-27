@@ -78,6 +78,13 @@ export function isDue(
 	return groupEnd(res, start) + wait <= now;
 }
 
+/** When a record dated `at` may go to counts: retention keeps its versions at least until then. */
+export function keptUntil(at: number, horizon: number | null): number | null {
+	return horizon === null
+		? null
+		: groupEnd("counts", groupStart("counts", at)) + horizon;
+}
+
 /** The coarsest resolution whose group around `at` is due; null while it is too fresh to pack. */
 export function dueResolution(
 	at: number,

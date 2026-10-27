@@ -17,7 +17,6 @@ export {
 	splitSpaceErrors,
 } from "./controller";
 export type { CompareResult, EngineDependencies } from "./engine";
-export { clampMaxSnapshots } from "./history/gc";
 export type { VaultRestorePlan } from "./history/restore-vault";
 export type {
 	DeletedFile,

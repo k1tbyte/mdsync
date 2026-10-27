@@ -78,14 +78,14 @@ A hunk index means nothing without its two texts. The diff view, the gutter mark
 
 ## History
 
-`history.json.enc` is one encrypted object: snapshot entries newest first plus a change record per snapshot (`added`, `modified {from, to}`, `deleted`), each the diff from that snapshot's parent. Both sides are stored so one version restores without replaying, and a lost update (log writes are read-modify-write, verified by `updateHistoryLog`, not serialized by the manifest guard) shows as a parent/child gap that `contiguousLength` stops at. Pins store a full manifest under `pins/`, so they outlive the chain.
+Every push writes one encrypted record, `history/p/<id>.enc`, before it publishes: the diff from that snapshot's parent (`added`, `modified {from, to}`, `deleted`). Both sides are stored so one version restores without replaying, and a record that never landed shows as a parent/child gap the walk from HEAD stops at (`coverOf`). A failed record write is retried before the next push. Readers list `history/` once and keep what they decoded in memory (`features/sync/history/remote.ts`); every query walks from HEAD (`features/sync/history/query.ts`). Pins are their own objects under `pins/` holding a full manifest, so they outlive the records. GC that thins records into objects per period lives in `features/sync/history/model/` and is not wired yet.
 
-Windows: a blob younger than `SETTLED_AFTER_MS` (24 h) is never swept, a record younger than that is never evicted, deep clean deletes nothing written in the last day. Accepted limit: a re-upload landing between the listing and its delete is still lost (Drive has no conditional delete); deep clean shares that window. A push by another device that re-uploaded an old hash is covered only by those windows.
+Windows: a blob younger than `SETTLED_AFTER_MS` (24 h) is never swept, deep clean deletes nothing written in the last day. Accepted limits: a re-upload landing between the listing and its delete is still lost (Drive has no conditional delete); a push by another device that re-uploaded an old hash is covered only by those windows; a cold read decodes every listed record, and a vault never thinned by GC reads all of its pushes.
 
 ## Other flows
 
-- Reset and adopt (`features/sync/operations/flows.ts`): reset deletes the vault storage's manifest, log, objects and pins and clears the baseline; adopt re-aims this device at a remote vault whose id changed. Category resets (`features/sync/operations/config-reset.ts`) bump a generation in the manifest.
-- Maintenance (`features/sync/runtime/maintenance.ts`): verify checks every reachable object exists (`deep` also hashes it); deep clean removes unreachable settled objects and pins.
+- Reset and adopt (`features/sync/operations/flows.ts`): reset deletes the vault storage's manifest, history, objects and pins and clears the baseline; adopt re-aims this device at a remote vault whose id changed. Category resets (`features/sync/operations/config-reset.ts`) bump a generation in the manifest.
+- Maintenance (`features/sync/runtime/maintenance.ts`): verify checks every reachable object exists (`deep` also hashes it); deep clean removes unreachable settled objects.
 - Saved-file refresh (`features/sync/runtime/saved-refresh.ts`): display only, patches the last compare after an editor save; nothing persists, the next refresh reconciles.
 - Credentials: `features/sync/remote/keyfile.ts` wraps one constant data key under the passphrase (rotation re-wraps only); `features/sync/remote/passphrase-manager.ts` caches keys per epoch.
 
