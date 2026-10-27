@@ -67,11 +67,27 @@ v1 kept every push for 24 h because a thinned record's blobs may still be settli
 **Time authority.** Never the device clock (skew), never derived from children (would move compacted buckets).
 - `at(r)`: the storage's write time of `history/p/<id>`, from `listDetailed().modified` (S3 Last-Modified,
   WebDAV getlastmodified, Drive modifiedTime; MDSync never sets them, so it is the server's clock).
-- Captured once when GC first packs the record, stored in the block, never recomputed.
-- Monotone forward along the chain: `t(r) = max(at(r), t(parent))`. A clamp only makes a record look younger,
-  which keeps it longer (the safe direction).
-- GC's "now" is server time too: the `modified` of the object it just wrote.
+- Captured once when GC first packs the record, stored with it, never recomputed. An undated listing entry
+  counts as the newest time listed (kept longer, the safe direction).
+- No clamp along the chain: a period takes the records whose `at` falls in it, and merges only chain-contiguous
+  runs inside it, so a rare straggler stays a record of its own instead of moving a period.
+- GC's "now" is the newest `modified` in its listing (its own push record, just written).
 - Device `createdAt` stays for display.
+
+**Ladder.** Every history object holds one resolution over one group period; groups nest
+(10-min slot < UTC hour < UTC day < ISO week < 4 ISO weeks), so an object is built from finer objects inside its group.
+
+| Resolution | Keeps per | Group (one object) | Built when |
+|---|---|---|---|
+| push | every push | 10-min slot | group end + 10 min <= now |
+| 10m | 10 min | UTC hour | group end + 1 h <= now |
+| 1h | hour | UTC day | group end + 24 h <= now |
+| 1d | day | ISO week | group end + 7 d <= now |
+| 1w | ISO week | 4 ISO weeks | group end + 30 d <= now |
+| counts | activity only | 4 ISO weeks | group end + horizon <= now |
+
+A tier applies once its whole group has aged past it, so a record stays finer up to one group longer than the
+table above says: the promise is "at least". About 45 objects over 3 months, plus the pushes of the last ~20 min.
 
 **Merge (thinning).** Records are diffs from their parent, so a contiguous run r1..rk merges into one record
 with `parent = r1.parent`, `id = rk.id`. Per path, folding left (`sameEntry` decides "unchanged"):
@@ -94,7 +110,7 @@ constrain merges: a pin carries its own full manifest.
 
 ```
 history/p/<snapshotId>.enc                          push record, written once by the pushing device
-history/b/<res>-<start>-<lastId>-<digest>.enc       block: records of one period at one resolution, written by GC
+history/b/<res>-<groupStart>-<digest>.enc           object: one resolution over one group, written by GC
 history/g/<runId>.enc                               sweep candidates waiting for phase 2 (section 7)
 pins/<snapshotId>.json.enc                          pin: { manifest, label, pinnedAt }
 history.json.enc                                    legacy v2 log; a v3 stub after migration (section 11)
@@ -107,37 +123,39 @@ interface PushRecord {
 	v: 1; vaultId: string;               // a reset generation is a different vaultId
 	id: string; parentId: string | null;
 	createdAt: number; deviceId: string; deviceName?: string;
-	changes: SnapshotChanges;            // added, modified {from,to}, deleted {from, last?}
+	changes: SnapshotChanges;            // + deletedLast: content right before a merged deletion
+}
+interface StoredRecord {                 // a push or a merged run of pushes
+	id: string; parentId: string | null; // last push's id, first push's parent
+	createdAt: number; deviceId: string; deviceName?: string;   // last push
+	changes: SnapshotChanges;
+	at: number; firstAt: number; pushes: number;
 	activity: Activity;
 }
-interface StoredRecord extends PushRecord { at: number; firstAt: number; pushes: number }
-interface Block {
+interface HistoryObject {
 	v: 1; vaultId: string;
 	res: "push" | "10m" | "1h" | "1d" | "1w" | "counts";
-	start: number;                       // period start, server time
-	firstParent: string | null; lastId: string | null;
-	records: StoredRecord[];             // oldest first; empty for "counts"
-	activity: Activity;
+	group: number;                       // group start, server time
+	records: StoredRecord[];             // chain order, oldest first; empty for counts
+	activity?: Activity;                 // counts only
+	consumed: string[];                  // keys this object replaces
 }
-/** Sparse: UTC hours since epoch -> [pushes, files changed]. */
+/** Sparse: UTC hours since epoch -> [pushes, paths changed]. */
 type Activity = Record<number, [number, number]>;
 ```
 
-- A block's key carries its resolution and `digest` = SHA-256 of the canonical plaintext (first 16 hex). Two
-  representations of one range never share a key; two devices computing the same block write the same bytes'
-  key, and a Drive duplicate of it is the same content. No reliance on `putIfAbsent` (B2 rejects
+- An object's key carries its resolution, group and a `digest` of its records (SHA-256, first 16 hex; not of
+  `consumed`). Two contents of one group never share a key; two devices building the same content write the
+  same key, and a Drive duplicate of it is the same content. No reliance on `putIfAbsent` (B2 rejects
   `If-None-Match`, Drive has none): plain `put`, then read back and check the digest.
-- Periods: `push` blocks hold up to 64 records or one hour; `10m` and `1h` blocks one UTC day; `1d`, `1w` and
-  `counts` blocks one ISO week.
 - Paths inside are space-relative, translated only in `features/sync/remote/space-paths.ts`. Each space has
   its own `history/`.
-- About 30 blocks plus the unpacked pushes of the last hour over a 3-month horizon.
 
 ## 6. Write path (push)
 
-1. Build the record against the guard's expected parent `compareResult.remote` (available before uploads,
-   `engine.ts:138-172`); build the manifest id before the upload batch.
-2. PUT `history/p/<snapshotId>.enc` in the upload batch, before publish.
+1. Build the record against the guard's expected parent `compareResult.remote` once the manifest is built
+   (after uploads, `engine.ts:191-197`).
+2. PUT `history/p/<snapshotId>.enc` right before publish: the shorter that gap, the rarer a late record (section 7).
 3. Publish through `publishManifestWithGuard`, unchanged.
    - Won: the record is there. Lost-update gaps disappear; an unconfirmed landed push still has its record.
    - Lost (`ConcurrentPushError`): the record is a sibling of a chain record (section 7 proves that before deleting it).
@@ -151,8 +169,9 @@ name lookup. Today: 3-5 calls moving 2-3x the whole log.
 
 ### Read
 1. `listDetailed("history/")`, `list("pins/")` (logical calls; S3 and Drive page by 1000).
-2. Choose a cover from names alone: per range prefer the coarser resolution, then the newer `start`, then the
-   smaller key. GC uses the same pure function.
+2. Skip every object a present object names in `consumed`. Walk from HEAD's id back: at each id take an
+   object whose last record has that id, coarser first, then more records, then the smaller key; when that
+   choice dead-ends and another candidate reaches further back, take the other. GC uses the same pure function.
 3. Fetch only what the visible view needs and the cache lacks: Timeline newest first by period; File history
    and Deleted decode block by block and keep only their rows (no whole-history materialisation).
 4. Gap or unreadable object: today's `lagging` and `truncated`. A 404 (object retired after the listing):
@@ -162,16 +181,27 @@ Local cache: IndexedDB per vault id, storage identity and root; rebuildable, may
 source of truth. Holds decoded blocks and records (paths, hashes, sizes: the sensitivity of `state.json`).
 
 ### GC
-Scheduled after a won push, at most hourly per device, with jitter, when: the last hour holds more than 64
-unpacked records, a period crossed a tier, superseded objects or phase-2 candidates are due, or a week passed
-the horizon. Also from **Maintenance**. Requires `listDetailed`, as today.
+Scheduled after a won push, at most every 10 min per device, with jitter; a run with nothing due costs one
+listing. Also from **Maintenance**. Requires `listDetailed`, as today.
+
+Building one object (resolution R, group G), planned pure:
+- Only the coarsest due resolution of a group is built; finer due groups inside it are left to it.
+- Due: G's age rule holds, G is complete (the chain walk reaches a record older than G's start minus 10 min,
+  or the root), and some input is not consumed yet (so a run is idempotent).
+- Inputs: present objects at a finer resolution whose group lies inside G, other objects of the same (R, G),
+  and push records on the chain with `at` in G. A push record off the chain is never an input.
+- Content: the chain's records with `at` in G, merged per R-period over chain-contiguous runs. `consumed` =
+  the input keys plus the `consumed` of every input still present.
+- Late record: a push record written before publish may join the chain after its slot was built. It is an
+  unconsumed input of that slot, so the next run rebuilds the slot with it.
 
 Phase 1, one run:
-1. List, read what the plan needs, plan (pure): target blocks per period; superseded inputs; proven losers.
-2. Write each new block, read it back, check its digest. Candidate hashes come from the verified stored block,
-   never from the plan.
-3. Retire superseded inputs after a grace (1 h after the block's `modified`). Readers that listed before re-list on 404.
-4. Write `history/g/<runId>.enc`: hashes the retired inputs named that their replacements do not. Delete no blob.
+1. List, read what the plan needs, plan.
+2. Write each new object, read it back, check its digest. Candidate hashes come from the verified stored
+   object, never from the plan.
+3. Delete every key the verified object lists in `consumed`; a later run deletes leftovers it finds named in a
+   present object's `consumed`. Readers that listed before re-list once on 404.
+4. Write `history/g/<runId>.enc`: hashes the consumed objects named that their replacement does not. Delete no blob.
 
 Phase 2, a later run, for each candidate object at least `SETTLED_AFTER_MS` old:
 1. Build the live set fresh: HEAD, every history object of HEAD's `vaultId` (every record of a disconnected
@@ -187,29 +217,29 @@ What GC may delete (nothing else):
 
 | Object | Condition |
 |---|---|
-| input of a block | a verified block covers its whole range, grace passed |
+| history object | named in `consumed` of a present object whose digest checks |
 | push record of a lost guard | its parent is on the fully resolved chain, the chain's child of that parent is another id, older than `SETTLED_AFTER_MS` |
 | object of another `vaultId` | HEAD's `vaultId` differs (a reset), settled |
-| records past the horizon | replaced by a verified `counts` block |
+| anything in a group past the horizon | consumed by that group's verified `counts` object (only chain records add activity) |
 | blob | phase 2 above |
 
-A gap or a disconnected range never makes anything deletable: past a gap the log is not evidence.
+Within the horizon, a gap or a disconnected range never makes anything deletable: past a gap the log is not evidence.
 
 Concurrency:
 
 | Race | Outcome |
 |---|---|
-| two GCs, same plan | same keys and bytes; second write is a no-op in effect |
-| two GCs, different plans (listing lag) | different keys; cover picks one, the other is retired later; both live meanwhile |
-| GC vs push | GC never supersedes a record younger than its period; blobs only in phase 2 |
+| two GCs, same view | same keys and bytes; the second write changes nothing |
+| two GCs, different views (listing lag) | different digests for one group; both live; the next run rebuilds the group from both |
+| GC vs push | a group is due only 10 min after its end; a late record rebuilds its slot; blobs only in phase 2 |
 | GC vs pin | phase 2 lists and reads pins 24 h after the drop |
-| reader vs GC | grace + one re-list; readers never delete |
+| reader vs GC | one re-list on 404; readers never delete |
 | old client | fenced by the format bump (section 11) |
 
 ## 8. Activity calendar
 
-- Every record and block carries `activity`; merges sum it, so thinning never loses counts.
-- A week past the horizon becomes a `counts` block; a year of them folds into one.
+- Every stored record carries `activity`; merges sum it, so thinning never loses counts.
+- A group past the horizon becomes a `counts` object (about 13 a year, a few hundred bytes each).
 - Only chain records count (a lost guard's record does not).
 - UTC hours, folded into local days by each viewer (30/45-minute zones may misplace a push by one hour).
 
@@ -246,6 +276,12 @@ defeats both gzip and CDC; turning it off makes drawings cheap to keep.
   (`uploads.ts` trust, probed): the rule "only the head vouches for a blob" extends to chunks. The recipe cache
   only saves decoding.
 - Reads stream chunks into the journal's staged write (Big files groundwork); `prepareReads` batches signing.
+- Excalidraw codec: a drawing saved as `compressed-json` changes its whole LZString stream on every edit, so neither
+  gzip nor CDC helps. The content owner stores such a file as its markdown around the block, the wrap width and the
+  decoded scene JSON (`readDrawing` in `core/drawing/format.ts`, lz-string is already bundled), and rebuilds the
+  bytes on read. Kept only when re-encoding reproduces the file byte for byte at write time, else stored as is; the
+  read path's SHA-256 check stays the last guard. With CDC an edit costs 1-2 chunks of JSON, and embedded images
+  in the scene become shared chunks.
 
 Expected effect (to be measured, 9.3):
 
@@ -348,14 +384,14 @@ Steps 3-6 change the remote format, so they release together (the fence).
 | # | Step | Ships alone |
 |---|---|---|
 | 1 | Compress file blobs (9.1) | yes |
-| 2 | Content owner `features/sync/content/`: read, write and expand a file hash; content loaders, deep verify, GC and deep clean go through it (pure refactor) | yes |
-| 3 | History model, pure: records, blocks, merge, cover, tiers, time authority, activity; property tests | no |
+| 2 | Folded into 9: until recipes exist, `loadRemoteBytes` is already the one reader and the owner would be an abstraction ahead of its need | - |
+| 3 | History model, pure. 3a: merged records (`composeChanges`, `deletedLast`), activity, ladder and periods, thinning. 3b: cover and the GC plan. Property tests | no |
 | 4 | Write and read: record on push, listing + cover + cache, queries (file history, deleted, timeline, replay), pins in the new shape | no |
 | 5 | GC: phase 1 blocks, phase 2 sweep, schedule; deep clean, verify and reset on the new layout | no |
 | 6 | Migration and fence: `MANIFEST_VERSION` 3, legacy import, pins, stub | with 3-5 |
 | 7 | Settings: **Keep history for**, retire `fileHistoryMaxSnapshots` | with 3-6 |
 | 8 | UI: Timeline sessions, tier headers, filter; History grouping; Deleted "kept until"; activity calendar | with 3-7 |
-| 9 | Measurement script (9.3), then CDC: recipes, chunks, upload trust | yes, after 2 |
+| 9 | Measurement script (9.3), content owner, CDC (recipes, chunks, upload trust), Excalidraw codec | yes |
 
 Side finding, outside this design: `putIfAbsent` on S3 sends `If-None-Match: *` (`s3-store.ts:140-147`), which
 Backblaze B2 reportedly rejects; onboarding a data key on B2 may fail. Unverified.
