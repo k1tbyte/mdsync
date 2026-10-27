@@ -3,7 +3,6 @@ import {
 	Setting,
 	type SettingDefinitionPage,
 } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import {
 	ESyncLogLevel,
 	ESyncLogOperation,
@@ -12,6 +11,7 @@ import {
 import { imperativePage } from "@/core/settings";
 import { formatTimestamp, pluralize } from "@/core/shared";
 import { copyText } from "@/core/ui";
+import type { SettingsTabHost } from "./host";
 
 const LOG_LEVEL_LABELS: Record<ESyncLogLevel, string> = {
 	[ESyncLogLevel.Info]: "Info",
@@ -35,7 +35,7 @@ const OPERATION_LABELS: Record<ESyncLogOperation, string> = {
 
 const RECENT_ERRORS_MS = 24 * 60 * 60 * 1000;
 
-export function logsPage(plugin: PluginHost): SettingDefinitionPage {
+export function logsPage(plugin: SettingsTabHost): SettingDefinitionPage {
 	const recentErrors = (): number => {
 		const since = Date.now() - RECENT_ERRORS_MS;
 		return plugin.logs
@@ -61,7 +61,7 @@ export function logsPage(plugin: PluginHost): SettingDefinitionPage {
 
 function renderLogsView(
 	parent: HTMLElement,
-	plugin: PluginHost,
+	plugin: SettingsTabHost,
 	onRefresh: () => void,
 ): void {
 	parent.createEl("p", {

@@ -11,11 +11,11 @@ import {
 	toBase64Url,
 } from "@mdsync/protocol";
 import type { TFile } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { isRelayConfigured } from "@/core/settings";
 import { relayBase } from "@/core/shared";
 import type { BrokerAdmin } from "@/features/spaces";
 import { relayAdmin } from "@/features/spaces";
+import type { LinksHost } from "./host";
 import { createLink, linkStatus, replaceLink, revokeLink } from "./link-broker";
 import { type LinkRecord, onRelay } from "./record";
 import type { NewLink } from "./shared-links";
@@ -40,7 +40,7 @@ const updating = new Set<string>();
 
 /** What would be published, for the owner to look at first. */
 export async function previewLink(
-	plugin: PluginHost,
+	plugin: LinksHost,
 	file: TFile,
 	images: boolean,
 ): Promise<Snapshot> {
@@ -52,7 +52,7 @@ export async function previewLink(
 
 /** The `snapshot` the owner looked at is exactly what goes out. */
 export async function publishLink(
-	plugin: PluginHost,
+	plugin: LinksHost,
 	file: TFile,
 	options: ShareOptions,
 	snapshot: Snapshot,
@@ -112,7 +112,7 @@ export type RenderedNote = Map<boolean, Promise<Snapshot>>;
  * links of one note can share `rendered`.
  */
 export async function updateLink(
-	plugin: PluginHost,
+	plugin: LinksHost,
 	shown: LinkRecord,
 	passphrase: string | null,
 	rendered: RenderedNote = new Map(),
@@ -153,19 +153,19 @@ export async function updateLink(
 
 /** Ends the link at the relay, then forgets it here; unreachable, it stays listed to try again. */
 export async function revokeLinkRecord(
-	plugin: PluginHost,
+	plugin: LinksHost,
 	record: LinkRecord,
 ): Promise<void> {
 	await revokeLink(adminFor(plugin, record), record.id);
 	await plugin.sharedLinks.remove(record.id);
 }
 
-export async function linkStatusOf(plugin: PluginHost, record: LinkRecord) {
+export async function linkStatusOf(plugin: LinksHost, record: LinkRecord) {
 	return linkStatus(adminFor(plugin, record), record.id);
 }
 
 /** Asked again at each call: the relay in the settings may have changed since the list was drawn. */
-function adminFor(plugin: PluginHost, record: LinkRecord): BrokerAdmin {
+function adminFor(plugin: LinksHost, record: LinkRecord): BrokerAdmin {
 	if (!onRelay(record, plugin.settings)) throw new Error(OTHER_RELAY);
 	return relayAdmin(plugin.settings);
 }

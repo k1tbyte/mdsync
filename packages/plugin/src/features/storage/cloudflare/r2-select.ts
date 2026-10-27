@@ -1,4 +1,3 @@
-import type { PluginHost } from "@/app/host";
 import { cloudflareApi, obsidianHttp, verifyToken } from "@/core/cloudflare";
 import { REMOTE_MANIFEST_KEY, STORAGE_CHANGED_REASON } from "@/core/constants";
 import { sha256Hex } from "@/core/crypto";
@@ -6,6 +5,7 @@ import type { MdsyncSettings } from "@/core/settings";
 import { defaultS3Config } from "../backends/s3";
 import { isRefusedCredentials } from "../backends/util";
 import { EStorageBackend, type S3StorageConfig } from "../config";
+import type { StorageHost } from "../host";
 import { createStorageAdapter } from "../registry";
 import { activeStorage } from "../settings";
 import { cloudflareOf } from "./cloudflare-login";
@@ -16,7 +16,7 @@ const BUCKET = "mdsync-vaults";
 const R2_SECRET = /^[0-9a-f]{64}$/i;
 
 /** Makes the bucket (or finds it) and points the vault's S3 storage at it, under this vault's prefix. */
-export async function useR2(plugin: PluginHost): Promise<void> {
+export async function useR2(plugin: StorageHost): Promise<void> {
 	const login = cloudflareOf(plugin.settings);
 	if (!login) throw new Error("Connect your Cloudflare account first.");
 	const { api, accountId } = login;
@@ -54,7 +54,7 @@ export function r2StorageOf(settings: MdsyncSettings): S3StorageConfig | null {
  * value or the Secret Access Key shown beside it; the keys must open the storage before anything is saved.
  */
 export async function rekeyR2(
-	plugin: PluginHost,
+	plugin: StorageHost,
 	value: string,
 ): Promise<void> {
 	const { settings } = plugin;

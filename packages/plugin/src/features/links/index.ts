@@ -1,3 +1,4 @@
+export type { LinksHost } from "./host";
 export { noteLinks, noteLinksText } from "./note-links";
 export {
 	type LinkRecord,

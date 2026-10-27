@@ -1,10 +1,10 @@
 import { type Plugin, setIcon, type WorkspaceLeaf } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { makeActivatable } from "@/core/ui";
 import { STATE_TEXT } from "@/features/live";
 import { describePeople, renderAvatarStack } from "@/features/presence";
 import { watchReadOnlyRoots } from "@/features/spaces";
 import { type HeaderState, headerOf, showsHeader } from "./header-state";
+import type { NoteHeaderHost } from "./host";
 import type { LiveStatus } from "./live-status";
 import { openActiveNoteMenu, openNoteMenu } from "./note-menu";
 import { LOCKED } from "./note-menu-items";
@@ -24,7 +24,7 @@ interface Shown {
 
 /** Returns the active note's menu opener, as a command's check callback. */
 export function registerNotePresence(
-	plugin: Plugin & PluginHost,
+	plugin: Plugin & NoteHeaderHost,
 ): (checking: boolean) => boolean {
 	const { workspace } = plugin.app;
 	const { people, live } = plugin.realtime;
@@ -104,7 +104,7 @@ export function registerNotePresence(
 }
 
 function createHeader(
-	plugin: PluginHost,
+	plugin: NoteHeaderHost,
 	leaf: WorkspaceLeaf,
 	actions: HTMLElement,
 ): HTMLElement {

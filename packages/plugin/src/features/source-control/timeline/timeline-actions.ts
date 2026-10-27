@@ -1,7 +1,7 @@
 import { Menu } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { notifyError, notifyInfo, openConfirmModal } from "@/core/ui";
 import { confirmRestore } from "@/features/diff";
+import type { SourceControlHost } from "../host";
 import { addSnapshotPinItems } from "./snapshot-menu";
 import {
 	describeRestorePlan,
@@ -12,7 +12,7 @@ import {
 
 export class TimelineActions {
 	constructor(
-		private readonly plugin: PluginHost,
+		private readonly plugin: SourceControlHost,
 		private readonly refresh: () => void,
 		private readonly openFile: (
 			row: TimelineRow,

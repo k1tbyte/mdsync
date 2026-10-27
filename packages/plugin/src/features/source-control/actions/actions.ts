@@ -1,6 +1,4 @@
 import { Menu, Platform } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
 import {
 	attempt,
 	openInEditor,
@@ -16,6 +14,7 @@ import {
 	EConflictStrategy,
 	isIgnoreNote,
 } from "@/features/sync";
+import type { SourceControlHost } from "../host";
 import { ESection } from "../types";
 
 const BATCH_RESOLVE_CONFIRM_THRESHOLD = 5;
@@ -33,13 +32,13 @@ function pathMenu(path: string): Menu {
 }
 
 interface SourceControlActionDeps {
-	plugin: PluginHost;
+	plugin: SourceControlHost;
 	showHistory: (path: string) => void;
 	openDiff: (path: string) => Promise<void>;
 }
 
 export class SourceControlActions {
-	private readonly plugin: PluginHost;
+	private readonly plugin: SourceControlHost;
 	private readonly showHistory: (path: string) => void;
 	private readonly openDiff: (path: string) => Promise<void>;
 

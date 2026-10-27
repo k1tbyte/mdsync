@@ -1,5 +1,4 @@
 import { Platform, SearchComponent } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { appendIconButton, appendLabeledButton, notifyError } from "@/core/ui";
 import { lastEditLabel, lastEditor } from "@/features/spaces";
 import type {
@@ -10,6 +9,7 @@ import type {
 import { canSync } from "@/features/sync";
 import type { SourceControlActions } from "../actions/actions";
 import { SelectionBar } from "../actions/selection-bar";
+import type { SourceControlHost } from "../host";
 import { renderSetupPrompt } from "../setup-prompt";
 import { SummaryCard } from "../summary-card";
 import { ESection, type FileRow } from "../types";
@@ -43,7 +43,7 @@ export class ChangesTab {
 	private openGeneration = 0;
 
 	constructor(
-		private readonly plugin: PluginHost,
+		private readonly plugin: SourceControlHost,
 		private readonly previews: ConflictPreviewManager,
 		private readonly actions: SourceControlActions,
 		private readonly rerender: () => void,

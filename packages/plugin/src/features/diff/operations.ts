@@ -1,4 +1,3 @@
-import type { PluginHost } from "@/app/host";
 import { notifyError, openConfirmModal, runWithNotice } from "@/core/ui";
 import {
 	EConflictStrategy,
@@ -8,7 +7,8 @@ import {
 } from "@/features/sync";
 import { EChoiceKind, type HunkChoices } from "./choices";
 import type { HistoryChange } from "./history-state";
-import { confirmRestore } from "./restore-modal";
+import type { DiffHost } from "./host";
+import { confirmRestore } from "./ui/restore-modal";
 
 export interface DiffOperationState {
 	path: string | null;
@@ -27,7 +27,7 @@ export class DiffOperations {
 	private hunkOpInFlight = false;
 
 	constructor(
-		private readonly plugin: PluginHost,
+		private readonly plugin: DiffHost,
 		private readonly callbacks: DiffOperationCallbacks,
 	) {}
 
@@ -187,10 +187,7 @@ export class DiffOperations {
 }
 
 /** Reverted lines exist nowhere else: the remote never had them. */
-function confirmHunkRevert(
-	plugin: PluginHost,
-	count: number,
-): Promise<boolean> {
+function confirmHunkRevert(plugin: DiffHost, count: number): Promise<boolean> {
 	return openConfirmModal({
 		app: plugin.app,
 		title: `Revert ${count} change(s)?`,

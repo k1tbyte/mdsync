@@ -1,9 +1,11 @@
 import type { SettingDefinitionGroup } from "obsidian";
-
 import { type FieldContext, group } from "@/core/settings";
+import type { LinksHost } from "../host";
 import { openManageLinks } from "./link-menu";
 
-export function linksSection({ plugin }: FieldContext): SettingDefinitionGroup {
+export function linksSection({
+	plugin,
+}: FieldContext<LinksHost>): SettingDefinitionGroup {
 	return group("Share links", [
 		{
 			name: "Notes shared by link",

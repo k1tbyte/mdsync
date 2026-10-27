@@ -1,7 +1,6 @@
 import type { SettingDefinitionGroup } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
 import { type FieldContext, group } from "@/core/settings";
+import type { SyncHost } from "../host";
 import {
 	deepCleanOrphanedObjects,
 	resetLocalState,
@@ -14,7 +13,7 @@ interface MaintenanceAction {
 	desc: string;
 	buttonText: string;
 	warning?: boolean;
-	run: (plugin: PluginHost) => Promise<unknown>;
+	run: (plugin: SyncHost) => Promise<unknown>;
 }
 
 const MAINTENANCE_ACTIONS: ReadonlyArray<MaintenanceAction> = [
@@ -49,7 +48,7 @@ const MAINTENANCE_ACTIONS: ReadonlyArray<MaintenanceAction> = [
 
 export function maintenanceSection({
 	plugin,
-}: FieldContext): SettingDefinitionGroup {
+}: FieldContext<SyncHost>): SettingDefinitionGroup {
 	return group(
 		undefined,
 		MAINTENANCE_ACTIONS.map((action) => ({

@@ -1,6 +1,5 @@
-import type { PluginHost } from "@/app/host";
-
 import { expiryLine } from "./describe";
+import type { LinksHost } from "./host";
 import { isExpired, isStale, type LinkRecord } from "./record";
 
 /** A note's live links, and whether one still shows a copy older than the note. */
@@ -11,7 +10,7 @@ export interface NoteLinks {
 
 /** Null when the note has no links, or only expired ones. */
 export function noteLinks(
-	plugin: PluginHost,
+	plugin: LinksHost,
 	path: string,
 	/** The note's links when the caller already grouped them. */
 	of: readonly LinkRecord[] = plugin.sharedLinks.of(path),

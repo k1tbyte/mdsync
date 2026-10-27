@@ -1,11 +1,10 @@
 import { MarkdownView, Menu, type WorkspaceLeaf } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
 import { openPluginSettings, relayFixOf } from "@/core/hub";
 import { infoTitle, showMenuAt } from "@/core/ui";
 import { personTitle } from "@/features/presence";
 import { lastEditLabel, openShareWindow } from "@/features/spaces";
 import { headerOf, showsHeader } from "./header-state";
+import type { NoteHeaderHost } from "./host";
 import { rebuildLiveNote, toggleAuthors } from "./live-actions";
 import {
 	actionItems,
@@ -17,7 +16,7 @@ import {
 } from "./note-menu-items";
 
 export function openActiveNoteMenu(
-	plugin: PluginHost,
+	plugin: NoteHeaderHost,
 	checking: boolean,
 ): boolean {
 	const leaf = plugin.app.workspace.getMostRecentLeaf();
@@ -29,7 +28,7 @@ export function openActiveNoteMenu(
 
 /** Read when opened: the header may be a frame behind. */
 export function openNoteMenu(
-	plugin: PluginHost,
+	plugin: NoteHeaderHost,
 	leaf: WorkspaceLeaf,
 	anchor?: HTMLElement,
 ): void {

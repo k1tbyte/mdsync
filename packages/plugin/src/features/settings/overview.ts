@@ -3,7 +3,6 @@ import {
 	type SettingDefinitionGroup,
 	setIcon,
 } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import type { RelayStatus } from "@/core/hub";
 import { RELAY_TEXT } from "@/core/hub";
 import type { FieldContext } from "@/core/settings";
@@ -16,6 +15,7 @@ import {
 	storageIdentity,
 } from "@/features/storage";
 import { canSync, isGuest, VAULT_SPACE } from "@/features/sync";
+import type { SettingsTabHost } from "./host";
 
 type Tone = "ok" | "muted" | "warning" | "error";
 
@@ -40,7 +40,9 @@ const RELAY_STATE: Record<RelayStatus, [string, Tone]> = {
 };
 
 /** The root page's head: the setup wizard and where storage, encryption and the relay stand, live. */
-export function overviewGroup(ctx: FieldContext): SettingDefinitionGroup {
+export function overviewGroup(
+	ctx: FieldContext<SettingsTabHost>,
+): SettingDefinitionGroup {
 	const { plugin } = ctx;
 	return {
 		type: "group",
@@ -100,7 +102,7 @@ function renderCard(grid: HTMLElement, card: Card): void {
 	}
 }
 
-function storageCard(plugin: PluginHost): Card {
+function storageCard(plugin: SettingsTabHost): Card {
 	const { settings } = plugin;
 	const base = { icon: "hard-drive", title: "Storage" };
 	if (!isStorageConfigured(settings)) {
@@ -140,7 +142,7 @@ function storageCard(plugin: PluginHost): Card {
 	};
 }
 
-function encryptionCard(plugin: PluginHost, redraw: () => void): Card {
+function encryptionCard(plugin: SettingsTabHost, redraw: () => void): Card {
 	const { settings, passphrase } = plugin;
 	const base = { icon: "lock", title: "Encryption" };
 	if (!isStorageConfigured(settings)) {
@@ -175,7 +177,7 @@ function encryptionCard(plugin: PluginHost, redraw: () => void): Card {
 	};
 }
 
-function relayCard(plugin: PluginHost): Card {
+function relayCard(plugin: SettingsTabHost): Card {
 	const base = { icon: "radio-tower", title: "Relay" };
 	if (!isRelayConfigured(plugin.settings)) {
 		return {
@@ -210,7 +212,7 @@ function relayCard(plugin: PluginHost): Card {
 function devicesText({
 	locked,
 	devices,
-}: ReturnType<PluginHost["realtime"]["people"]["devices"]>): string {
+}: ReturnType<SettingsTabHost["realtime"]["people"]["devices"]>): string {
 	if (locked) return "Sync once to see your other devices.";
 	if (devices.length === 0) return "No other device online.";
 	return `${pluralize(devices.length, "other device")} online.`;

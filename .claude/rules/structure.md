@@ -20,6 +20,7 @@ Paths in this file are relative to `packages/plugin/src/`.
 
 - `features/<name>/index.ts` - facade, exports only what other slices import. A slice never imports its own facade.
 - `features/<name>/register.ts` - Obsidian wiring for the plugin lifetime (commands, events, menus, views), called from `app/`. Teardown goes through `register*` helpers.
+- `features/<name>/host.ts` - `<Name>Host`, what the slice reads from the plugin (see Imports).
 - `*.ts` logic: `obsidian` as `import type` where possible, testable without DOM. Obsidian adapters sit in a named sub-area (`links/snapshot/`, `live/text/`).
 - `ui/` DOM, modals, menus, settings sections. `*.css` next to what it styles. `README.md` flows, rationale, accepted limits.
 - Create a file only when the slice needs it. Past 12 modules in a folder, group by sub-area, never by kind.
@@ -29,15 +30,15 @@ Paths in this file are relative to `packages/plugin/src/`.
 - Another slice only through its facade `@/features/<name>`, another core area through `@/core/<area>`; `@/core/constants` directly. Inside a slice and inside a core area, relative paths.
 - New code adds no deep import into another slice: export what is needed from its facade. A facade loads its whole slice, so a test that reaches one may need `importOriginal` in its `obsidian` mock.
 - esbuild emits CJS: a facade must not create a runtime cycle. `import type` edges are ignored by the cycle rule.
-- Modules still take `PluginHost` (`app/host.ts`), baselined, being removed. New code declares the narrow members it needs as its own interface (`SpaceAccessHost` in `features/spaces/space-access.ts`, `SettingsTransferDeps` in `features/transfer/transfer-controller.ts`); `MdsyncPlugin` satisfies it structurally. Navigation into another surface is a callback, not an import: `openSetup(step)` with the step's literal (`"relay"`), `openSourceControl()`, `openChanges()` on the host; `openDiffView` is the diff slice's.
-- Settings: a slice adds the fields typed by its own types to `MdsyncSettings` by module augmentation where it parses them, and `app/settings.ts` composes the parsers (`.claude/rules/settings-setup.md`). A per-slice deps file does not exist yet: do not cite or create one as if it did.
+- What a slice needs from the plugin is its `<Name>Host` in `features/<name>/host.ts` (`SyncHost`, `SpacesHost`, ...), exported by its facade; `MdsyncPlugin` satisfies it structurally, and only `app/` and `main.ts` see the whole `PluginHost` (`app/host.ts`). A surface that offers a domain's actions extends that domain's host (`ExplorerHost extends SpacesHost, LinksHost`); a member typed above the slice is declared structurally (`SpacesHost.realtime.hub`). Settings sections type their `FieldContext<...Host>`, rows need only `SettingsHost` (`core/settings/fields.ts`). Wiring hosts stay with what they wire (`SyncControllerHost`, `LiveHost`, `SchedulerHost`, `SpaceAccessHost`, `SettingsTransferDeps`); a single module may declare its own (`DeletedElsewhereHost`).
+- Navigation into another surface is a host callback, not an import: `openSetup(step)` with the step's literal (`"relay"`), `openSourceControl()`, `openChanges()`; `openDiffView` is the diff slice's.
+- Settings: a slice adds the fields typed by its own types to `MdsyncSettings` by module augmentation where it parses them, and `app/settings.ts` composes the parsers (`.claude/rules/settings-setup.md`).
 
 ## `pnpm arch` (`packages/plugin/.dependency-cruiser.cjs`)
 
 - Rules: `no-circular` (runtime), `slice-via-facade`, `root-via-facade` (`app/`, `main.ts`), `core-independent` (core imports no feature or app), `features-not-app`, `domain-not-surface`, `surface-<name>`.
 - Surface -> surface only: `setup` -> `settings`; `source-control` -> `diff`, `setup`; `status` -> `diff`, `note-header`, `source-control`. `diff`, `editor-signs`, `explorer`, `note-header`, `settings` reach no other surface.
-- `packages/plugin/.dependency-cruiser-known-violations.json` is a baseline that only shrinks. Remove a violation, then regenerate: `npx depcruise src --config .dependency-cruiser.cjs --output-type baseline > .dependency-cruiser-known-violations.json` (in `packages/plugin`, file `packages/plugin/.dependency-cruiser-known-violations.json`). A change that adds an entry is wrong; fix the import.
-- Remaining baselined groups: `features-not-app` (`PluginHost`) and `core-independent` (`core/settings/fields.ts` -> `PluginHost`).
+- No baseline: a violation fails `pnpm arch`; fix the import, never add an exception.
 - Folder cap: at most 12 `.ts` modules per source folder, css excluded (`packages/plugin/tests/arch/folders.test.ts`, runs in `pnpm test`).
 
 ## Styles

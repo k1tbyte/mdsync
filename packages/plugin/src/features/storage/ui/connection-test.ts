@@ -1,7 +1,7 @@
-import type { PluginHost } from "@/app/host";
 import { REMOTE_MANIFEST_KEY } from "@/core/constants";
 import type { CheckResult } from "@/core/settings";
 import { errorMessage, reportWarning } from "@/core/shared";
+import type { StorageHost } from "../host";
 import {
 	createStorageAdapter,
 	describeStorageTarget,
@@ -13,7 +13,9 @@ import { activeStorage } from "../settings";
  * Reaches the remote without a passphrase, so credentials can be checked before anything is encrypted.
  * Reads only the manifest key: absent is a healthy empty remote, anything else a real connection problem.
  */
-export async function testConnection(plugin: PluginHost): Promise<CheckResult> {
+export async function testConnection(
+	plugin: StorageHost,
+): Promise<CheckResult> {
 	const config = activeStorage(plugin.settings);
 	if (!isAdapterConfigured(config)) {
 		return { ok: false, message: "This backend is not fully configured yet." };

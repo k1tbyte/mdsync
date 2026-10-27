@@ -1,9 +1,9 @@
 import type { Plugin } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { reportWarning } from "@/core/shared";
+import type { LinksHost } from "./host";
 
 /** A renamed note keeps its links; a deleted one lets go of them, so a new note at its path starts clean. */
-export function registerLinkPaths(plugin: Plugin & PluginHost): void {
+export function registerLinkPaths(plugin: Plugin & LinksHost): void {
 	const { vault } = plugin.app;
 	plugin.registerEvent(
 		vault.on("rename", (file, oldPath) => {

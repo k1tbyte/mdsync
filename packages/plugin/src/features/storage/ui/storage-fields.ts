@@ -1,15 +1,14 @@
 import type { Setting } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
 import { EFieldKind, onSettled, type SettingsRow } from "@/core/settings";
 import { notifyError, notifyInfo } from "@/core/ui";
 import { googleLoginUrl } from "../backends/google-drive-auth";
 import { EStorageBackend, type GoogleDriveStorageConfig } from "../config";
 import type { SettingsFieldSpec } from "../field-spec";
+import type { StorageHost } from "../host";
 import { getDescriptor } from "../registry";
 
 export function storageRows(
-	plugin: PluginHost,
+	plugin: StorageHost,
 	kind: EStorageBackend,
 ): SettingsRow[] {
 	const rows: SettingsRow[] = getDescriptor(kind).fields.map((field) => ({
@@ -27,7 +26,7 @@ export function storageRows(
 }
 
 function storageOf(
-	plugin: PluginHost,
+	plugin: StorageHost,
 	kind: EStorageBackend,
 ): Record<string, unknown> {
 	const config =
@@ -37,7 +36,7 @@ function storageOf(
 
 function renderStorageField(
 	setting: Setting,
-	plugin: PluginHost,
+	plugin: StorageHost,
 	kind: EStorageBackend,
 	field: SettingsFieldSpec,
 ): void {
@@ -93,7 +92,7 @@ function renderStorageField(
 
 function renderGoogleDriveAuth(
 	setting: Setting,
-	plugin: PluginHost,
+	plugin: StorageHost,
 	kind: EStorageBackend,
 ): void {
 	// Read on click too: editing a field replaces the config object.
@@ -126,7 +125,7 @@ function renderGoogleDriveAuth(
 }
 
 function updateStorage(
-	plugin: PluginHost,
+	plugin: StorageHost,
 	kind: EStorageBackend,
 	patch: Record<string, unknown>,
 	save: () => void = () => saveSettings(plugin),
@@ -139,7 +138,7 @@ function updateStorage(
 	save();
 }
 
-function saveSettings(plugin: PluginHost): void {
+function saveSettings(plugin: StorageHost): void {
 	void plugin
 		.saveSettings()
 		.catch((err: unknown) => notifyError("Could not save settings", err));

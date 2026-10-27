@@ -1,10 +1,7 @@
 import { Notice, Platform, setIcon } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
 import { openManageLinks } from "@/features/links";
 import { describePeople, renderAvatarStack } from "@/features/presence";
 import { lastEditLabel, openShareWindow } from "@/features/spaces";
-
 import type {
 	PresenceMarks,
 	PublishedMark,
@@ -12,6 +9,7 @@ import type {
 	ShareMark,
 	UnseenMark,
 } from "./file-explorer-marks";
+import type { ExplorerHost } from "./host";
 
 const SHARE_ICONS: Record<ShareKind, string> = {
 	owned: "share-2",
@@ -36,7 +34,7 @@ const TIP_MS = 4000;
 export function renderPresenceMarks(
 	target: HTMLElement,
 	marks: PresenceMarks,
-	plugin: PluginHost,
+	plugin: ExplorerHost,
 ): void {
 	if (marks.unseen) {
 		target.createSpan({
@@ -60,7 +58,7 @@ export function renderPresenceMarks(
 
 /** Action badges open management; other badges show a tooltip on phones. */
 export function badgeActivation(
-	plugin: PluginHost,
+	plugin: ExplorerHost,
 ): (event: MouseEvent | KeyboardEvent) => void {
 	let tip: Notice | null = null;
 	return (event) => {
@@ -92,7 +90,7 @@ export function badgeActivation(
 }
 
 function unseenTooltip(
-	plugin: PluginHost,
+	plugin: ExplorerHost,
 	{ count, file }: UnseenMark,
 ): string {
 	if (file) return lastEditLabel(plugin, file) ?? "Changed by someone else";

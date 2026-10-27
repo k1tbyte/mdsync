@@ -1,11 +1,11 @@
 import type { SettingDefinitionGroup } from "obsidian";
-
 import { type FieldContext, group, onSettled } from "@/core/settings";
 import { defaultDeviceName } from "@/features/sync";
+import type { SettingsTabHost } from "../host";
 
 export function advancedSection({
 	plugin,
-}: FieldContext): SettingDefinitionGroup {
+}: FieldContext<SettingsTabHost>): SettingDefinitionGroup {
 	return group("Advanced", [
 		{
 			name: "Device name",

@@ -1,5 +1,4 @@
 import { ButtonComponent, setIcon } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { formatRelativeTime } from "@/core/shared";
 import { actionButton, textButton } from "@/core/ui";
 import { askSpaceGone } from "@/features/spaces";
@@ -13,6 +12,7 @@ import {
 } from "@/features/sync";
 import type { SourceControlActions } from "./actions/actions";
 import { showIgnoredFiles, showSkippedFiles } from "./changes/excluded-files";
+import type { SourceControlHost } from "./host";
 
 /**
  * The head of the Changes tab: what is pending, Push and Pull, what keeps files out and what stops a sync.
@@ -41,7 +41,7 @@ export class SummaryCard {
 	/** `dock` takes Push and Pull out of the card, to the bottom of a phone screen. */
 	constructor(
 		parent: HTMLElement,
-		private readonly plugin: PluginHost,
+		private readonly plugin: SourceControlHost,
 		private readonly actions: Pick<
 			SourceControlActions,
 			"adoptNewVault" | "pushPaths" | "pullPaths"

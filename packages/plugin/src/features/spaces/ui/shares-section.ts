@@ -7,13 +7,16 @@ import {
 	imperativePage,
 	introRow,
 } from "@/core/settings";
+import type { SpacesHost } from "../host";
 import { ownerNameOf, renameOwner } from "../owner";
 import { openInvite } from "./invites/invite-action";
 import { shareSummary } from "./window/share-summary";
 import { openShareWindow } from "./window/share-window";
 
 /** This person's open shares, each managed in its window, even on a device where the folder is gone. */
-export function sharesSection(ctx: FieldContext): SettingDefinitionGroup {
+export function sharesSection(
+	ctx: FieldContext<SpacesHost>,
+): SettingDefinitionGroup {
 	const { plugin } = ctx;
 	const open = () => plugin.spaces.list().filter((record) => !record.closed);
 	const enabled = () => plugin.settings.useSharedFolders;

@@ -9,7 +9,7 @@ const { confirmRestore, notifyError, notifyInfo } = vi.hoisted(() => ({
 	notifyInfo: vi.fn(),
 }));
 
-vi.mock("@/features/diff/restore-modal", () => ({ confirmRestore }));
+vi.mock("@/features/diff/ui/restore-modal", () => ({ confirmRestore }));
 vi.mock("@/core/ui/notices", () => ({ notifyError, notifyInfo }));
 
 const before = { hash: "before", label: "Before push", size: 100 };

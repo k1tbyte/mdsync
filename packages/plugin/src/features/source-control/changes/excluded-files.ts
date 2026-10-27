@@ -1,14 +1,13 @@
 import { TFolder } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
 import { formatBytes } from "@/core/shared";
 import type { SkippedFile } from "@/features/sync";
 import { stopIgnoring } from "@/features/sync";
+import type { SourceControlHost } from "../host";
 import { type FileGroup, FileListModal } from "./file-list-modal";
 
 /** What the vault's and this device's ignore rules keep out, by where the rule lives. */
 export function showIgnoredFiles(
-	plugin: PluginHost,
+	plugin: SourceControlHost,
 	paths: readonly string[],
 ): void {
 	const { ignoreState } = plugin;
@@ -57,7 +56,7 @@ export function showIgnoredFiles(
 
 /** Files this device cannot sync, by why. */
 export function showSkippedFiles(
-	plugin: PluginHost,
+	plugin: SourceControlHost,
 	skipped: readonly SkippedFile[],
 ): void {
 	const of = <R extends SkippedFile["reason"]>(reason: R) =>

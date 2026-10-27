@@ -21,8 +21,10 @@ import {
 import type {
 	EngineDependencies,
 	LiveNotes,
+	LocalOpener,
 	ManifestAuthor,
 	PassphraseManager,
+	SessionFiles,
 	StatePersister,
 	WriteJournal,
 } from "@/features/sync";
@@ -62,22 +64,6 @@ export type SessionOpener = (
 	space: Space,
 	partition: readonly Space[],
 ) => Promise<EngineDependencies | null>;
-
-type SessionFiles = Pick<
-	EngineDependencies,
-	"space" | "adapter" | "scope" | "state" | "maxFileBytes"
->;
-
-/** What a display-only look at one space's files needs: no storage, no key. */
-export type LocalSession = SessionFiles & {
-	/** The storage `state` belongs to. */
-	identity: string;
-};
-
-export type LocalOpener = (
-	space: Space,
-	partition: readonly Space[],
-) => Promise<LocalSession | null>;
 
 /** One adapter and scope cache for both: a local look reuses the session's adapter. */
 export function createSessionOpeners(deps: SessionFactoryDeps): {

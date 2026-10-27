@@ -1,5 +1,4 @@
 import type { Menu } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import {
 	isConnected,
 	openPluginSettings,
@@ -12,6 +11,7 @@ import { LINK_LIVE_STATE, STATE_ICONS } from "@/features/live";
 import { personTitle } from "@/features/presence";
 import { lastEditLabel } from "@/features/spaces";
 import { VAULT_SPACE } from "@/features/sync";
+import type { StatusHost } from "./host";
 import {
 	type CarriedSpace,
 	carried,
@@ -20,7 +20,7 @@ import {
 } from "./live-spaces";
 
 /** The relay of every space, its fixes, who is in shared notes and what others changed. */
-export function addRelaySections(menu: Menu, plugin: PluginHost): void {
+export function addRelaySections(menu: Menu, plugin: StatusHost): void {
 	const spaces = carried(plugin);
 	addStatuses(menu, plugin, spaces);
 	addRelayFixes(menu, plugin, spaces);
@@ -44,7 +44,7 @@ export function addRelaySections(menu: Menu, plugin: PluginHost): void {
 
 function addStatuses(
 	menu: Menu,
-	plugin: PluginHost,
+	plugin: StatusHost,
 	spaces: readonly CarriedSpace[],
 ): void {
 	if (spaces.length === 0) {
@@ -77,7 +77,7 @@ function addStatuses(
 
 function addRelayFixes(
 	menu: Menu,
-	plugin: PluginHost,
+	plugin: StatusHost,
 	spaces: readonly CarriedSpace[],
 ): void {
 	const unreachable = spaces.filter(
@@ -108,7 +108,7 @@ function addRelayFixes(
 	}
 }
 
-function addUnseen(menu: Menu, plugin: PluginHost): void {
+function addUnseen(menu: Menu, plugin: StatusHost): void {
 	const notes = [...plugin.unseen.all()].filter((path) =>
 		plugin.app.vault.getFileByPath(path),
 	);

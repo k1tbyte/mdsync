@@ -1,6 +1,4 @@
 import { setIcon } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
 import type { EChangeType, SyncController } from "@/features/sync";
 import {
 	type ChangeAction,
@@ -8,9 +6,9 @@ import {
 	skippedFiles,
 	skippedText,
 } from "@/features/sync";
-
 import { renderPresenceMarks } from "./file-explorer-badges";
 import type { PresenceMarks } from "./file-explorer-marks";
+import type { ExplorerHost } from "./host";
 
 type ChangeKind = ChangeAction | "move" | "conflict";
 
@@ -59,7 +57,7 @@ const TARGET_CLASSES = [
 ];
 
 export function computeBase(
-	plugin: PluginHost,
+	plugin: ExplorerHost,
 	controller: SyncController,
 	directLinks: ReadonlyMap<string, string>,
 ): Map<string, BaseMarks> {
@@ -120,7 +118,7 @@ export function sameDecoration(
 export function renderDecoration(
 	target: HTMLElement,
 	decoration: PathDecoration,
-	plugin: PluginHost,
+	plugin: ExplorerHost,
 ): void {
 	const { change, ignored, skipped, linkRoot, share } = decoration;
 	if (change) {

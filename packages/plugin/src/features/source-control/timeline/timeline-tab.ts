@@ -1,5 +1,4 @@
 import { setIcon } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { formatBytes } from "@/core/shared";
 import {
 	appendIconButton,
@@ -15,6 +14,7 @@ import { STATUS_CLASSES, STATUS_LETTERS } from "../changes/row-formatter";
 import { groupRows } from "../history/day-groups";
 import { HistoryList } from "../history/history-list";
 import { RowPager } from "../history/row-pager";
+import type { SourceControlHost } from "../host";
 import { renderDelta } from "../row-parts";
 import {
 	renderEmptyState,
@@ -47,7 +47,7 @@ export class TimelineTab {
 	private readonly actions: TimelineActions;
 
 	constructor(
-		private readonly plugin: PluginHost,
+		private readonly plugin: SourceControlHost,
 		private readonly onRerender: () => void,
 		private readonly openDiff: (
 			path: string,

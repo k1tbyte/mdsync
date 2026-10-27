@@ -2,6 +2,7 @@ import type { SettingDefinitionPage } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 
 import type { FieldContext } from "@/core/settings/fields";
+import type { SpacesHost } from "@/features/spaces";
 import { sharesSection } from "@/features/spaces/ui/shares-section";
 
 vi.mock("@/core/settings/page", () => ({ imperativePage: vi.fn() }));
@@ -17,7 +18,7 @@ function form() {
 	const ctx = {
 		plugin: { settings, spaces: { list: () => records } },
 		rerender: vi.fn(),
-	} as unknown as FieldContext;
+	} as unknown as FieldContext<SpacesHost>;
 	const entry = sharesSection(ctx).items?.find(
 		(item) => item.name === "Your shared folders",
 	) as SettingDefinitionPage;

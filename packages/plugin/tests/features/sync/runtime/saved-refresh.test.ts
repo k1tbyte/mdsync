@@ -6,7 +6,7 @@ import {
 } from "@tests/helpers/session";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LocalSession } from "@/app/session-factory";
+import type { LocalSession } from "@/features/sync";
 import { SyncController } from "@/features/sync/controller";
 import type { CompareResult } from "@/features/sync/engine";
 import { pushPathsOp } from "@/features/sync/operations/push";

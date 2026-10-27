@@ -17,7 +17,7 @@ The rules in `.claude/rules/` (structure, ui, testing) load as you touch files; 
 - **Domain** (owns state, logic, its own flows and modals) or **surface** (a place in Obsidian where domains meet: a view, the gutter, the file tree, a header, the status bar, the wizard, the settings tab).
 - Domain order, lowest first: `storage < sync < live < presence < spaces < links < relay < transfer`. A slice imports only downward; a domain never imports a surface. Surface -> surface only along the allow list in the structure rule and `packages/plugin/.dependency-cruiser.cjs`; extending that list is a design decision, not part of this task.
 - Anything the slice needs from another slice comes through that slice's facade (`@/features/<name>`) or `@/core/<area>`. If two slices need code and it knows no feature, it belongs in `core/`.
-- Do not take `PluginHost` (`app/host.ts`): declare the narrow members the slice reads as its own interface, structurally satisfied by `MdsyncPlugin`. A way into another surface is a callback in it.
+- Do not take `PluginHost` (`app/host.ts`): declare what the slice reads from the plugin in `host.ts` as `<Name>Host`, export it from the facade; `MdsyncPlugin` satisfies it structurally. A way into another surface is a callback in it.
 
 ## 3. Create only the files it needs
 
@@ -34,6 +34,6 @@ Mirror the tree under `packages/plugin/tests/features/<name>/` (the testing rule
 
 ## 5. Finish
 
-- `pnpm lint && pnpm typecheck && pnpm test && pnpm arch`, all green, with no new entry in `packages/plugin/.dependency-cruiser-known-violations.json` and no folder over 12 modules.
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm arch`, all green, and no folder over 12 modules.
 - Grep `.claude/` and `features/*/README.md` for what the change renames or retires and update every mention in the same commit (`CLAUDE.md` rules table when a rule is added).
 - Report the files created and anything left out on purpose.

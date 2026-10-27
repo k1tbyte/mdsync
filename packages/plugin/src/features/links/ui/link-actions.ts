@@ -1,12 +1,12 @@
-import type { PluginHost } from "@/app/host";
 import { notifyError, notifyInfo, openPromptModal } from "@/core/ui";
 import { linkError } from "../errors";
+import type { LinksHost } from "../host";
 import { type RenderedNote, updateLink } from "../publish";
 import type { LinkRecord } from "../record";
 
 /** Updates each link in turn, asking a protected one for its passphrase; one notice says how it went. */
 export async function updateSharedLinks(
-	plugin: PluginHost,
+	plugin: LinksHost,
 	records: readonly LinkRecord[],
 ): Promise<void> {
 	const rendered: RenderedNote = new Map();
@@ -32,7 +32,7 @@ export async function updateSharedLinks(
 	notifyInfo(`${shows} the note as it is.${spent}`);
 }
 
-function askPassphrase(plugin: PluginHost): Promise<string | null> {
+function askPassphrase(plugin: LinksHost): Promise<string | null> {
 	return openPromptModal({
 		app: plugin.app,
 		title: "Passphrase",

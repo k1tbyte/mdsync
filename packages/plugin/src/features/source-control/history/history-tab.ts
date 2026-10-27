@@ -1,5 +1,4 @@
 import { Menu, setIcon } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { pluralize } from "@/core/shared";
 import {
 	appendIconButton,
@@ -12,6 +11,7 @@ import {
 import type { HistoryDiffTarget } from "@/features/diff";
 import { confirmRestore } from "@/features/diff";
 import type { FileVersion } from "@/features/sync";
+import type { SourceControlHost } from "../host";
 import { renderSize } from "../row-parts";
 import {
 	renderEmptyState,
@@ -34,7 +34,7 @@ export class HistoryTab {
 	private loadedPath: string | null = null;
 
 	constructor(
-		private readonly plugin: PluginHost,
+		private readonly plugin: SourceControlHost,
 		private readonly onRerender: () => void,
 		private readonly openDiff: (
 			path: string,

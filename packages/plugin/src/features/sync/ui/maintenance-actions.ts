@@ -1,4 +1,3 @@
-import type { PluginHost } from "@/app/host";
 import {
 	notifyError,
 	notifyInfo,
@@ -6,12 +5,13 @@ import {
 	reportError,
 } from "@/core/ui";
 import { activeStorage, describeStorageTarget } from "@/features/storage";
+import type { SyncHost } from "../host";
 import { cleanSummary } from "../runtime/maintenance";
 import { confirmRemoteReset } from "./reset-modal";
 
 const NO_STORAGE = "Configure a storage backend first.";
 
-export async function verifyRemoteIntegrity(plugin: PluginHost): Promise<void> {
+export async function verifyRemoteIntegrity(plugin: SyncHost): Promise<void> {
 	try {
 		const result = await plugin.controller.maintenance.verifyRemote(true);
 		if (!result) {
@@ -31,7 +31,7 @@ export async function verifyRemoteIntegrity(plugin: PluginHost): Promise<void> {
 }
 
 export async function deepCleanOrphanedObjects(
-	plugin: PluginHost,
+	plugin: SyncHost,
 ): Promise<void> {
 	const confirmed = await openConfirmModal({
 		app: plugin.app,
@@ -56,7 +56,7 @@ export async function deepCleanOrphanedObjects(
 	}
 }
 
-export async function resetLocalState(plugin: PluginHost): Promise<void> {
+export async function resetLocalState(plugin: SyncHost): Promise<void> {
 	const confirmed = await openConfirmModal({
 		app: plugin.app,
 		title: "Reset local state?",
@@ -77,7 +77,7 @@ export async function resetLocalState(plugin: PluginHost): Promise<void> {
 }
 
 /** Returns true when the remote was reset, so callers can follow up. */
-export async function resetRemoteStorage(plugin: PluginHost): Promise<boolean> {
+export async function resetRemoteStorage(plugin: SyncHost): Promise<boolean> {
 	const confirmed = await confirmRemoteReset(plugin.app, {
 		description: describeStorageTarget(activeStorage(plugin.settings)),
 	});

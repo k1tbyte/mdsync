@@ -1,4 +1,3 @@
-import type { PluginHost } from "@/app/host";
 import { RELAY_TEXT } from "@/core/hub";
 import { isRelayConfigured } from "@/core/settings";
 import { relayBase } from "@/core/shared";
@@ -11,6 +10,7 @@ import {
 	relayAdmin,
 	revokeParticipant,
 } from "../broker/share-broker";
+import type { SpacesHost } from "../host";
 import { createShare, ownerNameOf, ownerStorage } from "../owner";
 import { mountError } from "../partition";
 import type { SpaceRecord } from "../record";
@@ -21,7 +21,7 @@ export function closeLabel({ access }: SpaceRecord): string {
 
 /** The folder becomes a space of its own, beside the vault; null when it cannot. */
 export async function shareFolder(
-	plugin: PluginHost,
+	plugin: SpacesHost,
 	root: string,
 ): Promise<SpaceRecord | null> {
 	const storage = ownerStorage(plugin.settings);
@@ -53,7 +53,7 @@ export async function shareFolder(
 
 /** The relay an owner's invites went through, when this vault cannot reach it to end their tokens. */
 export function strandedInvites(
-	plugin: PluginHost,
+	plugin: SpacesHost,
 	record: SpaceRecord,
 ): string | null {
 	const { access } = record;
@@ -66,7 +66,7 @@ export function strandedInvites(
 
 /** The owner stops sharing, or a participant leaves; true once it is closed. */
 export async function closeShare(
-	plugin: PluginHost,
+	plugin: SpacesHost,
 	record: SpaceRecord,
 ): Promise<boolean> {
 	const { access } = record;
@@ -113,7 +113,7 @@ export async function closeShare(
 
 /** Tombstones the record; `deleteRemote` empties the owner's copy too. */
 export async function closeHere(
-	plugin: PluginHost,
+	plugin: SpacesHost,
 	record: SpaceRecord,
 	deleteRemote: boolean,
 ): Promise<void> {
@@ -130,7 +130,7 @@ export async function closeHere(
 
 /** False when the owner backed out. */
 export async function revokeAccess(
-	plugin: PluginHost,
+	plugin: SpacesHost,
 	record: SpaceRecord,
 	person: Participant,
 ): Promise<boolean> {

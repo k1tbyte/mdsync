@@ -1,11 +1,11 @@
-import type { PluginHost } from "@/app/host";
 import { ESetupStep } from "@/features/setup";
+import type { SourceControlHost } from "./host";
 import { renderEmptyState } from "./tab-states";
 
 /** The Changes tab of a device that syncs nothing yet. */
 export function renderSetupPrompt(
 	parent: HTMLElement,
-	plugin: PluginHost,
+	plugin: SourceControlHost,
 ): void {
 	const el = renderEmptyState(parent, {
 		icon: "hard-drive",

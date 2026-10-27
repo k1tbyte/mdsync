@@ -1,5 +1,4 @@
 import type { Plugin } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import {
 	isConnected,
 	type LinkState,
@@ -9,11 +8,12 @@ import {
 } from "@/core/hub";
 import type { Person } from "@/features/presence";
 import { describePeople, renderAvatarStack } from "@/features/presence";
+import type { StatusHost } from "./host";
 import { carried, inSharedNotes } from "./live-spaces";
 
 /** The status bar's relay half: one dot for the link of every space it carries, and who is in shared notes. */
 export function mountRelayStatus(
-	plugin: Plugin & PluginHost,
+	plugin: Plugin & StatusHost,
 	el: HTMLElement,
 	onChange: () => void,
 ): void {

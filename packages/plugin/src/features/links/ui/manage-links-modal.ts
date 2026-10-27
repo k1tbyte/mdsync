@@ -6,7 +6,6 @@ import {
 	Setting,
 	type TFile,
 } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import {
 	copyText,
 	modalCard,
@@ -20,6 +19,7 @@ import {
 import { runWithConcurrency } from "@/core/utils";
 import { linkStatusText } from "../describe";
 import { linkError } from "../errors";
+import type { LinksHost } from "../host";
 import { linkStatusOf, revokeLinkRecord } from "../publish";
 import {
 	isExpired,
@@ -47,7 +47,7 @@ export class ManageLinksModal extends Modal {
 	private modifyRef: EventRef | null = null;
 
 	constructor(
-		private readonly plugin: PluginHost,
+		private readonly plugin: LinksHost,
 		/** Only this note's links; all of them without it. */
 		private readonly path?: string,
 	) {

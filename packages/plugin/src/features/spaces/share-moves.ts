@@ -1,9 +1,9 @@
 import { type Plugin, TFolder, type Vault } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { reportWarning } from "@/core/shared";
 import { notifyError, notifyInfo } from "@/core/ui";
 import { removeEmptyDir } from "@/core/vault";
 import { isUnder } from "@/features/sync";
+import type { SpacesHost } from "./host";
 import { mountError, spacesOf } from "./partition";
 import type { PendingMove, SpaceRecords } from "./records";
 
@@ -40,7 +40,7 @@ export function createMoveFollower(
 }
 
 /** A shared folder renamed here, or one it is in, moves on the person's other devices too. */
-export function registerShareRenames(plugin: Plugin & PluginHost): void {
+export function registerShareRenames(plugin: Plugin & SpacesHost): void {
 	const movingBack = new Set<number>();
 	plugin.register(() => {
 		for (const timer of movingBack) window.clearTimeout(timer);
@@ -88,7 +88,7 @@ async function follow(
 }
 
 async function onFolderRenamed(
-	plugin: Plugin & PluginHost,
+	plugin: Plugin & SpacesHost,
 	folder: TFolder,
 	oldPath: string,
 	movingBack: Set<number>,

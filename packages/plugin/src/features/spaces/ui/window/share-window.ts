@@ -1,7 +1,7 @@
 import type { Menu } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { notifyError } from "@/core/ui";
 import { isUnder } from "@/features/sync";
+import type { SpacesHost } from "../../host";
 import { ownerStorage } from "../../owner";
 import { mountError } from "../../partition";
 import type { SpaceRecord } from "../../record";
@@ -11,7 +11,7 @@ import { ShareModal } from "./share-modal";
 /** Folder menu entry: the window of the share the folder is or is in, else sharing it. */
 export function addShareMenuItem(
 	menu: Menu,
-	plugin: PluginHost,
+	plugin: SpacesHost,
 	root: string,
 ): void {
 	if (!plugin.settings.useSharedFolders) return;
@@ -51,7 +51,7 @@ export function addShareMenuItem(
 
 /** The share's window, for its owner and for whoever it was shared with. */
 export function openShareWindow(
-	plugin: PluginHost,
+	plugin: SpacesHost,
 	record: SpaceRecord,
 	onClosed?: () => void,
 ): void {

@@ -8,6 +8,9 @@ export { movesByPath } from "./changes/moves";
 export { HUNK_TEXT_MAX_BYTES } from "./constants";
 export {
 	EConflictStrategy,
+	type LocalOpener,
+	type LocalSession,
+	type SessionFiles,
 	SyncController,
 	type SyncOperationResult,
 	type SyncStatusSnapshot,
@@ -24,6 +27,7 @@ export type {
 	SnapshotListResult,
 	SnapshotSummary,
 } from "./history/types";
+export type { SyncHost } from "./host";
 export {
 	computeHunks,
 	DIFF_BUDGET,

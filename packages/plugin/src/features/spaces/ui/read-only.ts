@@ -1,7 +1,6 @@
 import { EditorState, type Extension, Prec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { editorInfoField, type Plugin } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import {
 	type ExcalidrawApi,
 	type ExcalidrawView,
@@ -9,11 +8,12 @@ import {
 	LIVE_VIEWS,
 	setViewMode,
 } from "@/features/live";
+import type { SpacesHost } from "../host";
 
 const LOADING_RETRY_MS = 500;
 
 /** Notes and drawings of a read-only share take no edits: nothing made there could sync. */
-export function registerReadOnlyLock(plugin: Plugin & PluginHost): void {
+export function registerReadOnlyLock(plugin: Plugin & SpacesHost): void {
 	const { vault, workspace } = plugin.app;
 	const mutable: Extension[] = [];
 	plugin.registerEditorExtension(mutable);
@@ -44,7 +44,7 @@ export function registerReadOnlyLock(plugin: Plugin & PluginHost): void {
 
 /** Calls `onChange` with the read-only share roots whenever they change; returns the stop. */
 export function watchReadOnlyRoots(
-	plugin: PluginHost,
+	plugin: SpacesHost,
 	onChange: (roots: readonly string[]) => void,
 ): () => void {
 	let shown = "";

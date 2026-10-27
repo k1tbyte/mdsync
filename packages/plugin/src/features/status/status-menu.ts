@@ -1,5 +1,4 @@
 import { Menu } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/core/constants";
 import { formatRelativeTime, pluralize } from "@/core/shared";
 import { showMenuAt } from "@/core/ui";
@@ -17,10 +16,11 @@ import {
 	type SyncStatusSnapshot,
 	splitSpaceErrors,
 } from "@/features/sync";
+import type { StatusHost } from "./host";
 import { addRelaySections } from "./where-menu";
 
 /** The status bar item's menu, and on a phone the command's: where sync stands, what to do next, the relay. */
-export function openStatusMenu(plugin: PluginHost, anchor?: HTMLElement): void {
+export function openStatusMenu(plugin: StatusHost, anchor?: HTMLElement): void {
 	const menu = new Menu();
 	const snapshot = plugin.controller.getSnapshot();
 	menu.addItem((item) =>
@@ -44,7 +44,7 @@ export function openStatusMenu(plugin: PluginHost, anchor?: HTMLElement): void {
 
 function addSyncActions(
 	menu: Menu,
-	plugin: PluginHost,
+	plugin: StatusHost,
 	snapshot: SyncStatusSnapshot,
 ): void {
 	if (!canSync(plugin.settings)) {
@@ -110,7 +110,7 @@ function addSyncActions(
 }
 
 function summaryTitle(
-	plugin: PluginHost,
+	plugin: StatusHost,
 	snapshot: SyncStatusSnapshot,
 ): DocumentFragment {
 	const title = createFragment();
@@ -129,7 +129,7 @@ function summaryTitle(
 
 /** "3 to push · 1 conflict": the menu's head, and what the status bar item announces. */
 export function syncHeadline(
-	plugin: PluginHost,
+	plugin: StatusHost,
 	snapshot: SyncStatusSnapshot,
 ): string {
 	if (!canSync(plugin.settings)) return "Sync is not set up";
@@ -153,6 +153,6 @@ export function syncHeadline(
 	return parts.length > 0 ? parts.join(" · ") : "Everything is in sync";
 }
 
-async function openSourceControl(plugin: PluginHost): Promise<void> {
+async function openSourceControl(plugin: StatusHost): Promise<void> {
 	await openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
 }

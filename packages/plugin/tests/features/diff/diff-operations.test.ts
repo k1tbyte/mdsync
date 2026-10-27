@@ -104,7 +104,7 @@ describe("DiffOperations.restoreVersion uses selected hash", () => {
 	it.each(["add", "modify", "delete"])(
 		"confirms the correct %s side and label",
 		async (action) => {
-			const restoreMod = await import("@/features/diff/restore-modal");
+			const restoreMod = await import("@/features/diff/ui/restore-modal");
 			const spy = vi
 				.spyOn(restoreMod, "confirmRestore")
 				.mockResolvedValue(true);
@@ -129,7 +129,7 @@ describe("DiffOperations.restoreVersion uses selected hash", () => {
 	);
 
 	it("does not restore if confirmation is cancelled", async () => {
-		const restoreMod = await import("@/features/diff/restore-modal");
+		const restoreMod = await import("@/features/diff/ui/restore-modal");
 		const spy = vi.spyOn(restoreMod, "confirmRestore").mockResolvedValue(false);
 		const { ops, restoreFn } = setup();
 		await ops.restoreVersion();
@@ -138,7 +138,7 @@ describe("DiffOperations.restoreVersion uses selected hash", () => {
 	});
 
 	it("restores using the historyHash which is the selected version", async () => {
-		const restoreMod = await import("@/features/diff/restore-modal");
+		const restoreMod = await import("@/features/diff/ui/restore-modal");
 		const spy = vi.spyOn(restoreMod, "confirmRestore").mockResolvedValue(true);
 
 		const { ops, restoreFn } = setup({ historyHash: "selected-hash" });

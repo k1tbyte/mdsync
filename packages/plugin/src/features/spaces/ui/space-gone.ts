@@ -1,6 +1,6 @@
-import type { PluginHost } from "@/app/host";
 import { openChoiceModal, runWithNotice } from "@/core/ui";
 import type { Space } from "@/features/sync";
+import type { SpacesHost } from "../host";
 
 const RESTORE = {
 	key: "restore",
@@ -14,7 +14,7 @@ const DELETE = {
 } as const;
 
 /** Asks once per share and launch; the Changes tab asks again on demand. */
-export function createSpaceGone(plugin: PluginHost): (space: Space) => void {
+export function createSpaceGone(plugin: SpacesHost): (space: Space) => void {
 	const asked = new Set<string>();
 	return (space) => {
 		if (asked.has(space.id)) return;
@@ -25,7 +25,7 @@ export function createSpaceGone(plugin: PluginHost): (space: Space) => void {
 
 /** A share lost every file it had here: they come back, or their loss reaches everyone in it. */
 export async function askSpaceGone(
-	plugin: PluginHost,
+	plugin: SpacesHost,
 	space: Space,
 ): Promise<void> {
 	const choice = await openChoiceModal<"restore" | "delete">({

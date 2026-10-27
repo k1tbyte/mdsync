@@ -1,5 +1,4 @@
 import { type FileView, MarkdownView, type TFile } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import {
 	isLinkState,
 	RELAY_TEXT,
@@ -15,6 +14,7 @@ import {
 	liveKindOf,
 } from "@/features/live";
 import type { Space } from "@/features/sync";
+import type { NoteHeaderHost } from "./host";
 
 const ARRIVES_ON_SYNC = "Changes arrive as they sync";
 
@@ -43,7 +43,7 @@ const NOT_CARRIED: Partial<Record<RelayStatus, LiveStatus>> = {
 
 /** Null where no relay carries `space`, the file's. */
 export function liveStatusOf(
-	plugin: PluginHost,
+	plugin: NoteHeaderHost,
 	view: FileView,
 	file: TFile,
 	space: Space,
@@ -77,7 +77,7 @@ export function liveStatusOf(
 }
 
 function coldReason(
-	plugin: PluginHost,
+	plugin: NoteHeaderHost,
 	view: FileView,
 	file: TFile,
 	space: Space,

@@ -9,7 +9,6 @@ import {
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { setIcon } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { randomId } from "@/core/crypto";
 import { notifyError, notifyInfo, runWithNotice } from "@/core/ui";
 import { eolOf } from "@/core/utils";
@@ -23,6 +22,7 @@ import {
 	snapToLines,
 } from "@/features/sync";
 import type { PanelHosts } from "../header";
+import type { DiffHost } from "../host";
 import { LayoutMode } from "../layout-mode";
 import {
 	LineWrappingControl,
@@ -96,7 +96,7 @@ export class MergeEditorPanel {
 
 	/** `stillOn` says the view still shows `path` once the three versions arrive. */
 	async enter(
-		plugin: PluginHost,
+		plugin: DiffHost,
 		path: string,
 		stillOn: () => boolean,
 		onEntered: () => void,
@@ -405,7 +405,7 @@ export class MergeEditorPanel {
 	}
 
 	async save(
-		plugin: PluginHost,
+		plugin: DiffHost,
 		path: string,
 		onSaved: (resolvedPath: string) => Promise<void>,
 	): Promise<void> {

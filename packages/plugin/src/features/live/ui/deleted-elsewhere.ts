@@ -1,10 +1,16 @@
-import type { PluginHost } from "@/app/host";
+import type { App } from "obsidian";
 import { notifyError, openChoiceModal, runWithNotice } from "@/core/ui";
-import { spaceOf } from "@/features/sync";
+import { type Space, type SyncController, spaceOf } from "@/features/sync";
+
+interface DeletedElsewhereHost {
+	readonly app: App;
+	readonly controller: SyncController;
+	readonly spaces: { partition(): readonly Space[] };
+}
 
 /** Another device deleted a note open here: the person decides whether it goes here too or comes back everywhere. */
 export function createDeletedElsewhere(
-	plugin: PluginHost,
+	plugin: DeletedElsewhereHost,
 ): (path: string) => void {
 	const asking = new Set<string>();
 	return (path) => {
@@ -14,7 +20,7 @@ export function createDeletedElsewhere(
 	};
 }
 
-async function ask(plugin: PluginHost, path: string): Promise<void> {
+async function ask(plugin: DeletedElsewhereHost, path: string): Promise<void> {
 	const { app, controller, spaces } = plugin;
 	const { readOnly } = spaceOf(spaces.partition(), path);
 	const name = app.vault.getFileByPath(path)?.basename ?? path;

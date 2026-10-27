@@ -1,3 +1,4 @@
+export type { SourceControlHost } from "./host";
 export {
 	keepInRightSidebar,
 	openSourceControlChanges,

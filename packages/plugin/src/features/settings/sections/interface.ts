@@ -1,5 +1,4 @@
 import type { SettingDefinitionGroup } from "obsidian";
-
 import {
 	EFieldKind,
 	type FieldContext,
@@ -7,8 +6,9 @@ import {
 	group,
 	type SettingsField,
 } from "@/core/settings";
+import type { SettingsTabHost } from "../host";
 
-const INTERFACE_FIELDS: ReadonlyArray<SettingsField> = [
+const INTERFACE_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 	{
 		kind: EFieldKind.Toggle,
 		name: "Status bar indicator",
@@ -63,7 +63,9 @@ const INTERFACE_FIELDS: ReadonlyArray<SettingsField> = [
 	},
 ];
 
-export function interfaceSection(ctx: FieldContext): SettingDefinitionGroup {
+export function interfaceSection(
+	ctx: FieldContext<SettingsTabHost>,
+): SettingDefinitionGroup {
 	return group(
 		undefined,
 		INTERFACE_FIELDS.map((field) => fieldRow(ctx, field)),

@@ -1,6 +1,4 @@
 import { FileView, type TFile, type WorkspaceLeaf } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
 import type { LiveState } from "@/features/live";
 import type { Person } from "@/features/presence";
 import {
@@ -10,6 +8,7 @@ import {
 	spaceOf,
 	VAULT_SPACE,
 } from "@/features/sync";
+import type { NoteHeaderHost } from "./host";
 
 import { type LiveStatus, liveStatusOf } from "./live-status";
 
@@ -30,7 +29,7 @@ interface Header {
 }
 
 export function headerOf(
-	plugin: PluginHost,
+	plugin: NoteHeaderHost,
 	leaf: WorkspaceLeaf,
 ): Header | null {
 	const { view } = leaf;
@@ -55,7 +54,7 @@ export function headerOf(
 }
 
 /** Left out of the sync outranks how it would go live. */
-function skippedStatus(plugin: PluginHost, file: TFile): LiveStatus | null {
+function skippedStatus(plugin: NoteHeaderHost, file: TFile): LiveStatus | null {
 	const skipped = skippedFiles(plugin.controller).find(
 		({ path }) => path === file.path,
 	);

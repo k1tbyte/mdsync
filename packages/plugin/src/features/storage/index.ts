@@ -27,6 +27,7 @@ export {
 	type StorageAdapterConfig,
 } from "./config";
 export { CONCURRENCY_FIELD } from "./field-spec";
+export type { StorageHost } from "./host";
 export {
 	type RecordKind,
 	readRecords,

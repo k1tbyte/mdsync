@@ -4,8 +4,6 @@ import {
 	PluginSettingTab,
 	type SettingDefinitionItem,
 } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
 import { type FieldContext, settleTyping } from "@/core/settings";
 import { linksSection } from "@/features/links";
 import { relaySection } from "@/features/relay";
@@ -17,6 +15,7 @@ import {
 	maintenanceSection,
 } from "@/features/sync";
 import { deviceTransferSection } from "@/features/transfer";
+import type { SettingsTabHost } from "./host";
 import { logsPage } from "./logs-view";
 import { overviewGroup } from "./overview";
 import { advancedSection } from "./sections/advanced";
@@ -25,9 +24,9 @@ import { interfaceSection } from "./sections/interface";
 import { securitySection } from "./sections/security";
 
 export class MdsyncSettingTab extends PluginSettingTab {
-	private readonly plugin: Plugin & PluginHost;
+	private readonly plugin: Plugin & SettingsTabHost;
 
-	constructor(app: App, plugin: Plugin & PluginHost) {
+	constructor(app: App, plugin: Plugin & SettingsTabHost) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -38,7 +37,7 @@ export class MdsyncSettingTab extends PluginSettingTab {
 	}
 
 	getSettingDefinitions(): SettingDefinitionItem[] {
-		const ctx: FieldContext = {
+		const ctx: FieldContext<SettingsTabHost> = {
 			plugin: this.plugin,
 			rerender: () => this.update(),
 		};

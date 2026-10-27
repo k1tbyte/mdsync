@@ -1,4 +1,3 @@
-import type { PluginHost } from "@/app/host";
 import { DIFF_VIEW_TYPE } from "@/core/constants";
 import {
 	EDiffDirection,
@@ -7,6 +6,7 @@ import {
 	type HistoryVersionRef,
 	HUNK_TEXT_MAX_BYTES,
 } from "@/features/sync";
+import type { DiffHost } from "./host";
 
 export interface HistoryChange {
 	before: HistoryVersionRef | null;
@@ -37,7 +37,7 @@ export interface HistoryDiffTarget extends HistoryVersionRef {
 
 /** `merge` goes straight into the conflict's merge, as the diff's Merge… does. */
 export async function openDiffView(
-	plugin: PluginHost,
+	plugin: DiffHost,
 	path: string,
 	history?: HistoryDiffTarget,
 	merge = false,

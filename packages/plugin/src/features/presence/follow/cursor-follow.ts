@@ -1,7 +1,7 @@
 import { FileView, MarkdownView, type WorkspaceLeaf } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { openNote } from "@/core/ui";
 import type { LiveSession } from "@/features/live";
+import type { PresenceHost } from "../host";
 import type { Person } from "../views";
 
 import { showFollowBanner } from "./follow-banner";
@@ -24,7 +24,7 @@ interface Following {
 export class CursorFollow {
 	private current: Following | null = null;
 
-	constructor(private readonly plugin: PluginHost) {}
+	constructor(private readonly plugin: PresenceHost) {}
 
 	of(leaf: WorkspaceLeaf): string | null {
 		return this.current?.leaf === leaf ? this.current.key : null;

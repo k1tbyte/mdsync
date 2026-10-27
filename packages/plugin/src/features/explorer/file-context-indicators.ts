@@ -1,12 +1,11 @@
 import { MarkdownView, type Plugin, setIcon } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
 import { makeActivatable, revealInFileExplorer } from "@/core/ui";
 import { createSymlinkDetector, type SymlinkDetector } from "@/core/vault";
+import type { ExplorerHost } from "./host";
 import type { IndicatorHandle } from "./indicator-handle";
 
 export function registerFileContextIndicators(
-	plugin: Plugin & PluginHost,
+	plugin: Plugin & ExplorerHost,
 ): IndicatorHandle {
 	const root = plugin.addStatusBarItem();
 	root.addClass("mdsync-file-context", "mdsync-hidden");
@@ -151,7 +150,7 @@ export function registerFileContextIndicators(
 	};
 }
 
-function createDetector(plugin: Plugin & PluginHost): SymlinkDetector {
+function createDetector(plugin: Plugin & ExplorerHost): SymlinkDetector {
 	return createSymlinkDetector(
 		plugin.app.vault.adapter,
 		plugin.settings.ignoreSymlinks,

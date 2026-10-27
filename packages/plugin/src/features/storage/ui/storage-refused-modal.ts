@@ -1,5 +1,4 @@
 import { ButtonComponent, Modal, Setting } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { openPluginSettings } from "@/core/hub";
 import {
 	alertLine,
@@ -10,6 +9,7 @@ import {
 } from "@/core/ui";
 import { cloudflareErrorMessage } from "../cloudflare/cloudflare-login";
 import { r2StorageOf, rekeyR2 } from "../cloudflare/r2-select";
+import type { StorageHost } from "../host";
 import { describeStorageTarget } from "../registry";
 import { activeStorage } from "../settings";
 
@@ -17,7 +17,7 @@ const FIELD = "Token value or secret access key";
 const UPDATE = "Update keys";
 
 /** True once new keys open the storage; R2 takes them here, any other storage in the settings. */
-export function openStorageRefusedModal(plugin: PluginHost): Promise<boolean> {
+export function openStorageRefusedModal(plugin: StorageHost): Promise<boolean> {
 	return openPromiseModal<boolean>((answer) => {
 		const modal = new Modal(plugin.app);
 		const { contentEl } = modal;

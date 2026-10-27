@@ -9,8 +9,11 @@ import {
 } from "@/core/ui";
 import { isStorageConfigured } from "@/features/storage";
 import { PassphraseRotatedError } from "@/features/sync";
+import type { SettingsTabHost } from "../host";
 
-export function securitySection(ctx: FieldContext): SettingDefinitionGroup {
+export function securitySection(
+	ctx: FieldContext<SettingsTabHost>,
+): SettingDefinitionGroup {
 	const { plugin, rerender } = ctx;
 	return group("Encryption", [
 		{

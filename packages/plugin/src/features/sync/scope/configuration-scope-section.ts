@@ -9,6 +9,7 @@ import {
 	type SettingsRow,
 } from "@/core/settings";
 import { notifyError, notifyInfo, openConfirmModal } from "@/core/ui";
+import type { SyncHost } from "../host";
 import type { Manifest } from "../types";
 import { createScopePolicy, type ScopePolicy } from "./scope";
 
@@ -64,7 +65,7 @@ function countRemoteCategories(
 }
 
 export function configurationScopeSection(
-	ctx: FieldContext,
+	ctx: FieldContext<SyncHost>,
 ): SettingDefinitionGroup {
 	const { plugin } = ctx;
 	return group("Obsidian configuration scope", [
@@ -122,7 +123,7 @@ export function configurationScopeSection(
 }
 
 async function clearCategory(
-	ctx: FieldContext,
+	ctx: FieldContext<SyncHost>,
 	row: SettingsSyncRow,
 ): Promise<void> {
 	const { plugin } = ctx;

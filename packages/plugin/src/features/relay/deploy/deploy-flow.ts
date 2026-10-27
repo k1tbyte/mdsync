@@ -1,9 +1,9 @@
 import bundle from "mdsync:relay-bundle";
 import { toHex } from "@mdsync/protocol";
-import type { PluginHost } from "@/app/host";
 import { randomBytes, randomSecret } from "@/core/crypto";
 import { isRelayConfigured, type RelayConfig } from "@/core/settings";
 import type { CloudflareLogin } from "@/features/storage";
+import type { RelayHost } from "../host";
 import { testRelay } from "../relay-test";
 import {
 	type AccountRelays,
@@ -62,7 +62,7 @@ export function failedRelay(accountId: string): RelayTarget | null {
  * never loses the secret of a live relay.
  */
 export function deployOwnRelay(
-	plugin: PluginHost,
+	plugin: RelayHost,
 	login: CloudflareLogin,
 	target: RelayTarget,
 	onStep: (step: ERelayDeployStep) => void,
@@ -88,7 +88,7 @@ export function deployOwnRelay(
 }
 
 async function deployTo(
-	plugin: PluginHost,
+	plugin: RelayHost,
 	login: CloudflareLogin,
 	target: RelayTarget,
 	onStep: (step: ERelayDeployStep) => void,
@@ -128,7 +128,7 @@ export async function waitForRelay(
 let activating: Promise<boolean> | null = null;
 
 /** One wait however many wizards ask: the relay is switched on once, when it answers. Survives a closed wizard, stops on unload. */
-export function activateRelay(plugin: PluginHost): Promise<boolean> {
+export function activateRelay(plugin: RelayHost): Promise<boolean> {
 	activating ??= (async () => {
 		try {
 			const answered = await waitForRelay(
@@ -145,7 +145,7 @@ export function activateRelay(plugin: PluginHost): Promise<boolean> {
 }
 
 /** Real-time sync is what a relay is for: on once it answers. */
-export async function useRelay(plugin: PluginHost): Promise<void> {
+export async function useRelay(plugin: RelayHost): Promise<void> {
 	plugin.settings.realtimeSync = true;
 	await plugin.saveSettings();
 	plugin.realtime.hub.restart();

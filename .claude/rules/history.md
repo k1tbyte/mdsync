@@ -4,7 +4,7 @@ paths:
   - 'packages/plugin/src/features/source-control/history/**'
   - 'packages/plugin/src/features/source-control/timeline/**'
   - 'packages/plugin/src/features/source-control/trash/**'
-  - 'packages/plugin/src/features/diff/restore-modal.ts'
+  - 'packages/plugin/src/features/diff/ui/restore-modal.ts'
   - 'packages/plugin/src/features/sync/runtime/maintenance*.ts'
 ---
 
@@ -33,7 +33,7 @@ History is a change log, not an archive. Model, publish order, windows and accep
 - A restore that puts the vault back is local only: nothing reaches the remote until the person pushes. `planVaultRestore` (`features/sync/history/restore-vault.ts`) is pure, and the confirmation and the operation both run it; the operation re-plans after the confirmation and applies nothing if the plan differs (`sameRestorePlan`).
 - It removes only paths the scan actually read (an unreadable directory is unknown, not absent), sends removed files to the trash (`trashPath`), and never touches an ignored, out-of-scope or disk-refused path in either direction.
 - Its writes run under a journal claim like a pull's (`restoreVault` in `features/sync/runtime/history-service.ts`) and its target manifest keeps only paths the space owns (`ownedFiles`).
-- Restore dialogs promise "nothing is pushed until you say so" (`features/diff/restore-modal.ts`); keep that true.
+- Restore dialogs promise "nothing is pushed until you say so" (`features/diff/ui/restore-modal.ts`); keep that true.
 
 ## Pins
 

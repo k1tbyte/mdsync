@@ -11,13 +11,16 @@ import {
 import { relayBase } from "@/core/shared";
 import { runWithNotice } from "@/core/ui";
 import { forgetCloudflare } from "@/features/storage";
+import type { RelayHost } from "../host";
 import { testRelay } from "../relay-test";
 
 function secretButtonLabel(secret: string): string {
 	return secret ? "Copy" : "Generate";
 }
 
-export function relaySection(ctx: FieldContext): SettingDefinitionGroup {
+export function relaySection(
+	ctx: FieldContext<RelayHost>,
+): SettingDefinitionGroup {
 	const { plugin } = ctx;
 	const secretRow = fieldRow(ctx, {
 		kind: EFieldKind.Password,

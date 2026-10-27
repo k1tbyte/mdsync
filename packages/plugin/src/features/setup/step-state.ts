@@ -1,7 +1,7 @@
-import type { PluginHost } from "@/app/host";
 import { isRelayConfigured } from "@/core/settings";
 import { isStorageConfigured } from "@/features/storage";
 import { canSync } from "@/features/sync";
+import type { SetupHost } from "./host";
 
 export const ESetupStep = {
 	Start: "start",
@@ -32,7 +32,7 @@ export const PATH_STEPS: Record<ESetupPath, readonly ESetupStep[]> = {
 };
 
 /** Computed, never stored, so the wizard always agrees with the settings. */
-export function isStepDone(plugin: PluginHost, step: ESetupStep): boolean {
+export function isStepDone(plugin: SetupHost, step: ESetupStep): boolean {
 	switch (step) {
 		case ESetupStep.Storage:
 			return isStorageConfigured(plugin.settings);
@@ -48,7 +48,7 @@ export function isStepDone(plugin: PluginHost, step: ESetupStep): boolean {
 }
 
 /** Where the wizard opens: the first step this device still lacks. */
-export function firstStep(plugin: PluginHost): ESetupStep {
+export function firstStep(plugin: SetupHost): ESetupStep {
 	if (!isStorageConfigured(plugin.settings)) return ESetupStep.Start;
 	return (
 		PATH_STEPS[ESetupPath.New].find((step) => !isStepDone(plugin, step)) ??

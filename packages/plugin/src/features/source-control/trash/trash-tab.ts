@@ -1,5 +1,4 @@
 import { Menu, Platform, setIcon, TFile, TFolder } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { pluralize } from "@/core/shared";
 import {
 	appendIconButton,
@@ -20,6 +19,7 @@ import {
 } from "../actions/selection-bar";
 import { HistoryList } from "../history/history-list";
 import { RowPager } from "../history/row-pager";
+import type { SourceControlHost } from "../host";
 import {
 	renderEmptyState,
 	renderHistoryOff,
@@ -45,7 +45,7 @@ export class TrashTab implements SelectionSource {
 	private selectAll: HTMLInputElement | null = null;
 
 	constructor(
-		private readonly plugin: PluginHost,
+		private readonly plugin: SourceControlHost,
 		private readonly onRerender: () => void,
 		private readonly openDiff: (
 			path: string,

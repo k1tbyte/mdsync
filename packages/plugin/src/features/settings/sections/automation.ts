@@ -1,5 +1,4 @@
 import type { Setting, SettingDefinitionGroup } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import {
 	AUTO_PUSH_SETTLE_MAX_SECONDS,
 	AUTO_PUSH_SETTLE_MIN_SECONDS,
@@ -21,12 +20,24 @@ import {
 	group,
 	isRelayConfigured,
 	type SettingsField,
+	type SettingsHost,
 	SUB_SETTING_CLASS,
 } from "@/core/settings";
+import type { LiveSessions } from "@/features/live";
 import type { People } from "@/features/presence";
+import type { HubConnection } from "@/features/relay";
 import { clampMaxSnapshots, VAULT_SPACE } from "@/features/sync";
+import type { SettingsTabHost } from "../host";
 
-const AUTOSYNC_FIELD: SettingsField = {
+/** The wizard shows these too, so they ask only what its host has. */
+type RealtimeFieldHost = SettingsHost & {
+	readonly realtime: {
+		readonly hub: HubConnection;
+		readonly live: LiveSessions;
+	};
+};
+
+const AUTOSYNC_FIELD: SettingsField<RealtimeFieldHost> = {
 	kind: EFieldKind.Toggle,
 	name: "Autosync",
 	desc: "Sync automatically: once after startup and on a schedule. Pulls remote changes; conflicts that cannot be merged safely stop the cycle.",
@@ -35,7 +46,7 @@ const AUTOSYNC_FIELD: SettingsField = {
 	rerender: true,
 };
 
-const REALTIME_FIELD: SettingsField = {
+const REALTIME_FIELD: SettingsField<RealtimeFieldHost> = {
 	kind: EFieldKind.Toggle,
 	name: "Real-time sync",
 	desc: "Other devices pull the moment you push, and you see who is in which note. Turning it off also stops live editing. Your devices use the relay server (Connection tab), shared folders their owner's.",
@@ -45,7 +56,7 @@ const REALTIME_FIELD: SettingsField = {
 	rerender: true,
 };
 
-const LIVE_EDITING_FIELD: SettingsField = {
+const LIVE_EDITING_FIELD: SettingsField<RealtimeFieldHost> = {
 	kind: EFieldKind.Toggle,
 	name: "Live editing",
 	desc: "Notes open in the editor edit together, keystroke by keystroke, across your devices and with the people in shared folders, through the relay.",
@@ -57,7 +68,7 @@ const LIVE_EDITING_FIELD: SettingsField = {
 	rerender: true,
 };
 
-const LIVE_SPEED_FIELD: SettingsField = {
+const LIVE_SPEED_FIELD: SettingsField<SettingsTabHost> = {
 	kind: EFieldKind.Choice,
 	name: "Live editing speed",
 	desc: "How often your typing reaches others. Each send is a write on the relay, and Cloudflare's free plan allows 100,000 a day. Set per device.",
@@ -73,13 +84,13 @@ const LIVE_SPEED_FIELD: SettingsField = {
 };
 
 /** What the setup wizard offers once the vault syncs; real-time sync only with a relay to carry it. */
-export const SETUP_FIELDS: ReadonlyArray<SettingsField> = [
+export const SETUP_FIELDS: ReadonlyArray<SettingsField<RealtimeFieldHost>> = [
 	AUTOSYNC_FIELD,
 	{ ...REALTIME_FIELD, when: isRelayConfigured },
 	LIVE_EDITING_FIELD,
 ];
 
-const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
+const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 	AUTOSYNC_FIELD,
 	{
 		kind: EFieldKind.Number,
@@ -195,7 +206,9 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 	},
 ];
 
-export function automationSection(ctx: FieldContext): SettingDefinitionGroup {
+export function automationSection(
+	ctx: FieldContext<SettingsTabHost>,
+): SettingDefinitionGroup {
 	return group("Automation", [
 		...AUTOMATION_FIELDS.map((field) => fieldRow(ctx, field)),
 		{
@@ -208,7 +221,7 @@ export function automationSection(ctx: FieldContext): SettingDefinitionGroup {
 
 function renderConnectedDevices(
 	devicesSetting: Setting,
-	plugin: PluginHost,
+	plugin: SettingsTabHost,
 ): () => void {
 	devicesSetting.settingEl.addClass(SUB_SETTING_CLASS);
 	const { hub, people } = plugin.realtime;
@@ -230,7 +243,7 @@ function renderConnectedDevices(
 	};
 }
 
-function restartRelay(plugin: PluginHost): void {
+function restartRelay(plugin: RealtimeFieldHost): void {
 	plugin.realtime.hub.restart();
 }
 

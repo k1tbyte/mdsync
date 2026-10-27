@@ -5,7 +5,6 @@ import {
 	setIcon,
 	type WorkspaceLeaf,
 } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import {
 	RELATIVE_TIME_REFRESH_MS,
 	SOURCE_CONTROL_VIEW_TYPE,
@@ -18,6 +17,7 @@ import { SourceControlActions } from "./actions/actions";
 import { ChangesTab } from "./changes/changes-tab";
 import { ConflictPreviewManager } from "./changes/conflict-preview-manager";
 import { HistoryTab } from "./history/history-tab";
+import type { SourceControlHost } from "./host";
 import { TimelineTab } from "./timeline/timeline-tab";
 import { TrashTab } from "./trash/trash-tab";
 
@@ -43,23 +43,27 @@ const SOURCE_TABS: ReadonlyArray<{
 ];
 
 export function openSourceControlHistory(
-	plugin: PluginHost,
+	plugin: SourceControlHost,
 	path?: string,
 ): Promise<void> {
 	return openSourceControlOn(plugin, (view) => view.showHistory(path ?? null));
 }
 
-export function openSourceControlDeleted(plugin: PluginHost): Promise<void> {
+export function openSourceControlDeleted(
+	plugin: SourceControlHost,
+): Promise<void> {
 	return openSourceControlOn(plugin, (view) => view.showDeleted());
 }
 
 /** An open view keeps its tab; conflicts are only on Changes. */
-export function openSourceControlChanges(plugin: PluginHost): Promise<void> {
+export function openSourceControlChanges(
+	plugin: SourceControlHost,
+): Promise<void> {
 	return openSourceControlOn(plugin, (view) => view.showChanges());
 }
 
 async function openSourceControlOn(
-	plugin: PluginHost,
+	plugin: SourceControlHost,
 	show: (view: SourceControlView) => void,
 ): Promise<void> {
 	// The leaf it showed: an older one in a main tab may sit beside the sidebar's.
@@ -102,7 +106,7 @@ export function keepInRightSidebar(app: App): void {
 }
 
 export class SourceControlView extends ItemView {
-	private readonly plugin: PluginHost;
+	private readonly plugin: SourceControlHost;
 	private readonly previews: ConflictPreviewManager;
 	private readonly actions: SourceControlActions;
 	private readonly changes: ChangesTab;
@@ -116,7 +120,7 @@ export class SourceControlView extends ItemView {
 	private historyStale = false;
 	private comparedOnce = false;
 
-	constructor(leaf: WorkspaceLeaf, plugin: PluginHost) {
+	constructor(leaf: WorkspaceLeaf, plugin: SourceControlHost) {
 		super(leaf);
 		this.plugin = plugin;
 		this.previews = new ConflictPreviewManager({

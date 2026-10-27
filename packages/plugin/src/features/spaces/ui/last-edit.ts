@@ -1,10 +1,10 @@
-import type { PluginHost } from "@/app/host";
 import { formatRelativeTime } from "@/core/shared";
 import { type Space, spaceOf, VAULT_SPACE } from "@/features/sync";
-import { shareIdentity } from "./record";
+import type { SpacesHost } from "../host";
+import { shareIdentity } from "../record";
 
 /** "Changed by Alex, 5 minutes ago": people in a share, devices in the vault. */
-export function lastEditLabel(plugin: PluginHost, path: string): string | null {
+export function lastEditLabel(plugin: SpacesHost, path: string): string | null {
 	const edit = plugin.controller.lastEdit(path);
 	return edit
 		? `Changed ${editorOf(plugin, path, edit.key, edit.name)}, ${formatRelativeTime(edit.at)}`
@@ -12,13 +12,13 @@ export function lastEditLabel(plugin: PluginHost, path: string): string | null {
 }
 
 /** "on Laptop" in the vault, "by Alex" in a share. */
-export function lastEditor(plugin: PluginHost, path: string): string | null {
+export function lastEditor(plugin: SpacesHost, path: string): string | null {
 	const edit = plugin.controller.lastEdit(path);
 	return edit ? editorOf(plugin, path, edit.key, edit.name) : null;
 }
 
 function editorOf(
-	plugin: PluginHost,
+	plugin: SpacesHost,
 	path: string,
 	key: string,
 	name: string,
@@ -30,7 +30,7 @@ function editorOf(
 		: `by ${mine ? "you" : name}`;
 }
 
-function isMine(plugin: PluginHost, space: Space, key: string): boolean {
+function isMine(plugin: SpacesHost, space: Space, key: string): boolean {
 	if (space.id === VAULT_SPACE.id) {
 		return key === plugin.controller.currentDevice().id;
 	}

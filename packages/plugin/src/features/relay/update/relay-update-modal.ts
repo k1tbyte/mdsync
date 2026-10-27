@@ -1,5 +1,4 @@
 import { ButtonComponent, Modal } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import {
 	alertLine,
 	modalFooter,
@@ -15,10 +14,11 @@ import {
 } from "@/features/storage";
 import { activateRelay, deployOwnRelay } from "../deploy/deploy-flow";
 import type { RelayTarget } from "../deploy/relay-account";
+import type { RelayHost } from "../host";
 
 /** True once the relay is updated; any other close is "not now". */
 export function openRelayUpdateModal(
-	plugin: PluginHost,
+	plugin: RelayHost,
 	login: CloudflareLogin,
 	target: RelayTarget,
 ): Promise<boolean> {

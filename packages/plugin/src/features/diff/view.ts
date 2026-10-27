@@ -1,5 +1,4 @@
 import { ItemView, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { DIFF_VIEW_TYPE } from "@/core/constants";
 import { userMessage } from "@/core/shared";
 import { notifyError, openConfirmModal, redrawOnPhoneChange } from "@/core/ui";
@@ -27,11 +26,12 @@ import {
 	type HistoryChange,
 	selectHistoryMode,
 } from "./history-state";
+import type { DiffHost } from "./host";
 import { MergeEditorPanel } from "./merge/merge-editor";
 import { DiffOperations } from "./operations";
 
 export class DiffView extends ItemView {
-	private readonly plugin: PluginHost;
+	private readonly plugin: DiffHost;
 	private readonly operations: DiffOperations;
 	private path: string | null = null;
 	private historyHash: string | null = null;
@@ -58,7 +58,7 @@ export class DiffView extends ItemView {
 	/** Monotonic generation counter; async loads discard results from older generations. */
 	private loadGeneration = 0;
 
-	constructor(leaf: WorkspaceLeaf, plugin: PluginHost) {
+	constructor(leaf: WorkspaceLeaf, plugin: DiffHost) {
 		super(leaf);
 		this.plugin = plugin;
 		this.operations = new DiffOperations(plugin, {

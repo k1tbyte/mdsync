@@ -3,5 +3,6 @@ export {
 	type HistoryDiffTarget,
 	openDiffView,
 } from "./history-state";
-export { confirmBulkRestore, confirmRestore } from "./restore-modal";
+export type { DiffHost } from "./host";
+export { confirmBulkRestore, confirmRestore } from "./ui/restore-modal";
 export { DiffView } from "./view";

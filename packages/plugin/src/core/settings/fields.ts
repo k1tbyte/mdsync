@@ -6,7 +6,6 @@ import {
 	type SettingGroupItem,
 } from "obsidian";
 
-import type { PluginHost } from "@/app/host";
 import type { MdsyncSettings } from "./model";
 
 export const EFieldKind = {
@@ -57,12 +56,19 @@ export function settleTyping(): void {
 	for (const flush of [...settling]) flush();
 }
 
-export interface FieldContext {
-	plugin: PluginHost;
+/** What a settings row needs from the plugin; a section that needs more widens it. */
+export interface SettingsHost {
+	settings: MdsyncSettings;
+	saveSettings(): Promise<void>;
+	scheduleScopeRefresh(reason?: string): void;
+}
+
+export interface FieldContext<H extends SettingsHost = SettingsHost> {
+	plugin: H;
 	rerender: () => void;
 }
 
-interface FieldBase {
+interface FieldBase<H> {
 	name: string;
 	desc?: string;
 	when?: (settings: MdsyncSettings) => boolean;
@@ -70,58 +76,61 @@ interface FieldBase {
 	/** For scope-affecting settings. */
 	refreshScope?: boolean;
 	rerender?: boolean;
-	after?: (plugin: PluginHost) => void;
+	after?: (plugin: H) => void;
 }
 
-export interface ToggleField extends FieldBase {
+export interface ToggleField<H = SettingsHost> extends FieldBase<H> {
 	kind: typeof EFieldKind.Toggle;
 	get: (settings: MdsyncSettings) => boolean;
-	set: (value: boolean, plugin: PluginHost) => Partial<MdsyncSettings>;
+	set: (value: boolean, plugin: H) => Partial<MdsyncSettings>;
 }
 
-export interface TextField extends FieldBase {
+export interface TextField<H = SettingsHost> extends FieldBase<H> {
 	kind: typeof EFieldKind.Text | typeof EFieldKind.Password;
 	placeholder?: string;
 	get: (settings: MdsyncSettings) => string;
-	set: (value: string, plugin: PluginHost) => Partial<MdsyncSettings>;
+	set: (value: string, plugin: H) => Partial<MdsyncSettings>;
 }
 
-export interface NumberField extends FieldBase {
+export interface NumberField<H = SettingsHost> extends FieldBase<H> {
 	kind: typeof EFieldKind.Number;
 	get: (settings: MdsyncSettings) => string;
 	parse: (raw: string) => number;
-	set: (value: number, plugin: PluginHost) => Partial<MdsyncSettings>;
+	set: (value: number, plugin: H) => Partial<MdsyncSettings>;
 }
 
-export interface SliderField extends FieldBase {
+export interface SliderField<H = SettingsHost> extends FieldBase<H> {
 	kind: typeof EFieldKind.Slider;
 	min: number;
 	max: number;
 	step?: number;
 	get: (settings: MdsyncSettings) => number;
-	set: (value: number, plugin: PluginHost) => Partial<MdsyncSettings>;
+	set: (value: number, plugin: H) => Partial<MdsyncSettings>;
 }
 
-export interface ChoiceField extends FieldBase {
+export interface ChoiceField<H = SettingsHost> extends FieldBase<H> {
 	kind: typeof EFieldKind.Choice;
 	/** Value to label. */
 	options: Record<string, string>;
 	get: (settings: MdsyncSettings) => string;
-	set: (value: string, plugin: PluginHost) => Partial<MdsyncSettings>;
+	set: (value: string, plugin: H) => Partial<MdsyncSettings>;
 }
 
-export type SettingsField =
-	| ToggleField
-	| TextField
-	| NumberField
-	| SliderField
-	| ChoiceField;
+export type SettingsField<H = SettingsHost> =
+	| ToggleField<H>
+	| TextField<H>
+	| NumberField<H>
+	| SliderField<H>
+	| ChoiceField<H>;
 
 export type SettingsRow = Omit<SettingDefinitionRender, "render"> & {
 	render: (setting: Setting) => ReturnType<SettingDefinitionRender["render"]>;
 };
 
-export function fieldRow(ctx: FieldContext, field: SettingsField): SettingsRow {
+export function fieldRow<H extends SettingsHost>(
+	ctx: FieldContext<H>,
+	field: SettingsField<H>,
+): SettingsRow {
 	const { when } = field;
 	return {
 		name: field.name,
@@ -133,10 +142,10 @@ export function fieldRow(ctx: FieldContext, field: SettingsField): SettingsRow {
 	};
 }
 
-function applyControl(
+function applyControl<H extends SettingsHost>(
 	setting: Setting,
-	ctx: FieldContext,
-	field: SettingsField,
+	ctx: FieldContext<H>,
+	field: SettingsField<H>,
 ): Setting {
 	if (field.sub) setting.settingEl.addClass(SUB_SETTING_CLASS);
 
@@ -258,10 +267,10 @@ export function renderDefinitions(
 	}
 }
 
-function applyPatch(
-	ctx: FieldContext,
+function applyPatch<H extends SettingsHost>(
+	ctx: FieldContext<H>,
 	patch: Partial<MdsyncSettings>,
-	field: SettingsField,
+	field: SettingsField<H>,
 ): void {
 	Object.assign(ctx.plugin.settings, patch);
 	void ctx.plugin.saveSettings().then(() => {

@@ -9,6 +9,7 @@ export {
 	onSettled,
 	renderDefinitions,
 	type SettingsField,
+	type SettingsHost,
 	type SettingsRow,
 	SUB_SETTING_CLASS,
 	settleTyping,

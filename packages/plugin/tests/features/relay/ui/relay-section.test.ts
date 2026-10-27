@@ -1,6 +1,7 @@
 import type { Setting } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type FieldContext, fieldRow } from "@/core/settings/fields";
+import type { RelayHost } from "@/features/relay";
 import { relaySection } from "@/features/relay/ui/relay-section";
 
 vi.mock("obsidian", async (importOriginal) => ({
@@ -64,7 +65,7 @@ function relayForm(relaySecret: string) {
 	const definitions = relaySection({
 		plugin: { settings, saveSettings },
 		rerender,
-	} as unknown as FieldContext);
+	} as unknown as FieldContext<RelayHost>);
 	const row = definitions.items?.find((item) => item.name === "Relay secret");
 	if (!row || !("render" in row) || !row.render)
 		throw new Error("No relay secret row");

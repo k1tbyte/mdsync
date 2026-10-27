@@ -6,7 +6,6 @@ import {
 	type TextComponent,
 	type TFile,
 } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import {
 	alertLine,
 	copyable,
@@ -26,6 +25,7 @@ import {
 	VIEW_CHOICES,
 } from "../describe";
 import { linkError } from "../errors";
+import type { LinksHost } from "../host";
 import { previewLink, publishLink } from "../publish";
 import type { LinkRecord } from "../record";
 import type { Snapshot } from "../snapshot/snapshot";
@@ -61,7 +61,7 @@ export class ShareLinkModal extends Modal {
 	private footer: HTMLElement | null = null;
 
 	constructor(
-		private readonly plugin: PluginHost,
+		private readonly plugin: LinksHost,
 		private readonly file: TFile,
 	) {
 		super(plugin.app);
