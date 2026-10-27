@@ -8,7 +8,7 @@ import {
 	notifyInfo,
 	reportError,
 } from "@/core/ui";
-import { PassphraseRotatedError } from "@/features/sync/remote/keyfile";
+import { PassphraseRotatedError } from "@/features/sync";
 
 export function securitySection(ctx: FieldContext): SettingDefinitionGroup {
 	const { plugin, rerender } = ctx;

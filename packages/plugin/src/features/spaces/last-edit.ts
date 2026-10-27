@@ -1,6 +1,6 @@
 import type { PluginHost } from "@/app/host";
 import { formatRelativeTime } from "@/core/shared";
-import { type Space, spaceOf, VAULT_SPACE } from "@/features/sync/remote/space";
+import { type Space, spaceOf, VAULT_SPACE } from "@/features/sync";
 import { shareIdentity } from "./record";
 
 /** "Changed by Alex, 5 minutes ago": people in a share, devices in the vault. */

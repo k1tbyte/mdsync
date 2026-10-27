@@ -16,7 +16,7 @@ import {
 } from "@/core/settings";
 import { formatRelativeTime, pluralize } from "@/core/shared";
 import { describeStorageTarget, storageIdentity } from "@/features/storage";
-import { VAULT_SPACE } from "@/features/sync/remote/space";
+import { VAULT_SPACE } from "@/features/sync";
 
 type Tone = "ok" | "muted" | "warning" | "error";
 

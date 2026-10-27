@@ -1,6 +1,6 @@
 import { setIcon } from "obsidian";
 
-import { openInvite } from "@/features/spaces/ui/invites/invite-action";
+import { openInvite } from "@/features/spaces";
 
 import { choiceCard } from "../choice-card";
 import { ESetupPath } from "../step-state";

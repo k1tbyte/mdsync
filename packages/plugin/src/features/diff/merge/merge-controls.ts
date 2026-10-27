@@ -3,7 +3,7 @@ import {
 	type EMergeSide,
 	type MergeChange,
 	snapToLines,
-} from "@/features/sync/hunks/merge-model";
+} from "@/features/sync";
 import type { DividerItem } from "../lines/divider";
 import { sideSpan } from "../lines/geometry";
 import type { RailAction } from "../rail";

@@ -2,8 +2,8 @@ import { TFolder } from "obsidian";
 
 import type { PluginHost } from "@/app/host";
 import { formatBytes } from "@/core/shared";
-import type { SkippedFile } from "@/features/sync/types";
-import { stopIgnoring } from "@/features/sync/ui/ignore-action";
+import type { SkippedFile } from "@/features/sync";
+import { stopIgnoring } from "@/features/sync";
 import { type FileGroup, FileListModal } from "./file-list-modal";
 
 /** What the vault's and this device's ignore rules keep out, by where the rule lives. */

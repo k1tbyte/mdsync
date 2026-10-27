@@ -1,6 +1,6 @@
 import type { PluginHost } from "@/app/host";
 import { notifyError, openChoiceModal, runWithNotice } from "@/core/ui";
-import { spaceOf } from "@/features/sync/remote/space";
+import { spaceOf } from "@/features/sync";
 
 /** Another device deleted a note open here: the person decides whether it goes here too or comes back everywhere. */
 export function createDeletedElsewhere(

@@ -7,14 +7,13 @@ import {
 } from "obsidian";
 import type { PluginHost } from "@/app/host";
 import {
-	DIFF_VIEW_TYPE,
 	RELATIVE_TIME_REFRESH_MS,
 	SOURCE_CONTROL_VIEW_TYPE,
 } from "@/core/constants";
 import { canSync } from "@/core/settings";
 import { redrawOnPhoneChange } from "@/core/ui";
-import type { HistoryChange } from "@/features/diff";
-import type { HistoryVersionRef, SyncStatusSnapshot } from "@/features/sync";
+import { openDiffView } from "@/features/diff";
+import type { SyncStatusSnapshot } from "@/features/sync";
 import { SourceControlActions } from "./actions/actions";
 import { ChangesTab } from "./changes/changes-tab";
 import { ConflictPreviewManager } from "./changes/conflict-preview-manager";
@@ -405,39 +404,4 @@ export class SourceControlView extends ItemView {
 			?.querySelector<HTMLButtonElement>(`[data-mdsync-tab="${tab}"]`)
 			?.focus();
 	}
-}
-
-export interface HistoryDiffTarget extends HistoryVersionRef {
-	/** Right side. Without it the version is diffed against the file on disk. */
-	against?: { hash: string; label: string; size?: number };
-	change?: HistoryChange;
-	previewIfMissing?: boolean;
-}
-
-/** `merge` goes straight into the conflict's merge, as the diff's Merge… does. */
-export async function openDiffView(
-	plugin: PluginHost,
-	path: string,
-	history?: HistoryDiffTarget,
-	merge = false,
-): Promise<void> {
-	const existing = plugin.app.workspace.getLeavesOfType(DIFF_VIEW_TYPE);
-	const leaf = existing[0] ?? plugin.app.workspace.getLeaf(true);
-	await leaf.setViewState({
-		type: DIFF_VIEW_TYPE,
-		active: true,
-		state: {
-			path,
-			historyHash: history?.hash,
-			historyLabel: history?.label,
-			historySize: history?.size,
-			againstHash: history?.against?.hash,
-			againstLabel: history?.against?.label,
-			againstSize: history?.against?.size,
-			historyChange: history?.change,
-			historyPreviewIfMissing: history?.previewIfMissing,
-			merge: merge || undefined,
-		},
-	});
-	await plugin.app.workspace.revealLeaf(leaf);
 }

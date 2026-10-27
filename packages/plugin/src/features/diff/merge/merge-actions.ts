@@ -11,7 +11,7 @@ import {
 	revertPlan,
 	type StatusPatch,
 	sameStatus,
-} from "@/features/sync/hunks/merge-model";
+} from "@/features/sync";
 import { fullTaken, mergeChangesField, setChangeState } from "./merge-state";
 
 export interface MergeActions {

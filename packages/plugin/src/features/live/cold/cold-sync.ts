@@ -5,14 +5,14 @@
 
 import { sha256Hex } from "@/core/crypto";
 import { toLf } from "@/core/utils";
-import { textToBytes } from "@/features/sync/changes/content";
+import type { LiveMark } from "@/features/sync";
 import {
 	type IncomingText,
 	isNewerMark,
 	type LiveNotes,
 	type LiveTake,
-} from "@/features/sync/live-notes";
-import type { LiveMark } from "@/features/sync/types";
+	textToBytes,
+} from "@/features/sync";
 import { hasLiveExtension } from "../doc-types";
 import type { LiveSession } from "../session/session";
 import type { LiveSessions } from "../workspace/sessions";

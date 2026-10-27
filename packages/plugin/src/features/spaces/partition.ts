@@ -1,5 +1,5 @@
 import { hasDotSegment } from "@/core/shared";
-import { isUnder, type Space, VAULT_SPACE } from "@/features/sync/remote/space";
+import { isUnder, type Space, VAULT_SPACE } from "@/features/sync";
 
 import type { SpaceRecord } from "./record";
 

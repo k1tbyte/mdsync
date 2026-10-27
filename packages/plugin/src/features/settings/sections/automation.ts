@@ -24,8 +24,7 @@ import {
 } from "@/core/settings";
 import type { People } from "@/features/presence";
 import { EFieldKind } from "@/features/storage";
-import { clampMaxSnapshots } from "@/features/sync/history/gc";
-import { VAULT_SPACE } from "@/features/sync/remote/space";
+import { clampMaxSnapshots, VAULT_SPACE } from "@/features/sync";
 
 const AUTOSYNC_FIELD: SettingsField = {
 	kind: EFieldKind.Toggle,

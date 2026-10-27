@@ -1,7 +1,7 @@
 import type { SettingDefinitionGroup } from "obsidian";
 
 import { type FieldContext, group, onSettled } from "@/core/settings";
-import { defaultDeviceName } from "@/features/sync/identity/device";
+import { defaultDeviceName } from "@/features/sync";
 
 export function advancedSection({
 	plugin,

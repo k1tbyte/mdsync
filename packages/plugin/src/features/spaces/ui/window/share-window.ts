@@ -3,7 +3,7 @@ import type { Menu } from "obsidian";
 import type { PluginHost } from "@/app/host";
 import { ownerStorage } from "@/core/settings";
 import { notifyError } from "@/core/ui";
-import { isUnder } from "@/features/sync/remote/space";
+import { isUnder } from "@/features/sync";
 import { mountError } from "../../partition";
 import type { SpaceRecord } from "../../record";
 import { shareFolder } from "../share-action";

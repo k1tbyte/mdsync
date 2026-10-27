@@ -1,10 +1,12 @@
-import { HUNK_TEXT_MAX_BYTES } from "@/features/sync/constants";
+import type { PluginHost } from "@/app/host";
+import { DIFF_VIEW_TYPE } from "@/core/constants";
 import {
 	EDiffDirection,
 	type FileDiffModel,
 	type HistoryDiffRequest,
 	type HistoryVersionRef,
-} from "@/features/sync/hunks/projection";
+	HUNK_TEXT_MAX_BYTES,
+} from "@/features/sync";
 
 export interface HistoryChange {
 	before: HistoryVersionRef | null;
@@ -24,6 +26,42 @@ export interface DiffViewState {
 	historyPreviewIfMissing?: boolean;
 	/** Open directly in merge; never stored. */
 	merge?: boolean;
+}
+
+export interface HistoryDiffTarget extends HistoryVersionRef {
+	/** Right side. Without it the version is diffed against the file on disk. */
+	against?: { hash: string; label: string; size?: number };
+	change?: HistoryChange;
+	previewIfMissing?: boolean;
+}
+
+/** `merge` goes straight into the conflict's merge, as the diff's Merge… does. */
+export async function openDiffView(
+	plugin: PluginHost,
+	path: string,
+	history?: HistoryDiffTarget,
+	merge = false,
+): Promise<void> {
+	const existing = plugin.app.workspace.getLeavesOfType(DIFF_VIEW_TYPE);
+	const leaf = existing[0] ?? plugin.app.workspace.getLeaf(true);
+	const state: DiffViewState = {
+		path,
+		historyHash: history?.hash,
+		historyLabel: history?.label,
+		historySize: history?.size,
+		againstHash: history?.against?.hash,
+		againstLabel: history?.against?.label,
+		againstSize: history?.against?.size,
+		historyChange: history?.change,
+		historyPreviewIfMissing: history?.previewIfMissing,
+		merge: merge || undefined,
+	};
+	await leaf.setViewState({
+		type: DIFF_VIEW_TYPE,
+		active: true,
+		state: { ...state },
+	});
+	await plugin.app.workspace.revealLeaf(leaf);
 }
 
 export type HistoryMode = "change" | "preview" | "diff";

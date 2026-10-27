@@ -3,10 +3,7 @@ import { requestUrl } from "obsidian";
 
 import { relayBase } from "@/core/shared";
 import { toArrayBuffer } from "@/core/utils";
-import {
-	ADMIN_HEADER,
-	type BrokerAdmin,
-} from "@/features/spaces/broker/share-broker";
+import { ADMIN_HEADER, type BrokerAdmin } from "@/features/spaces";
 import {
 	errorCode,
 	StorageHttpError,

@@ -21,7 +21,8 @@ vi.mock("@/core/ui/notices", () => ({
 	notifyError: vi.fn(),
 	reportError: vi.fn(),
 }));
-vi.mock("obsidian", () => ({
+vi.mock("obsidian", async (importOriginal) => ({
+	...(await importOriginal<Record<string, unknown>>()),
 	Setting: class {
 		name = "";
 		desc = "";

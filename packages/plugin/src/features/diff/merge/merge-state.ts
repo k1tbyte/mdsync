@@ -15,7 +15,7 @@ import {
 	sameStatus,
 	type Taken,
 	type TakenPatch,
-} from "@/features/sync/hunks/merge-model";
+} from "@/features/sync";
 
 export interface ChangeStateUpdate {
 	index: number;

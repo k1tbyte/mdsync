@@ -1,7 +1,7 @@
 import { MarkdownView, type Plugin } from "obsidian";
-
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/core/constants";
 import { notifyInfo } from "@/core/ui";
+import { openDiffView } from "@/features/diff";
 import {
 	isLinkable,
 	noteLinks,
@@ -16,7 +16,6 @@ import {
 	toggleAuthors,
 } from "@/features/note-header";
 import {
-	openDiffView,
 	openSourceControlDeleted,
 	openSourceControlHistory,
 	openSourceControlView,

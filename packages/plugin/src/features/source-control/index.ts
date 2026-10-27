@@ -1,6 +1,5 @@
 export {
 	keepInRightSidebar,
-	openDiffView,
 	openSourceControlChanges,
 	openSourceControlDeleted,
 	openSourceControlHistory,

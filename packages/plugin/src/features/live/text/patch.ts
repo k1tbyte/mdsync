@@ -1,6 +1,6 @@
 import type * as Y from "yjs";
 import { changedMiddle, diffRanges } from "@/core/utils";
-import { DIFF_BUDGET } from "@/features/sync/hunks/hunks";
+import { DIFF_BUDGET } from "@/features/sync";
 
 const MIN_ANCHOR = 10;
 

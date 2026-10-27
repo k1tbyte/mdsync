@@ -21,7 +21,7 @@ import {
 	MERGE_SIDES,
 	type MergeChange,
 	snapToLines,
-} from "@/features/sync/hunks/merge-model";
+} from "@/features/sync";
 import type { PanelHosts } from "../header";
 import { LayoutMode } from "../layout-mode";
 import {

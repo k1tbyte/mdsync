@@ -1,12 +1,11 @@
 import type { PluginHost } from "@/app/host";
 import { notifyError, notifyInfo, runWithNotice } from "@/core/ui";
-import { openSourceControlChanges } from "@/features/source-control/view";
 import type { DiffResult } from "../types";
 
 export async function runCompare(plugin: PluginHost): Promise<void> {
 	try {
 		await plugin.controller.refresh();
-		await openSourceControlChanges(plugin);
+		await plugin.openChanges();
 	} catch (err) {
 		notifyError("Compare failed", err);
 	}
@@ -75,6 +74,6 @@ async function announceConflicts(
 ): Promise<boolean> {
 	if (count === 0) return false;
 	notifyInfo(`Resolve ${count} conflict(s) first.`);
-	await openSourceControlChanges(plugin);
+	await plugin.openChanges();
 	return true;
 }

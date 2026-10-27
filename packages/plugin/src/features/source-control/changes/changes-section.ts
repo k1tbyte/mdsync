@@ -1,6 +1,6 @@
 import { Menu, setIcon } from "obsidian";
 import { appendIconButton, makeActivatable } from "@/core/ui";
-import { EConflictStrategy } from "@/features/sync/controller";
+import { EConflictStrategy } from "@/features/sync";
 import { SECTION_ACTIONS } from "../actions/section-actions";
 import type {
 	SelectionCommand,

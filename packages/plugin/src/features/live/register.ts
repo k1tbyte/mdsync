@@ -7,9 +7,8 @@ import type {
 	SpaceAccessHost,
 	SpaceRecords,
 } from "@/features/spaces";
-import type { LiveNotes } from "@/features/sync/live-notes";
-import type { WriteJournal } from "@/features/sync/recovery/journal";
-import { type Space, spaceOf, VAULT_SPACE } from "@/features/sync/remote/space";
+import type { LiveNotes, WriteJournal } from "@/features/sync";
+import { type Space, spaceOf, VAULT_SPACE } from "@/features/sync";
 import { AgreedTexts } from "./cold/agreed-texts";
 import { LiveColdSync } from "./cold/cold-sync";
 import { LIVE_VIEWS } from "./doc-types";

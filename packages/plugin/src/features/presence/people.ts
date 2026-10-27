@@ -11,7 +11,7 @@ import {
 	spaceOf,
 	VAULT_SPACE,
 	vaultPathOf,
-} from "@/features/sync/remote/space";
+} from "@/features/sync";
 
 import { type Announcement, sealAnnouncement } from "./announcement";
 import { ChannelPresence } from "./channel";

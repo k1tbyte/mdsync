@@ -7,8 +7,8 @@ import {
 } from "obsidian";
 
 import type { PluginHost } from "@/app/host";
+import type { ConnectionTestResult } from "@/features/storage";
 import { EFieldKind } from "@/features/storage/field-spec";
-import type { ConnectionTestResult } from "@/features/storage/ui/connection-test";
 import type { MdsyncSettings } from "./model";
 
 export const SUB_SETTING_CLASS = "mdsync-sub-setting";

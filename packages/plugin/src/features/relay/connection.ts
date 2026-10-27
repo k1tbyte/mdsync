@@ -6,8 +6,8 @@
 import { type ClientFrame, EFrame, type ServerFrame } from "@mdsync/protocol";
 import { HubLink, type RelayStatus, relayStatus } from "@/core/hub";
 import type { MdsyncSettings } from "@/core/settings";
-import { pauseOf } from "@/features/spaces/partition";
-import { VAULT_SPACE } from "@/features/sync/remote/space";
+import { pauseOf } from "@/features/spaces";
+import { VAULT_SPACE } from "@/features/sync";
 import { type HubRoute, hubRoutes } from "./channels";
 
 /** The relay's own state and the cold-sync ping; frames go to `SpaceListener`s. */

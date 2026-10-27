@@ -7,13 +7,15 @@ import {
 
 import type { PluginHost } from "@/app/host";
 import { type FieldContext, settleTyping } from "@/core/settings";
-import { linksSection } from "@/features/links/ui/links-section";
-import { relaySection } from "@/features/relay/ui/relay-section";
-import { sharesSection } from "@/features/spaces/ui/shares-section";
+import { linksSection } from "@/features/links";
+import { relaySection } from "@/features/relay";
+import { sharesSection } from "@/features/spaces";
 import { backendSection } from "@/features/storage";
-import { configurationScopeSection } from "@/features/sync/scope/configuration-scope-section";
-import { exclusionsSection } from "@/features/sync/scope/exclusions-section";
-import { maintenanceSection } from "@/features/sync/ui/maintenance-section";
+import {
+	configurationScopeSection,
+	exclusionsSection,
+	maintenanceSection,
+} from "@/features/sync";
 import { deviceTransferSection } from "@/features/transfer";
 import { logsPage } from "./logs-view";
 import { overviewGroup } from "./overview";

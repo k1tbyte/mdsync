@@ -16,6 +16,7 @@ import {
 	refreshOpenSourceControlViews,
 	registerPluginUi,
 } from "@/app/views";
+import { SOURCE_CONTROL_VIEW_TYPE } from "@/core/constants";
 import { DeviceKey } from "@/core/crypto";
 import type { LogService } from "@/core/logs";
 import {
@@ -46,7 +47,10 @@ import {
 	type ESetupStep,
 	openSetupWizard,
 } from "@/features/setup";
-import { openSourceControlChanges } from "@/features/source-control";
+import {
+	openSourceControlChanges,
+	openSourceControlView,
+} from "@/features/source-control";
 import type { SpaceRecords } from "@/features/spaces";
 import {
 	createAccessEnded,
@@ -146,7 +150,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 				notifyAction(
 					`Auto-push held back ${paths.length} deleted files${space.root ? ` in "${space.root}"` : ""}. Review them before they sync.`,
 					"Review",
-					() => void openSourceControlChanges(this),
+					() => void this.openChanges(),
 				),
 			onTheirsPulled: (space, paths) =>
 				markTheirs(this, this.unseen, space, paths),
@@ -303,6 +307,14 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 			this.refreshSourceControlView();
 			this.refreshStatusBar?.();
 		});
+	}
+
+	async openSourceControl(): Promise<void> {
+		await openSourceControlView(this.app, SOURCE_CONTROL_VIEW_TYPE);
+	}
+
+	openChanges(): Promise<void> {
+		return openSourceControlChanges(this);
 	}
 
 	scheduleScopeRefresh(reason = "Sync scope changed."): void {

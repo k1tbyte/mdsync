@@ -16,7 +16,7 @@ import {
 	serial,
 } from "@/core/ui";
 import type { Person } from "@/features/presence";
-import { isUnder } from "@/features/sync/remote/space";
+import { isUnder } from "@/features/sync";
 import {
 	type BrokerAdmin,
 	listParticipants,

@@ -2,7 +2,7 @@ import { Platform, SearchComponent } from "obsidian";
 import type { PluginHost } from "@/app/host";
 import { canSync } from "@/core/settings";
 import { appendIconButton, appendLabeledButton, notifyError } from "@/core/ui";
-import { lastEditLabel, lastEditor } from "@/features/spaces/last-edit";
+import { lastEditLabel, lastEditor } from "@/features/spaces";
 import type {
 	DiffResult,
 	ManifestEntry,

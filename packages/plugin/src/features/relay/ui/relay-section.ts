@@ -9,7 +9,6 @@ import {
 } from "@/core/settings";
 import { relayBase } from "@/core/shared";
 import { runWithNotice } from "@/core/ui";
-import { ESetupStep } from "@/features/setup/step-state";
 import { EFieldKind, forgetCloudflare } from "@/features/storage";
 import { testRelay } from "../relay-test";
 
@@ -36,7 +35,7 @@ export function relaySection(ctx: FieldContext): SettingDefinitionGroup {
 				setting.addButton((button) =>
 					button
 						.setButtonText(configured ? "Update" : "Deploy")
-						.onClick(() => plugin.openSetup(ESetupStep.Relay)),
+						.onClick(() => plugin.openSetup("relay")),
 				);
 			},
 		},

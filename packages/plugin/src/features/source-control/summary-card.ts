@@ -2,14 +2,15 @@ import { ButtonComponent, setIcon } from "obsidian";
 import type { PluginHost } from "@/app/host";
 import { formatRelativeTime } from "@/core/shared";
 import { actionButton, textButton } from "@/core/ui";
-import { askSpaceGone } from "@/features/spaces/ui/space-gone";
+import { askSpaceGone } from "@/features/spaces";
+import type { Manifest } from "@/features/sync";
 import {
+	canPullAll,
+	canPushAll,
+	deviceLabel,
 	type SyncStatusSnapshot,
 	splitSpaceErrors,
-} from "@/features/sync/controller";
-import { deviceLabel } from "@/features/sync/identity/device";
-import { canPullAll, canPushAll } from "@/features/sync/runtime/sync-gates";
-import type { Manifest } from "@/features/sync/types";
+} from "@/features/sync";
 import type { SourceControlActions } from "./actions/actions";
 import { showIgnoredFiles, showSkippedFiles } from "./changes/excluded-files";
 

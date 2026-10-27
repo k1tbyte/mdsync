@@ -13,7 +13,7 @@ import {
 	MERGE_SIDES,
 	type MergeChange,
 	snapToLines,
-} from "@/features/sync/hunks/merge-model";
+} from "@/features/sync";
 import { addCodeMarks } from "../lines/code-lines";
 import { numberUnchangedLines } from "../lines/gap-widgets";
 import { forEachVisibleRange, rangeLabel, sideSpan } from "../lines/geometry";

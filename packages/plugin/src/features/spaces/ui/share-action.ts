@@ -3,8 +3,7 @@ import { RELAY_TEXT } from "@/core/hub";
 import { isRelayConfigured, ownerStorage, relayAdmin } from "@/core/settings";
 import { relayBase } from "@/core/shared";
 import { notifyError, notifyInfo, openConfirmModal } from "@/core/ui";
-import { carryVaultIgnores } from "@/features/sync/ui/ignore-action";
-import { pushScope } from "@/features/sync/ui/push-action";
+import { carryVaultIgnores, pushScope } from "@/features/sync";
 import {
 	endShare,
 	leaveShare,

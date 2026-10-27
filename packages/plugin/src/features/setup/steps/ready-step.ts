@@ -1,6 +1,5 @@
 import { Setting, setIcon } from "obsidian";
 
-import { SOURCE_CONTROL_VIEW_TYPE } from "@/core/constants";
 import {
 	activeStorage,
 	canSync,
@@ -10,8 +9,7 @@ import {
 	renderDefinitions,
 } from "@/core/settings";
 import { alertLine } from "@/core/ui";
-import { SETUP_FIELDS } from "@/features/settings/sections/automation";
-import { openSourceControlView } from "@/features/source-control/view";
+import { SETUP_FIELDS } from "@/features/settings";
 import { describeStorageTarget } from "@/features/storage";
 import type { SyncStatusSnapshot } from "@/features/sync";
 import { showSettingsTransferExport } from "@/features/transfer";
@@ -106,7 +104,7 @@ export function createReadyStep(wizard: Wizard): StepView {
 		row.addButton((b) =>
 			b.setButtonText("Open changes").onClick(() => {
 				wizard.close();
-				void openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
+				void plugin.openSourceControl();
 			}),
 		);
 	};

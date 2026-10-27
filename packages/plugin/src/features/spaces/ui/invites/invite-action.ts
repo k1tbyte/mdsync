@@ -4,7 +4,7 @@ import { randomId } from "@/core/crypto";
 import { ownerStorage, relayAdmin } from "@/core/settings";
 import { normalizePath, stripTrailingSlash } from "@/core/shared";
 import { notifyInfo, openConfirmModal, runWithNotice } from "@/core/ui";
-import { scopedPaths } from "@/features/sync/ui/push-action";
+import { scopedPaths } from "@/features/sync";
 import {
 	issueShareToken,
 	listParticipants,

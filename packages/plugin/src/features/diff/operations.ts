@@ -2,12 +2,10 @@ import type { PluginHost } from "@/app/host";
 import { notifyError, openConfirmModal, runWithNotice } from "@/core/ui";
 import {
 	EConflictStrategy,
-	type SyncOperationResult,
-} from "@/features/sync/controller";
-import {
 	EDiffDirection,
 	type FileDiffModel,
-} from "@/features/sync/hunks/projection";
+	type SyncOperationResult,
+} from "@/features/sync";
 import { EChoiceKind, type HunkChoices } from "./choices";
 import type { HistoryChange } from "./history-state";
 import { confirmRestore } from "./restore-modal";

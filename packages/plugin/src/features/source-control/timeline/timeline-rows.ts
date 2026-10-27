@@ -1,4 +1,5 @@
 import { formatRelativeTime, formatTimestamp, pluralize } from "@/core/shared";
+import type { HistoryDiffTarget } from "@/features/diff";
 import type {
 	ChangeAction,
 	HistoryVersionRef,
@@ -9,7 +10,6 @@ import type {
 } from "@/features/sync";
 import { deviceText } from "../changes/row-formatter";
 import { timeInDay } from "../history/day-groups";
-import type { HistoryDiffTarget } from "../view";
 
 export interface TimelineFileRow {
 	path: string;

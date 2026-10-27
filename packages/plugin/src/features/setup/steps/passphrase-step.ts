@@ -8,7 +8,7 @@ import {
 	openStorageRefusedModal,
 	r2StorageOf,
 } from "@/features/storage";
-import { PassphraseRotatedError } from "@/features/sync/remote/keyfile";
+import { PassphraseRotatedError } from "@/features/sync";
 import { actionRow, busyLine } from "../form";
 import { passphraseMeter } from "../passphrase-meter";
 import { runAction } from "../run-action";

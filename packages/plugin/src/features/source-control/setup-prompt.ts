@@ -1,5 +1,5 @@
 import type { PluginHost } from "@/app/host";
-import { ESetupStep } from "@/features/setup/step-state";
+import { ESetupStep } from "@/features/setup";
 import { renderEmptyState } from "./tab-states";
 
 /** The Changes tab of a device that syncs nothing yet. */

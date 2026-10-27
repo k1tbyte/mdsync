@@ -14,7 +14,7 @@ import {
 	renderModalHead,
 	serial,
 } from "@/core/ui";
-import { invitePassword } from "@/features/spaces/invite";
+import { invitePassword } from "@/features/spaces";
 import {
 	DEFAULT_EXPIRY,
 	DEFAULT_VIEWS,

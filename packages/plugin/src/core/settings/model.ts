@@ -11,7 +11,7 @@ import {
 } from "@/core/constants";
 import { isCleartextRemote } from "@/core/shared";
 import { parseStoredLink, type StoredLink } from "@/features/links/record";
-import type { BrokerAdmin } from "@/features/spaces/broker/share-broker";
+import type { BrokerAdmin } from "@/features/spaces";
 import { isSpaceRecord, type SpaceRecord } from "@/features/spaces/record";
 import { defaultS3Config } from "@/features/storage/backends/s3";
 import {

@@ -1,5 +1,5 @@
 import { ButtonComponent } from "obsidian";
-import { EDiffDirection } from "@/features/sync/hunks/projection";
+import { EDiffDirection } from "@/features/sync";
 import type { DiffHeaderActions, DiffHeaderState } from "./header";
 
 /** Between the bar and the panes: what Apply will do, why per-change actions are off, whole-file actions. */

@@ -45,4 +45,6 @@ export interface PluginHost {
 	refreshSourceControlView(): void;
 	/** The setup wizard, at `step` or where this device's setup stopped. */
 	openSetup(step?: ESetupStep): void;
+	openSourceControl(): Promise<void>;
+	openChanges(): Promise<void>;
 }

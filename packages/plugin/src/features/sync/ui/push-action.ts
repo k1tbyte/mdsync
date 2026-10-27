@@ -1,8 +1,6 @@
 import type { Menu } from "obsidian";
 import type { PluginHost } from "@/app/host";
-import { SOURCE_CONTROL_VIEW_TYPE } from "@/core/constants";
 import { notifyError, notifyInfo, runWithNotice } from "@/core/ui";
-import { openSourceControlView } from "@/features/source-control/view";
 
 /** Changes inside `scope`: a file matches itself, a folder everything below it (the vault root "/" covers all). */
 export function scopedPaths(
@@ -69,7 +67,7 @@ export async function pushScope(
 				? `Resolve the conflict in "${conflicts[0]}" first.`
 				: `Resolve ${conflicts.length} conflicts under this ${target} first.`,
 		);
-		await openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
+		await plugin.openSourceControl();
 		return;
 	}
 	const paths = scopedPaths(diff.localChanges, path, isFolder);

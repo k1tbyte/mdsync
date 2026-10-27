@@ -2,24 +2,22 @@ import { Setting, setIcon } from "obsidian";
 import { randomSecret } from "@/core/crypto";
 import { isRelayConfigured } from "@/core/settings";
 import { alertLine, callout, focusKey, serial } from "@/core/ui";
-import { testRelay } from "@/features/relay";
-import {
-	activateRelay,
-	deployOwnRelay,
-	failedRelay,
-	planRelay,
-	runningRelayDeploy,
-} from "@/features/relay/deploy/deploy-flow";
 import {
 	type AccountRelays,
 	accountRelays,
+	activateRelay,
+	deployOwnRelay,
+	ERelayDeployStep,
+	failedRelay,
 	freeRelayName,
+	planRelay,
 	RELAY_NAME,
 	type RelayTarget,
 	relayNameError,
 	relayUrlOf,
-} from "@/features/relay/deploy/relay-account";
-import { ERelayDeployStep } from "@/features/relay/deploy/relay-deploy";
+	runningRelayDeploy,
+	testRelay,
+} from "@/features/relay";
 import {
 	cloudflareErrorMessage,
 	cloudflareOf,

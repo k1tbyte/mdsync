@@ -15,9 +15,6 @@ vi.mock("@/core/ui/phone-change", () => ({ redrawOnPhoneChange: vi.fn() }));
 vi.mock("@/core/ui/modals/confirm-modal", () => ({
 	openConfirmModal: vi.fn(),
 }));
-vi.mock("@/features/source-control/view", () => ({
-	openSourceControlView: vi.fn(),
-}));
 
 beforeAll(installElementMethods);
 

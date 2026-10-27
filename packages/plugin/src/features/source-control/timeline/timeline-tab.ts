@@ -9,6 +9,7 @@ import {
 	onLongPress,
 	renderPath,
 } from "@/core/ui";
+import type { HistoryDiffTarget } from "@/features/diff";
 import type { SnapshotListResult } from "@/features/sync";
 import { STATUS_CLASSES, STATUS_LETTERS } from "../changes/row-formatter";
 import { groupRows } from "../history/day-groups";
@@ -21,7 +22,6 @@ import {
 	renderLoadError,
 	renderLoading,
 } from "../tab-states";
-import type { HistoryDiffTarget } from "../view";
 import { TimelineActions } from "./timeline-actions";
 import {
 	buildTimelineRows,

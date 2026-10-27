@@ -1,10 +1,10 @@
-import { movesByPath } from "@/features/sync/changes/moves";
-import { deviceLabel } from "@/features/sync/identity/device";
-import type { Conflict, FileChange, Move } from "@/features/sync/types";
+import type { Conflict, FileChange, Move } from "@/features/sync";
 import {
 	type ChangeAction,
 	changeActionOf,
-} from "@/features/sync/ui/change-action";
+	deviceLabel,
+	movesByPath,
+} from "@/features/sync";
 import type { FileRow } from "../types";
 
 export const STATUS_LETTERS: Record<ChangeAction, string> = {

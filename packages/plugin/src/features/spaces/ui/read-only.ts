@@ -2,13 +2,13 @@ import { EditorState, type Extension, Prec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { editorInfoField, type Plugin } from "obsidian";
 import type { PluginHost } from "@/app/host";
-import { LIVE_VIEWS } from "@/features/live/doc-types";
 import {
 	type ExcalidrawApi,
 	type ExcalidrawView,
 	isViewMode,
+	LIVE_VIEWS,
 	setViewMode,
-} from "@/features/live/drawing/excalidraw";
+} from "@/features/live";
 
 const LOADING_RETRY_MS = 500;
 

@@ -1,7 +1,7 @@
 import { Menu } from "obsidian";
 import type { PluginHost } from "@/app/host";
 import { notifyError, notifyInfo, openConfirmModal } from "@/core/ui";
-import { confirmRestore } from "@/features/diff/restore-modal";
+import { confirmRestore } from "@/features/diff";
 import { addSnapshotPinItems } from "./snapshot-menu";
 import {
 	describeRestorePlan,

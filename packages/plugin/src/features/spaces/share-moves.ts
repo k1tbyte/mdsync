@@ -3,7 +3,7 @@ import type { PluginHost } from "@/app/host";
 import { reportWarning } from "@/core/shared";
 import { notifyError, notifyInfo } from "@/core/ui";
 import { removeEmptyDir } from "@/core/vault";
-import { isUnder } from "@/features/sync/remote/space";
+import { isUnder } from "@/features/sync";
 import { mountError, spacesOf } from "./partition";
 import type { PendingMove, SpaceRecords } from "./records";
 

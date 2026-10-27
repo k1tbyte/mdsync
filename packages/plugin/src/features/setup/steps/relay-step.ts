@@ -2,9 +2,12 @@ import { Setting } from "obsidian";
 import { isRelayConfigured } from "@/core/settings";
 import { relayBase } from "@/core/shared";
 import { alertLine, callout, focusKey, onEnter } from "@/core/ui";
-import { type RelayTestResult, testRelay } from "@/features/relay";
-import { useRelay } from "@/features/relay/deploy/deploy-flow";
-import { relayBehind } from "@/features/relay/deploy/relay-account";
+import {
+	type RelayTestResult,
+	relayBehind,
+	testRelay,
+	useRelay,
+} from "@/features/relay";
 import { choiceCard } from "../choice-card";
 import { actionRow, busyLine } from "../form";
 import { runAction } from "../run-action";

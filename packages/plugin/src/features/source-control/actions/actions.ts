@@ -7,15 +7,15 @@ import {
 	revealInFileExplorer,
 	runWithNotice,
 } from "@/core/ui";
-import { EConflictStrategy } from "@/features/sync/controller";
-import { isIgnoreNote } from "@/features/sync/scope/ignore";
-import { EChangeType } from "@/features/sync/types";
-import { addIgnoreMenuItem } from "@/features/sync/ui/ignore-action";
 import {
+	addIgnoreMenuItem,
 	confirmAdoptNewVault,
 	confirmBatchResolve,
 	confirmRevert,
-} from "@/features/sync/ui/modals";
+	EChangeType,
+	EConflictStrategy,
+	isIgnoreNote,
+} from "@/features/sync";
 import { ESection } from "../types";
 
 const BATCH_RESOLVE_CONFIRM_THRESHOLD = 5;

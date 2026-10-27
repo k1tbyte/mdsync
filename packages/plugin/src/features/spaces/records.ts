@@ -1,6 +1,6 @@
 import type { EncryptionKey } from "@/core/crypto";
 import type { StorageAdapter } from "@/features/storage";
-import { isUnder, type Space, VAULT_SPACE } from "@/features/sync/remote/space";
+import { isUnder, type Space, VAULT_SPACE } from "@/features/sync";
 
 import { mountError, type PauseKind, pauseOf, spacesOf } from "./partition";
 import {

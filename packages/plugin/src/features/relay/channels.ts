@@ -14,10 +14,10 @@ import {
 	type MdsyncSettings,
 } from "@/core/settings";
 import { relayBase } from "@/core/shared";
-import { pauseOf } from "@/features/spaces/partition";
-import type { SpaceRecord } from "@/features/spaces/record";
+import type { SpaceRecord } from "@/features/spaces";
+import { pauseOf } from "@/features/spaces";
 import { storageIdentity } from "@/features/storage";
-import { VAULT_SPACE } from "@/features/sync/remote/space";
+import { VAULT_SPACE } from "@/features/sync";
 
 export interface HubRoute {
 	serverUrl: string;

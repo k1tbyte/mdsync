@@ -27,9 +27,9 @@ Paths in this file are relative to `packages/plugin/src/`.
 ## Imports
 
 - Another slice only through its facade `@/features/<name>`, another core area through `@/core/<area>`; `@/core/constants` directly. Inside a slice and inside a core area, relative paths.
-- Deep imports into another slice (mostly `features/sync/**`) are baselined debt. New code adds none: export what is needed from the facade.
+- New code adds no deep import into another slice: export what is needed from its facade. A facade loads its whole slice, so a test that reaches one may need `importOriginal` in its `obsidian` mock.
 - esbuild emits CJS: a facade must not create a runtime cycle. `import type` edges are ignored by the cycle rule.
-- Modules still take `PluginHost` (`app/host.ts`) and `core/settings/model.ts` still imports features. These are baselined, being removed. New code declares the narrow members it needs as its own interface (`SpaceAccessHost` in `features/spaces/space-access.ts`, `SettingsTransferDeps` in `features/transfer/transfer-controller.ts`); `MdsyncPlugin` satisfies it structurally. Navigation into another surface is a callback in those deps, not an import.
+- Modules still take `PluginHost` (`app/host.ts`) and `core/settings/model.ts` still imports features. These are baselined, being removed. New code declares the narrow members it needs as its own interface (`SpaceAccessHost` in `features/spaces/space-access.ts`, `SettingsTransferDeps` in `features/transfer/transfer-controller.ts`); `MdsyncPlugin` satisfies it structurally. Navigation into another surface is a callback, not an import: `openSetup(step)` with the step's literal (`"relay"`), `openSourceControl()`, `openChanges()` on the host; `openDiffView` is the diff slice's.
 - A per-slice deps file and a per-slice settings module do not exist yet: do not cite or create them as if they did.
 
 ## `pnpm arch` (`packages/plugin/.dependency-cruiser.cjs`)
@@ -37,7 +37,7 @@ Paths in this file are relative to `packages/plugin/src/`.
 - Rules: `no-circular` (runtime), `slice-via-facade`, `root-via-facade` (`app/`, `main.ts`), `core-independent` (core imports no feature or app), `features-not-app`, `domain-not-surface`, `surface-<name>`.
 - Surface -> surface only: `setup` -> `settings`; `source-control` -> `diff`, `setup`; `status` -> `diff`, `note-header`, `source-control`. `diff`, `editor-signs`, `explorer`, `note-header`, `settings` reach no other surface.
 - `packages/plugin/.dependency-cruiser-known-violations.json` is a baseline that only shrinks. Remove a violation, then regenerate: `npx depcruise src --config .dependency-cruiser.cjs --output-type baseline > .dependency-cruiser-known-violations.json` (in `packages/plugin`, file `packages/plugin/.dependency-cruiser-known-violations.json`). A change that adds an entry is wrong; fix the import.
-- Remaining baselined groups: `slice-via-facade` (deep imports, mostly into `sync`), `features-not-app` (`PluginHost`), `core-independent` (`core/settings/{model,fields}.ts`), `domain-not-surface` (`features/sync/ui` -> `features/source-control/view.ts`, `features/links/ui` and `features/relay/ui` -> `features/setup/step-state.ts`), one each in `surface-diff`, `surface-setup`.
+- Remaining baselined groups: `features-not-app` (`PluginHost`), `core-independent` and `slice-via-facade` from `core/settings/{model,fields}.ts` into storage, spaces and links.
 - Folder cap: at most 12 `.ts` modules per source folder, css excluded (`packages/plugin/tests/arch/folders.test.ts`, runs in `pnpm test`).
 
 ## Styles

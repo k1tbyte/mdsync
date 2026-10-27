@@ -7,8 +7,12 @@ import { EFrame } from "@mdsync/protocol";
 import { seal, unseal } from "@/core/crypto";
 import { hasDotSegment, normalizePath } from "@/core/shared";
 import type { SpaceHub } from "@/features/relay";
-import { bytesToText, textToBytes } from "@/features/sync/changes/content";
-import { insideOf, vaultPathOf } from "@/features/sync/remote/space";
+import {
+	bytesToText,
+	insideOf,
+	textToBytes,
+	vaultPathOf,
+} from "@/features/sync";
 import { hasLiveExtension } from "../doc-types";
 import type { LiveSession } from "../session/session";
 import type { Rotation } from "../session/session-deps";

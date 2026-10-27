@@ -11,10 +11,7 @@ import {
 	openPromptModal,
 	renderPath,
 } from "@/core/ui";
-import {
-	confirmBulkRestore,
-	confirmRestore,
-} from "@/features/diff/restore-modal";
+import { confirmBulkRestore, confirmRestore } from "@/features/diff";
 import type { DeletedFilesResult } from "@/features/sync";
 import {
 	SelectionBar,
