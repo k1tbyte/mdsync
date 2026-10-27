@@ -1,12 +1,12 @@
 import type { SettingDefinitionGroup } from "obsidian";
 
 import {
+	EFieldKind,
 	type FieldContext,
 	fieldRow,
 	group,
 	type SettingsField,
 } from "@/core/settings";
-import { EFieldKind } from "@/features/storage";
 
 const INTERFACE_FIELDS: ReadonlyArray<SettingsField> = [
 	{

@@ -1,9 +1,12 @@
 import { sharePrefix } from "@mdsync/protocol";
 
 import { randomBytes, randomId } from "@/core/crypto";
+import type { MdsyncSettings } from "@/core/settings";
 import { bytesToBase64, isNewer } from "@/core/utils";
 import {
+	activeStorage,
 	EStorageBackend,
+	isStorageConfigured,
 	type S3StorageConfig,
 	type StorageAdapterConfig,
 } from "@/features/storage";
@@ -70,6 +73,13 @@ function ownShares(records: readonly SpaceRecord[]): SpaceRecord[] {
 }
 
 /** The share's storage under this device's own credentials; null off S3. */
+/** A share pins its location for good, so only a complete S3 setup may own one. */
+export function ownerStorage(settings: MdsyncSettings): S3StorageConfig | null {
+	const storage = activeStorage(settings);
+	if (storage.kind !== EStorageBackend.S3) return null;
+	return isStorageConfigured(settings) ? storage : null;
+}
+
 export function ownerStorageConfig(
 	shareId: string,
 	location: ShareLocation,

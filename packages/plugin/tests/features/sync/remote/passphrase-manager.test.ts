@@ -1,11 +1,12 @@
 import type { DataAdapter } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_SETTINGS } from "@/app/settings";
 import type { DeviceKey } from "@/core/crypto/device-key";
 import {
 	loadCachedPassphrase,
 	saveCachedPassphrase,
 } from "@/core/crypto/passphrase-cache";
-import { DEFAULT_SETTINGS, type MdsyncSettings } from "@/core/settings/model";
+import type { MdsyncSettings } from "@/core/settings/model";
 import { defaultS3Config } from "@/features/storage/backends/s3";
 import type { ObjectStorage } from "@/features/storage/types";
 import {

@@ -11,11 +11,11 @@ import {
 	toBase64Url,
 } from "@mdsync/protocol";
 import type { TFile } from "obsidian";
-
 import type { PluginHost } from "@/app/host";
-import { isRelayConfigured, relayAdmin } from "@/core/settings";
+import { isRelayConfigured } from "@/core/settings";
 import { relayBase } from "@/core/shared";
 import type { BrokerAdmin } from "@/features/spaces";
+import { relayAdmin } from "@/features/spaces";
 import { createLink, linkStatus, replaceLink, revokeLink } from "./link-broker";
 import { type LinkRecord, onRelay } from "./record";
 import type { NewLink } from "./shared-links";

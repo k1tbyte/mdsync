@@ -5,14 +5,12 @@ import {
 	loadCachedPassphrase,
 	saveCachedPassphrase,
 } from "@/core/crypto";
-import {
-	activeStorage,
-	isStorageConfigured,
-	type MdsyncSettings,
-} from "@/core/settings";
+import type { MdsyncSettings } from "@/core/settings";
 import { reportWarning } from "@/core/shared";
 import {
+	activeStorage,
 	createStorageAdapter,
+	isStorageConfigured,
 	type ObjectStorage,
 	storageIdentity,
 } from "@/features/storage";

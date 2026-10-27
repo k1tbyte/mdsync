@@ -1,6 +1,6 @@
 import type { PluginHost } from "@/app/host";
 import { RELAY_TEXT } from "@/core/hub";
-import { isRelayConfigured, ownerStorage, relayAdmin } from "@/core/settings";
+import { isRelayConfigured } from "@/core/settings";
 import { relayBase } from "@/core/shared";
 import { notifyError, notifyInfo, openConfirmModal } from "@/core/ui";
 import { carryVaultIgnores, pushScope } from "@/features/sync";
@@ -8,9 +8,10 @@ import {
 	endShare,
 	leaveShare,
 	type Participant,
+	relayAdmin,
 	revokeParticipant,
 } from "../broker/share-broker";
-import { createShare, ownerNameOf } from "../owner";
+import { createShare, ownerNameOf, ownerStorage } from "../owner";
 import { mountError } from "../partition";
 import type { SpaceRecord } from "../record";
 

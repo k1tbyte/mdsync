@@ -6,6 +6,7 @@
 
 import { requestUrl } from "obsidian";
 
+import type { RelayConfig } from "@/core/settings";
 import { relayBase } from "@/core/shared";
 import type { S3StorageConfig } from "@/features/storage";
 import {
@@ -31,6 +32,14 @@ export interface BrokerAccess {
 export interface BrokerAdmin {
 	relayUrl: string;
 	secret: string;
+}
+
+/** Shares and links both speak to the relay with its secret. */
+export function relayAdmin({
+	relayUrl,
+	relaySecret,
+}: RelayConfig): BrokerAdmin {
+	return { relayUrl, secret: relaySecret };
 }
 
 const SIGN_OPS: Record<S3Method, string> = {

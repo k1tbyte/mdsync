@@ -1,6 +1,5 @@
 import { Platform, SearchComponent } from "obsidian";
 import type { PluginHost } from "@/app/host";
-import { canSync } from "@/core/settings";
 import { appendIconButton, appendLabeledButton, notifyError } from "@/core/ui";
 import { lastEditLabel, lastEditor } from "@/features/spaces";
 import type {
@@ -8,6 +7,7 @@ import type {
 	ManifestEntry,
 	SyncStatusSnapshot,
 } from "@/features/sync";
+import { canSync } from "@/features/sync";
 import type { SourceControlActions } from "../actions/actions";
 import { SelectionBar } from "../actions/selection-bar";
 import { renderSetupPrompt } from "../setup-prompt";

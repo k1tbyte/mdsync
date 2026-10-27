@@ -1,14 +1,5 @@
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
-
-export const EFieldKind = {
-	Text: "text",
-	Password: "password",
-	Toggle: "toggle",
-	Number: "number",
-	Slider: "slider",
-	Choice: "choice",
-} as const;
-export type EFieldKind = (typeof EFieldKind)[keyof typeof EFieldKind];
+import { EFieldKind } from "@/core/settings";
 
 export interface BaseFieldSpec {
 	key: string;

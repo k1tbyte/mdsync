@@ -1,12 +1,12 @@
 import { Setting } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
+import { EFieldKind } from "@/core/settings";
 
 import {
 	type FieldContext,
 	fieldRow,
 	type NumberField,
 } from "@/core/settings/fields";
-import { EFieldKind } from "@/features/storage/field-spec";
 
 vi.mock("obsidian", () => {
 	class Setting {

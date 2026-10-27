@@ -14,7 +14,8 @@ import {
 import type { RelayStatus } from "@/core/hub";
 import { RELAY_TEXT } from "@/core/hub";
 import {
-	DEFAULT_SETTINGS,
+	DEFAULT_CORE_SETTINGS,
+	EFieldKind,
 	type FieldContext,
 	fieldRow,
 	group,
@@ -23,7 +24,6 @@ import {
 	SUB_SETTING_CLASS,
 } from "@/core/settings";
 import type { People } from "@/features/presence";
-import { EFieldKind } from "@/features/storage";
 import { clampMaxSnapshots, VAULT_SPACE } from "@/features/sync";
 
 const AUTOSYNC_FIELD: SettingsField = {
@@ -150,7 +150,7 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField> = [
 				raw,
 				BULK_DELETE_LIMIT_MIN,
 				BULK_DELETE_LIMIT_MAX,
-				DEFAULT_SETTINGS.bulkDeleteLimit,
+				DEFAULT_CORE_SETTINGS.bulkDeleteLimit,
 			),
 		set: (v) => ({ bulkDeleteLimit: v }),
 	},

@@ -1,17 +1,18 @@
 import { Setting, setIcon } from "obsidian";
-
 import {
-	activeStorage,
-	canSync,
 	fieldRow,
 	isRelayConfigured,
-	isStorageConfigured,
 	renderDefinitions,
 } from "@/core/settings";
 import { alertLine } from "@/core/ui";
 import { SETUP_FIELDS } from "@/features/settings";
-import { describeStorageTarget } from "@/features/storage";
+import {
+	activeStorage,
+	describeStorageTarget,
+	isStorageConfigured,
+} from "@/features/storage";
 import type { SyncStatusSnapshot } from "@/features/sync";
+import { canSync } from "@/features/sync";
 import { showSettingsTransferExport } from "@/features/transfer";
 
 import type { StepView, Wizard } from "../wizard";

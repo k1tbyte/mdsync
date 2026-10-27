@@ -9,6 +9,7 @@ import {
 import type { PluginHost } from "@/app/host";
 import { registerProtocolHandlers } from "@/app/protocols";
 import { createRealtime, type Realtime } from "@/app/realtime";
+import { DEFAULT_SETTINGS, mergeSettings } from "@/app/settings";
 import { SettingsEnvelope } from "@/app/settings-envelope";
 import { createStorageRefused } from "@/app/storage-refused";
 import {
@@ -19,13 +20,7 @@ import {
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/core/constants";
 import { DeviceKey } from "@/core/crypto";
 import type { LogService } from "@/core/logs";
-import {
-	canSync,
-	DEFAULT_SETTINGS,
-	isStorageConfigured,
-	type MdsyncSettings,
-	mergeSettings,
-} from "@/core/settings";
+import type { MdsyncSettings } from "@/core/settings";
 import { reportWarning } from "@/core/shared";
 import { notifyAction, notifyInfo } from "@/core/ui";
 import { loadNodeFs } from "@/core/vault";
@@ -59,8 +54,10 @@ import {
 	registerReadOnlyLock,
 	registerShareRenames,
 } from "@/features/spaces";
+import { isStorageConfigured } from "@/features/storage";
 import type { SyncController, WriteJournal } from "@/features/sync";
 import {
+	canSync,
 	DeviceName,
 	type IgnoreStateHandle,
 	type PassphraseManager,

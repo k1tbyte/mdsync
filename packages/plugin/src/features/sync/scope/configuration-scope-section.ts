@@ -1,6 +1,7 @@
 import type { SettingDefinitionGroup } from "obsidian";
 import type { SettingsSyncCategories } from "@/core/settings";
 import {
+	EFieldKind,
 	type FieldContext,
 	fieldRow,
 	group,
@@ -8,7 +9,6 @@ import {
 	type SettingsRow,
 } from "@/core/settings";
 import { notifyError, notifyInfo, openConfirmModal } from "@/core/ui";
-import { EFieldKind } from "@/features/storage";
 import type { Manifest } from "../types";
 import { createScopePolicy, type ScopePolicy } from "./scope";
 

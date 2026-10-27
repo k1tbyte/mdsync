@@ -7,16 +7,15 @@ import type { PluginHost } from "@/app/host";
 import type { RelayStatus } from "@/core/hub";
 import { RELAY_TEXT } from "@/core/hub";
 import type { FieldContext } from "@/core/settings";
+import { isRelayConfigured } from "@/core/settings";
+import { formatRelativeTime, pluralize } from "@/core/shared";
 import {
 	activeStorage,
-	canSync,
-	isGuest,
-	isRelayConfigured,
+	describeStorageTarget,
 	isStorageConfigured,
-} from "@/core/settings";
-import { formatRelativeTime, pluralize } from "@/core/shared";
-import { describeStorageTarget, storageIdentity } from "@/features/storage";
-import { VAULT_SPACE } from "@/features/sync";
+	storageIdentity,
+} from "@/features/storage";
+import { canSync, isGuest, VAULT_SPACE } from "@/features/sync";
 
 type Tone = "ok" | "muted" | "warning" | "error";
 

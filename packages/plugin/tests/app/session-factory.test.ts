@@ -4,7 +4,8 @@ import {
 	createSessionOpeners,
 	type SessionFactoryDeps,
 } from "@/app/session-factory";
-import { DEFAULT_SETTINGS, type MdsyncSettings } from "@/core/settings/model";
+import { DEFAULT_SETTINGS } from "@/app/settings";
+import type { MdsyncSettings } from "@/core/settings/model";
 import type { SpaceRecord } from "@/features/spaces/record";
 import { defaultS3Config } from "@/features/storage/backends/s3";
 import type { StatePersister } from "@/features/sync/recovery/state-persister";

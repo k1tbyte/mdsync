@@ -7,16 +7,15 @@ import { deriveChannelGrant, MAX_SLOTS, shareChannel } from "@mdsync/protocol";
 
 import { sha256Hex } from "@/core/crypto";
 import type { HubChannel } from "@/core/hub";
-import {
-	activeStorage,
-	isRelayConfigured,
-	isStorageConfigured,
-	type MdsyncSettings,
-} from "@/core/settings";
+import { isRelayConfigured, type MdsyncSettings } from "@/core/settings";
 import { relayBase } from "@/core/shared";
 import type { SpaceRecord } from "@/features/spaces";
 import { pauseOf } from "@/features/spaces";
-import { storageIdentity } from "@/features/storage";
+import {
+	activeStorage,
+	isStorageConfigured,
+	storageIdentity,
+} from "@/features/storage";
 import { VAULT_SPACE } from "@/features/sync";
 
 export interface HubRoute {

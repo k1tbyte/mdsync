@@ -1,7 +1,8 @@
 import { OWNER } from "@mdsync/protocol";
 import type { LiveKeys } from "@/core/crypto";
-import { isStorageConfigured, type MdsyncSettings } from "@/core/settings";
+import type { MdsyncSettings } from "@/core/settings";
 import { reportWarning } from "@/core/shared";
+import { isStorageConfigured } from "@/features/storage";
 import type { PassphraseManager, SyncController } from "@/features/sync";
 import { type Space, VAULT_SPACE } from "@/features/sync";
 import { shareLiveKeys } from "./access";

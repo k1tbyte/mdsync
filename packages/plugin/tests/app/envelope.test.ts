@@ -1,9 +1,10 @@
 import { deviceKey, FakeSecretStorage } from "@tests/helpers/device-key";
 import { link } from "@tests/helpers/shared-links";
 import { describe, expect, it } from "vitest";
+import { mergeSettings } from "@/app/settings";
 import { SettingsEnvelope } from "@/app/settings-envelope";
 import { encryptJson } from "@/core/crypto/cipher";
-import { type MdsyncSettings, mergeSettings } from "@/core/settings/model";
+import type { MdsyncSettings } from "@/core/settings/model";
 import { bytesToBase64 } from "@/core/utils/base64";
 import { defaultS3Config } from "@/features/storage/backends/s3";
 

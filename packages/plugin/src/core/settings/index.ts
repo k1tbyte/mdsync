@@ -1,5 +1,7 @@
 export {
+	type CheckResult,
 	checkRow,
+	EFieldKind,
 	type FieldContext,
 	fieldRow,
 	group,
@@ -12,19 +14,15 @@ export {
 	settleTyping,
 } from "./fields";
 export {
-	activeStorage,
-	canSync,
-	DEFAULT_SETTINGS,
+	type CoreSettings,
+	clamp,
+	DEFAULT_CORE_SETTINGS,
 	DEFAULT_SETTINGS_SYNC,
-	isGuest,
 	isRelayConfigured,
-	isStorageConfigured,
 	type MdsyncSettings,
-	mergeSettings,
+	mergeCoreSettings,
 	NUMERIC_BOUNDS,
-	ownerStorage,
 	type RelayConfig,
-	relayAdmin,
 	type SettingsSyncCategories,
 } from "./model";
 export { imperativePage } from "./page";

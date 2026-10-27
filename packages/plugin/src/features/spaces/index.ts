@@ -1,9 +1,18 @@
 export { shareKey, shareStorage } from "./access";
-export { ADMIN_HEADER, type BrokerAdmin } from "./broker/share-broker";
+export {
+	ADMIN_HEADER,
+	type BrokerAdmin,
+	relayAdmin,
+} from "./broker/share-broker";
 export { INVITE_ACTION, invitePassword } from "./invite";
 export { lastEditLabel, lastEditor } from "./last-edit";
 export { pauseOf } from "./partition";
-export { isSpaceRecord, type SpaceRecord, shareIdentity } from "./record";
+export {
+	isSpaceRecord,
+	parseSpaceRecords,
+	type SpaceRecord,
+	shareIdentity,
+} from "./record";
 export { SpaceRecords } from "./records";
 export { createMoveFollower, registerShareRenames } from "./share-moves";
 export { createShareRegistration } from "./share-registration";

@@ -2,7 +2,7 @@ export { noteLinks, noteLinksText } from "./note-links";
 export {
 	type LinkRecord,
 	onRelay,
-	parseStoredLink,
+	parseStoredLinks,
 	type StoredLink,
 } from "./record";
 export { registerLinkPaths } from "./register";

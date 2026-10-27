@@ -1,13 +1,10 @@
 import { toHex } from "@mdsync/protocol";
 import type { ObsidianProtocolData } from "obsidian";
 import { randomBytes } from "@/core/crypto";
+import { EFieldKind } from "@/core/settings";
 import { relayBase } from "@/core/shared";
 import { EStorageBackend, type GoogleDriveStorageConfig } from "../config";
-import {
-	CONCURRENCY_FIELD,
-	EFieldKind,
-	type SettingsFieldSpec,
-} from "../field-spec";
+import { CONCURRENCY_FIELD, type SettingsFieldSpec } from "../field-spec";
 import type { StorageAuthOutcome } from "../types";
 
 export function googleAuthUrl(

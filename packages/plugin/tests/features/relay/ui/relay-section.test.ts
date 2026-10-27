@@ -20,7 +20,8 @@ vi.mock("obsidian", async (importOriginal) => ({
 		}
 	},
 }));
-vi.mock("@/core/settings/fields", () => ({
+vi.mock("@/core/settings/fields", async (importOriginal) => ({
+	...(await importOriginal<Record<string, unknown>>()),
 	fieldRow: vi.fn(),
 	checkRow: vi.fn(),
 	group: (_heading: string, items: unknown[]) => ({ items }),

@@ -1,11 +1,12 @@
 import type { App } from "obsidian";
 import type { DeviceKey } from "@/core/crypto";
 import { LogService } from "@/core/logs";
-import { isStorageConfigured, type MdsyncSettings } from "@/core/settings";
+import type { MdsyncSettings } from "@/core/settings";
 import { reportWarning } from "@/core/shared";
 import { askPassphrase, notifyError, notifyInfo } from "@/core/ui";
 import type { SharedLinks } from "@/features/links";
 import { createMoveFollower, SpaceRecords } from "@/features/spaces";
+import { isStorageConfigured } from "@/features/storage";
 import type { LiveNotes } from "@/features/sync";
 import {
 	fetchRemoteManifest,

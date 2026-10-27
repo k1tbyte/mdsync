@@ -1,7 +1,7 @@
 import { ButtonComponent, Modal } from "obsidian";
 import type { PluginHost } from "@/app/host";
 import { isLinkState, RELAY_TEXT, relaySummary } from "@/core/hub";
-import { isRelayConfigured, relayAdmin } from "@/core/settings";
+import { isRelayConfigured } from "@/core/settings";
 import { errorMessage } from "@/core/shared";
 import {
 	alertLine,
@@ -21,6 +21,7 @@ import {
 	type BrokerAdmin,
 	listParticipants,
 	type Participant,
+	relayAdmin,
 } from "../../broker/share-broker";
 import { type SpaceRecord, shareIdentity } from "../../record";
 import { createInvite } from "../invites/invite-action";

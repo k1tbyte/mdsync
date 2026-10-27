@@ -1,13 +1,13 @@
 import type { SettingDefinitionGroup } from "obsidian";
-
 import { clearCachedPassphrase } from "@/core/crypto";
-import { type FieldContext, group, isStorageConfigured } from "@/core/settings";
+import { type FieldContext, group } from "@/core/settings";
 import {
 	askNewPassphrase,
 	notifyError,
 	notifyInfo,
 	reportError,
 } from "@/core/ui";
+import { isStorageConfigured } from "@/features/storage";
 import { PassphraseRotatedError } from "@/features/sync";
 
 export function securitySection(ctx: FieldContext): SettingDefinitionGroup {

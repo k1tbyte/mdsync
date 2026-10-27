@@ -2,6 +2,7 @@ import { type App, type SettingDefinitionGroup, TFile } from "obsidian";
 
 import { IGNORE_FILE_NAME } from "@/core/constants";
 import {
+	EFieldKind,
 	type FieldContext,
 	fieldRow,
 	group,
@@ -10,7 +11,6 @@ import {
 	type SettingsField,
 } from "@/core/settings";
 import { notifyError, notifyInfo, openInEditor, reportError } from "@/core/ui";
-import { EFieldKind } from "@/features/storage";
 
 const SCOPE_CHANGED = "Sync scope settings changed.";
 const BYTES_PER_MB = 1024 * 1024;

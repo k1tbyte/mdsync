@@ -2,6 +2,7 @@ import type { SettingDefinitionGroup } from "obsidian";
 import { randomSecret } from "@/core/crypto";
 import {
 	checkRow,
+	EFieldKind,
 	type FieldContext,
 	fieldRow,
 	group,
@@ -9,7 +10,7 @@ import {
 } from "@/core/settings";
 import { relayBase } from "@/core/shared";
 import { runWithNotice } from "@/core/ui";
-import { EFieldKind, forgetCloudflare } from "@/features/storage";
+import { forgetCloudflare } from "@/features/storage";
 import { testRelay } from "../relay-test";
 
 function secretButtonLabel(secret: string): string {

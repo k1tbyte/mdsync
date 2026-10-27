@@ -1,9 +1,7 @@
 import type { PluginHost } from "@/app/host";
-import {
-	canSync,
-	isRelayConfigured,
-	isStorageConfigured,
-} from "@/core/settings";
+import { isRelayConfigured } from "@/core/settings";
+import { isStorageConfigured } from "@/features/storage";
+import { canSync } from "@/features/sync";
 
 export const ESetupStep = {
 	Start: "start",

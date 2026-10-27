@@ -100,6 +100,7 @@ export {
 } from "./scope/ignore-state";
 export { createScopePolicy } from "./scope/scope";
 export { projectSession } from "./session-state";
+export { canSync, isGuest } from "./settings";
 export {
 	type Conflict,
 	type DiffResult,

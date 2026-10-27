@@ -1,16 +1,17 @@
 import { LINK_PARAM, openLink, sealLink } from "@/core/crypto";
 import {
-	activeStorage,
-	DEFAULT_SETTINGS,
+	DEFAULT_CORE_SETTINGS,
 	DEFAULT_SETTINGS_SYNC,
 	type MdsyncSettings,
-	mergeSettings,
+	mergeCoreSettings,
 	type SettingsSyncCategories,
 } from "@/core/settings";
 import {
+	activeStorage,
 	type CompactStorageConfig,
 	compactStorageConfig,
 	EStorageBackend,
+	parseStorageSettings,
 	type StorageAdapterConfig,
 	storageDefaults,
 } from "@/features/storage";
@@ -205,12 +206,16 @@ export function mergeTransferredSettings(
 				...imported.storageConfigs,
 			}
 		: current.storageConfigs;
-	return mergeSettings({
+	// A transfer carries core fields and storage only, so only those are parsed again.
+	return {
 		...current,
-		...imported,
-		storageConfigs,
-		activeStorageKind: imported.activeStorageKind ?? current.activeStorageKind,
-	});
+		...mergeCoreSettings({ ...current, ...imported }),
+		...parseStorageSettings({
+			storageConfigs,
+			activeStorageKind:
+				imported.activeStorageKind ?? current.activeStorageKind,
+		}),
+	};
 }
 
 function createTransferPayload(
@@ -264,7 +269,7 @@ function createSectionPayload(
 		TRANSFER_FIELDS[sectionId],
 	)) {
 		const value = settings[settingsKey as TransferFieldKey];
-		const fallback = DEFAULT_SETTINGS[settingsKey as TransferFieldKey];
+		const fallback = DEFAULT_CORE_SETTINGS[settingsKey as TransferFieldKey];
 		if (value === fallback) continue;
 		out[transferKey] = typeof fallback === "boolean" ? Number(value) : value;
 	}
@@ -280,7 +285,7 @@ function applySectionDefaults(
 	for (const [settingsKey, transferKey] of Object.entries(
 		TRANSFER_FIELDS[sectionId],
 	)) {
-		const fallback = DEFAULT_SETTINGS[settingsKey as TransferFieldKey];
+		const fallback = DEFAULT_CORE_SETTINGS[settingsKey as TransferFieldKey];
 		const transferred = section[transferKey];
 		if (transferred === undefined) {
 			sink[settingsKey] = fallback;
@@ -350,7 +355,7 @@ function isOptionalSectionPayload(
 	)) {
 		const transferred = payload[transferKey];
 		if (transferred === undefined) continue;
-		const fallback = DEFAULT_SETTINGS[settingsKey as TransferFieldKey];
+		const fallback = DEFAULT_CORE_SETTINGS[settingsKey as TransferFieldKey];
 		// A bool travels only when it differs from its default, as the flipped bit.
 		const valid =
 			typeof fallback === "boolean"

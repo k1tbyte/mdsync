@@ -2,11 +2,12 @@ import type { PluginHost } from "@/app/host";
 import { cloudflareApi, obsidianHttp, verifyToken } from "@/core/cloudflare";
 import { REMOTE_MANIFEST_KEY, STORAGE_CHANGED_REASON } from "@/core/constants";
 import { sha256Hex } from "@/core/crypto";
-import { activeStorage, type MdsyncSettings } from "@/core/settings";
+import type { MdsyncSettings } from "@/core/settings";
 import { defaultS3Config } from "../backends/s3";
 import { isRefusedCredentials } from "../backends/util";
 import { EStorageBackend, type S3StorageConfig } from "../config";
 import { createStorageAdapter } from "../registry";
+import { activeStorage } from "../settings";
 import { cloudflareOf } from "./cloudflare-login";
 import { ensureBucket, r2AccountOf, r2Keys, r2Storage } from "./r2";
 

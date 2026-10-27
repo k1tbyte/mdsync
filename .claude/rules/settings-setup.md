@@ -3,6 +3,8 @@ paths:
   - 'packages/plugin/src/features/{settings,setup,transfer,relay}/**'
   - 'packages/plugin/src/core/settings/**'
   - 'packages/plugin/src/app/settings-envelope.ts'
+  - 'packages/plugin/src/app/settings.ts'
+  - 'packages/plugin/src/features/*/settings.ts'
   - 'packages/plugin/src/app/commands.ts'
 ---
 
@@ -20,8 +22,9 @@ Paths are relative to `packages/plugin/src/`. Wizard steps and modules: `feature
 ## Settings
 
 - Every write goes through `plugin.saveSettings()`; the plugin's saved settings file is sealed by `SettingsEnvelope` (`app/settings-envelope.ts`). A new secret field joins its `SEALED` list, or it is stored in the clear.
-- Defaults, numeric bounds (`NUMERIC_BOUNDS`) and `mergeSettings` live in `core/settings/model.ts`; a value from a file or token is clamped there. A removed setting goes in `RETIRED_KEYS` (secrets are deleted, not kept).
-- Rows are declarative fields (`fieldRow`, `group`, `checkRow`, `renderDefinitions` in `core/settings/fields.ts`). Text that applies on typing goes through `onSettled` (a relay URL typed letter by letter must not open a socket per prefix); closing the tab flushes it (`settleTyping`). A scope-affecting field sets `refreshScope`.
+- `MdsyncSettings` is declared in `core/settings/model.ts` (`CoreSettings`: defaults `DEFAULT_CORE_SETTINGS`, bounds `NUMERIC_BOUNDS`, `mergeCoreSettings`). A field typed by a feature is added by that feature through module augmentation of `@/core/settings`, next to its parser: `storageConfigs`, `activeStorageKind` (`features/storage/settings.ts`), `spaces` (`features/spaces/record.ts`), `links` (`features/links/record.ts`). `mergeSettings` and `DEFAULT_SETTINGS` (`app/settings.ts`) compose them; a new parsed field joins there, or `tsc` fails. A value from a file or token is clamped by its parser. A removed setting goes in `RETIRED_KEYS` (secrets are deleted, not kept).
+- Selectors live with their owner: `activeStorage`, `isStorageConfigured` (storage), `canSync`, `isGuest` (sync), `ownerStorage`, `relayAdmin` (spaces), `isRelayConfigured` (core). A transfer re-parses only what it carries (`mergeTransferredSettings`).
+- Rows are declarative fields (`fieldRow`, `group`, `checkRow`, `renderDefinitions`, `EFieldKind` in `core/settings/fields.ts`). Text that applies on typing goes through `onSettled` (a relay URL typed letter by letter must not open a socket per prefix); closing the tab flushes it (`settleTyping`). A scope-affecting field sets `refreshScope`.
 - Sections belong to the feature they configure (`links/ui`, `relay/ui`, `spaces/ui`, `sync/ui`, `sync/scope`, `transfer/ui`, `storage/ui`); `features/settings/sections/` holds only cross-cutting ones, and `features/settings/tab.ts` orders them.
 - Never transferred (not in `TRANSFER_FIELDS`): `cloudflareToken`, `cloudflareAccountId`, `liveSendMs`, `showChangeMarks`, `showLiveAuthors`, `cachePassphrase`, `spaces`, `links`, the cached passphrase. Also never published to the vault storage: `useSharedFolders`, `pausedSpaces`, `pauseArrivingShares`, `localRoots`; `spaces` and `links` are traded sealed through it.
 - Logs are device-local in `<configDir>/plugins/mdsync/logs.json` (`core/logs/store.ts`), under the plugin folder `ScopePolicy` never syncs.

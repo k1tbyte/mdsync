@@ -26,7 +26,7 @@ export {
 	type S3StorageConfig,
 	type StorageAdapterConfig,
 } from "./config";
-export { CONCURRENCY_FIELD, EFieldKind } from "./field-spec";
+export { CONCURRENCY_FIELD } from "./field-spec";
 export {
 	type RecordKind,
 	readRecords,
@@ -46,6 +46,11 @@ export {
 	storageIdentity,
 } from "./registry";
 export {
+	activeStorage,
+	isStorageConfigured,
+	parseStorageSettings,
+} from "./settings";
+export {
 	type ConditionalRead,
 	type ObjectStorage,
 	ShareRefusedError,
@@ -53,8 +58,5 @@ export {
 	StorageRequestError,
 } from "./types";
 export { backendSection } from "./ui/backend-section";
-export {
-	type ConnectionTestResult,
-	testConnection,
-} from "./ui/connection-test";
+export { testConnection } from "./ui/connection-test";
 export { openStorageRefusedModal } from "./ui/storage-refused-modal";

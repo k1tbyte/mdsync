@@ -7,7 +7,7 @@ import {
 } from "@tests/helpers/fake-cloudflare";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PluginHost } from "@/app/host";
-import { mergeSettings } from "@/core/settings/model";
+import { mergeSettings } from "@/app/settings";
 import {
 	activateRelay,
 	deployOwnRelay,

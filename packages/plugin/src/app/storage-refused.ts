@@ -1,5 +1,4 @@
-import { activeStorage } from "@/core/settings";
-import { openStorageRefusedModal } from "@/features/storage";
+import { activeStorage, openStorageRefusedModal } from "@/features/storage";
 import { type Space, VAULT_SPACE } from "@/features/sync";
 import type { PluginHost } from "./host";
 

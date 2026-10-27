@@ -1,12 +1,12 @@
 import { Setting, type SettingDefinitionGroup } from "obsidian";
 import {
+	EFieldKind,
 	type FieldContext,
 	fieldRow,
 	group,
 	imperativePage,
 	introRow,
 } from "@/core/settings";
-import { EFieldKind } from "@/features/storage";
 import { ownerNameOf, renameOwner } from "../owner";
 import { openInvite } from "./invites/invite-action";
 import { shareSummary } from "./window/share-summary";

@@ -37,6 +37,19 @@ export interface StoredLink extends LinkRecord {
 	removed?: true;
 }
 
+declare module "@/core/settings" {
+	interface MdsyncSettings {
+		/** This person's share links, keys included: traded sealed through the vault storage, never transferred. */
+		links: StoredLink[];
+	}
+}
+
+export function parseStoredLinks(value: unknown): StoredLink[] {
+	return Array.isArray(value)
+		? value.flatMap((link) => parseStoredLink(link) ?? [])
+		: [];
+}
+
 /** A record of the first builds, made before links were traded, starts at revision 0. */
 export function parseStoredLink(value: unknown): StoredLink | null {
 	const record = parseLinkRecord(value);

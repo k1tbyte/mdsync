@@ -1,16 +1,14 @@
 import { isRefusedToken } from "@/core/cloudflare";
-import {
-	activeStorage,
-	isStorageConfigured,
-	renderDefinitions,
-} from "@/core/settings";
+import { renderDefinitions } from "@/core/settings";
 import { alertLine, callout } from "@/core/ui";
 import {
+	activeStorage,
 	backendSection,
 	cloudflareErrorMessage,
 	cloudflareOf,
 	describeStorageTarget,
 	forgetCloudflare,
+	isStorageConfigured,
 	R2NotEnabledError,
 	r2DashboardUrl,
 	testConnection,

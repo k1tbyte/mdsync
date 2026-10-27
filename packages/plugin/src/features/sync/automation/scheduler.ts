@@ -1,8 +1,8 @@
 import type { Plugin, TAbstractFile } from "obsidian";
-
-import { canSync, type MdsyncSettings } from "@/core/settings";
+import type { MdsyncSettings } from "@/core/settings";
 import type { SyncController, SyncStatusSnapshot } from "../controller";
 import { type Space, spaceOf, VAULT_SPACE } from "../remote/space";
+import { canSync } from "../settings";
 
 const AUTO_PULL_STARTUP_DELAY_MS = 3_000;
 

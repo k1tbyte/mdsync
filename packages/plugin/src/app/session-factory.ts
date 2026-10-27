@@ -2,12 +2,7 @@ import { type App, TFile } from "obsidian";
 import type { EncryptionKey } from "@/core/crypto";
 import type { LogService } from "@/core/logs";
 import { ESyncLogOperation } from "@/core/logs";
-import {
-	activeStorage,
-	isGuest,
-	isStorageConfigured,
-	type MdsyncSettings,
-} from "@/core/settings";
+import type { MdsyncSettings } from "@/core/settings";
 import { reportWarning } from "@/core/shared";
 import { createSymlinkDetector, createVaultIndex } from "@/core/vault";
 import type { SpaceRecords } from "@/features/spaces";
@@ -17,7 +12,12 @@ import {
 	shareKey,
 	shareStorage,
 } from "@/features/spaces";
-import { createStorageAdapter, type StorageAdapter } from "@/features/storage";
+import {
+	activeStorage,
+	createStorageAdapter,
+	isStorageConfigured,
+	type StorageAdapter,
+} from "@/features/storage";
 import type {
 	EngineDependencies,
 	LiveNotes,
@@ -32,6 +32,7 @@ import {
 	createScopePolicy,
 	type IgnoreMatcher,
 	ignoreNoteOf,
+	isGuest,
 	loadSharedIgnoreMatcher,
 	nestedRoots,
 	PassphraseRotatedError,

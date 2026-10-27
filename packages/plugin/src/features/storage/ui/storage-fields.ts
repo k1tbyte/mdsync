@@ -1,11 +1,11 @@
 import type { Setting } from "obsidian";
 
 import type { PluginHost } from "@/app/host";
-import { onSettled, type SettingsRow } from "@/core/settings";
+import { EFieldKind, onSettled, type SettingsRow } from "@/core/settings";
 import { notifyError, notifyInfo } from "@/core/ui";
 import { googleLoginUrl } from "../backends/google-drive-auth";
 import { EStorageBackend, type GoogleDriveStorageConfig } from "../config";
-import { EFieldKind, type SettingsFieldSpec } from "../field-spec";
+import type { SettingsFieldSpec } from "../field-spec";
 import { getDescriptor } from "../registry";
 
 export function storageRows(

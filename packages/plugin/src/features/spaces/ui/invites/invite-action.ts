@@ -1,7 +1,6 @@
 import { TFile, TFolder } from "obsidian";
 import type { PluginHost } from "@/app/host";
 import { randomId } from "@/core/crypto";
-import { ownerStorage, relayAdmin } from "@/core/settings";
 import { normalizePath, stripTrailingSlash } from "@/core/shared";
 import { notifyInfo, openConfirmModal, runWithNotice } from "@/core/ui";
 import { scopedPaths } from "@/features/sync";
@@ -9,6 +8,7 @@ import {
 	issueShareToken,
 	listParticipants,
 	registerShareStorage,
+	relayAdmin,
 	revokeParticipant,
 } from "../../broker/share-broker";
 import {
@@ -19,7 +19,7 @@ import {
 	invitePassword,
 	readInvite,
 } from "../../invite";
-import { brokerStorage } from "../../owner";
+import { brokerStorage, ownerStorage } from "../../owner";
 import { mountError } from "../../partition";
 import type { SpaceRecord } from "../../record";
 import { AcceptInviteModal } from "./invite-modal";

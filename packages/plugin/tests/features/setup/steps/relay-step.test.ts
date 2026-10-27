@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
+
 import { installElementMethods } from "@tests/helpers/element-methods";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
 import type { PluginHost } from "@/app/host";
-import { mergeSettings } from "@/core/settings/model";
+import { mergeSettings } from "@/app/settings";
 import {
 	activateRelay,
 	deployOwnRelay,

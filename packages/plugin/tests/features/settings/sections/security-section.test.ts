@@ -1,13 +1,13 @@
 import { Setting } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
 import type { PluginHost } from "@/app/host";
-import { isStorageConfigured } from "@/core/settings/model";
 import { askNewPassphrase } from "@/core/ui/modals/passphrase-modal";
 import { notifyInfo, reportError } from "@/core/ui/notices";
 import { securitySection } from "@/features/settings/sections/security";
+import { isStorageConfigured } from "@/features/storage";
 
-vi.mock("@/core/settings/model", () => ({
+vi.mock("@/features/storage/settings", async (importOriginal) => ({
+	...(await importOriginal<Record<string, unknown>>()),
 	isStorageConfigured: vi.fn(() => true),
 }));
 vi.mock("@/core/crypto/passphrase-cache", () => ({

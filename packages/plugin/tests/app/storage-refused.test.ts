@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PluginHost } from "@/app/host";
+import { mergeSettings } from "@/app/settings";
 import { createStorageRefused } from "@/app/storage-refused";
-import { mergeSettings } from "@/core/settings/model";
 import { defaultGoogleDriveConfig } from "@/features/storage/backends/google-drive-auth";
 import { defaultS3Config } from "@/features/storage/backends/s3";
 import { EStorageBackend } from "@/features/storage/config";

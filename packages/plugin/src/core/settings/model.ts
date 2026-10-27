@@ -10,21 +10,6 @@ import {
 	LIVE_SEND_MS,
 } from "@/core/constants";
 import { isCleartextRemote } from "@/core/shared";
-import { parseStoredLink, type StoredLink } from "@/features/links/record";
-import type { BrokerAdmin } from "@/features/spaces";
-import { isSpaceRecord, type SpaceRecord } from "@/features/spaces/record";
-import { defaultS3Config } from "@/features/storage/backends/s3";
-import {
-	EStorageBackend,
-	type S3StorageConfig,
-	type StorageAdapterConfig,
-} from "@/features/storage/config";
-import { CONCURRENCY_FIELD } from "@/features/storage/field-spec";
-import {
-	getDescriptor,
-	isAdapterConfigured,
-	isKnownBackend,
-} from "@/features/storage/registry";
 
 const DEFAULT_MAX_FILE_BYTES = 100 * 1024 * 1024;
 
@@ -48,9 +33,8 @@ export const DEFAULT_SETTINGS_SYNC: SettingsSyncCategories = {
 	themes: false,
 };
 
-export interface MdsyncSettings {
-	storageConfigs: Record<string, StorageAdapterConfig>;
-	activeStorageKind: EStorageBackend;
+/** What core parses. A field typed by a feature joins `MdsyncSettings` by module augmentation where that feature parses it. */
+export interface CoreSettings {
 	settingsSync: SettingsSyncCategories;
 	ignorePatterns: string;
 	/** Skip symlinks and directory links pointing outside the vault. */
@@ -78,8 +62,6 @@ export interface MdsyncSettings {
 	/** Others' text in live notes tinted by author, on this device. */
 	showLiveAuthors: boolean;
 	showOpenNote: boolean;
-	/** This device's copy of the shared folders it syncs; see `spaces/`. */
-	spaces: SpaceRecord[];
 	/** Off: every share is paused here and kept out of sight. Never published. */
 	useSharedFolders: boolean;
 	/** Shares this device holds out of sync; never published, unlike `spaces`. */
@@ -94,8 +76,6 @@ export interface MdsyncSettings {
 	localRoots: Record<string, string>;
 	/** The vault storage (identity) the records were traded with: another vault's never reach this one. */
 	spacesVault: string | null;
-	/** This person's share links, keys included: traded sealed through the vault storage, never transferred. */
-	links: StoredLink[];
 	/** Self-hosted worker (packages/relay): realtime signals. */
 	relayUrl: string;
 	/** The worker's RELAY_SECRET; relay room tokens derive from it. */
@@ -114,11 +94,9 @@ export interface MdsyncSettings {
 	uiLayout: "tree" | "flat";
 }
 
-const DEFAULT_STORAGE = defaultS3Config();
+export interface MdsyncSettings extends CoreSettings {}
 
-export const DEFAULT_SETTINGS: MdsyncSettings = {
-	storageConfigs: { [DEFAULT_STORAGE.kind]: DEFAULT_STORAGE },
-	activeStorageKind: DEFAULT_STORAGE.kind,
+export const DEFAULT_CORE_SETTINGS: CoreSettings = {
 	settingsSync: DEFAULT_SETTINGS_SYNC,
 	ignorePatterns: "",
 	ignoreSymlinks: true,
@@ -139,7 +117,6 @@ export const DEFAULT_SETTINGS: MdsyncSettings = {
 	liveSendMs: LIVE_SEND_MS.balanced,
 	showLiveAuthors: false,
 	showOpenNote: true,
-	spaces: [],
 	useSharedFolders: true,
 	pausedSpaces: [],
 	pauseArrivingShares: false,
@@ -147,7 +124,6 @@ export const DEFAULT_SETTINGS: MdsyncSettings = {
 	shareEditsWait: true,
 	localRoots: {},
 	spacesVault: null,
-	links: [],
 	relayUrl: "",
 	relaySecret: "",
 	cloudflareToken: "",
@@ -162,38 +138,7 @@ export const DEFAULT_SETTINGS: MdsyncSettings = {
 	uiLayout: "tree",
 };
 
-export function activeStorage(settings: MdsyncSettings): StorageAdapterConfig {
-	return (
-		settings.storageConfigs[settings.activeStorageKind] ?? defaultS3Config()
-	);
-}
-
-export function isStorageConfigured(settings: MdsyncSettings): boolean {
-	return isAdapterConfigured(activeStorage(settings));
-}
-
-/** No vault storage, only shares joined by invite: those sync, the vault stays on this device. */
-export function isGuest(settings: MdsyncSettings): boolean {
-	return (
-		!isStorageConfigured(settings) &&
-		settings.spaces.some(
-			(record) => !record.closed && record.access.kind === "participant",
-		)
-	);
-}
-
-export function canSync(settings: MdsyncSettings): boolean {
-	return isStorageConfigured(settings) || isGuest(settings);
-}
-
-/** A share pins its location for good, so only a complete S3 setup may own one. */
-export function ownerStorage(settings: MdsyncSettings): S3StorageConfig | null {
-	const storage = activeStorage(settings);
-	if (storage.kind !== EStorageBackend.S3) return null;
-	return isStorageConfigured(settings) ? storage : null;
-}
-
-export type RelayConfig = Pick<MdsyncSettings, "relayUrl" | "relaySecret">;
+export type RelayConfig = Pick<CoreSettings, "relayUrl" | "relaySecret">;
 
 /** Both or nothing: the URL alone opens no room and signs nothing. A relay that takes the secret in the clear is none. */
 export function isRelayConfigured(relay: RelayConfig): boolean {
@@ -201,14 +146,6 @@ export function isRelayConfigured(relay: RelayConfig): boolean {
 		Boolean(relay.relayUrl && relay.relaySecret) &&
 		!isCleartextRemote(relay.relayUrl)
 	);
-}
-
-/** The owner's side of the relay: shares and links both speak to it with the secret. */
-export function relayAdmin({
-	relayUrl,
-	relaySecret,
-}: RelayConfig): BrokerAdmin {
-	return { relayUrl, secret: relaySecret };
 }
 
 /** Dropped settings. Several held secrets - share keys among them - so they are deleted, not kept. */
@@ -240,20 +177,19 @@ export const NUMERIC_BOUNDS = {
 		min: FILE_HISTORY_MIN_SNAPSHOTS,
 		max: FILE_HISTORY_MAX_SNAPSHOTS,
 	},
-} as const satisfies Partial<Record<keyof MdsyncSettings, Bounds>>;
+} as const satisfies Partial<Record<keyof CoreSettings, Bounds>>;
 
-const CONCURRENCY_BOUNDS: Bounds = {
-	min: CONCURRENCY_FIELD.min,
-	max: CONCURRENCY_FIELD.max,
-};
-
-interface Bounds {
+export interface Bounds {
 	min: number;
 	max: number;
 }
 
 /** Returns fallback if below minimum; caps if above maximum. */
-function clamp(value: unknown, bounds: Bounds, fallback: number): number {
+export function clamp(
+	value: unknown,
+	bounds: Bounds,
+	fallback: number,
+): number {
 	if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
 	if (value < bounds.min) return fallback;
 	return Math.min(bounds.max, Math.round(value));
@@ -270,68 +206,35 @@ function stringValues(value: unknown): Record<string, string> {
 	);
 }
 
-type StoredSettings = Partial<MdsyncSettings>;
-
-export function mergeSettings(
-	stored: StoredSettings | null | undefined,
-): MdsyncSettings {
-	const storageConfigs: Record<string, StorageAdapterConfig> = {
-		...(stored?.storageConfigs ?? {}),
-	};
-	// Backfill fields added after initial save from backend defaults.
-	for (const [kind, config] of Object.entries(storageConfigs)) {
-		if (!isKnownBackend(kind) || !config || typeof config !== "object") {
-			delete storageConfigs[kind];
-			continue;
-		}
-		config.concurrency = clamp(
-			config.concurrency,
-			CONCURRENCY_BOUNDS,
-			getDescriptor(kind).defaults().concurrency,
-		);
-	}
-	if (Object.keys(storageConfigs).length === 0) {
-		storageConfigs[DEFAULT_STORAGE.kind] = DEFAULT_STORAGE;
-	}
-	const requested = stored?.activeStorageKind;
-	const activeStorageKind =
-		requested && storageConfigs[requested]
-			? requested
-			: (Object.keys(storageConfigs)[0] as EStorageBackend);
-
-	const merged: MdsyncSettings = {
-		...DEFAULT_SETTINGS,
+/** Keeps unknown stored keys: the slices parse theirs over this. */
+export function mergeCoreSettings(
+	stored: Partial<CoreSettings> | null | undefined,
+): CoreSettings {
+	const merged: CoreSettings = {
+		...DEFAULT_CORE_SETTINGS,
 		...(stored ?? {}),
-		storageConfigs,
-		activeStorageKind,
 		// A preset only: the dropdown shows nothing else.
 		liveSendMs: Object.values<unknown>(LIVE_SEND_MS).includes(
 			stored?.liveSendMs,
 		)
 			? (stored?.liveSendMs as number)
-			: DEFAULT_SETTINGS.liveSendMs,
+			: DEFAULT_CORE_SETTINGS.liveSendMs,
 		settingsSync: {
 			...DEFAULT_SETTINGS_SYNC,
 			...((stored?.settingsSync as
 				| Partial<SettingsSyncCategories>
 				| undefined) ?? {}),
 		},
-		spaces: Array.isArray(stored?.spaces)
-			? stored.spaces.filter(isSpaceRecord)
-			: [],
 		pausedSpaces: Array.isArray(stored?.pausedSpaces)
 			? stored.pausedSpaces.filter((id) => typeof id === "string")
 			: [],
 		localRoots: stringValues(stored?.localRoots),
-		links: Array.isArray(stored?.links)
-			? stored.links.flatMap((link) => parseStoredLink(link) ?? [])
-			: [],
 		spacesVault:
 			typeof stored?.spacesVault === "string" ? stored.spacesVault : null,
 	};
 	for (const [key, bounds] of Object.entries(NUMERIC_BOUNDS)) {
 		const field = key as keyof typeof NUMERIC_BOUNDS;
-		merged[field] = clamp(merged[field], bounds, DEFAULT_SETTINGS[field]);
+		merged[field] = clamp(merged[field], bounds, DEFAULT_CORE_SETTINGS[field]);
 	}
 	for (const key of RETIRED_KEYS) Reflect.deleteProperty(merged, key);
 	return merged;

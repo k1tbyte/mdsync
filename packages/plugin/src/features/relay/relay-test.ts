@@ -1,10 +1,13 @@
 import { requestUrl } from "obsidian";
 
-import { isRelayConfigured, type RelayConfig } from "@/core/settings";
+import {
+	type CheckResult,
+	isRelayConfigured,
+	type RelayConfig,
+} from "@/core/settings";
 import { errorMessage, isCleartextRemote, relayBase } from "@/core/shared";
-import type { ConnectionTestResult } from "@/features/storage";
 
-export interface RelayTestResult extends ConnectionTestResult {
+export interface RelayTestResult extends CheckResult {
 	/** The build the relay runs; null for one deployed outside MDSync. */
 	version?: string | null;
 }

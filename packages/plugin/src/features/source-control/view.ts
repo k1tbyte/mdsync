@@ -10,10 +10,10 @@ import {
 	RELATIVE_TIME_REFRESH_MS,
 	SOURCE_CONTROL_VIEW_TYPE,
 } from "@/core/constants";
-import { canSync } from "@/core/settings";
 import { redrawOnPhoneChange } from "@/core/ui";
 import { openDiffView } from "@/features/diff";
 import type { SyncStatusSnapshot } from "@/features/sync";
+import { canSync } from "@/features/sync";
 import { SourceControlActions } from "./actions/actions";
 import { ChangesTab } from "./changes/changes-tab";
 import { ConflictPreviewManager } from "./changes/conflict-preview-manager";

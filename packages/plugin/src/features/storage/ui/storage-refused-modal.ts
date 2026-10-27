@@ -1,8 +1,6 @@
 import { ButtonComponent, Modal, Setting } from "obsidian";
-
 import type { PluginHost } from "@/app/host";
 import { openPluginSettings } from "@/core/hub";
-import { activeStorage } from "@/core/settings";
 import {
 	alertLine,
 	modalFooter,
@@ -13,6 +11,7 @@ import {
 import { cloudflareErrorMessage } from "../cloudflare/cloudflare-login";
 import { r2StorageOf, rekeyR2 } from "../cloudflare/r2-select";
 import { describeStorageTarget } from "../registry";
+import { activeStorage } from "../settings";
 
 const FIELD = "Token value or secret access key";
 const UPDATE = "Update keys";

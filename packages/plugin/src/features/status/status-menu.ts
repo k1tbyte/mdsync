@@ -1,7 +1,6 @@
 import { Menu } from "obsidian";
 import type { PluginHost } from "@/app/host";
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/core/constants";
-import { canSync } from "@/core/settings";
 import { formatRelativeTime, pluralize } from "@/core/shared";
 import { showMenuAt } from "@/core/ui";
 import { openDiffView } from "@/features/diff";
@@ -12,6 +11,7 @@ import {
 import {
 	canPullAll,
 	canPushAll,
+	canSync,
 	runPullAll,
 	runPushAll,
 	type SyncStatusSnapshot,

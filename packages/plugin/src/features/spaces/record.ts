@@ -90,6 +90,17 @@ export function mergeRecords(
 	return [...byId.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
 }
 
+declare module "@/core/settings" {
+	interface MdsyncSettings {
+		/** This device's copy of the shared folders it syncs; see `spaces/`. */
+		spaces: SpaceRecord[];
+	}
+}
+
+export function parseSpaceRecords(value: unknown): SpaceRecord[] {
+	return Array.isArray(value) ? value.filter(isSpaceRecord) : [];
+}
+
 export function isSpaceRecord(value: unknown): value is SpaceRecord {
 	if (typeof value !== "object" || value === null) return false;
 	const record = value as Record<string, unknown>;

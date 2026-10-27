@@ -1,12 +1,11 @@
 import type { PluginHost } from "@/app/host";
-import { activeStorage } from "@/core/settings";
 import {
 	notifyError,
 	notifyInfo,
 	openConfirmModal,
 	reportError,
 } from "@/core/ui";
-import { describeStorageTarget } from "@/features/storage";
+import { activeStorage, describeStorageTarget } from "@/features/storage";
 import { cleanSummary } from "../runtime/maintenance";
 import { confirmRemoteReset } from "./reset-modal";
 

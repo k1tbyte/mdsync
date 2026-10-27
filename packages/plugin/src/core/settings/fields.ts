@@ -7,9 +7,23 @@ import {
 } from "obsidian";
 
 import type { PluginHost } from "@/app/host";
-import type { ConnectionTestResult } from "@/features/storage";
-import { EFieldKind } from "@/features/storage/field-spec";
 import type { MdsyncSettings } from "./model";
+
+export const EFieldKind = {
+	Text: "text",
+	Password: "password",
+	Toggle: "toggle",
+	Number: "number",
+	Slider: "slider",
+	Choice: "choice",
+} as const;
+export type EFieldKind = (typeof EFieldKind)[keyof typeof EFieldKind];
+
+/** What a Test button reports in its row. */
+export interface CheckResult {
+	ok: boolean;
+	message: string;
+}
 
 export const SUB_SETTING_CLASS = "mdsync-sub-setting";
 const ERROR_DESC_CLASS = "mdsync-settings-error";
@@ -183,7 +197,7 @@ function applyControl(
 export function checkRow(
 	name: string,
 	desc: string,
-	run: () => Promise<ConnectionTestResult>,
+	run: () => Promise<CheckResult>,
 ): SettingsRow {
 	return {
 		name,
