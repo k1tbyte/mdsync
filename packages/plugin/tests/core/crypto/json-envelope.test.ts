@@ -1,16 +1,19 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { seeded } from "@tests/helpers/seeded";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
 	decryptBytes,
 	decryptJson,
 	deriveKey,
 	type EncryptionKey,
 	encryptBytes,
+	encryptCompressible,
 	encryptJson,
 } from "@/core/crypto/cipher";
 import {
 	BLOB_VERSION,
 	BLOB_VERSION_GZIP,
 	GZIP_PAD_BYTES,
+	GZIP_SAMPLE_BYTES,
 	IV_BYTES,
 	JSON_GZIP_MIN_BYTES,
 } from "@/core/crypto/constants";
@@ -133,11 +136,71 @@ describe("encrypted JSON envelope", () => {
 		expect(second.length).toBe(first.length);
 	});
 
-	it("keeps opaque bytes uncompressed, however large", async () => {
-		// File contents stream through this path and are as often already
-		// compressed media; a second pass would only cost time.
+	it("keeps raw sealing uncompressed, however large", async () => {
+		// The key file and links seal through it; file content opts in with encryptCompressible.
 		const bytes = new Uint8Array(JSON_GZIP_MIN_BYTES * 4);
 		const blob = await encryptBytes(key, bytes);
+
+		expect(blob[0]).toBe(BLOB_VERSION);
+		expect(await decryptBytes(key, blob)).toEqual(bytes);
+	});
+});
+
+/** Incompressible, like media or an archive. */
+function noise(length: number, seed = 1): Uint8Array {
+	const next = seeded(seed);
+	return Uint8Array.from({ length }, () => Math.floor(next() * 256));
+}
+
+function note(length: number): Uint8Array {
+	const line = "- [ ] A task line in a long note, with a [[link]] and #tag\n";
+	return new TextEncoder()
+		.encode(line.repeat(Math.ceil(length / line.length)))
+		.subarray(0, length);
+}
+
+describe("compressible file content", () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it("stores text compressed and reads it back", async () => {
+		const bytes = note(200 * 1024);
+		const blob = await encryptCompressible(key, bytes);
+
+		expect(blob[0]).toBe(BLOB_VERSION_GZIP);
+		expect(blob.length).toBeLessThan(bytes.length / 4);
+		expect(await decryptBytes(key, blob)).toEqual(bytes);
+	});
+
+	it("leaves a note smaller than one pad unit as it is", async () => {
+		const bytes = note(GZIP_PAD_BYTES - 1);
+		const blob = await encryptCompressible(key, bytes);
+
+		expect(blob[0]).toBe(BLOB_VERSION);
+		expect(await decryptBytes(key, blob)).toEqual(bytes);
+	});
+
+	it("leaves incompressible content as it is", async () => {
+		const bytes = noise(32 * 1024);
+		const blob = await encryptCompressible(key, bytes);
+
+		expect(blob[0]).toBe(BLOB_VERSION);
+		expect(await decryptBytes(key, blob)).toEqual(bytes);
+	});
+
+	it("judges a large file by its start", async () => {
+		// Compressible past the sample, but media and archives look like noise from the first byte.
+		const bytes = new Uint8Array(GZIP_SAMPLE_BYTES * 4);
+		bytes.set(noise(GZIP_SAMPLE_BYTES));
+		const blob = await encryptCompressible(key, bytes);
+
+		expect(blob[0]).toBe(BLOB_VERSION);
+		expect(await decryptBytes(key, blob)).toEqual(bytes);
+	});
+
+	it("writes a blob every build reads where the platform cannot compress", async () => {
+		vi.stubGlobal("CompressionStream", undefined);
+		const bytes = note(200 * 1024);
+		const blob = await encryptCompressible(key, bytes);
 
 		expect(blob[0]).toBe(BLOB_VERSION);
 		expect(await decryptBytes(key, blob)).toEqual(bytes);

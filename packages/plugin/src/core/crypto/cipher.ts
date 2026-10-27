@@ -10,6 +10,8 @@ import {
 	BLOB_VERSION_GZIP,
 	GZIP_LENGTH_BYTES,
 	GZIP_PAD_BYTES,
+	GZIP_SAMPLE_BYTES,
+	GZIP_SAMPLE_MAX_RATIO,
 	IV_BYTES,
 	JSON_GZIP_MIN_BYTES,
 	KDF_ITERATIONS,
@@ -148,10 +150,15 @@ export async function decryptBytes(
 	return inflateBytes(unpad(plaintext), GZIP);
 }
 
+function paddedLength(gzipLength: number): number {
+	return (
+		Math.ceil((GZIP_LENGTH_BYTES + gzipLength) / GZIP_PAD_BYTES) *
+		GZIP_PAD_BYTES
+	);
+}
+
 function pad(gzipped: Uint8Array): Uint8Array {
-	const framed = GZIP_LENGTH_BYTES + gzipped.length;
-	const size = Math.ceil(framed / GZIP_PAD_BYTES) * GZIP_PAD_BYTES;
-	const out = new Uint8Array(size);
+	const out = new Uint8Array(paddedLength(gzipped.length));
 	new DataView(out.buffer).setUint32(0, gzipped.length, true);
 	out.set(gzipped, GZIP_LENGTH_BYTES);
 	return out;
@@ -175,28 +182,58 @@ export async function encryptJson(
 	key: EncryptionKey,
 	value: unknown,
 ): Promise<Uint8Array> {
-	const json = encoder.encode(JSON.stringify(value));
-	const gzipped = await gzipJson(json);
-	if (!gzipped) return encryptBytes(key, json);
+	return sealSmallest(
+		key,
+		encoder.encode(JSON.stringify(value)),
+		JSON_GZIP_MIN_BYTES,
+	);
+}
+
+/** File content: gzipped when that makes the blob smaller. Every release since 1.0.0 reads both. */
+export async function encryptCompressible(
+	key: EncryptionKey,
+	bytes: Uint8Array,
+): Promise<Uint8Array> {
+	// Below one pad unit the sealed blob cannot shrink.
+	return sealSmallest(key, bytes, GZIP_PAD_BYTES);
+}
+
+async function sealSmallest(
+	key: EncryptionKey,
+	plaintext: Uint8Array,
+	minBytes: number,
+): Promise<Uint8Array> {
+	const gzipped = await gzipIfSmaller(plaintext, minBytes);
+	if (!gzipped) return encryptBytes(key, plaintext);
 	return sealBytes(key, pad(gzipped), BLOB_VERSION_GZIP);
 }
 
 /**
- * Null keeps the document at {@link BLOB_VERSION}, so a device without CompressionStream still writes a
+ * Null keeps the blob at {@link BLOB_VERSION}, so a device without CompressionStream still writes a
  * remote its peers can read.
  */
-async function gzipJson(json: Uint8Array): Promise<Uint8Array | null> {
-	if (json.length < JSON_GZIP_MIN_BYTES) return null;
+async function gzipIfSmaller(
+	bytes: Uint8Array,
+	minBytes: number,
+): Promise<Uint8Array | null> {
+	if (bytes.length < minBytes) return null;
 	try {
-		const out = await deflateBytes(json, GZIP);
+		if (!(await compressible(bytes))) return null;
+		const out = await deflateBytes(bytes, GZIP);
 		if (!out) return null;
-		const framed =
-			Math.ceil((GZIP_LENGTH_BYTES + out.length) / GZIP_PAD_BYTES) *
-			GZIP_PAD_BYTES;
-		return framed < json.length ? out : null;
+		return paddedLength(out.length) < bytes.length ? out : null;
 	} catch {
 		return null;
 	}
+}
+
+/** A sample decides for large inputs, so media and archives are not compressed whole for nothing. */
+async function compressible(bytes: Uint8Array): Promise<boolean> {
+	if (bytes.length <= GZIP_SAMPLE_BYTES) return true;
+	const sample = await deflateBytes(bytes.subarray(0, GZIP_SAMPLE_BYTES), GZIP);
+	return (
+		sample !== null && sample.length < GZIP_SAMPLE_BYTES * GZIP_SAMPLE_MAX_RATIO
+	);
 }
 
 export async function decryptJson<T>(
