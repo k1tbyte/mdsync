@@ -1,4 +1,14 @@
-const DOMAIN = "(storage|sync|live|presence|spaces|links|relay|transfer)";
+/** Lowest first: a domain imports only those before it, types included. */
+const DOMAINS = [
+	"storage",
+	"sync",
+	"live",
+	"presence",
+	"spaces",
+	"links",
+	"relay",
+	"transfer",
+];
 const SURFACES = {
 	diff: [],
 	"editor-signs": [],
@@ -11,6 +21,14 @@ const SURFACES = {
 };
 const SLICE = "^src/(features|core)/[^/]+/";
 const FACADE = "^src/(features|core)/[^/]+/index\\.ts$";
+
+const domainOrderRules = DOMAINS.slice(0, -1).map((from, i) => ({
+	name: `domain-order-${from}`,
+	comment: `${from} never imports ${DOMAINS.slice(i + 1).join(", ")}`,
+	severity: "error",
+	from: { path: `^src/features/${from}/` },
+	to: { path: `^src/features/(${DOMAINS.slice(i + 1).join("|")})/` },
+}));
 
 const surfaceRules = Object.entries(SURFACES).map(([from, allowed]) => ({
 	name: `surface-${from}`,
@@ -67,9 +85,10 @@ module.exports = {
 		{
 			name: "domain-not-surface",
 			severity: "error",
-			from: { path: `^src/features/${DOMAIN}/` },
+			from: { path: `^src/features/(${DOMAINS.join("|")})/` },
 			to: { path: `^src/features/(${Object.keys(SURFACES).join("|")})/` },
 		},
+		...domainOrderRules,
 		...surfaceRules,
 	],
 	options: {

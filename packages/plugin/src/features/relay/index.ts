@@ -1,9 +1,4 @@
-export {
-	HubConnection,
-	type SpaceFrame,
-	type SpaceHub,
-	type SpaceListener,
-} from "./connection";
+export { HubConnection } from "./connection";
 export {
 	activateRelay,
 	deployOwnRelay,

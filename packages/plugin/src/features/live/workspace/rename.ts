@@ -5,8 +5,8 @@
 
 import { EFrame } from "@mdsync/protocol";
 import { seal, unseal } from "@/core/crypto";
+import type { SpaceHub } from "@/core/hub";
 import { hasDotSegment, normalizePath } from "@/core/shared";
-import type { SpaceHub } from "@/features/relay";
 import {
 	bytesToText,
 	insideOf,

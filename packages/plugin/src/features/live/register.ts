@@ -1,13 +1,10 @@
 import type { App, FileView, TFile, Vault, Workspace } from "obsidian";
+import type { LiveKeys } from "@/core/crypto";
+import type { SpaceHubs } from "@/core/hub";
+import type { MdsyncSettings } from "@/core/settings";
 import { personColor, reportWarning } from "@/core/shared";
 import { renameInVault } from "@/core/vault";
-import type { HubConnection } from "@/features/relay";
-import type {
-	SpaceAccess,
-	SpaceAccessHost,
-	SpaceRecords,
-} from "@/features/spaces";
-import type { LiveNotes, WriteJournal } from "@/features/sync";
+import type { LiveNotes, SyncController, WriteJournal } from "@/features/sync";
 import { type Space, spaceOf, VAULT_SPACE } from "@/features/sync";
 import { AgreedTexts } from "./cold/agreed-texts";
 import { LiveColdSync } from "./cold/cold-sync";
@@ -15,19 +12,30 @@ import { LIVE_VIEWS } from "./doc-types";
 import { LiveSessions } from "./workspace/sessions";
 import type { LiveSpace } from "./workspace/space";
 
-export interface LiveHost extends SpaceAccessHost {
+export interface LiveHost {
 	app: App;
-	/** Its partition is the spaces as the records have them now, ahead of the next refresh. */
-	spaces: Pick<SpaceRecords, "get" | "partition">;
+	controller: SyncController;
+	settings: () => MdsyncSettings;
+	/** The spaces as the records have them now, ahead of the next refresh. */
+	spaces: { partition(): readonly Space[] };
 	journal: Pick<WriteJournal, "writeAt">;
 	onDeletedElsewhere(path: string): void;
+}
+
+/** This device's keys and identity in a space's room, as the spaces slice grants them. */
+export interface LiveAccess {
+	keys: LiveKeys;
+	person: string;
+	key: string;
+	name: string;
+	device: string | null;
 }
 
 /** Live editing wired to the workspace: which notes are open decides which rooms are joined. */
 export function createLive(
 	host: LiveHost,
-	hub: HubConnection,
-	access: (space: Space) => Promise<SpaceAccess | null>,
+	hub: SpaceHubs,
+	access: (space: Space) => Promise<LiveAccess | null>,
 	nameOf: (space: string, person: string) => string | null,
 ): {
 	sessions: LiveSessions;
@@ -80,7 +88,7 @@ export function createLive(
 
 function refreshOnChanges(
 	{ workspace, vault, metadataCache }: App,
-	hub: HubConnection,
+	hub: SpaceHubs,
 	sessions: LiveSessions,
 ): () => void {
 	const refresh = () => void sessions.refresh();
@@ -126,7 +134,7 @@ function flushAgreedWhenLeaving(agreed: AgreedTexts): () => void {
 /** Live editing on top of the space's access. Paused shares stay cold; a read-only one's notes follow the room. */
 function createLiveSpaces(
 	host: LiveHost,
-	access: (space: Space) => Promise<SpaceAccess | null>,
+	access: (space: Space) => Promise<LiveAccess | null>,
 ): (space: Space) => Promise<LiveSpace | null> {
 	return async (space) => {
 		if (!host.settings().liveEditing || space.paused) return null;

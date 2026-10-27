@@ -3,7 +3,7 @@ import type { LiveSessions } from "@/features/live";
 import { createLive, type LiveHost } from "@/features/live";
 import { People, watchHere } from "@/features/presence";
 import { HubConnection } from "@/features/relay";
-import { createSpaceAccess } from "@/features/spaces";
+import { createSpaceAccess, type SpaceAccessHost } from "@/features/spaces";
 import type { LiveNotes } from "@/features/sync";
 import { type Space, VAULT_SPACE } from "@/features/sync";
 
@@ -22,7 +22,7 @@ export interface Realtime {
 }
 
 /** The hub sockets, who is where, live notes, and a pull when another device pushed into any space. */
-export function createRealtime(host: LiveHost): Realtime {
+export function createRealtime(host: LiveHost & SpaceAccessHost): Realtime {
 	const { controller, settings } = host;
 	const hub = new HubConnection({
 		settings,

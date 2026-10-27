@@ -15,7 +15,7 @@ The rules in `.claude/rules/` (structure, ui, testing) load as you touch files; 
 ## 2. Pick the tier and its place
 
 - **Domain** (owns state, logic, its own flows and modals) or **surface** (a place in Obsidian where domains meet: a view, the gutter, the file tree, a header, the status bar, the wizard, the settings tab).
-- Domain order, lowest first: `storage < sync < live < presence < spaces < links < relay < transfer`. A slice imports only downward; a domain never imports a surface. Surface -> surface only along the allow list in the structure rule and `packages/plugin/.dependency-cruiser.cjs`; extending that list is a design decision, not part of this task.
+- Domain order, lowest first: `storage < sync < live < presence < spaces < links < relay < transfer`. A slice imports only downward, types included (`pnpm arch` checks it; a new domain also joins `DOMAINS` in `packages/plugin/.dependency-cruiser.cjs`); a domain never imports a surface. Surface -> surface only along the allow list in the structure rule and `packages/plugin/.dependency-cruiser.cjs`; extending that list is a design decision, not part of this task.
 - Anything the slice needs from another slice comes through that slice's facade (`@/features/<name>`) or `@/core/<area>`. If two slices need code and it knows no feature, it belongs in `core/`.
 - Do not take `PluginHost` (`app/host.ts`): declare what the slice reads from the plugin in `host.ts` as `<Name>Host`, export it from the facade; `MdsyncPlugin` satisfies it structurally. A way into another surface is a callback in it.
 

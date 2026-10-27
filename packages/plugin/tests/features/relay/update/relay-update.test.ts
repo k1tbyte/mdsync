@@ -2,7 +2,7 @@ import type { Plugin } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PluginHost } from "@/app/host";
 import { mergeSettings } from "@/app/settings";
-import type { HubListener } from "@/features/relay/connection";
+import type { HubListener } from "@/core/hub";
 import { RELAY_VERSION } from "@/features/relay/deploy/relay-account";
 import { testRelay } from "@/features/relay/relay-test";
 import {

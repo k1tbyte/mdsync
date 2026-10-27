@@ -3,9 +3,9 @@ import { InMemoryAdapter } from "@tests/helpers/in-memory-adapter";
 import { LiveHub } from "@tests/helpers/live-hub";
 import { type App, type DataAdapter, MarkdownView, TFile } from "obsidian";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
 import { deriveLiveKeys, type LiveKeys } from "@/core/crypto/live-keys";
 import { seal } from "@/core/crypto/seal";
+import type { SpaceFrame, SpaceHub } from "@/core/hub";
 import { renameCaseSafe } from "@/core/vault/io";
 import { AgreedTexts } from "@/features/live/cold/agreed-texts";
 import { docIdFor } from "@/features/live/doc-id";
@@ -14,7 +14,6 @@ import type { TextModel } from "@/features/live/text/model";
 import { movedWith, moveRoom } from "@/features/live/workspace/rename";
 import { LiveSessions } from "@/features/live/workspace/sessions";
 import type { LiveSpace } from "@/features/live/workspace/space";
-import type { SpaceFrame, SpaceHub } from "@/features/relay/connection";
 
 vi.mock("@/features/live/text/binding", () => ({
 	bindEditor: vi.fn(() => ({ detach: vi.fn(), showAuthors: vi.fn() })),

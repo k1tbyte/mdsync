@@ -14,7 +14,7 @@ Paths in this file are relative to `packages/plugin/src/`.
 - `app/` - composition root: the host container (`app/host.ts`), bootstrap, commands, events, protocol handlers, realtime coordinator, session factory, settings (`app/settings.ts`) and its envelope, views. It holds only what spans slices: their order (menus in `app/events.ts`, the vault refresh in `app/bootstrap.ts`) and wiring; a slice's own flow lives in the slice. Only `app/` and `main.ts` call a feature's `register*()`.
 - `core/` - infra that knows no feature: `cloudflare crypto drawing hub logs settings shared ui utils vault`, plus `core/constants.ts`. Code moves here when a second feature needs it and it knows no feature.
 - `features/` - one slice per feature. **Domain** (state, logic, own flows and modals), lowest first: `storage < sync < live < presence < spaces < links < relay < transfer`. **Surface** (where domains meet in Obsidian): `diff editor-signs explorer note-header settings setup source-control status`.
-- Domain order is not enforced by `pnpm arch` (`no-circular` is): import downward. Upward edges that exist are debt, never add one: `live` and `presence` -> `relay` types, `live` -> `spaces` type.
+- A domain imports only lower domains, types included (`domain-order-<name>` in `pnpm arch`). What a lower slice needs from a higher one it declares structurally (`LiveAccess` in `features/live/register.ts`, `PresenceAccess` in `features/presence/people.ts`); a contract several slices share and that knows no feature goes to `core/` (space channels: `SpaceHub`, `SpaceHubs` in `core/hub/space-hub.ts`).
 
 ## Slice shape (`features/<name>/`)
 
@@ -36,7 +36,7 @@ Paths in this file are relative to `packages/plugin/src/`.
 
 ## `pnpm arch` (`packages/plugin/.dependency-cruiser.cjs`)
 
-- Rules: `no-circular` (runtime), `slice-via-facade`, `root-via-facade` (`app/`, `main.ts`), `core-independent` (core imports no feature or app), `features-not-app`, `domain-not-surface`, `surface-<name>`.
+- Rules: `no-circular` (runtime), `slice-via-facade`, `root-via-facade` (`app/`, `main.ts`), `core-independent` (core imports no feature or app), `features-not-app`, `domain-order-<name>`, `domain-not-surface`, `surface-<name>`.
 - Surface -> surface only: `setup` -> `settings`; `source-control` -> `diff`, `setup`; `status` -> `diff`, `source-control`. `diff`, `editor-signs`, `explorer`, `note-header`, `settings` reach no other surface.
 - No baseline: a violation fails `pnpm arch`; fix the import, never add an exception.
 - Folder cap: at most 12 `.ts` modules per source folder, css excluded (`packages/plugin/tests/arch/folders.test.ts`, runs in `pnpm test`).
