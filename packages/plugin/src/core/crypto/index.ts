@@ -4,6 +4,7 @@ export {
 	deriveKey,
 	type EncryptionKey,
 	encryptBytes,
+	encryptCompressible,
 	encryptJson,
 	importAesKey,
 	randomBytes,

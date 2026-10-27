@@ -23,6 +23,11 @@ export const JSON_GZIP_MIN_BYTES = 16 * 1024;
  */
 export const GZIP_PAD_BYTES = 4 * 1024;
 
+/** Larger inputs are compressed only when this much of their start shrinks below the ratio. */
+export const GZIP_SAMPLE_BYTES = 64 * 1024;
+
+export const GZIP_SAMPLE_MAX_RATIO = 0.9;
+
 /** uint32 little-endian gzip length, ahead of the padding. */
 export const GZIP_LENGTH_BYTES = 4;
 

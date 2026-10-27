@@ -46,6 +46,8 @@ Accepted limit: a backend hiding our own write past the retries (WebDAV behind a
 
 Uploads: the head vouches for a blob; this device's own unpublished uploads count for 12 h (`UPLOAD_TRUST_MS`, still probed). Anything else may be swept by GC or deep clean between probe and publish. Still open, narrow: GC evicting the record of an own unpublished upload at that moment, another device's reset between the probe and the publish, clock skew over 12 h.
 
+A blob is gzipped when that makes it smaller (`encryptCompressible` in `core/crypto/cipher.ts`, padded like the JSON documents), else sealed as is; every release since 1.0.0 reads both. A large file is judged by its first 64 KB, so media is not compressed whole for nothing.
+
 ## Writes and the journal
 
 Obsidian truncates before it writes (mobile drops a file whose append fails), so a killed write leaves a prefix. `features/sync/recovery/journal.ts` makes every engine content write recoverable: a durable claim, the whole content staged under the plugin folder, the write, release. Recovery (`features/sync/recovery/cut-short.ts`) runs at load (`restoreCutShort`) and in every `compare` right after the scan: a prefix of the staged copy, or a missing file in a folder that stays, is rewritten; one that landed still gives its room its merge base (judged by its bytes when the scan left it out); what cannot be finished yet (unreadable, open room) leaves the diff as unreadable. A start with one pending refreshes at once (`main.ts`).
