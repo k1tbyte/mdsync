@@ -67,10 +67,13 @@ v1 kept every push for 24 h because a thinned record's blobs may still be settli
 **Time authority.** Never the device clock (skew), never derived from children (would move compacted buckets).
 - `at(r)`: the storage's write time of `history/p/<id>`, from `listDetailed().modified` (S3 Last-Modified,
   WebDAV getlastmodified, Drive modifiedTime; MDSync never sets them, so it is the server's clock).
-- Captured once when GC first packs the record, stored with it, never recomputed. An undated listing entry
-  counts as the newest time listed (kept longer, the safe direction).
-- No clamp along the chain: a period takes the records whose `at` falls in it, and merges only chain-contiguous
-  runs inside it, so a rare straggler stays a record of its own instead of moving a period.
+- Captured once when GC first packs the record, stored with it, never recomputed. An undated push record takes
+  its parent's listed time, else the newest time listed (as "now", a record never packs and holds up the rest).
+- Forward clamp along the walk (`forwardTimes` in `coverOf`): a record is never older than its parent, so every
+  period is one run of the chain. A straggler back in time joins its parent's period; one ahead carries its
+  successors with it (kept longer, the safe direction). The clamp depends only on older records, so a
+  captured `at` stays valid. Without it, a group held non-adjacent records: replay skipped what lay between,
+  and a counts group's `lastId` cut off a newer record.
 - GC's "now" is the newest `modified` in its listing (its own push record, just written).
 - Device `createdAt` stays for display.
 
@@ -138,14 +141,15 @@ interface HistoryObject {
 	group: number;                       // group start, server time
 	records: StoredRecord[];             // chain order, oldest first; empty for counts
 	activity?: Activity;                 // counts only
+	lastId?: string;                     // counts only: newest record dropped, where the chain ends by retention
 	consumed: string[];                  // keys this object replaces
 }
 /** Sparse: UTC hours since epoch -> [pushes, paths changed]. */
 type Activity = Record<number, [number, number]>;
 ```
 
-- An object's key carries its resolution, group and a `digest` of its records (SHA-256, first 16 hex; not of
-  `consumed`). Two contents of one group never share a key; two devices building the same content write the
+- An object's key carries its resolution, group and a `digest` of its content (`records`, `activity`, `lastId`;
+  SHA-256, first 16 hex; not of `consumed`, and not of records alone: every counts object has none). Two contents of one group never share a key; two devices building the same content write the
   same key, and a Drive duplicate of it is the same content. No reliance on `putIfAbsent` (B2 rejects
   `If-None-Match`, Drive has none): plain `put`, then read back and check the digest.
 - Paths inside are space-relative, translated only in `features/sync/remote/space-paths.ts`. Each space has
@@ -169,9 +173,10 @@ name lookup. Today: 3-5 calls moving 2-3x the whole log.
 
 ### Read
 1. `listDetailed("history/")`, `list("pins/")` (logical calls; S3 and Drive page by 1000).
-2. Skip every object a present object names in `consumed`. Walk from HEAD's id back: at each id take an
-   object whose last record has that id, coarser first, then more records, then the smaller key; when that
-   choice dead-ends and another candidate reaches further back, take the other. GC uses the same pure function.
+2. Skip every object a later present object names in `consumed`. Split each object into chain runs; every
+   record ends a candidate (its run up to it), so a sibling may fork from inside a packed run. Walk from HEAD's
+   id back: at each id take the candidate reaching furthest (the root, then more pushes), then coarser, then
+   longer, then the smaller key. GC uses the same pure function (`coverOf`).
 3. Fetch only what the visible view needs and the cache lacks: Timeline newest first by period; File history
    and Deleted decode block by block and keep only their rows (no whole-history materialisation).
 4. Gap or unreadable object: today's `lagging` and `truncated`. A 404 (object retired after the listing):
@@ -190,13 +195,21 @@ Building one object (resolution R, group G), planned pure:
   or the root), and some input is not consumed yet (so a run is idempotent).
 - Inputs: present objects at a finer resolution whose group lies inside G, other objects of the same (R, G),
   and push records on the chain with `at` in G. A push record off the chain is never an input.
+- Replaced: within the horizon only an input the walk took whole. A part off the walk may be a sibling that
+  held HEAD for a moment (two pushes on one parent both read their own id back) or lie behind a gap, and no
+  age proves otherwise (a straggler fools the complete rule): it stays until its group goes to counts, which
+  replaces the whole group. A build that replaces nothing still thins; the next walk prefers it.
 - Content: the chain's records with `at` in G, merged per R-period over chain-contiguous runs. `consumed` =
-  the input keys plus the `consumed` of every input still present.
+  the replaced keys plus the `consumed` of each of them still present.
+- Counts: the walked records' activity, merged per UTC hour by the larger value with other counts of G
+  (another view of the same pushes, never a sum). A counts group goes whole even with a gap inside it:
+  behind the gap nothing is counted (accepted).
 - Late record: a push record written before publish may join the chain after its slot was built. It is an
   unconsumed input of that slot, so the next run rebuilds the slot with it.
 
 Phase 1, one run:
-1. List, read what the plan needs, plan.
+1. List, read what the plan needs, plan. A history object that cannot be read stops the run: a gap that is
+   only this run's would let a counts group or the horizon take what lies behind it.
 2. Write each new object, read it back, check its digest. Candidate hashes come from the verified stored
    object, never from the plan.
 3. Delete every key the verified object lists in `consumed`; a later run deletes leftovers it finds named in a
@@ -221,6 +234,7 @@ What GC may delete (nothing else):
 | push record of a lost guard | its parent is on the fully resolved chain, the chain's child of that parent is another id, older than `SETTLED_AFTER_MS` |
 | object of another `vaultId` | HEAD's `vaultId` differs (a reset), settled |
 | anything in a group past the horizon | consumed by that group's verified `counts` object (only chain records add activity) |
+| push record or object off the walk | its newest record past the horizon, settled (behind a gap, never counted) |
 | blob | phase 2 above |
 
 Within the horizon, a gap or a disconnected range never makes anything deletable: past a gap the log is not evidence.
@@ -230,7 +244,7 @@ Concurrency:
 | Race | Outcome |
 |---|---|
 | two GCs, same view | same keys and bytes; the second write changes nothing |
-| two GCs, different views (listing lag) | different digests for one group; both live; the next run rebuilds the group from both |
+| two GCs, different views (listing lag) | different digests for one group; both live; the next run rebuilds the group from the walked one, the other stays until counts (a bounded leak); two counts merge by the larger per hour |
 | GC vs push | a group is due only 10 min after its end; a late record rebuilds its slot; blobs only in phase 2 |
 | GC vs pin | phase 2 lists and reads pins 24 h after the drop |
 | reader vs GC | one re-list on 404; readers never delete |
@@ -238,7 +252,9 @@ Concurrency:
 
 ## 8. Activity calendar
 
-- Every stored record carries `activity`; merges sum it, so thinning never loses counts.
+- Every stored record carries `activity`; merges sum it, so thinning never loses counts. Readers take per hour
+  the larger of the walked records' sum and each counts object (`activityOf`): a second counts of a group, or a
+  record walked there until GC folds it in, is another view of the same pushes.
 - A group past the horizon becomes a `counts` object (about 13 a year, a few hundred bytes each).
 - Only chain records count (a lost guard's record does not).
 - UTC hours, folded into local days by each viewer (30/45-minute zones may misplace a push by one hour).
@@ -366,7 +382,7 @@ Architecture swarm (8 confirmed), a research explorer and a code-cost explorer.
 | F4 deep clean and verify ignore recipes and chunks | one content owner used by all (9.2) |
 | F5 pin listing not authoritative under Drive lag | two-phase sweep, pins read 24 h after the drop (7) |
 | F6 "off-chain" deletes ranges behind a gap | deletable table; gaps protect (7) |
-| F7 bucket time derived from children | server write time, captured once, forward clamp (4) |
+| F7 bucket time derived from children | server write time, captured once, forward clamp along the walk (4) |
 | F8 read size unbounded (17k records/day at 5 s) | finer first-day tiers, packing every 64 records, view-ranged reads (4, 7) |
 | O1 legacy reset leaves new history dangling | `vaultId` generation (5, 11) |
 | B2 rejects `If-None-Match`; Drive has no conditional create | no reliance on `putIfAbsent` (5) |
@@ -375,6 +391,22 @@ Architecture swarm (8 confirmed), a research explorer and a code-cost explorer.
 | 100 MB at 64 KB = 1600 objects | second size class above 16 MB (9.2) |
 | GC can run every ~80 s today, on the push path | hourly, scheduled (7) |
 | record size is the change, not ~1 KB; LIST is Class A on R2 | cost model fixed (13) |
+
+Step 3 review (two bug-hunt rounds and a probe):
+
+| Finding | Fix |
+|---|---|
+| a straggler leaves an object `[a, c]` with `b` elsewhere; the walk skipped `b` and replay invented states | forward clamp (4); `coverOf` still splits stored objects into runs |
+| a straggler across a 4-week boundary put `a`, `c` in counts with `lastId = c`, cutting off `b` | forward clamp (4) |
+| a delayed sibling forking inside a packed run read as a gap | every record ends a candidate (7) |
+| a rebuild consumed an off-walk object holding a sibling, or one behind a gap that a straggler made look complete | within the horizon only what the walk took whole (7) |
+| counts rebuilt from a later view summed the same pushes; duplicate counts, or a walked record beside its counts, double-counted | per-hour max (`mergeCounts`, `activityOf`) |
+| `expired` could take a key written moments ago | settled only |
+| counts bypass completeness; a gap of one run loses counts | accepted for real gaps; an unreadable object stops the run (7) |
+
+Carried into step 4: `historyLogToSpace` and the new record and object path translation must carry `deletedLast`.
+A failed record PUT freezes everything older than it out of the walk until the horizon; retry the record from
+the pushing device (it holds parent and manifest) before calling the gap permanent.
 
 ## 16. Implementation steps
 
@@ -395,3 +427,8 @@ Steps 3-6 change the remote format, so they release together (the fence).
 
 Side finding, outside this design: `putIfAbsent` on S3 sends `If-None-Match: *` (`s3-store.ts:140-147`), which
 Backblaze B2 reportedly rejects; onboarding a data key on B2 may fail. Unverified.
+
+Side finding: two pushes on one parent can both read their own id back when the second `put` lands after the
+first verify (`publishManifestWithGuard`, a device stalled between precheck and put); the first device's
+changes leave HEAD while it believes them published. Pre-existing, outside history; history keeps the sibling
+only for the settle window.

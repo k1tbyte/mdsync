@@ -1,7 +1,8 @@
 import { changeEntries } from "../changes";
+import { mergeActivity, mergeCounts } from "./activity";
 import type { Cover, HistoryView, WalkedRecord } from "./cover";
 import { dueResolution, groupStart, RESOLUTIONS } from "./periods";
-import { addActivity, thin } from "./records";
+import { thin } from "./records";
 import type {
 	Activity,
 	HistoryObject,
@@ -50,12 +51,24 @@ export function planGc(input: PlanInput): GcPlan {
 	for (const key of foreign(input)) deletes.add(key);
 	for (const key of expired(input)) deletes.add(key);
 
+	const whole = wholeKeys(input);
 	const builds: Build[] = [];
 	for (const target of targets(input)) {
-		const build = buildOf(input, target);
+		const build = buildOf(input, target, whole);
 		if (build) builds.push(build);
 	}
 	return { builds, deletes: [...deletes] };
+}
+
+/** Keys every record of which is on the walk. */
+function wholeKeys(input: PlanInput): (key: string) => boolean {
+	const taken = new Map<string, number>();
+	for (const { source } of input.cover.chain) {
+		taken.set(source, (taken.get(source) ?? 0) + 1);
+	}
+	return (key) =>
+		(taken.get(key) ?? 0) ===
+		(input.view.objects.get(key)?.object.records.length ?? 1);
 }
 
 /** Versions the replaced records named that the new object no longer does: phase 1's sweep candidates. */
@@ -108,10 +121,15 @@ function oldestReached(cover: Cover): number {
 	return oldest ? oldest.firstAt : Number.POSITIVE_INFINITY;
 }
 
-function buildOf(input: PlanInput, target: Target): Build | null {
+function buildOf(
+	input: PlanInput,
+	target: Target,
+	whole: (key: string) => boolean,
+): Build | null {
 	const { res, group } = target;
 	const rank = RESOLUTIONS.indexOf(res);
-	const inputs = new Set(target.walked.map((walked) => walked.source));
+	const walked = new Set(target.walked.map(({ source }) => source));
+	const inputs = new Set(walked);
 	const sameGroup: HistoryObject[] = [];
 	for (const [key, { object }] of input.view.objects) {
 		if (input.cover.consumed.has(key) || object.vaultId !== input.vaultId) {
@@ -119,18 +137,21 @@ function buildOf(input: PlanInput, target: Target): Build | null {
 		}
 		const objectRank = RESOLUTIONS.indexOf(object.res);
 		if (objectRank > rank || groupStart(res, object.group) !== group) continue;
-		// Off the walk but inside the group: its records are on the chain already.
 		inputs.add(key);
 		if (object.res === res) sameGroup.push(object);
 	}
-	const [only] = inputs;
-	const settled =
-		inputs.size === 1 && only !== undefined && sameGroup.length === 1;
-	if (settled) return null;
+	// Within the horizon what the walk did not take whole may hold a sibling or lie behind a gap: it stays.
+	const replaced = res === "counts" ? [...inputs] : [...inputs].filter(whole);
+	const [only] = walked;
+	const built =
+		walked.size === 1 &&
+		only !== undefined &&
+		input.view.objects.get(only)?.object.res === res;
+	if (built && replaced.every((key) => key === only)) return null;
 
 	const records = target.walked.map((walked) => walked.record);
-	const consumed = new Set(inputs);
-	for (const key of inputs) {
+	const consumed = new Set(replaced);
+	for (const key of replaced) {
 		for (const named of input.view.objects.get(key)?.object.consumed ?? []) {
 			if (input.view.pushes.has(named) || input.view.objects.has(named)) {
 				consumed.add(named);
@@ -152,27 +173,14 @@ function buildOf(input: PlanInput, target: Target): Build | null {
 	return build;
 }
 
-/** Two counts of one group are two views of the same pushes: the larger stands, never the sum. */
 function countsOf(
 	records: readonly StoredRecord[],
 	earlier: readonly HistoryObject[],
 ): Activity {
 	const activity: Activity = {};
-	for (const record of records) addActivity(activity, record.activity);
-	const largest = earlier.reduce<Activity | undefined>(
-		(best, object) =>
-			pushesIn(object.activity) > pushesIn(best) ? object.activity : best,
-		undefined,
-	);
-	if (largest) addActivity(activity, largest);
+	for (const record of records) mergeActivity(activity, record.activity);
+	for (const object of earlier) mergeCounts(activity, object.activity ?? {});
 	return activity;
-}
-
-function pushesIn(activity: Activity | undefined): number {
-	return Object.values(activity ?? {}).reduce(
-		(sum, [pushes]) => sum + pushes,
-		0,
-	);
 }
 
 /**
@@ -197,20 +205,23 @@ function lostPushes(input: PlanInput): string[] {
 	return lost;
 }
 
-/** Off the walk, behind a gap, and past the horizon: kept until retention lets them go, never counted. */
+/** Off the walk, behind a gap, past the horizon and settled: retention lets them go, never counted. */
 function expired(input: PlanInput): string[] {
-	const walked = new Set(input.cover.chain.map((walked) => walked.source));
-	const past = (at: number): boolean =>
-		dueResolution(at, input.now, input.horizon) === "counts";
+	const walked = new Set(input.cover.chain.map(({ source }) => source));
+	const gone = (key: string, at: number, newest: number): boolean =>
+		!walked.has(key) &&
+		at < input.settledBefore &&
+		dueResolution(newest, input.now, input.horizon) === "counts";
 	const keys: string[] = [];
 	for (const [key, { push, at }] of input.view.pushes) {
-		if (walked.has(key) || push.vaultId !== input.vaultId) continue;
-		if (!input.cover.consumed.has(key) && past(at)) keys.push(key);
+		if (push.vaultId === input.vaultId && gone(key, at, at)) keys.push(key);
 	}
-	for (const [key, { object }] of input.view.objects) {
+	for (const [key, { object, at }] of input.view.objects) {
+		if (object.vaultId !== input.vaultId || object.records.length === 0) {
+			continue;
+		}
 		const newest = Math.max(...object.records.map((record) => record.at));
-		if (walked.has(key) || object.vaultId !== input.vaultId) continue;
-		if (object.records.length > 0 && past(newest)) keys.push(key);
+		if (gone(key, at, newest)) keys.push(key);
 	}
 	return keys;
 }

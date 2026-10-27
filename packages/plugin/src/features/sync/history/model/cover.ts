@@ -1,5 +1,5 @@
 import { RESOLUTIONS } from "./periods";
-import { storedRecord } from "./records";
+import { runsOf, storedRecord } from "./records";
 import type { HistoryObject, PushRecord, StoredRecord } from "./types";
 
 /** What storage holds, decoded; `at` is the listing's write time. */
@@ -31,12 +31,14 @@ export interface Head {
 	vaultId: string;
 }
 
+/** The first `length` records of a chain-contiguous run of one key. */
 interface Segment {
 	key: string;
 	/** Index in {@link RESOLUTIONS}. */
 	rank: number;
 	/** Oldest first. */
-	records: StoredRecord[];
+	run: readonly StoredRecord[];
+	length: number;
 	parentId: string | null;
 	pushes: number;
 }
@@ -58,7 +60,7 @@ export function coverOf(view: HistoryView, head: Head | null): Cover {
 	if (!head) return { chain: [], lagging: false, truncated: false, consumed };
 	const byLast = new Map<string, Segment[]>();
 	for (const segment of segmentsOf(view, head.vaultId, consumed)) {
-		const lastId = segment.records.at(-1)?.id;
+		const lastId = segment.run[segment.length - 1]?.id;
 		if (lastId === undefined) continue;
 		byLast.set(lastId, [...(byLast.get(lastId) ?? []), segment]);
 	}
@@ -73,13 +75,13 @@ export function coverOf(view: HistoryView, head: Head | null): Cover {
 		seen.add(at);
 		const segment = memo.get(at)?.segment;
 		if (!segment) break;
-		for (const record of [...segment.records].reverse()) {
+		for (const record of segment.run.slice(0, segment.length).reverse()) {
 			chain.push({ record, source: segment.key });
 		}
 		at = segment.parentId;
 	}
 	return {
-		chain,
+		chain: forwardTimes(chain, view),
 		lagging,
 		truncated: at !== null && !retired.has(at),
 		consumed,
@@ -125,28 +127,50 @@ function segmentsOf(
 	consumed: ReadonlySet<string>,
 ): Segment[] {
 	const segments: Segment[] = [];
+	// Every record ends a segment: a sibling may fork from inside a packed run.
+	const add = (key: string, rank: number, run: StoredRecord[]): void => {
+		const parentId = run[0]?.parentId ?? null;
+		let pushes = 0;
+		for (const [index, record] of run.entries()) {
+			pushes += record.pushes;
+			segments.push({ key, rank, run, length: index + 1, parentId, pushes });
+		}
+	};
 	for (const [key, { push, at }] of view.pushes) {
 		if (consumed.has(key) || push.vaultId !== vaultId) continue;
-		segments.push({
-			key,
-			rank: 0,
-			records: [storedRecord(push, at)],
-			parentId: push.parentId,
-			pushes: 1,
-		});
+		add(key, 0, [storedRecord(push, at)]);
 	}
 	for (const [key, { object }] of view.objects) {
-		const [first] = object.records;
-		if (consumed.has(key) || object.vaultId !== vaultId || !first) continue;
-		segments.push({
-			key,
-			rank: RESOLUTIONS.indexOf(object.res),
-			records: object.records,
-			parentId: first.parentId,
-			pushes: object.records.reduce((sum, record) => sum + record.pushes, 0),
-		});
+		if (consumed.has(key) || object.vaultId !== vaultId) continue;
+		// Objects stored by an older walk need not be one run; split rather than trust them.
+		for (const run of runsOf(object.records)) {
+			add(key, RESOLUTIONS.indexOf(object.res), run);
+		}
 	}
 	return segments;
+}
+
+/**
+ * Storage clocks straggle: a time never runs back along the chain, so every period is one run of it. A push
+ * moved forward is dated anew, its activity with it.
+ */
+function forwardTimes(
+	chain: readonly WalkedRecord[],
+	view: HistoryView,
+): WalkedRecord[] {
+	let floor = Number.NEGATIVE_INFINITY;
+	const forward = [...chain].reverse().map((walked) => {
+		if (walked.record.at >= floor) {
+			floor = walked.record.at;
+			return walked;
+		}
+		const push = view.pushes.get(walked.source)?.push;
+		const record = push
+			? storedRecord(push, floor)
+			: { ...walked.record, at: floor };
+		return { ...walked, record };
+	});
+	return forward.reverse();
 }
 
 /** Best choice per id reachable from `start`, iteratively: a long unpacked chain must not overflow the stack. */
@@ -212,8 +236,8 @@ function better(a: Best, b: Best): boolean {
 	if (a.root !== b.root) return a.root;
 	if (a.pushes !== b.pushes) return a.pushes > b.pushes;
 	if (a.segment.rank !== b.segment.rank) return a.segment.rank > b.segment.rank;
-	if (a.segment.records.length !== b.segment.records.length) {
-		return a.segment.records.length > b.segment.records.length;
+	if (a.segment.length !== b.segment.length) {
+		return a.segment.length > b.segment.length;
 	}
 	return a.segment.key < b.segment.key;
 }

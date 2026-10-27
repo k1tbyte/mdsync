@@ -1,5 +1,6 @@
 import { seeded } from "@tests/helpers/seeded";
 import { diffManifests, undoChanges } from "@/features/sync/history/changes";
+import { activityOf } from "@/features/sync/history/model/activity";
 import {
 	type Cover,
 	coverOf,
@@ -34,6 +35,8 @@ export class HistorySim {
 	readonly manifests = new Map<string, Manifest>();
 	head: Manifest | null = null;
 	pushCount = 0;
+	/** Share of push records whose storage time straggles up to 15 min either way. */
+	straggle = 0;
 	/** Storage time. */
 	now: number;
 	private readonly random: () => number;
@@ -86,7 +89,10 @@ export class HistorySim {
 				deviceId: "d",
 				changes: diffManifests(parent, manifest),
 			},
-			at,
+			at:
+				this.straggle > 0 && this.random() < this.straggle
+					? at + (this.random() - 0.5) * 30 * MINUTE
+					: at,
 		});
 		if (publish) this.publish(manifest);
 		return manifest;
@@ -153,15 +159,8 @@ export class HistorySim {
 
 	/** Pushes the walk and the counts objects account for. */
 	countedPushes(cover: Cover): number {
-		let total = 0;
-		for (const { record } of cover.chain) total += record.pushes;
-		for (const [key, { object }] of this.objects) {
-			if (cover.consumed.has(key)) continue;
-			for (const [pushes] of Object.values(object.activity ?? {})) {
-				total += pushes;
-			}
-		}
-		return total;
+		const activity = activityOf(this.view(), cover, this.vaultId);
+		return Object.values(activity).reduce((sum, [pushes]) => sum + pushes, 0);
 	}
 
 	private drop(key: string): void {

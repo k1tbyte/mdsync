@@ -1,5 +1,6 @@
 import { composeChanges } from "../changes";
 import type { SnapshotChanges } from "../types";
+import { mergeActivity } from "./activity";
 import { hourOf, keepStart } from "./periods";
 import type { Activity, PushRecord, Resolution, StoredRecord } from "./types";
 
@@ -19,32 +20,35 @@ export function storedRecord(push: PushRecord, at: number): StoredRecord {
 	};
 }
 
+/** Splits records, in order, wherever `joins` fails; by default at every break in the chain. */
+export function runsOf(
+	records: readonly StoredRecord[],
+	joins = (previous: StoredRecord, record: StoredRecord): boolean =>
+		record.parentId === previous.id,
+): StoredRecord[][] {
+	const runs: StoredRecord[][] = [];
+	for (const record of records) {
+		const run = runs.at(-1);
+		const previous = run?.at(-1);
+		if (run && previous && joins(previous, record)) run.push(record);
+		else runs.push([record]);
+	}
+	return runs;
+}
+
 /** Chain order, oldest first, as `records` are: one record per span, over contiguous runs only. */
 export function thin(
 	records: readonly StoredRecord[],
 	res: Resolution,
 ): StoredRecord[] {
-	const thinned: StoredRecord[] = [];
-	let run: StoredRecord[] = [];
-	let runSpan: number | null = null;
-	for (const record of records) {
+	return runsOf(records, (previous, record) => {
 		const span = keepStart(res, record.at);
-		const previous = run.at(-1);
-		if (
-			previous &&
+		return (
 			span !== null &&
-			span === runSpan &&
+			span === keepStart(res, previous.at) &&
 			record.parentId === previous.id
-		) {
-			run.push(record);
-			continue;
-		}
-		if (run.length > 0) thinned.push(mergeRecords(run));
-		run = [record];
-		runSpan = span;
-	}
-	if (run.length > 0) thinned.push(mergeRecords(run));
-	return thinned;
+		);
+	}).map(mergeRecords);
 }
 
 /** `run` is contiguous, oldest first. */
@@ -54,7 +58,7 @@ export function mergeRecords(run: readonly StoredRecord[]): StoredRecord {
 	if (!first || !last) throw new Error("Cannot merge an empty run.");
 	if (run.length === 1) return first;
 	const activity: Activity = {};
-	for (const record of run) addActivity(activity, record.activity);
+	for (const record of run) mergeActivity(activity, record.activity);
 	return {
 		id: last.id,
 		parentId: first.parentId,
@@ -67,13 +71,6 @@ export function mergeRecords(run: readonly StoredRecord[]): StoredRecord {
 		pushes: run.reduce((sum, record) => sum + record.pushes, 0),
 		activity,
 	};
-}
-
-export function addActivity(into: Activity, add: Activity): void {
-	for (const [hour, [pushes, paths]] of Object.entries(add)) {
-		const was = into[Number(hour)] ?? [0, 0];
-		into[Number(hour)] = [was[0] + pushes, was[1] + paths];
-	}
 }
 
 function pathsChanged(changes: SnapshotChanges): number {

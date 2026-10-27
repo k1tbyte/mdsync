@@ -126,6 +126,49 @@ describe("coverOf", () => {
 		expect(cover.truncated).toBe(false);
 	});
 
+	it("walks an object holding a straggler's runs by their parent links", () => {
+		const sim = vaultOf(3);
+		sim.objects.set("b/a", {
+			object: objectOf(sim, ["p/s1", "p/s3"], "push"),
+			at: START + 60 * MINUTE,
+		});
+		sim.objects.set("b/b", {
+			object: objectOf(sim, ["p/s2"], "push"),
+			at: START + 60 * MINUTE,
+		});
+		const cover = coverOf(sim.view(), headOf(sim));
+		expect(
+			cover.chain.map((walked) => [walked.record.id, walked.source]),
+		).toEqual([
+			["s3", "b/a"],
+			["s2", "b/b"],
+			["s1", "b/a"],
+		]);
+		expect(cover.truncated).toBe(false);
+		sim.checkReplay(cover);
+	});
+
+	it("forks from inside a packed run when a delayed sibling wins", () => {
+		const sim = vaultOf(2);
+		sim.objects.set("b/run", {
+			object: objectOf(sim, ["p/s1", "p/s2"], "push"),
+			at: START + 60 * MINUTE,
+		});
+		const first = sim.manifests.get("s1");
+		if (!first) throw new Error("no s1");
+		sim.head = first;
+		sim.push(START + 61 * MINUTE);
+		const cover = coverOf(sim.view(), headOf(sim));
+		expect(
+			cover.chain.map((walked) => [walked.record.id, walked.source]),
+		).toEqual([
+			["s3", "p/s3"],
+			["s1", "b/run"],
+		]);
+		expect(cover.truncated).toBe(false);
+		sim.checkReplay(cover);
+	});
+
 	it("lets only the later of two objects naming each other replace the other", () => {
 		const sim = vaultOf(2);
 		const object = objectOf(sim, ["p/s1", "p/s2"], "10m");
