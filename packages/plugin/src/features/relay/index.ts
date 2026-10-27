@@ -1,9 +1,4 @@
-export {
-	HubConnection,
-	type SpaceFrame,
-	type SpaceHub,
-	type SpaceListener,
-} from "./connection";
+export { HubConnection } from "./connection";
 export {
 	activateRelay,
 	deployOwnRelay,
@@ -23,5 +18,7 @@ export {
 	relayUrlOf,
 } from "./deploy/relay-account";
 export { ERelayDeployStep } from "./deploy/relay-deploy";
+export type { RelayHost } from "./host";
+export { type RelayTestResult, testRelay } from "./relay-test";
 export { relaySection } from "./ui/relay-section";
 export { type RelayUpdate, registerRelayUpdate } from "./update/relay-update";

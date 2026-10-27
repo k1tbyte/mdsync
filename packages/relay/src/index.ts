@@ -1,3 +1,4 @@
+import { ADMIN_HEADER } from "@mdsync/protocol";
 import {
 	type GoogleOAuthEnv,
 	handleAuthCallback,
@@ -9,7 +10,7 @@ import { Link } from "./link/durable-object";
 import { handleLinkRequest } from "./link/routes";
 import { handleShellRequest, type ShellEnv } from "./link/shell";
 import type { LinkEnv } from "./link/stub";
-import { ADMIN_HEADER, isAdmin } from "./secret";
+import { isAdmin } from "./secret";
 import { handleShareRequest } from "./share/broker";
 import type { ShareEnv } from "./share/kv";
 

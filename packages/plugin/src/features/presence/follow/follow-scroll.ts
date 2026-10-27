@@ -1,8 +1,8 @@
 import type { EditorView } from "@codemirror/view";
 import type { MarkdownView } from "obsidian";
 
-import type { LiveSession } from "@/features/live/session/session";
-import { watchCursor } from "@/features/live/text/cursors";
+import type { LiveSession } from "@/features/live";
+import { watchCursor } from "@/features/live";
 
 /** Their cursor moves freely inside the middle half of the view; past it, it is centred again. */
 const MARGIN = 0.25;

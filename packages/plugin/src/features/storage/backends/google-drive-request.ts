@@ -1,8 +1,8 @@
 import { type RequestUrlParam, requestUrl } from "obsidian";
+import { StorageHttpError } from "@/core/shared";
 import { StorageRequestError } from "../types";
 import {
 	isRetryableStatus,
-	StorageHttpError,
 	transferBytes,
 	withDeadline,
 	withRetry,

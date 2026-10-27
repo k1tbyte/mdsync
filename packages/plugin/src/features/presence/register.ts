@@ -1,5 +1,5 @@
 import type { Plugin } from "obsidian";
-import { type Space, VAULT_SPACE } from "@/features/sync/remote/space";
+import { type Space, VAULT_SPACE } from "@/features/sync";
 import { Unseen } from "./unseen";
 
 const STORAGE_KEY = "mdsync-unseen";

@@ -1,7 +1,6 @@
 import type { Refusal } from "@mdsync/protocol";
-
 import type { LiveKeys } from "@/core/crypto";
-import type { SpaceHub } from "@/features/relay";
+import type { SpaceHub } from "@/core/hub";
 
 import type { Author } from "../authors";
 import type { LiveKind, LiveModel } from "../model";

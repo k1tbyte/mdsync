@@ -1,4 +1,3 @@
-import type { LocalOpener } from "@/app/session-factory";
 import { ESyncLogOperation } from "@/core/logs";
 import type { SettingsSyncCategories } from "@/core/settings";
 import {
@@ -56,6 +55,22 @@ export const EConflictStrategy = {
 } as const;
 export type EConflictStrategy =
 	(typeof EConflictStrategy)[keyof typeof EConflictStrategy];
+
+export type SessionFiles = Pick<
+	EngineDependencies,
+	"space" | "adapter" | "scope" | "state" | "maxFileBytes"
+>;
+
+/** What a display-only look at one space's files needs: no storage, no key. */
+export type LocalSession = SessionFiles & {
+	/** The storage `state` belongs to. */
+	identity: string;
+};
+
+export type LocalOpener = (
+	space: Space,
+	partition: readonly Space[],
+) => Promise<LocalSession | null>;
 
 export interface SyncControllerHost {
 	/**

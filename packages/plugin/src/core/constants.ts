@@ -1,5 +1,8 @@
 export const PLUGIN_ID = "mdsync";
 
+/** The vault storage's head: sync publishes it, storage probes it to tell an empty remote from a vault. */
+export const REMOTE_MANIFEST_KEY = "manifest.json.enc";
+
 export const IGNORE_FILE_NAME = "syncignore.md";
 
 export const DEFAULT_CONCURRENCY = 4;

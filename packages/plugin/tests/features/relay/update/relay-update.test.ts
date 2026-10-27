@@ -1,20 +1,20 @@
 import type { Plugin } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PluginHost } from "@/app/host";
-import { mergeSettings } from "@/core/settings/model";
-import type { HubListener } from "@/features/relay/connection";
+import { mergeSettings } from "@/app/settings";
+import type { HubListener } from "@/core/hub";
 import { RELAY_VERSION } from "@/features/relay/deploy/relay-account";
+import { testRelay } from "@/features/relay/relay-test";
 import {
 	type RelayUpdate,
 	registerRelayUpdate,
 } from "@/features/relay/update/relay-update";
 import { openRelayUpdateModal } from "@/features/relay/update/relay-update-modal";
-import { testRelay } from "@/features/storage/ui/connection-test";
 
 vi.mock("@/features/relay/update/relay-update-modal", () => ({
 	openRelayUpdateModal: vi.fn(async () => false),
 }));
-vi.mock("@/features/storage/ui/connection-test", () => ({
+vi.mock("@/features/relay/relay-test", () => ({
 	testRelay: vi.fn(),
 }));
 vi.mock("@/features/relay/deploy/relay-account", async (original) => ({

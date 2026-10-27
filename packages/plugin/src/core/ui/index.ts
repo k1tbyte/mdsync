@@ -10,7 +10,7 @@ export { makeActivatable } from "./input/activatable";
 export { onEnter } from "./input/enter-key";
 export { focusKey, renderKeepingFocus } from "./input/focus";
 export { onLongPress } from "./input/long-press";
-export { infoTitle, personTitle, showMenuAt } from "./menu";
+export { infoTitle, showMenuAt } from "./menu";
 export {
 	asDrawer,
 	type ModalHead,

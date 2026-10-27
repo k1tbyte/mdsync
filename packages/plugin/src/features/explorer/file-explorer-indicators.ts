@@ -1,19 +1,17 @@
 import type { Plugin, TAbstractFile } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
 import type { SyncController } from "@/features/sync";
-
 import {
 	readFileExplorer,
 	readFileExplorerContainer,
 } from "./file-explorer-api";
 import { badgeActivation } from "./file-explorer-badges";
+import type { ExplorerHost } from "./host";
 import type { IndicatorHandle } from "./indicator-handle";
 import { LinkScan } from "./link-scan";
 import { RowDecorator } from "./row-decorator";
 
 export function registerFileExplorerIndicators(
-	plugin: Plugin & PluginHost,
+	plugin: Plugin & ExplorerHost,
 	controller: SyncController,
 ): IndicatorHandle {
 	const decorator = new RowDecorator(plugin, controller);

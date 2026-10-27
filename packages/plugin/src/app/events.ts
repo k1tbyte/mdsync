@@ -1,84 +1,34 @@
-import {
-	type Menu,
-	type Plugin,
-	type TAbstractFile,
-	TFile,
-	TFolder,
-} from "obsidian";
+import { type Plugin, TFile, TFolder } from "obsidian";
 import { reportWarning } from "@/core/shared";
 import { addLinkMenuItems } from "@/features/links";
-import {
-	openSourceControlDeleted,
-	openSourceControlHistory,
-} from "@/features/source-control";
+import { addHistoryMenuItems } from "@/features/source-control";
 import { addShareMenuItem } from "@/features/spaces";
 import type { StatePersister } from "@/features/sync";
 import { addIgnoreMenuItem, addPushMenuItem } from "@/features/sync";
 import type { PluginHost } from "./host";
 
-/**
- * History is otherwise only in the side panel and a deleted file has no menu, so the entry rides on whatever
- * the user right-clicks.
- */
+/** The menus' order is the slices' order here. */
 export function registerWorkspaceMenus(plugin: Plugin & PluginHost): void {
 	plugin.registerEvent(
 		plugin.app.workspace.on("file-menu", (menu, file) => {
-			addIgnoreItem(menu, plugin, file);
-			addPushMenuItem(menu, plugin, file.path, file instanceof TFolder);
+			const folder = file instanceof TFolder;
+			addIgnoreMenuItem(menu, plugin, file.path, folder, "MDSync: ");
+			addPushMenuItem(menu, plugin, file.path, folder);
 			addLinkMenuItems(menu, plugin, file);
-			if (file instanceof TFolder && !file.isRoot()) {
-				addShareMenuItem(menu, plugin, file.path);
-			}
-			if (plugin.settings.fileHistoryEnabled) {
-				if (file instanceof TFile) addHistoryItem(menu, plugin, file.path);
-				addDeletedItem(menu, plugin);
-			}
+			if (folder && !file.isRoot()) addShareMenuItem(menu, plugin, file.path);
+			addHistoryMenuItems(
+				menu,
+				plugin,
+				file instanceof TFile ? file.path : null,
+			);
 		}),
 	);
 	plugin.registerEvent(
 		plugin.app.workspace.on("editor-menu", (menu, _editor, view) => {
-			const path = view.file?.path;
+			const path = view.file?.path ?? null;
 			if (path) addPushMenuItem(menu, plugin, path, false);
-			if (!plugin.settings.fileHistoryEnabled) return;
-			if (path) addHistoryItem(menu, plugin, path);
-			addDeletedItem(menu, plugin);
+			addHistoryMenuItems(menu, plugin, path);
 		}),
-	);
-}
-
-function addIgnoreItem(
-	menu: Menu,
-	plugin: Plugin & PluginHost,
-	file: TAbstractFile,
-): void {
-	addIgnoreMenuItem(
-		menu,
-		plugin,
-		file.path,
-		file instanceof TFolder,
-		"MDSync: ",
-	);
-}
-
-function addHistoryItem(
-	menu: Menu,
-	plugin: Plugin & PluginHost,
-	path: string,
-): void {
-	menu.addItem((item) =>
-		item
-			.setTitle("MDSync: File history")
-			.setIcon("history")
-			.onClick(() => void openSourceControlHistory(plugin, path)),
-	);
-}
-
-function addDeletedItem(menu: Menu, plugin: Plugin & PluginHost): void {
-	menu.addItem((item) =>
-		item
-			.setTitle("MDSync: Restore deleted files")
-			.setIcon("trash-2")
-			.onClick(() => void openSourceControlDeleted(plugin)),
 	);
 }
 

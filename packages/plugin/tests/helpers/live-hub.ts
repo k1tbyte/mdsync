@@ -8,12 +8,7 @@ import { HubCore } from "mdsync-relay/src/hub/core";
 import type { DocSub, HubPeer } from "mdsync-relay/src/hub/peer";
 import { SqlDocStore } from "mdsync-relay/src/hub/store";
 import { memorySql } from "mdsync-relay/tests/helpers/memory-sql";
-
-import type {
-	SpaceFrame,
-	SpaceHub,
-	SpaceListener,
-} from "@/features/relay/connection";
+import type { SpaceFrame, SpaceHub, SpaceListener } from "@/core/hub";
 
 /**
  * The relay's own hub logic over a real SQLite store, in-process; frames cross the "wire" on a later

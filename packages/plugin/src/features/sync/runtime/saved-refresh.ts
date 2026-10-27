@@ -1,6 +1,5 @@
-import type { LocalSession } from "@/app/session-factory";
 import { diffWithin } from "../changes/diff";
-import type { SyncControllerHost } from "../controller";
+import type { LocalSession, SyncControllerHost } from "../controller";
 import { pathsBySpace } from "../remote/space";
 import { buildEntry } from "../scope/entry";
 import type { ManifestEntry } from "../types";

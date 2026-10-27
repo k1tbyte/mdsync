@@ -1,4 +1,5 @@
 import { requestUrl } from "obsidian";
+import { StorageHttpError } from "@/core/shared";
 import { toArrayBuffer } from "@/core/utils";
 import {
 	type ConditionalRead,
@@ -14,7 +15,6 @@ import {
 	headerValue,
 	isRetryableError,
 	isRetryableStatus,
-	StorageHttpError,
 	transferBytes,
 	withDeadline,
 	withRetry,

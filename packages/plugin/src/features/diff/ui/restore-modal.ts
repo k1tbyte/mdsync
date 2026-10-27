@@ -1,5 +1,4 @@
 import { ButtonComponent, Modal } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { errorMessage, formatBytes } from "@/core/shared";
 import {
 	actionButton,
@@ -11,10 +10,11 @@ import {
 	renderPath,
 } from "@/core/ui";
 import type { FileDiffModel, HistoryVersionRef } from "@/features/sync";
-import { renderHunkPreview } from "./compare/hunk-renderer";
+import { renderHunkPreview } from "../compare/hunk-renderer";
+import type { DiffHost } from "../host";
 
 export interface RestoreConfirmOptions {
-	plugin: PluginHost;
+	plugin: DiffHost;
 	/** File the version belongs to; also the diff's other side. */
 	path: string;
 	version: HistoryVersionRef;
@@ -99,7 +99,7 @@ async function loadPreview(
 
 /** Names every file a bulk restore would bring back; no diff preview, as the trash rows offer Preview per file. */
 export function confirmBulkRestore(
-	plugin: PluginHost,
+	plugin: DiffHost,
 	entries: readonly BulkRestoreEntry[],
 ): Promise<boolean> {
 	return openPromiseModal<boolean>((answer) => {

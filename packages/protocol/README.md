@@ -4,6 +4,7 @@
 
 | File | Defines |
 |---|---|
+| `packages/protocol/src/admin.ts` | `ADMIN_HEADER`, the request header that carries the relay secret |
 | `packages/protocol/src/frames.ts` | hub paths and query params, keepalive constants, `EFrame`, `ERefusal`, `ClientFrame` / `ServerFrame`, limits, `OWNER`, `CHANNEL_DOC` |
 | `packages/protocol/src/codec.ts` | `encodeClient` / `decodeClient`, `encodeServer` / `decodeServer`, `withSlot` |
 | `packages/protocol/src/bytes.ts` | `Writer` / `Reader` (u8, u32, length-prefixed text and blocks), base64url and hex |

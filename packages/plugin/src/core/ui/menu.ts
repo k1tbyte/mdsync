@@ -1,20 +1,9 @@
 import type { Menu } from "obsidian";
-import { withDevices } from "@/core/shared";
-import { renderAvatar } from "@/features/presence/ui/avatars";
-import type { Person } from "@/features/presence/views";
 
 export function infoTitle(text: string, state?: string): DocumentFragment {
 	const title = createFragment();
 	title.createSpan({ cls: "mdsync-menu-info", text });
 	if (state) title.createSpan({ cls: "mdsync-person-state", text: state });
-	return title;
-}
-
-export function personTitle(person: Person, state: string): DocumentFragment {
-	const title = createFragment();
-	renderAvatar(title, person);
-	title.createSpan({ text: withDevices(person.name, person.devices) });
-	title.createSpan({ cls: "mdsync-person-state", text: state });
 	return title;
 }
 

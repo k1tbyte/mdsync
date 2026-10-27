@@ -1,8 +1,8 @@
 import type { SettingDefinitionGroup } from "obsidian";
-
 import { randomSecret } from "@/core/crypto";
 import {
 	checkRow,
+	EFieldKind,
 	type FieldContext,
 	fieldRow,
 	group,
@@ -10,14 +10,17 @@ import {
 } from "@/core/settings";
 import { relayBase } from "@/core/shared";
 import { runWithNotice } from "@/core/ui";
-import { ESetupStep } from "@/features/setup/step-state";
-import { EFieldKind, forgetCloudflare, testRelay } from "@/features/storage";
+import { forgetCloudflare } from "@/features/storage";
+import type { RelayHost } from "../host";
+import { testRelay } from "../relay-test";
 
 function secretButtonLabel(secret: string): string {
 	return secret ? "Copy" : "Generate";
 }
 
-export function relaySection(ctx: FieldContext): SettingDefinitionGroup {
+export function relaySection(
+	ctx: FieldContext<RelayHost>,
+): SettingDefinitionGroup {
 	const { plugin } = ctx;
 	const secretRow = fieldRow(ctx, {
 		kind: EFieldKind.Password,
@@ -36,7 +39,7 @@ export function relaySection(ctx: FieldContext): SettingDefinitionGroup {
 				setting.addButton((button) =>
 					button
 						.setButtonText(configured ? "Update" : "Deploy")
-						.onClick(() => plugin.openSetup(ESetupStep.Relay)),
+						.onClick(() => plugin.openSetup("relay")),
 				);
 			},
 		},

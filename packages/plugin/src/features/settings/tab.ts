@@ -4,28 +4,29 @@ import {
 	PluginSettingTab,
 	type SettingDefinitionItem,
 } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
 import { type FieldContext, settleTyping } from "@/core/settings";
-import { linksSection } from "@/features/links/ui/links-section";
-import { relaySection } from "@/features/relay/ui/relay-section";
-import { sharesSection } from "@/features/spaces/ui/shares-section";
+import { linksSection } from "@/features/links";
+import { relaySection } from "@/features/relay";
+import { sharesSection } from "@/features/spaces";
 import { backendSection } from "@/features/storage";
-import { configurationScopeSection } from "@/features/sync/scope/configuration-scope-section";
-import { exclusionsSection } from "@/features/sync/scope/exclusions-section";
-import { maintenanceSection } from "@/features/sync/ui/maintenance-section";
+import {
+	configurationScopeSection,
+	encryptionSection,
+	exclusionsSection,
+	maintenanceSection,
+} from "@/features/sync";
 import { deviceTransferSection } from "@/features/transfer";
+import type { SettingsTabHost } from "./host";
 import { logsPage } from "./logs-view";
 import { overviewGroup } from "./overview";
 import { advancedSection } from "./sections/advanced";
 import { automationSection } from "./sections/automation";
 import { interfaceSection } from "./sections/interface";
-import { securitySection } from "./sections/security";
 
 export class MdsyncSettingTab extends PluginSettingTab {
-	private readonly plugin: Plugin & PluginHost;
+	private readonly plugin: Plugin & SettingsTabHost;
 
-	constructor(app: App, plugin: Plugin & PluginHost) {
+	constructor(app: App, plugin: Plugin & SettingsTabHost) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -36,7 +37,7 @@ export class MdsyncSettingTab extends PluginSettingTab {
 	}
 
 	getSettingDefinitions(): SettingDefinitionItem[] {
-		const ctx: FieldContext = {
+		const ctx: FieldContext<SettingsTabHost> = {
 			plugin: this.plugin,
 			rerender: () => this.update(),
 		};
@@ -53,7 +54,7 @@ export class MdsyncSettingTab extends PluginSettingTab {
 						desc: "Storage, encryption, relay and device transfer.",
 						items: [
 							backendSection(ctx),
-							securitySection(ctx),
+							encryptionSection(ctx),
 							relaySection(ctx),
 							deviceTransferSection(ctx),
 							advancedSection(ctx),

@@ -1,8 +1,7 @@
 import type { Plugin } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
 import { openConfirmModal } from "@/core/ui";
 import type { Space } from "@/features/sync";
+import type { SpacesHost } from "../host";
 import type { SpaceRecord } from "../record";
 
 import { closeHere } from "./share-action";
@@ -12,7 +11,7 @@ const RECHECK_MS = 90_000;
 
 /** The owner ended this link: the share closes as on Leave and the person chooses what happens to its files. */
 export function createAccessEnded(
-	plugin: Plugin & PluginHost,
+	plugin: Plugin & SpacesHost,
 ): (space: Space) => void {
 	const refusedSince = new Map<string, number>();
 	const rechecks = new Set<number>();
@@ -41,7 +40,7 @@ export function createAccessEnded(
 }
 
 async function endAccess(
-	plugin: PluginHost,
+	plugin: SpacesHost,
 	record: SpaceRecord,
 ): Promise<void> {
 	// Its token is dead: no leave call to the broker, which would only refuse it.

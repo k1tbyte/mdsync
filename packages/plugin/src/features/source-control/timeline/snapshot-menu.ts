@@ -1,6 +1,6 @@
 import type { Menu } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { notifyError, notifyInfo, openPromptModal } from "@/core/ui";
+import type { SourceControlHost } from "../host";
 
 interface SnapshotPin {
 	snapshotId: string;
@@ -10,7 +10,7 @@ interface SnapshotPin {
 
 export function addSnapshotPinItems(
 	menu: Menu,
-	plugin: PluginHost,
+	plugin: SourceControlHost,
 	snapshot: SnapshotPin,
 	onChanged: () => void,
 	canPin = true,

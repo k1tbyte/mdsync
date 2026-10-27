@@ -11,12 +11,8 @@ import {
 	type ViewUpdate,
 	WidgetType,
 } from "@codemirror/view";
-import { hunkSegments, type LineRange } from "@/features/sync/hunks/hunks";
-import type { Span } from "@/features/sync/hunks/merge-model";
-import type {
-	EDiffDirection,
-	FileDiffModel,
-} from "@/features/sync/hunks/projection";
+import type { EDiffDirection, FileDiffModel, Span } from "@/features/sync";
+import { hunkSegments, type LineRange } from "@/features/sync";
 import { choiceVerb, type HunkChoices } from "../choices";
 import { addCodeMarks, type LineMarks, lineMarks } from "../lines/code-lines";
 import {

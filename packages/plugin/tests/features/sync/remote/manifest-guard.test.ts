@@ -8,12 +8,12 @@ import {
 	it,
 	vi,
 } from "vitest";
+import { REMOTE_MANIFEST_KEY } from "@/core/constants";
 import {
 	deriveKey,
 	type EncryptionKey,
 	encryptJson,
 } from "@/core/crypto/cipher";
-import { REMOTE_MANIFEST_KEY } from "@/features/sync/constants";
 import {
 	ConcurrentPushError,
 	fetchRemoteManifest,

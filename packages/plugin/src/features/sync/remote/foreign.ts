@@ -1,4 +1,4 @@
-import { entryAt } from "@/core/shared";
+import { entryAt } from "../changes/records";
 import type { ScopePolicy } from "../scope/scope";
 import type { Manifest, ManifestEntry } from "../types";
 

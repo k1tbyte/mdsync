@@ -1,11 +1,11 @@
 import type { EditorView } from "@codemirror/view";
-import { firstIndex } from "@/core/utils";
 import type {
 	CompareSegment,
 	CompareSide,
 } from "../compare/compare-decorations";
 import { renderRailButton } from "../rail";
 import { type Bounds, shiftBounds, sideSpan, spanBounds } from "./geometry";
+import { firstIndex } from "./search";
 
 /** A shorter change is cheaper to scroll past than to fold. */
 const MIN_FOLD_LINES = 10;

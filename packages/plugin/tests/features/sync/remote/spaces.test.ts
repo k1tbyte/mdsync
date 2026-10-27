@@ -1,6 +1,7 @@
 import { FakeStorage } from "@tests/helpers/fake-storage";
 import { InMemoryAdapter } from "@tests/helpers/in-memory-adapter";
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { REMOTE_MANIFEST_KEY } from "@/core/constants";
 import {
 	decryptJson,
 	deriveKey,
@@ -8,7 +9,6 @@ import {
 } from "@/core/crypto/cipher";
 import { DEFAULT_SETTINGS_SYNC } from "@/core/settings/model";
 import type { VaultIndex } from "@/core/vault/file-index";
-import { REMOTE_MANIFEST_KEY } from "@/features/sync/constants";
 import { SyncController } from "@/features/sync/controller";
 import {
 	nestedRoots,

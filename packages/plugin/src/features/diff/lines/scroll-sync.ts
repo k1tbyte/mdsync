@@ -1,7 +1,7 @@
 import type { EditorView } from "@codemirror/view";
-import { firstIndex } from "@/core/utils";
 import type { Span } from "@/features/sync";
 import { docBottom, spanBounds } from "./geometry";
+import { firstIndex } from "./search";
 
 /** IntelliJ keeps the line a third of the way down the viewport aligned. */
 const ANCHOR_RATIO = 1 / 3;

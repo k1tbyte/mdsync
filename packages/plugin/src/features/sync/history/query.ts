@@ -1,8 +1,8 @@
 import type { EncryptionKey } from "@/core/crypto";
-import { entryAt } from "@/core/shared";
 import { runWithConcurrency } from "@/core/utils";
 import type { ObjectStorage } from "@/features/storage";
 import { loadRemoteBytes } from "../changes/content";
+import { entryAt } from "../changes/records";
 import { fetchRemoteManifest } from "../remote/manifest";
 import type { Manifest, ManifestEntry } from "../types";
 import { contiguousLength, undoChangesForPath } from "./changes";

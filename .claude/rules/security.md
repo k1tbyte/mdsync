@@ -1,7 +1,7 @@
 ---
 paths:
   - 'packages/plugin/src/core/crypto/**'
-  - 'packages/plugin/src/app/settings-envelope.ts'
+  - 'packages/plugin/src/app/settings/**'
   - 'packages/plugin/src/features/transfer/**'
   - 'packages/plugin/src/features/links/**'
   - 'packages/plugin/src/features/storage/**'
@@ -23,13 +23,13 @@ Follows Obsidian's Developer Policies and Plugin Guidelines. Link model and limi
 
 ## Secrets on the device
 
-- Secret settings live in one AES-GCM envelope under `secrets` in the plugin's data.json (`app/settings-envelope.ts`, the `SEALED` list); the other settings stay readable. A new secret field joins `SEALED` in the same change or it is written in the clear.
+- Secret settings live in one AES-GCM envelope under `secrets` in the plugin's data.json (`app/settings/envelope.ts`, the `SEALED` list); the other settings stay readable. A new secret field joins `SEALED` in the same change or it is written in the clear.
 - One blob on purpose: storage credentials and share records (each share's key, a participant's broker token) are kept or lost together; storage without share records would read shared folders as vault files. The vault key also opens share records through the space records in the vault storage.
 - The envelope's key, and the passphrase cache's, is the device key (`core/crypto/device-key.ts`) in Obsidian's SecretStorage (`mdsync-device-key`): per vault id, outside the vault, never synced, never a file. A copy of the vault folder opens nothing.
 - `DeviceKey.readOrCreate` yields one key however many callers ask (a second would orphan what the first sealed); `read` never creates. The legacy `device.key` file moves into SecretStorage and is deleted.
 - An envelope this device cannot open is held and written back untouched until the sealed settings change; a transient keychain failure must not destroy the credentials. The user is told once to import a setup link or set up again.
 - Secrets of an earlier build found in the clear are sealed at load (`inTheClear`), not at the next change.
-- Passphrase cache: `passphrase.enc` sealed with the device key, bound to the storage identity (`core/crypto/passphrase-cache.ts`); `cachePassphrase` off or Forget clears it from disk (`clearCachedPassphrase`).
+- Passphrase cache: `passphrase.enc` sealed with the device key, bound to the storage identity (`core/crypto/passphrase-cache.ts`); `cachePassphrase` off (`PassphraseManager.applyCachePreference`) or Forget clears it from disk (`clearCachedPassphrase`).
 - A settings transfer (setup link, `features/transfer/`) is sealed under the vault passphrase and carries only what the user ticked (storage credentials, scope, automation, relay URL and secret). Never share records, links or the Cloudflare token.
 - Recovery after a lost device key: a setup link from another device (storage, passphrase, relay); share records and links return from the vault storage (`spaces/`, `links/`); a guest with no vault storage needs new invites.
 - The plugin's own folder is outside the sync scope (`features/sync/scope/scope.ts`), and syncing it with another tool is unsupported: the other device cannot open this device's envelope.

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_SETTINGS } from "@/app/settings";
 import { deriveLiveKeys, type LiveKeys } from "@/core/crypto/live-keys";
-import { DEFAULT_SETTINGS, type MdsyncSettings } from "@/core/settings/model";
+import type { MdsyncSettings } from "@/core/settings/model";
 import { createSpaceAccess } from "@/features/spaces/space-access";
 import type { PassphraseManager } from "@/features/sync/remote/passphrase-manager";
 import { VAULT_SPACE } from "@/features/sync/remote/space";

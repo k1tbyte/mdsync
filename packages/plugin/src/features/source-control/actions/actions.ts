@@ -1,21 +1,20 @@
 import { Menu, Platform } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
 import {
 	attempt,
 	openInEditor,
 	revealInFileExplorer,
 	runWithNotice,
 } from "@/core/ui";
-import { EConflictStrategy } from "@/features/sync/controller";
-import { isIgnoreNote } from "@/features/sync/scope/ignore";
-import { EChangeType } from "@/features/sync/types";
-import { addIgnoreMenuItem } from "@/features/sync/ui/ignore-action";
 import {
+	addIgnoreMenuItem,
 	confirmAdoptNewVault,
 	confirmBatchResolve,
 	confirmRevert,
-} from "@/features/sync/ui/modals";
+	EChangeType,
+	EConflictStrategy,
+	isIgnoreNote,
+} from "@/features/sync";
+import type { SourceControlHost } from "../host";
 import { ESection } from "../types";
 
 const BATCH_RESOLVE_CONFIRM_THRESHOLD = 5;
@@ -33,13 +32,13 @@ function pathMenu(path: string): Menu {
 }
 
 interface SourceControlActionDeps {
-	plugin: PluginHost;
+	plugin: SourceControlHost;
 	showHistory: (path: string) => void;
 	openDiff: (path: string) => Promise<void>;
 }
 
 export class SourceControlActions {
-	private readonly plugin: PluginHost;
+	private readonly plugin: SourceControlHost;
 	private readonly showHistory: (path: string) => void;
 	private readonly openDiff: (path: string) => Promise<void>;
 

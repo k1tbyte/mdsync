@@ -3,7 +3,7 @@
  * re-downloaded, and a local edit goes with it. Each move lands whole or waits.
  */
 
-import { entryAt, reportWarning } from "@/core/shared";
+import { reportWarning } from "@/core/shared";
 import {
 	diskRefuses,
 	ensureDir,
@@ -14,6 +14,7 @@ import {
 	unchangedSince,
 } from "@/core/vault";
 
+import { entryAt } from "../changes/records";
 import type { CompareResult, EngineDependencies } from "../engine";
 import { coldSince, writeIncoming } from "../live-notes";
 import { isUnder } from "../remote/space";

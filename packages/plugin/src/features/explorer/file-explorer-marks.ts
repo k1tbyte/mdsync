@@ -1,7 +1,7 @@
-import type { PluginHost } from "@/app/host";
 import { type LinkRecord, noteLinks, noteLinksText } from "@/features/links";
 import { isAtNote, mergePeople, type Person } from "@/features/presence";
 import { type Space, spaceOf, VAULT_SPACE } from "@/features/sync";
+import type { ExplorerHost } from "./host";
 
 export type ShareKind = "owned" | "joined" | "read-only" | "paused";
 
@@ -33,7 +33,7 @@ export interface PresenceMarks {
 }
 
 export function shareMarks(
-	plugin: PluginHost,
+	plugin: ExplorerHost,
 	spaces: readonly Space[] = plugin.spaces.partition(),
 ): Map<string, PresenceMarks> {
 	const out = new Map<string, PresenceMarks>();
@@ -76,7 +76,7 @@ export function shareMarks(
 
 /** A note inside a collapsed folder hands its marks to the outermost collapsed folder above it, the row that shows. */
 export function presenceMarks(
-	plugin: PluginHost,
+	plugin: ExplorerHost,
 	collapsed: (folder: string) => boolean,
 ): Map<string, PresenceMarks> {
 	const spaces = plugin.spaces.partition();
@@ -98,7 +98,7 @@ export function presenceMarks(
 	return out;
 }
 
-function shareKind(plugin: PluginHost, space: Space): ShareKind {
+function shareKind(plugin: ExplorerHost, space: Space): ShareKind {
 	if (space.paused) return "paused";
 	if (space.readOnly) return "read-only";
 	return plugin.spaces.get(space.id)?.access.kind === "participant"
@@ -108,7 +108,7 @@ function shareKind(plugin: PluginHost, space: Space): ShareKind {
 
 /** Files, not rows: a stale path of a file deleted while closed shows nowhere. */
 function unseenRows(
-	plugin: PluginHost,
+	plugin: ExplorerHost,
 	collapsed: (folder: string) => boolean,
 ): Map<string, number> {
 	const rows = new Map<string, number>();

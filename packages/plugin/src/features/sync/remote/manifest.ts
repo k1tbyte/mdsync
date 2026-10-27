@@ -1,3 +1,4 @@
+import { REMOTE_MANIFEST_KEY } from "@/core/constants";
 import {
 	decryptJson,
 	type EncryptionKey,
@@ -5,11 +6,7 @@ import {
 	randomId,
 } from "@/core/crypto";
 import type { ConditionalRead, ObjectStorage } from "@/features/storage";
-import {
-	MANIFEST_VERSION,
-	REMOTE_MANIFEST_KEY,
-	REMOTE_OBJECTS_PREFIX,
-} from "../constants";
+import { MANIFEST_VERSION, REMOTE_OBJECTS_PREFIX } from "../constants";
 import { defaultDeviceName } from "../identity/device";
 import type { LocalSnapshot, Manifest } from "../types";
 import { manifestToSpace, manifestToVault } from "./space-paths";

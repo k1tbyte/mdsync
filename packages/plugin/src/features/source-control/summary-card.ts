@@ -1,17 +1,19 @@
 import { ButtonComponent, setIcon } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { formatRelativeTime } from "@/core/shared";
 import { actionButton, textButton } from "@/core/ui";
-import { askSpaceGone } from "@/features/spaces/ui/space-gone";
+import { askSpaceGone } from "@/features/spaces";
+import type { Manifest } from "@/features/sync";
 import {
+	canPullAll,
+	canPushAll,
+	deviceLabel,
+	isVaultMismatch,
 	type SyncStatusSnapshot,
 	splitSpaceErrors,
-} from "@/features/sync/controller";
-import { deviceLabel } from "@/features/sync/identity/device";
-import { canPullAll, canPushAll } from "@/features/sync/runtime/sync-gates";
-import type { Manifest } from "@/features/sync/types";
+} from "@/features/sync";
 import type { SourceControlActions } from "./actions/actions";
 import { showIgnoredFiles, showSkippedFiles } from "./changes/excluded-files";
+import type { SourceControlHost } from "./host";
 
 /**
  * The head of the Changes tab: what is pending, Push and Pull, what keeps files out and what stops a sync.
@@ -40,7 +42,7 @@ export class SummaryCard {
 	/** `dock` takes Push and Pull out of the card, to the bottom of a phone screen. */
 	constructor(
 		parent: HTMLElement,
-		private readonly plugin: PluginHost,
+		private readonly plugin: SourceControlHost,
 		private readonly actions: Pick<
 			SourceControlActions,
 			"adoptNewVault" | "pushPaths" | "pullPaths"
@@ -108,7 +110,7 @@ export class SummaryCard {
 			pending === 0;
 		// Nothing but the connection to say, so the card is an empty state with a retry.
 		const parked = offline || (waiting && pending === 0);
-		const mismatch = isVaultMismatch(snapshot);
+		const mismatch = isVaultMismatch(snapshot.error);
 		this.el.toggleClass("is-error", Boolean(error) && !snapshot.offline);
 		this.el.toggleClass("is-warning", failed && !error);
 		this.el.toggleClass("is-offline", parked);
@@ -234,7 +236,7 @@ export class SummaryCard {
 		const plugin = this.plugin;
 		const extras = this.extrasEl;
 		extras.empty();
-		if (isVaultMismatch(snapshot)) {
+		if (isVaultMismatch(snapshot.error)) {
 			actionButton(extras, "warning")
 				.setButtonText("Resolve vault mismatch")
 				.onClick(() => void this.actions.adoptNewVault())
@@ -325,12 +327,6 @@ function spaceErrorText({
 		};
 	}
 	return { title: `"${root}" did not compare`, desc: message };
-}
-
-function isVaultMismatch(snapshot: SyncStatusSnapshot): boolean {
-	return (
-		snapshot.error?.includes("Remote vault id does not match local") ?? false
-	);
 }
 
 function note(parent: HTMLElement, text: string): void {

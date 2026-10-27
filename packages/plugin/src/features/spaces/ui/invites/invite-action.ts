@@ -1,16 +1,16 @@
 import { TFile, TFolder } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { randomId } from "@/core/crypto";
-import { ownerStorage, relayAdmin } from "@/core/settings";
 import { normalizePath, stripTrailingSlash } from "@/core/shared";
 import { notifyInfo, openConfirmModal, runWithNotice } from "@/core/ui";
-import { scopedPaths } from "@/features/sync/ui/push-action";
+import { scopedPaths } from "@/features/sync";
 import {
 	issueShareToken,
 	listParticipants,
 	registerShareStorage,
+	relayAdmin,
 	revokeParticipant,
 } from "../../broker/share-broker";
+import type { SpacesHost } from "../../host";
 import {
 	acceptInvite,
 	type Invite,
@@ -19,7 +19,7 @@ import {
 	invitePassword,
 	readInvite,
 } from "../../invite";
-import { brokerStorage } from "../../owner";
+import { brokerStorage, ownerStorage } from "../../owner";
 import { mountError } from "../../partition";
 import type { SpaceRecord } from "../../record";
 import { AcceptInviteModal } from "./invite-modal";
@@ -31,7 +31,7 @@ export interface CreatedInvite {
 
 /** Opens an `obsidian://mdsync-share` link, or asks for one when `link` is empty. `accepted` runs once the share is in. */
 export async function openInvite(
-	plugin: PluginHost,
+	plugin: SpacesHost,
 	link = "",
 	accepted?: () => void,
 ): Promise<void> {
@@ -57,7 +57,7 @@ export async function openInvite(
 	).open();
 }
 
-async function turnOnShares(plugin: PluginHost): Promise<boolean> {
+async function turnOnShares(plugin: SpacesHost): Promise<boolean> {
 	const confirmed = await openConfirmModal({
 		app: plugin.app,
 		title: "Shared folders are off on this device",
@@ -76,7 +76,7 @@ async function turnOnShares(plugin: PluginHost): Promise<boolean> {
 
 /** Registered again on every invite, so the relay signs with current credentials. */
 export async function createInvite(
-	plugin: PluginHost,
+	plugin: SpacesHost,
 	record: SpaceRecord,
 	person: string,
 	readOnly: boolean,
@@ -126,7 +126,7 @@ export async function createInvite(
 
 /** What is wrong with mounting at `root`, or null once the share is in. */
 export async function mountShare(
-	plugin: PluginHost,
+	plugin: SpacesHost,
 	invite: Invite,
 	root: string,
 ): Promise<string | null> {
@@ -162,7 +162,7 @@ export async function mountShare(
 	return null;
 }
 
-async function pullFolder(plugin: PluginHost, root: string): Promise<void> {
+async function pullFolder(plugin: SpacesHost, root: string): Promise<void> {
 	await plugin.controller.refresh();
 	const diff = plugin.controller.getSnapshot().result?.diff;
 	const paths = scopedPaths(diff?.remoteChanges ?? [], root, true);
@@ -174,7 +174,7 @@ async function pullFolder(plugin: PluginHost, root: string): Promise<void> {
 	);
 }
 
-function recordOf(plugin: PluginHost, invite: Invite): SpaceRecord | undefined {
+function recordOf(plugin: SpacesHost, invite: Invite): SpaceRecord | undefined {
 	return plugin.spaces.list().find((record) => record.id === invite.id);
 }
 

@@ -13,12 +13,12 @@ import {
 	encodeAwarenessUpdate,
 } from "y-protocols/awareness";
 import * as Y from "yjs";
+import type { SpaceFrame } from "@/core/hub";
 import { docIdFor } from "@/features/live/doc-id";
 import { FollowerSession } from "@/features/live/session/follower-session";
 import { FOLLOWS, RoomAwareness } from "@/features/live/session/room-awareness";
 import type { Refused, Unfollowed } from "@/features/live/session/session-deps";
 import { TEXT, type TextModel } from "@/features/live/text/model";
-import type { SpaceFrame } from "@/features/relay/connection";
 
 const live = useLiveRoom();
 const { synced, roomState } = live;

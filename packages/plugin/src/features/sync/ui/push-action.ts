@@ -1,8 +1,6 @@
 import type { Menu } from "obsidian";
-import type { PluginHost } from "@/app/host";
-import { SOURCE_CONTROL_VIEW_TYPE } from "@/core/constants";
 import { notifyError, notifyInfo, runWithNotice } from "@/core/ui";
-import { openSourceControlView } from "@/features/source-control/view";
+import type { SyncHost } from "../host";
 
 /** Changes inside `scope`: a file matches itself, a folder everything below it (the vault root "/" covers all). */
 export function scopedPaths(
@@ -27,7 +25,7 @@ function folderPrefix(scope: string): string {
 /** File-explorer and editor right-click entry: push one file or a folder. */
 export function addPushMenuItem(
 	menu: Menu,
-	plugin: PluginHost,
+	plugin: SyncHost,
 	path: string,
 	isFolder: boolean,
 ): void {
@@ -41,7 +39,7 @@ export function addPushMenuItem(
 }
 
 export async function pushScope(
-	plugin: PluginHost,
+	plugin: SyncHost,
 	path: string,
 	isFolder: boolean,
 ): Promise<void> {
@@ -69,7 +67,7 @@ export async function pushScope(
 				? `Resolve the conflict in "${conflicts[0]}" first.`
 				: `Resolve ${conflicts.length} conflicts under this ${target} first.`,
 		);
-		await openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
+		await plugin.openSourceControl();
 		return;
 	}
 	const paths = scopedPaths(diff.localChanges, path, isFolder);

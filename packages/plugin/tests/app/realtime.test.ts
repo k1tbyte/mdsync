@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRealtime } from "@/app/realtime";
+import type { HubListener } from "@/core/hub";
 import type { LiveHost } from "@/features/live/register";
-import type { HubListener } from "@/features/relay/connection";
+import type { SpaceAccessHost } from "@/features/spaces/space-access";
 import { VAULT_SPACE } from "@/features/sync/remote/space";
 
 const state = vi.hoisted(() => ({ listener: {} as HubListener }));
@@ -65,7 +66,7 @@ function realtime() {
 		settings: () => ({}),
 		spaces: { partition: () => [] },
 		app: {},
-	} as unknown as LiveHost;
+	} as unknown as LiveHost & SpaceAccessHost;
 	return { pull, realtime: createRealtime(host) };
 }
 

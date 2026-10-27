@@ -1,5 +1,5 @@
 import type { PluginHost } from "@/app/host";
-import { DEFAULT_SETTINGS } from "@/core/settings/model";
+import { DEFAULT_SETTINGS } from "@/app/settings";
 import type { LinkRecord } from "@/features/links/record";
 import { SharedLinks } from "@/features/links/shared-links";
 import type { Person } from "@/features/presence/people";

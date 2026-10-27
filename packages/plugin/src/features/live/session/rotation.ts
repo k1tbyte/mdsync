@@ -1,8 +1,7 @@
 import { EFrame } from "@mdsync/protocol";
-
 import type { LiveKeys } from "@/core/crypto";
 import { seal } from "@/core/crypto";
-import type { SpaceFrame } from "@/features/relay";
+import type { SpaceFrame } from "@/core/hub";
 import type { Rotation } from "./session-deps";
 
 type RotateFrame = Omit<

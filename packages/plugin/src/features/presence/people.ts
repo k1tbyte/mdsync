@@ -3,15 +3,15 @@
 import { CHANNEL_DOC, EFrame } from "@mdsync/protocol";
 
 import type { LiveKeys } from "@/core/crypto";
+import type { SpaceHub, SpaceHubs } from "@/core/hub";
 import { reportWarning } from "@/core/shared";
-import type { HubConnection, SpaceHub } from "@/features/relay";
 import {
 	insideOf,
 	type Space,
 	spaceOf,
 	VAULT_SPACE,
 	vaultPathOf,
-} from "@/features/sync/remote/space";
+} from "@/features/sync";
 
 import { type Announcement, sealAnnouncement } from "./announcement";
 import { ChannelPresence } from "./channel";
@@ -32,7 +32,7 @@ export interface PresenceAccess {
 }
 
 export interface PeopleDeps {
-	hub: Pick<HubConnection, "space">;
+	hub: Pick<SpaceHubs, "space">;
 	/** Paused spaces flagged; the same array until the partition changes. */
 	spaces(): readonly Space[];
 	access(space: Space): Promise<PresenceAccess | null>;

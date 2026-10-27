@@ -1,7 +1,7 @@
 import type { DataAdapter } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_SETTINGS } from "@/app/settings";
 import type { DeviceKey } from "@/core/crypto/device-key";
-import { DEFAULT_SETTINGS } from "@/core/settings/model";
 import { PassphraseManager } from "@/features/sync/remote/passphrase-manager";
 
 const created = vi.hoisted(() => ({ changed: null as (() => void) | null }));

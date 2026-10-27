@@ -6,18 +6,18 @@ import {
 	type Text,
 } from "@codemirror/state";
 import { Decoration, type DecorationSet } from "@codemirror/view";
-import type { LineRange } from "@/features/sync/hunks/hunks";
+import type { LineRange } from "@/features/sync";
 import {
 	type EMergeSide,
 	isResolved,
 	MERGE_SIDES,
 	type MergeChange,
-	snapToLines,
-} from "@/features/sync/hunks/merge-model";
+} from "@/features/sync";
 import { addUnchangedGaps } from "../lines/gap-widgets";
 import { rangeLabel } from "../lines/geometry";
 import { type SourceBlock, SourceBlockWidget } from "../lines/source-widget";
 import type { RailAction } from "../rail";
+import { snapToLines } from "./edit-plan";
 import type { MergeActions } from "./merge-actions";
 import { settleActions } from "./merge-controls";
 import type { SideMarks } from "./merge-marks";

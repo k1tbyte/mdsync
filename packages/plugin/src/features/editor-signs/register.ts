@@ -1,10 +1,8 @@
 import type { Extension } from "@codemirror/state";
 import type { Plugin, TAbstractFile } from "obsidian";
 import { TFile } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
-
 import { buildSignsExtensions } from "./extension";
+import type { EditorSignsHost } from "./host";
 import { dismissPopup } from "./popup/hunk-popup";
 import { SignsProvider } from "./provider";
 
@@ -18,7 +16,9 @@ interface ActiveSignsRuntime {
 	dispose(): void;
 }
 
-export function registerEditorSigns(plugin: Plugin & PluginHost): SignsHandle {
+export function registerEditorSigns(
+	plugin: Plugin & EditorSignsHost,
+): SignsHandle {
 	const mutable: Extension[] = [];
 	let runtime: ActiveSignsRuntime | null = null;
 	plugin.registerEditorExtension(mutable);
@@ -52,7 +52,9 @@ export function registerEditorSigns(plugin: Plugin & PluginHost): SignsHandle {
 	};
 }
 
-function createActiveRuntime(plugin: Plugin & PluginHost): ActiveSignsRuntime {
+function createActiveRuntime(
+	plugin: Plugin & EditorSignsHost,
+): ActiveSignsRuntime {
 	const provider = new SignsProvider(plugin.controller, plugin.app);
 	// Progress broadcasts arrive every frame during an operation; invalidating on each re-downloads every
 	// open baseline. A baseline moves only with an installed or cleared result, which a saved-file patch is
@@ -86,7 +88,7 @@ function createActiveRuntime(plugin: Plugin & PluginHost): ActiveSignsRuntime {
 }
 
 function onRename(
-	plugin: Plugin & PluginHost,
+	plugin: Plugin & EditorSignsHost,
 	handler: (oldPath: string, newPath: string) => void,
 ): () => void {
 	const ref = plugin.app.vault.on(
@@ -108,7 +110,7 @@ function onRename(
 }
 
 function onFileOpen(
-	plugin: Plugin & PluginHost,
+	plugin: Plugin & EditorSignsHost,
 	handler: () => void,
 ): () => void {
 	const ref = plugin.app.workspace.on("file-open", () => handler());

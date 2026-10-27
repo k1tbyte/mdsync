@@ -1,8 +1,7 @@
 import { EFrame, OWNER, type ServerFrame } from "@mdsync/protocol";
-
 import { deriveLiveKeys, type LiveKeys } from "@/core/crypto/live-keys";
+import type { SpaceFrame, SpaceListener } from "@/core/hub";
 import { People, type PresenceAccess } from "@/features/presence/people";
-import type { SpaceFrame, SpaceListener } from "@/features/relay/connection";
 import { type Space, VAULT_SPACE } from "@/features/sync/remote/space";
 
 /** Who the hub knows a socket as on a space's channel. */

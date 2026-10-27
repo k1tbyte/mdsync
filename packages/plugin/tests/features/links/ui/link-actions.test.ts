@@ -32,12 +32,6 @@ vi.mock("@/features/links/ui/link-menu", () => ({
 	openManageLinks: vi.fn(),
 	openShareLink: vi.fn(),
 }));
-vi.mock("@/features/source-control/view", () => ({
-	openDiffView: vi.fn(),
-	openSourceControlDeleted: vi.fn(),
-	openSourceControlHistory: vi.fn(),
-	openSourceControlView: vi.fn(),
-}));
 vi.mock("@/features/spaces/ui/invites/invite-action", () => ({
 	openInvite: vi.fn(),
 }));

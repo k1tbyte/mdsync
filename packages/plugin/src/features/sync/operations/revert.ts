@@ -1,8 +1,9 @@
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
 import { ESyncLogOperation } from "@/core/logs";
-import { runWithConcurrency, runWithFileConcurrency } from "@/core/utils";
+import { runWithConcurrency } from "@/core/utils";
 import { trashPath } from "@/core/vault";
 import { renameLocal } from "../apply/pull-moves";
+import { runWithFileConcurrency } from "../changes/file-concurrency";
 import { withMoves } from "../changes/moves";
 import { LOG_PATH_LIMIT } from "../constants";
 import { coldSince, writeIncoming } from "../live-notes";

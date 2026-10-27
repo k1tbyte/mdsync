@@ -1,9 +1,5 @@
 import { commonEnds } from "@/core/utils";
-import {
-	sameLines,
-	threeWayRegions,
-	toLines,
-} from "@/features/sync/hunks/merge-model";
+import { sameLines, threeWayRegions, toLines } from "@/features/sync";
 
 /**
  * The room's text with this device's offline changes folded in, on the regions the merge editor shows. A

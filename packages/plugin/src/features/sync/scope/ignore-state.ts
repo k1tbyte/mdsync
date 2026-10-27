@@ -1,5 +1,5 @@
 import { type Plugin, type TAbstractFile, TFile, TFolder } from "obsidian";
-import type { PluginHost } from "@/app/host";
+import type { SyncHost } from "../host";
 import { type Space, spaceOf } from "../remote/space";
 import {
 	createIgnoreMatcher,
@@ -26,7 +26,7 @@ export interface IgnoreStateHandle {
 const PASS_THROUGH: IgnoreMatcher = { ignores: () => false };
 
 export function registerIgnoreState(
-	plugin: Plugin & PluginHost,
+	plugin: Plugin & SyncHost,
 ): IgnoreStateHandle {
 	const listeners = new Set<() => void>();
 	let local: IgnoreMatcher = PASS_THROUGH;

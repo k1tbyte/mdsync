@@ -8,8 +8,8 @@ import {
 import { RevalidatingStorage } from "@tests/helpers/revalidating-storage";
 import { useEncryptionKey } from "@tests/helpers/session";
 import { describe, expect, it } from "vitest";
+import { REMOTE_MANIFEST_KEY } from "@/core/constants";
 import { encryptJson } from "@/core/crypto/cipher";
-import { REMOTE_MANIFEST_KEY } from "@/features/sync/constants";
 import { runCategoryResetFlow } from "@/features/sync/operations/config-reset";
 import {
 	EHunkPair,

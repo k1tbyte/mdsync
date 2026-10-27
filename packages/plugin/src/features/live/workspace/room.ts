@@ -1,8 +1,8 @@
 import { ERefusal } from "@mdsync/protocol";
 import type { App, TFile } from "obsidian";
+import type { SpaceHubs } from "@/core/hub";
 import { reportWarning, withDevices } from "@/core/shared";
 import { toLf } from "@/core/utils";
-import type { HubConnection } from "@/features/relay";
 import type { AgreedTexts } from "../cold/agreed-texts";
 import { closedBefore } from "../session/closing";
 import type { Refused, Unfollowed } from "../session/session-deps";
@@ -47,7 +47,7 @@ export interface OpenAt {
 
 export interface RoomDeps {
 	app: App;
-	hub: Pick<HubConnection, "space">;
+	hub: Pick<SpaceHubs, "space">;
 	/** Where the note goes live; null keeps it cold: live off, no key yet, a paused share. */
 	liveSpace: (path: string) => Promise<LiveSpace | null>;
 	agreed: AgreedTexts;

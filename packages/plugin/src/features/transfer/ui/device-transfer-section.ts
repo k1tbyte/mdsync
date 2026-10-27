@@ -2,11 +2,12 @@ import type { SettingDefinitionGroup } from "obsidian";
 
 import { type FieldContext, group, introRow } from "@/core/settings";
 import { notifyInfo, reportError } from "@/core/ui";
+import type { TransferHost } from "../host";
 import { showSettingsTransferExport } from "./settings-transfer-export-modal";
 import { askSettingsTransferInput } from "./settings-transfer-modal";
 
 export function deviceTransferSection(
-	ctx: FieldContext,
+	ctx: FieldContext<TransferHost>,
 ): SettingDefinitionGroup {
 	const { plugin } = ctx;
 	return group("Device transfer", [

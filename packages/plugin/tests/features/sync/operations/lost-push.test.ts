@@ -1,8 +1,8 @@
 import { FakeStorage } from "@tests/helpers/fake-storage";
 import { TestSession, useEncryptionKey } from "@tests/helpers/session";
 import { describe, expect, it } from "vitest";
+import { REMOTE_MANIFEST_KEY } from "@/core/constants";
 import { encryptJson } from "@/core/crypto/cipher";
-import { REMOTE_MANIFEST_KEY } from "@/features/sync/constants";
 import { pushPathsOp } from "@/features/sync/operations/push";
 import {
 	ConcurrentPushError,

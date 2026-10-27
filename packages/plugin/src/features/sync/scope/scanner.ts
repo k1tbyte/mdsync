@@ -1,13 +1,14 @@
 import type { DataAdapter } from "obsidian";
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
-import { hasDotSegment, sortedByPath, stripTrailingSlash } from "@/core/shared";
+import { hasDotSegment, stripTrailingSlash } from "@/core/shared";
+import { runWithConcurrency } from "@/core/utils";
+import type { VaultIndex } from "@/core/vault";
+import { caseInsensitiveDisk } from "@/core/vault";
 import {
 	createLargeFileGate,
 	LARGE_FILE_BYTES,
-	runWithConcurrency,
-} from "@/core/utils";
-import type { VaultIndex } from "@/core/vault";
-import { caseInsensitiveDisk } from "@/core/vault";
+} from "../changes/file-concurrency";
+import { sortedByPath } from "../changes/records";
 import type {
 	HashCacheEntry,
 	LocalSnapshot,

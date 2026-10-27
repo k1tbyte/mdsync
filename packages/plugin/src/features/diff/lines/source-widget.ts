@@ -1,6 +1,6 @@
 import { type EditorView, WidgetType } from "@codemirror/view";
 import { setIcon } from "obsidian";
-import { type Span, sameLines } from "@/features/sync/hunks/merge-model";
+import { type Span, sameLines } from "@/features/sync";
 import { type RailAction, renderRailButton } from "../rail";
 import { renderCodeLine } from "./code-lines";
 import { gapRow } from "./gap-widgets";

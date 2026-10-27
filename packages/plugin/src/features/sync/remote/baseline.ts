@@ -1,7 +1,7 @@
 import { randomId } from "@/core/crypto";
-import { entryAt, sortedByPath } from "@/core/shared";
 import { diskRefuses } from "@/core/vault";
 import { isUnderUnreadableDir } from "../changes/diff";
+import { entryAt, sortedByPath } from "../changes/records";
 import type { CompareResult } from "../engine";
 import type { ScopePolicy } from "../scope/scope";
 import type {

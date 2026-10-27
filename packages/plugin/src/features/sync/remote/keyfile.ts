@@ -13,7 +13,7 @@ import { errorMessage } from "@/core/shared";
 import { base64ToBytes, bytesToBase64 } from "@/core/utils";
 import type { ObjectStorage } from "@/features/storage";
 import { REMOTE_KEYFILE_KEY } from "../constants";
-import { loadOrCreateSalt } from "../session";
+import { loadOrCreateSalt } from "./salt";
 
 const KEYFILE_VERSION = 1;
 

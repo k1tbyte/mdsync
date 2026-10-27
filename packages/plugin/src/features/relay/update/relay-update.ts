@@ -1,7 +1,6 @@
 import type { Plugin } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { reportWarning } from "@/core/shared";
-import { cloudflareOf, testRelay } from "@/features/storage";
+import { cloudflareOf } from "@/features/storage";
 import { runningRelayDeploy } from "../deploy/deploy-flow";
 import {
 	accountRelays,
@@ -10,6 +9,8 @@ import {
 	type RelayTarget,
 	relayBehind,
 } from "../deploy/relay-account";
+import type { RelayHost } from "../host";
+import { testRelay } from "../relay-test";
 import { openRelayUpdateModal } from "./relay-update-modal";
 
 const SKIPPED_KEY = "mdsync-relay-update-skipped";
@@ -26,7 +27,7 @@ export interface RelayUpdate {
  * update once per relay per launch; "not now" holds until a newer build ships. A deploy reconnects the
  * socket, so a relay found outdated is checked again on every connect.
  */
-export function registerRelayUpdate(plugin: Plugin & PluginHost): RelayUpdate {
+export function registerRelayUpdate(plugin: Plugin & RelayHost): RelayUpdate {
 	const checked = new Set<string>();
 	const listeners = new Set<() => void>();
 	/** The relays found outdated, by account and URL, with the secret they answered to. */

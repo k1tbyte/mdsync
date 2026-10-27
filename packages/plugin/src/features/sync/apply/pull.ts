@@ -1,9 +1,11 @@
 /** The pull: moves, downloads and deletions land, then the baseline follows what did. */
 
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
-import { asError, entryAt } from "@/core/shared";
-import { runWithConcurrency, runWithFileConcurrency } from "@/core/utils";
+import { asError } from "@/core/shared";
+import { runWithConcurrency } from "@/core/utils";
 import { deletePath, unchangedSince } from "@/core/vault";
+import { runWithFileConcurrency } from "../changes/file-concurrency";
+import { entryAt } from "../changes/records";
 import type { CompareResult, EngineDependencies } from "../engine";
 import { coldSince, settleLive, writeIncoming } from "../live-notes";
 import { baseStep } from "../recovery/cut-short";

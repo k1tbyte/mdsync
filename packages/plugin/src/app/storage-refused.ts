@@ -1,7 +1,6 @@
-import type { PluginHost } from "@/app/host";
-import { activeStorage } from "@/core/settings";
-import { type Space, VAULT_SPACE } from "@/features/sync/remote/space";
-import { openStorageRefusedModal } from "./ui/storage-refused-modal";
+import { activeStorage, openStorageRefusedModal } from "@/features/storage";
+import { type Space, VAULT_SPACE } from "@/features/sync";
+import type { PluginHost } from "./host";
 
 const VOLATILE = new Set(["accessToken", "expiresAt"]);
 

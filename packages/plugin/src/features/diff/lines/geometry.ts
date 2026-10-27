@@ -1,7 +1,7 @@
 import type { Text } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
-import { firstIndex } from "@/core/utils";
 import type { LineRange, Span } from "@/features/sync";
+import { firstIndex } from "./search";
 
 export interface Bounds {
 	top: number;

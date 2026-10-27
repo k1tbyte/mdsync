@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_SETTINGS, type MdsyncSettings } from "@/core/settings/model";
+import { DEFAULT_SETTINGS } from "@/app/settings";
+import type { MdsyncSettings } from "@/core/settings/model";
 import type { SpaceRecord } from "@/features/spaces/record";
 import { SpaceRecords } from "@/features/spaces/records";
 import { createShareRegistration } from "@/features/spaces/share-registration";

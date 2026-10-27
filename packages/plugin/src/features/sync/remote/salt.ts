@@ -1,6 +1,6 @@
 import { randomBytes } from "@/core/crypto";
 import type { ObjectStorage } from "@/features/storage";
-import { REMOTE_SALT_KEY } from "./constants";
+import { REMOTE_SALT_KEY } from "../constants";
 
 const SALT_BYTES = 16;
 

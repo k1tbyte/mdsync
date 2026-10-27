@@ -1,10 +1,13 @@
 import { type Plugin, setIcon } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { RELATIVE_TIME_REFRESH_MS } from "@/core/constants";
-import { canSync } from "@/core/settings";
 import { formatRelativeTime, OFFLINE_MESSAGE, pluralize } from "@/core/shared";
 import { makeActivatable } from "@/core/ui";
-import { type SyncStatusSnapshot, splitSpaceErrors } from "@/features/sync";
+import {
+	canSync,
+	type SyncStatusSnapshot,
+	splitSpaceErrors,
+} from "@/features/sync";
+import type { StatusHost } from "./host";
 import { mountRelayStatus } from "./relay-status";
 import { openStatusMenu, syncHeadline } from "./status-menu";
 
@@ -12,7 +15,7 @@ import { openStatusMenu, syncHeadline } from "./status-menu";
  * One item: where sync stands, then the relay and who is in shared notes; selecting it opens their menu.
  * Returns a repaint for what no snapshot announces, such as finishing setup.
  */
-export function registerStatusBar(plugin: Plugin & PluginHost): () => void {
+export function registerStatusBar(plugin: Plugin & StatusHost): () => void {
 	const { controller } = plugin;
 	const root = plugin.addStatusBarItem();
 	root.addClass("mdsync-status-bar", "mod-clickable");
@@ -116,7 +119,7 @@ function part(parent: HTMLElement, icon: string, text: string): HTMLElement {
 }
 
 function tooltip(
-	plugin: PluginHost,
+	plugin: StatusHost,
 	snapshot: SyncStatusSnapshot,
 	offline: boolean,
 ): string {

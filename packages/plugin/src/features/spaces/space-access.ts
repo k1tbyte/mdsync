@@ -1,10 +1,10 @@
 import { OWNER } from "@mdsync/protocol";
 import type { LiveKeys } from "@/core/crypto";
-import { isStorageConfigured, type MdsyncSettings } from "@/core/settings";
+import type { MdsyncSettings } from "@/core/settings";
 import { reportWarning } from "@/core/shared";
-import type { SyncController } from "@/features/sync/controller";
-import type { PassphraseManager } from "@/features/sync/remote/passphrase-manager";
-import { type Space, VAULT_SPACE } from "@/features/sync/remote/space";
+import { isStorageConfigured } from "@/features/storage";
+import type { PassphraseManager, SyncController } from "@/features/sync";
+import { type Space, VAULT_SPACE } from "@/features/sync";
 import { shareLiveKeys } from "./access";
 import { type SpaceRecord, shareIdentity } from "./record";
 import type { SpaceRecords } from "./records";

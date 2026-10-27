@@ -1,24 +1,17 @@
+import { ItemView, Platform, setIcon, type WorkspaceLeaf } from "obsidian";
 import {
-	type App,
-	ItemView,
-	Platform,
-	setIcon,
-	type WorkspaceLeaf,
-} from "obsidian";
-import type { PluginHost } from "@/app/host";
-import {
-	DIFF_VIEW_TYPE,
 	RELATIVE_TIME_REFRESH_MS,
 	SOURCE_CONTROL_VIEW_TYPE,
 } from "@/core/constants";
-import { canSync } from "@/core/settings";
 import { redrawOnPhoneChange } from "@/core/ui";
-import type { HistoryChange } from "@/features/diff";
-import type { HistoryVersionRef, SyncStatusSnapshot } from "@/features/sync";
+import { openDiffView } from "@/features/diff";
+import type { SyncStatusSnapshot } from "@/features/sync";
+import { canSync } from "@/features/sync";
 import { SourceControlActions } from "./actions/actions";
 import { ChangesTab } from "./changes/changes-tab";
 import { ConflictPreviewManager } from "./changes/conflict-preview-manager";
 import { HistoryTab } from "./history/history-tab";
+import type { SourceControlHost } from "./host";
 import { TimelineTab } from "./timeline/timeline-tab";
 import { TrashTab } from "./trash/trash-tab";
 
@@ -43,67 +36,8 @@ const SOURCE_TABS: ReadonlyArray<{
 	{ tab: ESourceTab.Timeline, label: "Timeline", icon: "clock-3" },
 ];
 
-export function openSourceControlHistory(
-	plugin: PluginHost,
-	path?: string,
-): Promise<void> {
-	return openSourceControlOn(plugin, (view) => view.showHistory(path ?? null));
-}
-
-export function openSourceControlDeleted(plugin: PluginHost): Promise<void> {
-	return openSourceControlOn(plugin, (view) => view.showDeleted());
-}
-
-/** An open view keeps its tab; conflicts are only on Changes. */
-export function openSourceControlChanges(plugin: PluginHost): Promise<void> {
-	return openSourceControlOn(plugin, (view) => view.showChanges());
-}
-
-async function openSourceControlOn(
-	plugin: PluginHost,
-	show: (view: SourceControlView) => void,
-): Promise<void> {
-	// The leaf it showed: an older one in a main tab may sit beside the sidebar's.
-	const { view } = await openSourceControlView(
-		plugin.app,
-		SOURCE_CONTROL_VIEW_TYPE,
-	);
-	if (view instanceof SourceControlView) show(view);
-}
-
-export async function openSourceControlView(
-	app: App,
-	viewType: string,
-): Promise<WorkspaceLeaf> {
-	const { workspace } = app;
-	const existing = workspace.getLeavesOfType(viewType);
-	const shown =
-		existing.find((leaf) => leaf.getRoot() === workspace.rightSplit) ??
-		existing[0];
-	if (shown) {
-		await workspace.revealLeaf(shown);
-		return shown;
-	}
-	const leaf = workspace.getRightLeaf(false) ?? workspace.getLeaf(true);
-	await leaf.setViewState({ type: viewType, active: true });
-	await workspace.revealLeaf(leaf);
-	return leaf;
-}
-
-/** A mobile's right sidebar lists only the views it holds: one waits there beside backlinks and the outline. */
-export function keepInRightSidebar(app: App): void {
-	const { workspace } = app;
-	const held = workspace
-		.getLeavesOfType(SOURCE_CONTROL_VIEW_TYPE)
-		.some((leaf) => leaf.getRoot() === workspace.rightSplit);
-	if (held) return;
-	void workspace
-		.getRightLeaf(false)
-		?.setViewState({ type: SOURCE_CONTROL_VIEW_TYPE, active: false });
-}
-
 export class SourceControlView extends ItemView {
-	private readonly plugin: PluginHost;
+	private readonly plugin: SourceControlHost;
 	private readonly previews: ConflictPreviewManager;
 	private readonly actions: SourceControlActions;
 	private readonly changes: ChangesTab;
@@ -117,7 +51,7 @@ export class SourceControlView extends ItemView {
 	private historyStale = false;
 	private comparedOnce = false;
 
-	constructor(leaf: WorkspaceLeaf, plugin: PluginHost) {
+	constructor(leaf: WorkspaceLeaf, plugin: SourceControlHost) {
 		super(leaf);
 		this.plugin = plugin;
 		this.previews = new ConflictPreviewManager({
@@ -405,39 +339,4 @@ export class SourceControlView extends ItemView {
 			?.querySelector<HTMLButtonElement>(`[data-mdsync-tab="${tab}"]`)
 			?.focus();
 	}
-}
-
-export interface HistoryDiffTarget extends HistoryVersionRef {
-	/** Right side. Without it the version is diffed against the file on disk. */
-	against?: { hash: string; label: string; size?: number };
-	change?: HistoryChange;
-	previewIfMissing?: boolean;
-}
-
-/** `merge` goes straight into the conflict's merge, as the diff's Merge… does. */
-export async function openDiffView(
-	plugin: PluginHost,
-	path: string,
-	history?: HistoryDiffTarget,
-	merge = false,
-): Promise<void> {
-	const existing = plugin.app.workspace.getLeavesOfType(DIFF_VIEW_TYPE);
-	const leaf = existing[0] ?? plugin.app.workspace.getLeaf(true);
-	await leaf.setViewState({
-		type: DIFF_VIEW_TYPE,
-		active: true,
-		state: {
-			path,
-			historyHash: history?.hash,
-			historyLabel: history?.label,
-			historySize: history?.size,
-			againstHash: history?.against?.hash,
-			againstLabel: history?.against?.label,
-			againstSize: history?.against?.size,
-			historyChange: history?.change,
-			historyPreviewIfMissing: history?.previewIfMissing,
-			merge: merge || undefined,
-		},
-	});
-	await plugin.app.workspace.revealLeaf(leaf);
 }

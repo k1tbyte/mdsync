@@ -1,7 +1,6 @@
 import { Modal, Setting } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
 import { renderKeepingFocus } from "@/core/ui";
+import type { SetupHost } from "./host";
 import {
 	ESetupPath,
 	ESetupStep,
@@ -24,7 +23,7 @@ import { createStartStep } from "./steps/start-step";
 import { createStorageStep } from "./steps/storage-step";
 
 export interface Wizard {
-	readonly plugin: PluginHost;
+	readonly plugin: SetupHost;
 	/** A late result moves on only from the step that is still on screen. */
 	isShowing(view: StepView): boolean;
 	/** Not `isOpen`: Obsidian's Modal already has that as a boolean field. */
@@ -92,7 +91,7 @@ class SetupWizardModal extends Modal implements Wizard {
 	private bodyEl: HTMLElement | null = null;
 
 	constructor(
-		readonly plugin: PluginHost,
+		readonly plugin: SetupHost,
 		step: ESetupStep,
 		private readonly onClosed: () => void,
 	) {
@@ -233,7 +232,7 @@ export function closeSetupWizard(): void {
 
 /** One wizard at a time: asking again moves the open one to `step`. */
 export function openSetupWizard(
-	plugin: PluginHost,
+	plugin: SetupHost,
 	step: ESetupStep | undefined,
 	onClosed: () => void,
 ): void {

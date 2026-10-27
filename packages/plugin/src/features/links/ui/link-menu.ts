@@ -1,8 +1,7 @@
 import { type App, type Menu, type TAbstractFile, TFile } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { isRelayConfigured } from "@/core/settings";
-import { docKindOf } from "@/features/live/doc-types";
-import { ESetupStep } from "@/features/setup/step-state";
+import { docKindOf } from "@/features/live";
+import type { LinksHost } from "../host";
 
 import { ManageLinksModal } from "./manage-links-modal";
 import { ShareLinkModal } from "./share-link-modal";
@@ -20,21 +19,21 @@ export function isLinkable(
 	);
 }
 
-export function openShareLink(plugin: PluginHost, file: TFile): void {
+export function openShareLink(plugin: LinksHost, file: TFile): void {
 	if (isRelayConfigured(plugin.settings)) {
 		new ShareLinkModal(plugin, file).open();
 	} else {
-		plugin.openSetup(ESetupStep.Relay);
+		plugin.openSetup("relay");
 	}
 }
 
-export function openManageLinks(plugin: PluginHost, path?: string): void {
+export function openManageLinks(plugin: LinksHost, path?: string): void {
 	new ManageLinksModal(plugin, path).open();
 }
 
 export function addLinkMenuItems(
 	menu: Menu,
-	plugin: PluginHost,
+	plugin: LinksHost,
 	file: TAbstractFile,
 ): void {
 	if (!isLinkable(plugin.app, file)) return;

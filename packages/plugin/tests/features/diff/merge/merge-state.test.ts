@@ -1,6 +1,7 @@
 import { history, isolateHistory, redo, undo } from "@codemirror/commands";
 import { EditorState, Transaction } from "@codemirror/state";
 import { assert, describe, expect, it } from "vitest";
+import { applyPlan, revertPlan } from "@/features/diff/merge/edit-plan";
 import {
 	openedGapsField,
 	toggleMergeGap,
@@ -16,11 +17,9 @@ import {
 	setChangeState,
 } from "@/features/diff/merge/merge-state";
 import {
-	applyPlan,
 	buildMergeSession,
 	type EMergeSide,
 	type MergeChange,
-	revertPlan,
 } from "@/features/sync/hunks/merge-model";
 
 function open(base: string, local: string, remote: string): EditorState {

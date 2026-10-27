@@ -7,9 +7,10 @@ import {
 	shareChannel,
 } from "@mdsync/protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_SETTINGS } from "@/app/settings";
 import type { HubLinkOptions } from "@/core/hub/link";
 import type { LinkState } from "@/core/hub/status";
-import { DEFAULT_SETTINGS, type MdsyncSettings } from "@/core/settings/model";
+import type { MdsyncSettings } from "@/core/settings/model";
 import { hubRoutes } from "@/features/relay/channels";
 import { HubConnection } from "@/features/relay/connection";
 import type { SpaceRecord } from "@/features/spaces/record";

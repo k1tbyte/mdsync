@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { testRelay } from "@/features/storage/ui/connection-test";
+import { testRelay } from "@/features/relay/relay-test";
 
 interface Reply {
 	status: number;

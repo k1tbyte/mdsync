@@ -12,9 +12,9 @@ import {
 import * as Y from "yjs";
 import { LIVE_SEND_MS } from "@/core/constants";
 import { type SealedFor, seal, unseal } from "@/core/crypto";
+import type { SpaceFrame, SpaceListener } from "@/core/hub";
 import { reportWarning } from "@/core/shared";
 import { runWithConcurrency } from "@/core/utils";
-import type { SpaceFrame, SpaceListener } from "@/features/relay";
 import { attribute } from "../authors";
 import type { LiveModel } from "../model";
 import { closingUntil } from "./closing";

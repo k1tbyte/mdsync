@@ -1,7 +1,8 @@
 import type { DeviceKey } from "@/core/crypto";
 import { decryptJson, encryptJson } from "@/core/crypto";
-import { type MdsyncSettings, mergeSettings } from "@/core/settings";
+import type { MdsyncSettings } from "@/core/settings";
 import { base64ToBytes, bytesToBase64 } from "@/core/utils";
+import { mergeSettings } from "./index";
 
 /** The secrets, and the share state that means nothing without them: kept or lost as one. */
 const SEALED = [

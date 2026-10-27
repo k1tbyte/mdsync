@@ -1,9 +1,6 @@
 import { EditorState } from "@codemirror/state";
 import { EditorView, lineNumbers } from "@codemirror/view";
-import {
-	EDiffDirection,
-	type FileDiffModel,
-} from "@/features/sync/hunks/projection";
+import { EDiffDirection, type FileDiffModel } from "@/features/sync";
 import { choiceActions, type EChoiceKind, HunkChoices } from "../choices";
 import type { PanelHosts } from "../header";
 import { LayoutMode } from "../layout-mode";

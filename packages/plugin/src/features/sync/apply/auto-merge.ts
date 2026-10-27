@@ -1,12 +1,13 @@
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
 import { ESyncLogOperation } from "@/core/logs";
-import { asError, sortedByPath } from "@/core/shared";
+import { asError } from "@/core/shared";
 import { runWithConcurrency } from "@/core/utils";
 import {
 	hasKnownBinaryExtension,
 	textToBytes,
 	writeLocalFile,
 } from "../changes/content";
+import { sortedByPath } from "../changes/records";
 import { HUNK_TEXT_MAX_BYTES, LOG_PATH_LIMIT } from "../constants";
 import type { CompareResult, EngineDependencies } from "../engine";
 import { coldSince, grewFrom, settleLive, writeIncoming } from "../live-notes";

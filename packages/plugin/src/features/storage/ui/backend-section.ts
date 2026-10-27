@@ -1,13 +1,15 @@
 import type { SettingDefinitionGroup } from "obsidian";
-
 import { STORAGE_CHANGED_REASON } from "@/core/constants";
 import { checkRow, type FieldContext, group, introRow } from "@/core/settings";
 import type { EStorageBackend } from "../config";
+import type { StorageHost } from "../host";
 import { getDescriptor, listBackends } from "../registry";
 import { testConnection } from "./connection-test";
 import { storageRows } from "./storage-fields";
 
-export function backendSection(ctx: FieldContext): SettingDefinitionGroup {
+export function backendSection(
+	ctx: FieldContext<StorageHost>,
+): SettingDefinitionGroup {
 	const { plugin } = ctx;
 	return group("Backend", [
 		introRow(

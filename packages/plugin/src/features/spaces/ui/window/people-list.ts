@@ -5,8 +5,8 @@ import {
 	focusKey,
 	showMenuAt,
 } from "@/core/ui";
-import { renderAvatar } from "@/features/presence/ui/avatars";
-import type { Person } from "@/features/presence/views";
+import type { Person } from "@/features/presence";
+import { renderAvatar } from "@/features/presence";
 import type { Participant } from "../../broker/share-broker";
 import type { ShareRow } from "./share-people";
 

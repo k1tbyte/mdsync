@@ -1,6 +1,6 @@
 import { type App, ButtonComponent, Modal, Setting } from "obsidian";
 
-import { activeStorage, type MdsyncSettings } from "@/core/settings";
+import type { MdsyncSettings } from "@/core/settings";
 import {
 	modalFooter,
 	modalWarning,
@@ -8,7 +8,7 @@ import {
 	openPromiseModal,
 	renderModalHead,
 } from "@/core/ui";
-import { describeStorageTarget } from "@/features/storage";
+import { activeStorage, describeStorageTarget } from "@/features/storage";
 import type { TransferSection } from "../transfer";
 
 const IMPORT_CONFIRMATION_TEXT = "IMPORT";

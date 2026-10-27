@@ -1,7 +1,6 @@
 import { type App, type Menu, TFile, TFolder } from "obsidian";
-
-import type { PluginHost } from "@/app/host";
 import { notifyError, notifyInfo, openChoiceModal } from "@/core/ui";
+import type { SyncHost } from "../host";
 import { isUnder, spaceOf } from "../remote/space";
 import { ignoreHome, ignoreNoteOf, isIgnoreNote } from "../scope/ignore";
 import {
@@ -15,7 +14,7 @@ const IGNORE_RULES_CHANGED = "Ignore rules changed.";
 /** One ignore entry per menu: a plain path opens a level picker, an ignored one clears both levels at once. */
 export function addIgnoreMenuItem(
 	menu: Menu,
-	plugin: PluginHost,
+	plugin: SyncHost,
 	path: string,
 	isFolder: boolean,
 	titlePrefix = "",
@@ -46,7 +45,7 @@ export function addIgnoreMenuItem(
 type IgnoreLevel = "local" | "global";
 
 async function chooseIgnoreLevel(
-	plugin: PluginHost,
+	plugin: SyncHost,
 	path: string,
 	isFolder: boolean,
 ): Promise<void> {
@@ -79,7 +78,7 @@ async function askIgnoreLevel(
 }
 
 export async function toggleLocalIgnore(
-	plugin: PluginHost,
+	plugin: SyncHost,
 	path: string,
 	isFolder: boolean,
 ): Promise<void> {
@@ -115,7 +114,7 @@ export async function toggleLocalIgnore(
 }
 
 export async function toggleGlobalIgnore(
-	plugin: PluginHost,
+	plugin: SyncHost,
 	path: string,
 	isFolder: boolean,
 ): Promise<void> {
@@ -141,7 +140,7 @@ export async function toggleGlobalIgnore(
 }
 
 export async function stopIgnoring(
-	plugin: PluginHost,
+	plugin: SyncHost,
 	path: string,
 	isFolder: boolean,
 ): Promise<void> {
@@ -187,7 +186,7 @@ export async function stopIgnoring(
  * none of it is shared.
  */
 export async function carryVaultIgnores(
-	plugin: PluginHost,
+	plugin: SyncHost,
 	root: string,
 ): Promise<boolean> {
 	const ignored = [...plugin.ignoreState.ignoredPaths()].filter(
@@ -214,7 +213,7 @@ export async function carryVaultIgnores(
 
 /** Read, edit, write back; null when it failed (and said so), false when unchanged. */
 async function editIgnoreNote(
-	plugin: PluginHost,
+	plugin: SyncHost,
 	note: string,
 	edit: (content: string) => string,
 ): Promise<boolean | null> {

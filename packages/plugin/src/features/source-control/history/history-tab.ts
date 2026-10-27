@@ -1,5 +1,4 @@
 import { Menu, setIcon } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { pluralize } from "@/core/shared";
 import {
 	appendIconButton,
@@ -9,8 +8,10 @@ import {
 	notifyError,
 	notifyInfo,
 } from "@/core/ui";
-import { confirmRestore } from "@/features/diff/restore-modal";
+import type { HistoryDiffTarget } from "@/features/diff";
+import { confirmRestore } from "@/features/diff";
 import type { FileVersion } from "@/features/sync";
+import type { SourceControlHost } from "../host";
 import { renderSize } from "../row-parts";
 import {
 	renderEmptyState,
@@ -19,7 +20,6 @@ import {
 	renderLoading,
 } from "../tab-states";
 import { addSnapshotPinItems } from "../timeline/snapshot-menu";
-import type { HistoryDiffTarget } from "../view";
 import { groupRows } from "./day-groups";
 import { HistoryList } from "./history-list";
 import { buildHistoryRows, type HistoryRow } from "./history-rows";
@@ -34,7 +34,7 @@ export class HistoryTab {
 	private loadedPath: string | null = null;
 
 	constructor(
-		private readonly plugin: PluginHost,
+		private readonly plugin: SourceControlHost,
 		private readonly onRerender: () => void,
 		private readonly openDiff: (
 			path: string,

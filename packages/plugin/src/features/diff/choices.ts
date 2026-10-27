@@ -1,5 +1,5 @@
-import type { HunkSelection } from "@/features/sync/hunks/hunks";
-import { EDiffDirection } from "@/features/sync/hunks/projection";
+import type { HunkSelection } from "@/features/sync";
+import { EDiffDirection } from "@/features/sync";
 import type { RailAction } from "./rail";
 
 export const EChoiceKind = {

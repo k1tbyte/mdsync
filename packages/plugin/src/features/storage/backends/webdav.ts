@@ -1,21 +1,16 @@
 import { type RequestUrlParam, requestUrl } from "obsidian";
-
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
-import { normalizeKeyPrefix } from "@/core/shared";
+import { EFieldKind } from "@/core/settings";
+import { normalizeKeyPrefix, StorageHttpError } from "@/core/shared";
 import { bytesToBase64, toArrayBuffer } from "@/core/utils";
 import { EStorageBackend, type WebDAVStorageConfig } from "../config";
-import {
-	CONCURRENCY_FIELD,
-	EFieldKind,
-	type SettingsFieldSpec,
-} from "../field-spec";
+import { CONCURRENCY_FIELD, type SettingsFieldSpec } from "../field-spec";
 import type { ConditionalRead, ListedObject, StorageAdapter } from "../types";
 import {
 	assertOk,
 	dateOf,
 	headerValue,
 	isRetryableStatus,
-	StorageHttpError,
 	transferBytes,
 	withDeadline,
 	withRetry,

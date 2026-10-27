@@ -1,11 +1,8 @@
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
+import { EFieldKind } from "@/core/settings";
 import { normalizeKeyPrefix } from "@/core/shared";
 import { EStorageBackend, type S3StorageConfig } from "../config";
-import {
-	CONCURRENCY_FIELD,
-	EFieldKind,
-	type SettingsFieldSpec,
-} from "../field-spec";
+import { CONCURRENCY_FIELD, type SettingsFieldSpec } from "../field-spec";
 import type { StorageAdapter } from "../types";
 
 import { createS3Signer } from "./s3-signer";

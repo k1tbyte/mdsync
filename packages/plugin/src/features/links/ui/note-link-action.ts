@@ -1,5 +1,5 @@
 import { FileView, type Plugin, type WorkspaceLeaf } from "obsidian";
-import type { PluginHost } from "@/app/host";
+import type { LinksHost } from "../host";
 import { noteLinks, noteLinksText } from "../note-links";
 
 import { openManageLinks } from "./link-menu";
@@ -10,7 +10,7 @@ interface Shown {
 	el: HTMLElement;
 }
 
-export function registerNoteLinkActions(plugin: Plugin & PluginHost): void {
+export function registerNoteLinkActions(plugin: Plugin & LinksHost): void {
 	const { workspace, vault } = plugin.app;
 	const shown = new Map<WorkspaceLeaf, Shown>();
 	let disposed = false;

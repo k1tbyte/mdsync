@@ -1,19 +1,18 @@
 import { Setting, setIcon } from "obsidian";
-
-import { SOURCE_CONTROL_VIEW_TYPE } from "@/core/constants";
 import {
-	activeStorage,
-	canSync,
 	fieldRow,
 	isRelayConfigured,
-	isStorageConfigured,
 	renderDefinitions,
 } from "@/core/settings";
 import { alertLine } from "@/core/ui";
-import { SETUP_FIELDS } from "@/features/settings/sections/automation";
-import { openSourceControlView } from "@/features/source-control/view";
-import { describeStorageTarget } from "@/features/storage";
+import { SETUP_FIELDS } from "@/features/settings";
+import {
+	activeStorage,
+	describeStorageTarget,
+	isStorageConfigured,
+} from "@/features/storage";
 import type { SyncStatusSnapshot } from "@/features/sync";
+import { canSync } from "@/features/sync";
 import { showSettingsTransferExport } from "@/features/transfer";
 
 import type { StepView, Wizard } from "../wizard";
@@ -106,7 +105,7 @@ export function createReadyStep(wizard: Wizard): StepView {
 		row.addButton((b) =>
 			b.setButtonText("Open changes").onClick(() => {
 				wizard.close();
-				void openSourceControlView(plugin.app, SOURCE_CONTROL_VIEW_TYPE);
+				void plugin.openSourceControl();
 			}),
 		);
 	};

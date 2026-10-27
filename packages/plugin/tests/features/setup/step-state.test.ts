@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PluginHost } from "@/app/host";
-import { type MdsyncSettings, mergeSettings } from "@/core/settings/model";
+import { mergeSettings } from "@/app/settings";
+import type { MdsyncSettings } from "@/core/settings/model";
 import {
 	ESetupPath,
 	ESetupStep,

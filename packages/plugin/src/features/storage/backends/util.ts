@@ -1,4 +1,8 @@
-import { isNetworkError } from "@/core/shared";
+import {
+	isNetworkError,
+	StorageHttpError,
+	StorageTimeoutError,
+} from "@/core/shared";
 
 const RETRY_DELAYS_MS: ReadonlyArray<number> = [500, 2_000, 5_000];
 
@@ -7,26 +11,6 @@ const STORAGE_TIMEOUT_MS = 30_000;
 const FLOOR_BYTES_PER_SECOND = 128 * 1024;
 /** A timeout past this size is not retried in place: requestUrl cannot be cancelled, so the first request is still running. */
 const RETRY_MAX_BYTES = 1024 * 1024;
-
-export class StorageHttpError extends Error {
-	constructor(
-		readonly status: number,
-		message: string,
-	) {
-		super(message);
-		this.name = "StorageHttpError";
-	}
-}
-
-export class StorageTimeoutError extends Error {
-	constructor(
-		ms: number,
-		readonly bytes = 0,
-	) {
-		super(`Storage operation timed out after ${ms}ms`);
-		this.name = "StorageTimeoutError";
-	}
-}
 
 function delay(ms: number): Promise<void> {
 	return new Promise((resolve) => window.setTimeout(resolve, ms));

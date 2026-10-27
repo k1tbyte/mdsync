@@ -1,5 +1,6 @@
 import type { Setting, SettingDefinitionRender } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
+import { EFieldKind } from "@/core/settings";
 
 import {
 	type FieldContext,
@@ -9,7 +10,6 @@ import {
 	renderDefinitions,
 	type SettingsRow,
 } from "@/core/settings/fields";
-import { EFieldKind } from "@/features/storage/field-spec";
 
 vi.mock("obsidian", () => ({
 	debounce: (fn: unknown) => fn,

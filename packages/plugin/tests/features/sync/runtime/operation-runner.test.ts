@@ -4,7 +4,7 @@ import { pairedSessions, useEncryptionKey } from "@tests/helpers/session";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { ESyncLogOperation } from "@/core/logs/store";
 import { OFFLINE_MESSAGE } from "@/core/shared/offline";
-import { StorageHttpError } from "@/features/storage/backends/util";
+import { StorageHttpError } from "@/core/shared/transport-errors";
 import {
 	ShareRefusedError,
 	StorageRequestError,

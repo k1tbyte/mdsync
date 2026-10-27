@@ -1,5 +1,3 @@
-import type { ManifestEntry } from "@/features/sync/types";
-
 const BYTES_PER_KB = 1024;
 const BYTES_PER_MB = 1024 * 1024;
 
@@ -23,7 +21,7 @@ export function formatTimestamp(ms: number): string {
 
 export function sumBytes(
 	paths: ReadonlyArray<string>,
-	fileMap: Record<string, ManifestEntry>,
+	fileMap: Record<string, { size: number }>,
 ): number {
 	let total = 0;
 	for (const p of paths) {

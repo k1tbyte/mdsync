@@ -1,11 +1,16 @@
 import type { App } from "obsidian";
 import type { DeviceKey } from "@/core/crypto";
 import { LogService } from "@/core/logs";
-import { isStorageConfigured, type MdsyncSettings } from "@/core/settings";
+import type { MdsyncSettings } from "@/core/settings";
 import { reportWarning } from "@/core/shared";
 import { askPassphrase, notifyError, notifyInfo } from "@/core/ui";
 import type { SharedLinks } from "@/features/links";
-import { createMoveFollower, SpaceRecords } from "@/features/spaces";
+import {
+	createInertWarning,
+	createMoveFollower,
+	SpaceRecords,
+} from "@/features/spaces";
+import { isStorageConfigured } from "@/features/storage";
 import type { LiveNotes } from "@/features/sync";
 import {
 	fetchRemoteManifest,
@@ -28,7 +33,7 @@ export interface PluginRuntime {
 	journal: WriteJournal;
 }
 
-interface BootstrapPluginRuntimeOptions {
+export interface BootstrapPluginRuntimeOptions {
 	app: App;
 	settings: MdsyncSettings;
 	deviceKey: DeviceKey;
@@ -154,28 +159,5 @@ export async function bootstrapPluginRuntime(
 		statePersister,
 		spaces,
 		journal,
-	};
-}
-
-/** For an onload that has to abandon what it built, see `MdsyncPlugin.onload`. */
-export function disposePluginRuntime(runtime: PluginRuntime): void {
-	runtime.statePersister.dispose();
-	runtime.journal.dispose();
-	runtime.controller.dispose();
-	runtime.passphraseManager.dispose();
-	runtime.logs.dispose();
-}
-
-/** Once per record and session: two devices shared one folder offline, and this one lost. */
-function createInertWarning(spaces: SpaceRecords): () => void {
-	const warned = new Set<string>();
-	return () => {
-		for (const { id, name, root } of spaces.inert()) {
-			if (warned.has(id)) continue;
-			warned.add(id);
-			notifyError(
-				`"${name}" is not syncing: another shared folder already holds "${root}". Stop sharing it in the Sync settings.`,
-			);
-		}
 	};
 }

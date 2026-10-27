@@ -1,6 +1,6 @@
-import type { PluginHost } from "@/app/host";
 import { notifyInfo, reportError } from "@/core/ui";
 import type { Rotation } from "@/features/live";
+import type { NoteHeaderHost } from "./host";
 
 const REBUILT: Record<Rotation, string> = {
 	moved: "Live note rebuilt from its text.",
@@ -8,7 +8,7 @@ const REBUILT: Record<Rotation, string> = {
 	busy: "Still sending edits. Try again in a moment.",
 };
 
-export function toggleAuthors(plugin: PluginHost): void {
+export function toggleAuthors(plugin: NoteHeaderHost): void {
 	const shown = !plugin.settings.showLiveAuthors;
 	plugin.settings.showLiveAuthors = shown;
 	plugin.realtime.live.repaintAuthors();
@@ -20,7 +20,7 @@ export function toggleAuthors(plugin: PluginHost): void {
 	);
 }
 
-export function rebuildLiveNote(plugin: PluginHost, path: string): void {
+export function rebuildLiveNote(plugin: NoteHeaderHost, path: string): void {
 	void plugin.realtime.live
 		.rotate(path)
 		.then((outcome) => notifyInfo(REBUILT[outcome]))

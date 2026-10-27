@@ -1,5 +1,5 @@
 import type { LiveKeys } from "@/core/crypto";
-import { insideOf } from "@/features/sync/remote/space";
+import { insideOf } from "@/features/sync";
 import { docIdFor } from "../doc-id";
 
 export interface LiveUser {

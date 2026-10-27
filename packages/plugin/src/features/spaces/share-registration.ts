@@ -1,14 +1,10 @@
 import type { LogService } from "@/core/logs";
 import { ESyncLogOperation } from "@/core/logs";
-import {
-	isRelayConfigured,
-	type MdsyncSettings,
-	ownerStorage,
-} from "@/core/settings";
+import { isRelayConfigured, type MdsyncSettings } from "@/core/settings";
 import { errorMessage } from "@/core/shared";
 import type { Space } from "@/features/sync";
 import { listParticipants, registerShareStorage } from "./broker/share-broker";
-import { brokerStorage } from "./owner";
+import { brokerStorage, ownerStorage } from "./owner";
 import type { SpaceRecords } from "./records";
 
 /** Another owner device may have sent older keys: resent this often, so working ones win back. */

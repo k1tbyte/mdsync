@@ -1,13 +1,13 @@
 import { FakeStorage } from "@tests/helpers/fake-storage";
 import { RevalidatingStorage } from "@tests/helpers/revalidating-storage";
 import { beforeAll, describe, expect, it } from "vitest";
+import { REMOTE_MANIFEST_KEY } from "@/core/constants";
 
 import {
 	deriveKey,
 	type EncryptionKey,
 	encryptJson,
 } from "@/core/crypto/cipher";
-import { REMOTE_MANIFEST_KEY } from "@/features/sync/constants";
 import { advanceBaselineForPaths } from "@/features/sync/remote/baseline";
 import {
 	ConcurrentPushError,

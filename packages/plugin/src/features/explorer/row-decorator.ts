@@ -1,4 +1,3 @@
-import type { PluginHost } from "@/app/host";
 import type { SyncController } from "@/features/sync";
 import { skippedFiles } from "@/features/sync";
 import type { FileExplorerRows } from "./file-explorer-api";
@@ -17,6 +16,7 @@ import {
 	presenceMarks,
 	shareMarks,
 } from "./file-explorer-marks";
+import type { ExplorerHost } from "./host";
 
 const NO_BASE: ReadonlyMap<string, BaseMarks> = new Map();
 const NO_MARKS: ReadonlyMap<string, PresenceMarks> = new Map();
@@ -32,7 +32,7 @@ export class RowDecorator {
 	private ignoreVersion = 0;
 
 	constructor(
-		private readonly plugin: PluginHost,
+		private readonly plugin: ExplorerHost,
 		private readonly controller: SyncController,
 	) {}
 

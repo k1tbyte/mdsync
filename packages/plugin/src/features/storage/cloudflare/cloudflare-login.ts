@@ -1,4 +1,3 @@
-import type { PluginHost } from "@/app/host";
 import {
 	type CloudflareAccount,
 	type CloudflareApi,
@@ -10,6 +9,7 @@ import {
 } from "@/core/cloudflare";
 import type { MdsyncSettings } from "@/core/settings";
 import { errorMessage } from "@/core/shared";
+import type { StorageHost } from "../host";
 
 /** A per-Worker token or a role without the legacy Workers Scripts permission. */
 const AUTH_ERROR = 10000;
@@ -43,7 +43,7 @@ export async function accountsOf(token: string): Promise<CloudflareAccount[]> {
 
 /** Verified before it is kept: a revoked or expired token would fail every later step. */
 export async function connectCloudflare(
-	plugin: PluginHost,
+	plugin: StorageHost,
 	token: string,
 	accountId: string,
 ): Promise<void> {
@@ -55,7 +55,7 @@ export async function connectCloudflare(
 	await plugin.saveSettings();
 }
 
-export async function forgetCloudflare(plugin: PluginHost): Promise<void> {
+export async function forgetCloudflare(plugin: StorageHost): Promise<void> {
 	Object.assign(plugin.settings, {
 		cloudflareToken: "",
 		cloudflareAccountId: "",

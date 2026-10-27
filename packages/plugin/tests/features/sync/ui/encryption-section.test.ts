@@ -1,17 +1,14 @@
 import { Setting } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
 import type { PluginHost } from "@/app/host";
-import { isStorageConfigured } from "@/core/settings/model";
 import { askNewPassphrase } from "@/core/ui/modals/passphrase-modal";
 import { notifyInfo, reportError } from "@/core/ui/notices";
-import { securitySection } from "@/features/settings/sections/security";
+import { isStorageConfigured } from "@/features/storage";
+import { encryptionSection } from "@/features/sync/ui/encryption-section";
 
-vi.mock("@/core/settings/model", () => ({
+vi.mock("@/features/storage/settings", async (importOriginal) => ({
+	...(await importOriginal<Record<string, unknown>>()),
 	isStorageConfigured: vi.fn(() => true),
-}));
-vi.mock("@/core/crypto/passphrase-cache", () => ({
-	clearCachedPassphrase: vi.fn(),
 }));
 vi.mock("@/core/ui/modals/passphrase-modal", () => ({
 	askNewPassphrase: vi.fn(),
@@ -21,7 +18,8 @@ vi.mock("@/core/ui/notices", () => ({
 	notifyError: vi.fn(),
 	reportError: vi.fn(),
 }));
-vi.mock("obsidian", () => ({
+vi.mock("obsidian", async (importOriginal) => ({
+	...(await importOriginal<Record<string, unknown>>()),
 	Setting: class {
 		name = "";
 		desc = "";
@@ -83,7 +81,7 @@ function form(loaded = false) {
 		rotate: vi.fn(async () => 2),
 	};
 	const rerender = vi.fn();
-	const definitions = securitySection({
+	const definitions = encryptionSection({
 		plugin: { settings: {}, passphrase } as unknown as PluginHost,
 		rerender,
 	});

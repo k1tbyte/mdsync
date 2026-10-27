@@ -4,9 +4,11 @@
  * lives and issues the tokens.
  */
 
+import { ADMIN_HEADER } from "@mdsync/protocol";
 import { requestUrl } from "obsidian";
 
-import { relayBase } from "@/core/shared";
+import type { RelayConfig } from "@/core/settings";
+import { relayBase, StorageHttpError } from "@/core/shared";
 import type { S3StorageConfig } from "@/features/storage";
 import {
 	createS3Store,
@@ -16,7 +18,6 @@ import {
 	type S3RequestInput,
 	ShareRefusedError,
 	type StorageAdapter,
-	StorageHttpError,
 	StorageRequestError,
 	signingRegion,
 } from "@/features/storage";
@@ -33,13 +34,20 @@ export interface BrokerAdmin {
 	secret: string;
 }
 
+/** Shares and links both speak to the relay with its secret. */
+export function relayAdmin({
+	relayUrl,
+	relaySecret,
+}: RelayConfig): BrokerAdmin {
+	return { relayUrl, secret: relaySecret };
+}
+
 const SIGN_OPS: Record<S3Method, string> = {
 	GET: "get",
 	PUT: "put",
 	DELETE: "delete",
 	HEAD: "head",
 };
-export const ADMIN_HEADER = "X-Mdsync-Admin";
 /** Refusals that say something about the share, not the network: never retried. */
 const PARTICIPANT_REFUSALS: Record<string, string> = {
 	unauthorized: "This shared folder's invite is no longer valid.",

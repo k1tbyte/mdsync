@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_SETTINGS } from "@/app/settings";
 
-import { DEFAULT_SETTINGS } from "@/core/settings/model";
 import {
 	registerScheduler,
 	SCHEDULER_HEARTBEAT_MS,

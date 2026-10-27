@@ -1,4 +1,4 @@
-import { runWithConcurrency } from "./concurrency";
+import { runWithConcurrency } from "@/core/utils";
 
 export const LARGE_FILE_BYTES = 8 * 1024 * 1024;
 

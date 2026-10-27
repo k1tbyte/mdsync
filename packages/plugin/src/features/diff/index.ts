@@ -1,3 +1,8 @@
-export type { HistoryChange } from "./history-state";
-export { confirmBulkRestore, confirmRestore } from "./restore-modal";
+export {
+	type HistoryChange,
+	type HistoryDiffTarget,
+	openDiffView,
+} from "./history-state";
+export type { DiffHost } from "./host";
+export { confirmBulkRestore, confirmRestore } from "./ui/restore-modal";
 export { DiffView } from "./view";

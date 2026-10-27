@@ -1,12 +1,10 @@
 import { FakeStorage } from "@tests/helpers/fake-storage";
 import { InMemoryAdapter } from "@tests/helpers/in-memory-adapter";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { REMOTE_MANIFEST_KEY } from "@/core/constants";
 import { deriveKey, type EncryptionKey } from "@/core/crypto/cipher";
 import { DEFAULT_SETTINGS_SYNC } from "@/core/settings/model";
-import {
-	REMOTE_MANIFEST_KEY,
-	REMOTE_OBJECTS_PREFIX,
-} from "@/features/sync/constants";
+import { REMOTE_OBJECTS_PREFIX } from "@/features/sync/constants";
 import {
 	compare,
 	type EngineDependencies,

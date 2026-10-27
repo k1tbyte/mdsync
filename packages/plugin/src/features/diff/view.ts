@@ -1,15 +1,13 @@
 import { ItemView, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
-import type { PluginHost } from "@/app/host";
-import { DIFF_VIEW_TYPE, SOURCE_CONTROL_VIEW_TYPE } from "@/core/constants";
+import { DIFF_VIEW_TYPE } from "@/core/constants";
 import { userMessage } from "@/core/shared";
 import { notifyError, openConfirmModal, redrawOnPhoneChange } from "@/core/ui";
-import { openSourceControlView } from "@/features/source-control/view";
-import type { CompareResult } from "@/features/sync/engine";
+import type { CompareResult } from "@/features/sync";
 import {
 	EDiffDirection,
 	type FileDiffModel,
 	type HistoryVersionRef,
-} from "@/features/sync/hunks/projection";
+} from "@/features/sync";
 import { watchDiffChrome } from "./action-bar";
 import { renderBinaryDiff } from "./compare/binary-view";
 import { type ComparePanel, renderTextDiff } from "./compare/compare-panel";
@@ -28,11 +26,12 @@ import {
 	type HistoryChange,
 	selectHistoryMode,
 } from "./history-state";
+import type { DiffHost } from "./host";
 import { MergeEditorPanel } from "./merge/merge-editor";
 import { DiffOperations } from "./operations";
 
 export class DiffView extends ItemView {
-	private readonly plugin: PluginHost;
+	private readonly plugin: DiffHost;
 	private readonly operations: DiffOperations;
 	private path: string | null = null;
 	private historyHash: string | null = null;
@@ -59,7 +58,7 @@ export class DiffView extends ItemView {
 	/** Monotonic generation counter; async loads discard results from older generations. */
 	private loadGeneration = 0;
 
-	constructor(leaf: WorkspaceLeaf, plugin: PluginHost) {
+	constructor(leaf: WorkspaceLeaf, plugin: DiffHost) {
 		super(leaf);
 		this.plugin = plugin;
 		this.operations = new DiffOperations(plugin, {
@@ -457,7 +456,7 @@ export class DiffView extends ItemView {
 		// Detached first: the leaf Obsidian activates after it, a tick later, closes a phone's drawer.
 		this.leaf.detach();
 		await sleep(0);
-		await openSourceControlView(this.app, SOURCE_CONTROL_VIEW_TYPE);
+		await this.plugin.openSourceControl();
 	}
 
 	private async navigateFile(delta: number): Promise<void> {

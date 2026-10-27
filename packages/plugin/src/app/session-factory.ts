@@ -2,12 +2,7 @@ import { type App, TFile } from "obsidian";
 import type { EncryptionKey } from "@/core/crypto";
 import type { LogService } from "@/core/logs";
 import { ESyncLogOperation } from "@/core/logs";
-import {
-	activeStorage,
-	isGuest,
-	isStorageConfigured,
-	type MdsyncSettings,
-} from "@/core/settings";
+import type { MdsyncSettings } from "@/core/settings";
 import { reportWarning } from "@/core/shared";
 import { createSymlinkDetector, createVaultIndex } from "@/core/vault";
 import type { SpaceRecords } from "@/features/spaces";
@@ -17,12 +12,19 @@ import {
 	shareKey,
 	shareStorage,
 } from "@/features/spaces";
-import { createStorageAdapter, type StorageAdapter } from "@/features/storage";
+import {
+	activeStorage,
+	createStorageAdapter,
+	isStorageConfigured,
+	type StorageAdapter,
+} from "@/features/storage";
 import type {
 	EngineDependencies,
 	LiveNotes,
+	LocalOpener,
 	ManifestAuthor,
 	PassphraseManager,
+	SessionFiles,
 	StatePersister,
 	WriteJournal,
 } from "@/features/sync";
@@ -32,9 +34,9 @@ import {
 	createScopePolicy,
 	type IgnoreMatcher,
 	ignoreNoteOf,
+	isGuest,
 	loadSharedIgnoreMatcher,
 	nestedRoots,
-	PassphraseRotatedError,
 	projectSession,
 	type Space,
 	VAULT_SPACE,
@@ -61,22 +63,6 @@ export type SessionOpener = (
 	space: Space,
 	partition: readonly Space[],
 ) => Promise<EngineDependencies | null>;
-
-type SessionFiles = Pick<
-	EngineDependencies,
-	"space" | "adapter" | "scope" | "state" | "maxFileBytes"
->;
-
-/** What a display-only look at one space's files needs: no storage, no key. */
-export type LocalSession = SessionFiles & {
-	/** The storage `state` belongs to. */
-	identity: string;
-};
-
-export type LocalOpener = (
-	space: Space,
-	partition: readonly Space[],
-) => Promise<LocalSession | null>;
 
 /** One adapter and scope cache for both: a local look reuses the session's adapter. */
 export function createSessionOpeners(deps: SessionFactoryDeps): {
@@ -238,7 +224,10 @@ async function openVault(
 		return null;
 	}
 	const storage = vaultStorage(deps, getStorage);
-	const key = await resolveKeyWithRotationRetry(deps, storage);
+	const key = await deps.passphrase.resolveKeyRecovering(storage, {
+		warn: (message) => deps.logs.warn(ESyncLogOperation.Session, message),
+		notify: deps.notify,
+	});
 	return key
 		? { storage, key, concurrency: activeStorage(deps.settings).concurrency }
 		: null;
@@ -334,35 +323,4 @@ function createScopeMatchers(
 		else memos.set(root, { ...matchers, stamp, patterns });
 		return matchers;
 	};
-}
-
-/** Recovers from a passphrase rotated on another device: forget it, re-prompt once, retry; a second failure aborts. */
-async function resolveKeyWithRotationRetry(
-	deps: SessionFactoryDeps,
-	storage: StorageAdapter,
-): Promise<EncryptionKey | null> {
-	const { passphrase, logs, notify } = deps;
-	try {
-		return await passphrase.resolveKey(storage);
-	} catch (err) {
-		if (!(err instanceof PassphraseRotatedError)) throw err;
-		await logs.warn(
-			ESyncLogOperation.Session,
-			"Passphrase no longer matches the remote (rotated elsewhere); re-prompting.",
-		);
-		notify("Passphrase changed on another device. Enter the new one.");
-		await passphrase.forget();
-		if (!(await passphrase.prompt(true))) return null;
-		try {
-			return await passphrase.resolveKey(storage);
-		} catch (retryErr) {
-			if (!(retryErr instanceof PassphraseRotatedError)) throw retryErr;
-			await logs.warn(
-				ESyncLogOperation.Session,
-				"Session blocked: passphrase still does not match after re-prompt.",
-			);
-			notify("Passphrase still incorrect.");
-			return null;
-		}
-	}
 }

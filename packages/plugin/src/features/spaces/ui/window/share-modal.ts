@@ -1,7 +1,6 @@
 import { ButtonComponent, Modal } from "obsidian";
-import type { PluginHost } from "@/app/host";
 import { isLinkState, RELAY_TEXT, relaySummary } from "@/core/hub";
-import { isRelayConfigured, relayAdmin } from "@/core/settings";
+import { isRelayConfigured } from "@/core/settings";
 import { errorMessage } from "@/core/shared";
 import {
 	alertLine,
@@ -16,12 +15,14 @@ import {
 	serial,
 } from "@/core/ui";
 import type { Person } from "@/features/presence";
-import { isUnder } from "@/features/sync/remote/space";
+import { isUnder } from "@/features/sync";
 import {
 	type BrokerAdmin,
 	listParticipants,
 	type Participant,
+	relayAdmin,
 } from "../../broker/share-broker";
+import type { SpacesHost } from "../../host";
 import { type SpaceRecord, shareIdentity } from "../../record";
 import { createInvite } from "../invites/invite-action";
 import { renderInviteForm } from "../invites/invite-section";
@@ -47,7 +48,7 @@ export class ShareModal extends Modal {
 	private readonly admin: BrokerAdmin | null;
 
 	constructor(
-		private readonly plugin: PluginHost,
+		private readonly plugin: SpacesHost,
 		private readonly record: SpaceRecord,
 		private readonly onClosed?: () => void,
 	) {

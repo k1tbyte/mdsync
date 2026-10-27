@@ -7,8 +7,8 @@ import {
 	WidgetType,
 } from "@codemirror/view";
 import { setIcon } from "obsidian";
-import { firstIndex } from "@/core/utils";
 import type { LineRange, Span } from "@/features/sync";
+import { firstIndex } from "./search";
 
 const CONTEXT_LINES = 3;
 /** A shorter run costs less to show than the row that would hide it. */

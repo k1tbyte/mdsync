@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_SETTINGS } from "@/app/settings";
 import { sealLink } from "@/core/crypto/sealed-link";
-import { DEFAULT_SETTINGS, type MdsyncSettings } from "@/core/settings/model";
+import type { MdsyncSettings } from "@/core/settings/model";
 import { defaultS3Config } from "@/features/storage/backends/s3";
 import { defaultWebDAVConfig } from "@/features/storage/backends/webdav";
 import { EStorageBackend } from "@/features/storage/config";

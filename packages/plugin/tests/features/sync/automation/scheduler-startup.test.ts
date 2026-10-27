@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_SETTINGS } from "@/core/settings/model";
+import { DEFAULT_SETTINGS } from "@/app/settings";
 import {
 	registerScheduler,
 	type SchedulerHost,
