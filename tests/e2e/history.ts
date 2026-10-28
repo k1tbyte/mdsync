@@ -85,6 +85,7 @@ await runScenario("history e2e", async () => {
 		await checkExpanded(device, page);
 		await checkFilter(device, page);
 		await checkDayChip(device, page);
+		await checkFileHistory(device, page);
 		await checkActivitySetting(device, browser);
 	} finally {
 		s3.stop();
@@ -394,6 +395,53 @@ async function checkDayChip(device: Obsidian, page: Page): Promise<void> {
 		`day chip: ${await page.locator(".mdsync-timeline-day-chip").textContent()}, cards: ${await page.locator(CARD).count()}`,
 	);
 	await shot(page, "4-day");
+}
+
+/** Brief.md on the History tab: its pinned version apart, the rest by age, the footer on what thins. */
+async function checkFileHistory(device: Obsidian, page: Page): Promise<void> {
+	await device.evaluate(async () => {
+		const file = app.vault.getAbstractFileByPath("Projects/Alpha/Brief.md");
+		await app.workspace.getLeaf(false).openFile(file);
+	});
+	await page.locator('[data-mdsync-tab="history"]').click();
+	await device.waitFor(
+		"the history rows",
+		() => document.querySelectorAll(".mdsync-history-row").length,
+		(count: number) => count > 0,
+	);
+	const seen = await device.evaluate(() => {
+		const text = (selector: string) =>
+			[...document.querySelectorAll(selector)].map(
+				(each) => each.textContent ?? "",
+			);
+		return {
+			headers: text(".mdsync-history-pane .mdsync-timeline-day"),
+			meta: text(".mdsync-history-row .mdsync-history-row-meta"),
+			footer: text(".mdsync-history-footer").join(""),
+		};
+	});
+	console.log(`history: ${JSON.stringify(seen)}`);
+	check(
+		"the pinned version leads",
+		seen.headers[0]?.toLowerCase().startsWith("pinned"),
+		true,
+	);
+	check(
+		"the rest sit in the last hour",
+		seen.headers.some((header) => header.toLowerCase().includes("last hour")),
+		true,
+	);
+	check(
+		"the oldest says it created the file",
+		seen.meta.some((meta) => meta.endsWith("first version")),
+		true,
+	);
+	check(
+		"the footer says what thins",
+		seen.footer.includes("only pinned versions and activity counts remain"),
+		true,
+	);
+	await shot(page, "6-history");
 }
 
 /** The plugin's Sync page, scrolled to the toggle that hides the calendar. */

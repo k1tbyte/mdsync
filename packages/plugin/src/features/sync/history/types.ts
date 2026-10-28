@@ -40,11 +40,14 @@ export interface FileVersion extends Dating {
 	createdAt: number;
 	deviceId: string;
 	deviceName?: string;
-	pinned: boolean;
+	/** The pin holding this content, maybe a later snapshot than the one that wrote it; null when none. */
+	pinId: string | null;
 	/** Name the user gave the pin, if any. */
 	label?: string;
 	/** Nothing older holds the path: this version created it. */
 	first: boolean;
+	/** Replay rebuilds `snapshotId`, so it can be pinned; false past the walk's end. */
+	replayable: boolean;
 }
 
 export interface DeletedFile {

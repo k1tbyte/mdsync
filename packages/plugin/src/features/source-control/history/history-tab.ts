@@ -1,5 +1,7 @@
 import { Menu, setIcon } from "obsidian";
-import { pluralize } from "@/core/shared";
+import { HISTORY_KEEP_MS } from "@/core/constants";
+import { openPluginSettings } from "@/core/hub";
+import { formatDay, pluralize } from "@/core/shared";
 import {
 	appendIconButton,
 	appendLabeledButton,
@@ -10,9 +12,9 @@ import {
 } from "@/core/ui";
 import type { HistoryDiffTarget } from "@/features/diff";
 import { confirmRestore } from "@/features/diff";
-import type { FileVersion } from "@/features/sync";
+import { countsBefore, type FileVersion } from "@/features/sync";
 import type { SourceControlHost } from "../host";
-import { renderSize } from "../row-parts";
+import { renderAgeHeader, renderSize } from "../row-parts";
 import {
 	renderEmptyState,
 	renderHistoryOff,
@@ -136,10 +138,34 @@ export class HistoryTab {
 			currentDevice: this.plugin.controller.currentDevice(),
 		});
 		for (const group of groupByAge(rows)) {
-			body.createDiv({ cls: "mdsync-timeline-day", text: group.label });
+			renderAgeHeader(body, group);
 			const list = body.createDiv({ cls: "mdsync-history-rows" });
 			for (const row of group.rows) this.renderRow(list, path, row);
 		}
+		this.renderFooter(body);
+	}
+
+	/** Where the list ends and why: this device's **Keep history for**. */
+	private renderFooter(body: HTMLElement): void {
+		const horizon = HISTORY_KEEP_MS[this.plugin.settings.fileHistoryKeep];
+		const note = body.createDiv({ cls: "mdsync-history-footer" });
+		if (horizon === null) {
+			note.setText(
+				"Older versions thin to one per week and are kept for good.",
+			);
+			return;
+		}
+		const now = Date.now();
+		const cutoff = countsBefore(now, horizon);
+		note.appendText(
+			`Older versions thin out with age; before ${formatDay(cutoff, now, false)} only pinned versions and activity counts remain. `,
+		);
+		note
+			.createEl("a", { text: "Keep history for", href: "#" })
+			.addEventListener("click", (event) => {
+				event.preventDefault();
+				openPluginSettings(this.plugin.app);
+			});
 	}
 
 	private renderFileCard(parent: HTMLElement, path: string): void {
@@ -185,7 +211,7 @@ export class HistoryTab {
 			mark.addClass("has-pin");
 			const pin = mark.createSpan({ cls: "mdsync-history-pin" });
 			setIcon(pin, "pin");
-			pin.setAttr("aria-label", "Pinned snapshot");
+			pin.setAttr("aria-label", "Pinned version");
 		} else mark.createSpan({ cls: "mdsync-history-dot" });
 		const copy = item.createDiv({ cls: "mdsync-timeline-copy" });
 		const title = copy.createDiv({ cls: "mdsync-timeline-title" });
@@ -230,7 +256,13 @@ export class HistoryTab {
 			);
 		}
 		menu.addSeparator();
-		addSnapshotPinItems(menu, this.plugin, row, this.onSnapshotsChanged);
+		addSnapshotPinItems(
+			menu,
+			this.plugin,
+			{ ...row, snapshotId: row.pinId ?? row.snapshotId },
+			this.onSnapshotsChanged,
+			row.replayable,
+		);
 		menu.showAtMouseEvent(event);
 	}
 

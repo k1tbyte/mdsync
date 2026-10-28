@@ -1,4 +1,9 @@
-import { formatDay, formatDayLabel, startOfWeek } from "@/core/shared";
+import {
+	formatDay,
+	formatDayLabel,
+	pluralize,
+	startOfWeek,
+} from "@/core/shared";
 import { RESOLUTIONS, type Resolution } from "@/features/sync";
 
 const HOUR_MS = 3_600_000;
@@ -80,6 +85,11 @@ export function ageTitle(
 	if (res === "1w") return `Week of ${formatDay(startOfWeek(at), now, false)}`;
 	if (res === "1d") return formatDay(at, now);
 	return clockTime(at);
+}
+
+/** "last of 3 pushes" for a version that stands for several. */
+export function lastOf(pushes: number): string | null {
+	return pushes > 1 ? `last of ${pluralize(pushes, "push", "pushes")}` : null;
 }
 
 export function clockTime(ms: number): string {

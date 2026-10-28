@@ -64,7 +64,10 @@ export async function readTimeline(
 	return { head, cover, view: history.view };
 }
 
-/** Distinct versions of one path, newest first; pinned ones follow. */
+/**
+ * Distinct versions of one path, newest first, each dated by the record that wrote it; pins the walk does not
+ * reach follow. A pin marks every version whose content it holds.
+ */
 export async function getFileHistory(
 	query: Source & { path: string },
 ): Promise<FileVersion[]> {
@@ -77,34 +80,53 @@ export async function getFileHistory(
 		query.root,
 		(pin) => entryAt(pin.manifest.files, path) ?? null,
 	);
-	const labels = new Map(pins.pins.map(({ info }) => [info.id, info.label]));
+	const pinOf: PinsByHash = new Map(
+		pins.pins.flatMap(({ info, picked }) =>
+			picked ? [[picked.hash, info] as const] : [],
+		),
+	);
 	const versions: FileVersion[] = [];
-	const visited = new Set([head.snapshotId]);
 	let entry = entryAt(head.files, path) ?? null;
 	// Without HEAD's own record nothing older can be anchored to HEAD's files.
 	const chain = cover.lagging ? [] : cover.chain;
 	if (chain.length === 0 && entry) {
-		versions.push(toVersion(metaOf(head), undated(head), entry, labels));
+		versions.push(toVersion(metaOf(head), undated(head), entry, pinOf));
 	}
-	let lastHash: string | null = null;
 	for (const walked of chain) {
-		const { record } = walked;
-		visited.add(record.id);
-		if (entry === null) {
-			lastHash = null;
-		} else if (entry.hash !== lastHash) {
-			versions.push(toVersion(record, datingOf(walked), entry, labels));
-			lastHash = entry.hash;
+		const before = undoChangesForPath(entry, walked.record.changes, path);
+		if (entry && before?.hash !== entry.hash) {
+			versions.push({
+				...toVersion(walked.record, datingOf(walked), entry, pinOf),
+				first: before === null,
+				replayable: true,
+			});
 		}
-		const had = entry;
-		entry = undoChangesForPath(entry, record.changes, path);
-		const newest = versions.at(-1);
-		if (had && !entry && newest) newest.first = true;
+		entry = before;
 	}
+	// Written before the walk's end: its snapshot is the oldest record's parent, known only to precede it.
+	const oldest = chain[chain.length - 1]?.record;
+	if (entry && oldest) {
+		const { firstAt } = oldest;
+		const meta = { ...oldest, id: oldest.parentId ?? oldest.id };
+		versions.push(
+			toVersion(
+				meta,
+				{
+					at: firstAt,
+					firstAt,
+					pushes: 1,
+					res: chain[chain.length - 1]?.res ?? null,
+				},
+				entry,
+				pinOf,
+			),
+		);
+	}
+	const listed = new Set(versions.map((version) => version.hash));
 	for (const { info, picked } of pins.pins) {
-		if (picked && !visited.has(info.id)) {
-			versions.push(toVersion(info, undated(info), picked, labels));
-		}
+		if (!picked || listed.has(picked.hash)) continue;
+		listed.add(picked.hash);
+		versions.push(toVersion(info, undated(info), picked, pinOf));
 	}
 	return versions;
 }
@@ -328,11 +350,13 @@ function undated({ createdAt }: Pick<Meta, "createdAt">): Dating {
 	return { at: createdAt, firstAt: createdAt, pushes: 1, res: null };
 }
 
+type PinsByHash = ReadonlyMap<string, Pick<PinInfo, "id" | "label">>;
+
 function toVersion(
 	meta: Meta,
 	dating: Dating,
 	entry: ManifestEntry,
-	labels: ReadonlyMap<string, string | undefined>,
+	pinOf: PinsByHash,
 ): FileVersion {
 	return {
 		...dating,
@@ -344,8 +368,9 @@ function toVersion(
 		createdAt: meta.createdAt,
 		deviceId: meta.deviceId,
 		deviceName: meta.deviceName,
-		pinned: labels.has(meta.id),
-		label: labels.get(meta.id),
+		pinId: pinOf.get(entry.hash)?.id ?? null,
+		label: pinOf.get(entry.hash)?.label,
 		first: false,
+		replayable: false,
 	};
 }

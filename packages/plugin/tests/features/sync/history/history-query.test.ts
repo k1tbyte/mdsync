@@ -249,9 +249,26 @@ describe("getFileHistory", () => {
 
 		const versions = await historyOf(storage, "a.md");
 		expect(versions.map((v) => v.hash)).toEqual(["A2", "A1"]);
-		// The A1 version is attributed to the newest snapshot holding it.
-		expect(versions.map((v) => v.snapshotId)).toEqual(["s3", "s2"]);
-		expect(versions.map((v) => v.createdAt)).toEqual([300, 200]);
+		// Each version is dated by the push that wrote it.
+		expect(versions.map((v) => v.snapshotId)).toEqual(["s3", "s1"]);
+		expect(versions.map((v) => v.createdAt)).toEqual([300, 100]);
+	});
+
+	it("marks a version pinned by the pin that holds its content", async () => {
+		const chain = [
+			manifest("s1", null, { "a.md": entry("A1") }, 100),
+			manifest("s2", "s1", { "a.md": entry("A2") }, 200),
+			manifest("s3", "s2", { "a.md": entry("A2"), "b.md": entry("B1") }, 300),
+		];
+		const storage = await seed(chain);
+		await pinSnapshot(storage, key, chain[2] as Manifest, "release");
+
+		const versions = await historyOf(storage, "a.md");
+		// Unpin and rename must reach s3's pin, not the s2 that wrote A2.
+		expect(versions.map((v) => [v.snapshotId, v.pinId, v.label])).toEqual([
+			["s2", "s3", "release"],
+			["s1", null, undefined],
+		]);
 	});
 
 	it("marks the version that created the file, in each of its lifetimes", async () => {
@@ -329,10 +346,10 @@ describe("getFileHistory", () => {
 		await pinSnapshot(storage, key, chain[1] as Manifest, "keeper");
 
 		const versions = await historyOf(storage, "a.md");
-		expect(versions.map((v) => [v.hash, v.pinned, v.label])).toEqual([
-			["A3", false, undefined],
-			["A2", true, "keeper"],
-			["A1", false, undefined],
+		expect(versions.map((v) => [v.hash, v.pinId, v.label])).toEqual([
+			["A3", null, undefined],
+			["A2", "s2", "keeper"],
+			["A1", null, undefined],
 		]);
 	});
 
@@ -348,10 +365,15 @@ describe("getFileHistory", () => {
 		await pinSnapshot(storage, key, chain[0] as Manifest);
 
 		const versions = await historyOf(storage, "a.md");
-		expect(versions.map((v) => v.hash)).toEqual(["A3", "A1"]);
-		expect(versions[0]?.pinned).toBe(false);
-		expect(versions[1]?.pinned).toBe(true);
-		expect(versions[1]?.snapshotId).toBe("s1");
+		// A2 is s3's parent state, known only to precede s3, so it is dated there; replay cannot rebuild s2.
+		expect(
+			versions.map((v) => [v.hash, v.snapshotId, v.pinId, v.replayable]),
+		).toEqual([
+			["A3", "s3", null, true],
+			["A2", "s2", null, false],
+			["A1", "s1", "s1", false],
+		]);
+		expect(versions[1]?.at).toBe(versions[0]?.firstAt);
 	});
 
 	it("keeps to what a corrupt record leaves reachable", async () => {
@@ -366,8 +388,9 @@ describe("getFileHistory", () => {
 			crypto.getRandomValues(new Uint8Array(64)),
 		);
 
+		// s3's record still names A2; nothing older is known.
 		const versions = await historyOf(storage, "a.md");
-		expect(versions.map((v) => v.hash)).toEqual(["A3"]);
+		expect(versions.map((v) => v.hash)).toEqual(["A3", "A2"]);
 	});
 
 	it("serves the current version while HEAD has no record", async () => {

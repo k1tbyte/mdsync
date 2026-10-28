@@ -90,6 +90,11 @@ export function keptUntil(at: number, horizon: number | null): number | null {
 		: groupEnd("counts", groupStart("counts", at)) + horizon;
 }
 
+/** Records before this are past `keptUntil`: once GC runs, only counts and pins hold them. */
+export function countsBefore(now: number, horizon: number): number {
+	return groupStart("counts", now - horizon);
+}
+
 /** The coarsest resolution whose group around `at` is due; null while it is too fresh to pack. */
 export function dueResolution(
 	at: number,

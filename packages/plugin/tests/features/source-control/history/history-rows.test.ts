@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { ageTitle } from "@/features/source-control/history/age-groups";
+import { formatDay } from "@/core/shared";
+import {
+	ageTitle,
+	clockTime,
+} from "@/features/source-control/history/age-groups";
 import { buildHistoryRows } from "@/features/source-control/history/history-rows";
 import type { FileVersion } from "@/features/sync/history/types";
 import type { EFileKind } from "@/features/sync/types";
@@ -17,8 +21,9 @@ function version(overrides: Partial<FileVersion> = {}): FileVersion {
 		kind: KIND,
 		createdAt: NOW - DAY,
 		deviceId: "device-abcdef123456",
-		pinned: false,
+		pinId: null,
 		first: false,
+		replayable: true,
 		at: NOW - DAY,
 		firstAt: NOW - DAY,
 		pushes: 1,
@@ -83,20 +88,20 @@ describe("buildHistoryRows", () => {
 
 	it("prefers a pin's name over the timestamp, but keeps both apart", () => {
 		const [row] = buildHistoryRows(
-			[version({ pinned: true, label: "  before the rewrite  " })],
+			[version({ pinId: "p1", label: "  before the rewrite  " })],
 			{ now: NOW },
 		);
 		expect(row?.title).toBe("before the rewrite");
 		expect(row?.label).toBe("before the rewrite");
-		// The age leaves the title, so it moves to the meta line.
-		expect(row?.meta).toContain("1 day ago");
+		// Pins sit apart from their day, so the meta carries it.
+		expect(row?.meta).toBe(`${formatDay(NOW - DAY, NOW)} · Device device-a`);
 		// The diff pane still names the version by age, not by the pin.
 		expect(row?.version.label).toBe("1 day ago");
 	});
 
 	it("falls back to the timestamp when a pin has no name", () => {
-		const [row] = buildHistoryRows([version({ pinned: true })], { now: NOW });
-		expect(row?.title).toBe("1 day ago");
+		const [row] = buildHistoryRows([version({ pinId: "p1" })], { now: NOW });
+		expect(row?.title).toBe(clockTime(NOW - DAY));
 		expect(row?.label).toBe("");
 	});
 
@@ -105,10 +110,10 @@ describe("buildHistoryRows", () => {
 	});
 
 	it("treats a whitespace-only pin name as no name at all", () => {
-		const [row] = buildHistoryRows([version({ pinned: true, label: "   " })], {
+		const [row] = buildHistoryRows([version({ pinId: "p1", label: "   " })], {
 			now: NOW,
 		});
-		expect(row?.title).toBe("1 day ago");
+		expect(row?.title).toBe(clockTime(NOW - DAY));
 		expect(row?.label).toBe("");
 	});
 
@@ -118,6 +123,17 @@ describe("buildHistoryRows", () => {
 			{ now: NOW },
 		);
 		expect(rows.map((r) => r.isLatest)).toEqual([true, false]);
+	});
+
+	it("says how many pushes a version stands for, and which one created the file", () => {
+		const rows = buildHistoryRows(
+			[version({ pushes: 3, res: "10m" }), version({ first: true })],
+			{ now: NOW },
+		);
+		expect(rows.map((row) => row.meta)).toEqual([
+			"Device device-a · last of 3 pushes",
+			"Device device-a · first version",
+		]);
 	});
 
 	it("names this device instead of showing a raw id", () => {

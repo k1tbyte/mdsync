@@ -1,11 +1,13 @@
 import { seeded } from "@tests/helpers/seeded";
 import { describe, expect, it } from "vitest";
 import {
+	countsBefore,
 	dueResolution,
 	groupEnd,
 	groupStart,
 	isDue,
 	keepStart,
+	keptUntil,
 	RESOLUTIONS,
 } from "@/features/sync/history/model/periods";
 
@@ -76,5 +78,11 @@ describe("history periods", () => {
 				previous = index;
 			}
 		}
+	});
+
+	it("puts every record before countsBefore past keptUntil, and none after", () => {
+		const cutoff = countsBefore(NOW, QUARTER);
+		expect(keptUntil(cutoff - 1, QUARTER)).toBeLessThanOrEqual(NOW);
+		expect(keptUntil(cutoff, QUARTER)).toBeGreaterThan(NOW);
 	});
 });

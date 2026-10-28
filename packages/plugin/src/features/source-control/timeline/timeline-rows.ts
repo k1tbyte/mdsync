@@ -9,7 +9,7 @@ import type {
 	SnapshotSummary,
 	VaultRestorePlan,
 } from "@/features/sync";
-import { ageTitle } from "../history/age-groups";
+import { ageTitle, lastOf } from "../history/age-groups";
 
 export interface TimelineFileRow {
 	path: string;
@@ -62,10 +62,7 @@ export function buildTimelineRows(
 			at: snapshot.at,
 			res: snapshot.res,
 			title: label || ageTitle(snapshot, now),
-			meta:
-				snapshot.pushes > 1
-					? `last of ${pluralize(snapshot.pushes, "push", "pushes")}`
-					: null,
+			meta: lastOf(snapshot.pushes),
 			tooltip: formatTimestamp(snapshot.at),
 			...summaryOf(changes),
 			pinned: snapshot.pinned,

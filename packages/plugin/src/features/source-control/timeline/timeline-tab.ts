@@ -12,7 +12,6 @@ import {
 	type ActivityCalendar,
 	buildCalendar,
 	type CalendarDay,
-	RESOLUTION_TEXT,
 	renderActivityCalendar,
 	type SnapshotListResult,
 } from "@/features/sync";
@@ -20,6 +19,7 @@ import { ageTitle, groupByAge } from "../history/age-groups";
 import { HistoryList } from "../history/history-list";
 import { RowPager } from "../history/row-pager";
 import type { SourceControlHost } from "../host";
+import { renderAgeHeader } from "../row-parts";
 import {
 	renderEmptyState,
 	renderHistoryOff,
@@ -276,13 +276,7 @@ export class TimelineTab {
 		}
 		const ctx = this.cardContext(query);
 		for (const group of groupByAge(shown)) {
-			const header = el.createDiv({ cls: "mdsync-timeline-day" });
-			header.createSpan({ text: group.label });
-			if (group.chip)
-				header.createSpan({
-					cls: "mdsync-timeline-res",
-					text: RESOLUTION_TEXT[group.chip],
-				});
+			renderAgeHeader(el, group);
 			for (const row of group.rows) renderSessionCard(el, row, ctx);
 		}
 		if (result.truncated)
