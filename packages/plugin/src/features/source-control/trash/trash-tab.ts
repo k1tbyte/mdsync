@@ -1,5 +1,12 @@
-import { Menu, Platform, setIcon, TFile, TFolder } from "obsidian";
-import { pluralize } from "@/core/shared";
+import {
+	Menu,
+	Platform,
+	SearchComponent,
+	setIcon,
+	TFile,
+	TFolder,
+} from "obsidian";
+import { HISTORY_KEEP_TEXT } from "@/core/constants";
 import {
 	appendIconButton,
 	attempt,
@@ -39,7 +46,9 @@ export class TrashTab implements SelectionSource {
 	);
 	/** Selected row paths; pruned to the rows the latest render produced. */
 	private readonly selected = new Set<string>();
+	/** The rows the filter shows: Select all and restore act on these alone. */
 	private rows: TrashRow[] = [];
+	private query = "";
 	private readonly pager = new RowPager();
 	private bar: SelectionBar | null = null;
 	private selectAll: HTMLInputElement | null = null;
@@ -148,23 +157,80 @@ export class TrashTab implements SelectionSource {
 			inVault: (path) =>
 				this.plugin.app.vault.getAbstractFileByPath(path) instanceof TFile,
 		});
-		this.rows = rows;
-		this.pruneSelection();
 		if (rows.length === 0) {
+			this.rows = rows;
+			this.pruneSelection();
 			// The warnings above already say why the list is short; do not contradict them.
 			if (!incomplete) {
 				renderEmptyState(body, {
 					icon: "circle-check",
 					tone: "success",
 					title: "Nothing to restore",
-					text: "Nothing deleted within history. Deletions older than it are gone unless a pinned snapshot holds them.",
+					text: this.isKeptForGood()
+						? "Nothing deleted in the kept history."
+						: `Nothing deleted in the last ${this.keepText()}. Older deletions drop out unless a pinned snapshot holds them.`,
 				});
 			}
 			return;
 		}
-		this.renderListHead(body);
-		for (const row of this.pager.slice(rows)) this.renderRow(body, row);
-		this.pager.render(body, rows.length, this.onRerender);
+		const bar = body.createDiv({ cls: "mdsync-timeline-filter" });
+		const list = body.createDiv({ cls: "mdsync-deleted-list" });
+		// Typing redraws the list alone, so the field keeps its focus.
+		const redraw = (): void => {
+			list.empty();
+			this.renderRows(list, rows, incomplete);
+		};
+		new SearchComponent(bar)
+			.setPlaceholder("Filter by path or folder")
+			.setValue(this.query)
+			.onChange((value) => {
+				this.query = value;
+				redraw();
+			})
+			.inputEl.setAttr("aria-label", "Filter deleted files by path");
+		redraw();
+	}
+
+	/** A filter drops the rows it hides from the selection. */
+	private renderRows(
+		list: HTMLElement,
+		rows: readonly TrashRow[],
+		incomplete: boolean,
+	): void {
+		const query = this.query.trim().toLowerCase();
+		this.rows = rows.filter((row) => row.path.toLowerCase().includes(query));
+		this.pruneSelection();
+		this.selectAll = null;
+		if (this.rows.length === 0) {
+			renderEmptyState(list, {
+				icon: "search-x",
+				tone: "muted",
+				title: `No deleted files match ${this.query.trim()}`,
+				text: incomplete
+					? "Nothing under this path was deleted in the history that can be read."
+					: "Nothing under this path was deleted in the kept history.",
+				action: {
+					text: "Clear filter",
+					run: () => {
+						this.query = "";
+						this.onRerender();
+					},
+				},
+			});
+		} else {
+			this.renderListHead(list);
+			for (const row of this.pager.slice(this.rows)) this.renderRow(list, row);
+			this.pager.render(list, this.rows.length, this.onRerender);
+		}
+		this.selectionChanged();
+	}
+
+	private isKeptForGood(): boolean {
+		return this.plugin.settings.fileHistoryKeep === "forever";
+	}
+
+	private keepText(): string {
+		return HISTORY_KEEP_TEXT[this.plugin.settings.fileHistoryKeep];
 	}
 
 	private renderListHead(body: HTMLElement): void {
@@ -182,8 +248,10 @@ export class TrashTab implements SelectionSource {
 		});
 		this.selectAll = box;
 		head.createSpan({
-			cls: "mdsync-deleted-count",
-			text: `${pluralize(this.rows.length, "file")} history still holds`,
+			cls: "mdsync-deleted-kept",
+			text: this.isKeptForGood()
+				? "Kept for good"
+				: `Kept ${this.keepText()} after deletion`,
 		});
 	}
 

@@ -42,9 +42,11 @@ export interface PluginHost {
 	resetLocalState(): Promise<void>;
 	refreshEditorSigns(enabled: boolean): void;
 	refreshFileIndicators(enabled: boolean): void;
-	refreshSourceControlView(): void;
+	refreshSourceControlView(history?: boolean): void;
 	/** The setup wizard, at `step` or where this device's setup stopped. */
 	openSetup(step?: ESetupStep): void;
 	openSourceControl(): Promise<void>;
 	openChanges(): Promise<void>;
+	/** The Timeline on the local day starting at `day`, else as it was left. */
+	openTimeline(day?: number): Promise<void>;
 }

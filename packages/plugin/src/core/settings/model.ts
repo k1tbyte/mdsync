@@ -52,6 +52,7 @@ export interface CoreSettings {
 	bulkDeleteLimit: number;
 	fileHistoryEnabled: boolean;
 	fileHistoryKeep: HistoryKeep;
+	fileHistoryActivity: boolean;
 	historyAutoRefresh: boolean;
 	realtimeSync: boolean;
 	/** Notes open in the editor edit together across devices, over the relay. */
@@ -110,6 +111,7 @@ export const DEFAULT_CORE_SETTINGS: CoreSettings = {
 	bulkDeleteLimit: 5,
 	fileHistoryEnabled: false,
 	fileHistoryKeep: "quarter",
+	fileHistoryActivity: true,
 	historyAutoRefresh: true,
 	realtimeSync: false,
 	liveEditing: true,

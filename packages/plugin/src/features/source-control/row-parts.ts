@@ -1,4 +1,19 @@
 import { formatBytes } from "@/core/shared";
+import { RESOLUTION_TEXT, type Resolution } from "@/features/sync";
+
+/** A group's heading, with the resolution its versions are kept at where that changes. */
+export function renderAgeHeader(
+	parent: HTMLElement,
+	{ label, chip }: { label: string; chip: Resolution | null },
+): void {
+	const header = parent.createDiv({ cls: "mdsync-timeline-day" });
+	header.createSpan({ text: label });
+	if (chip)
+		header.createSpan({
+			cls: "mdsync-timeline-res",
+			text: RESOLUTION_TEXT[chip],
+		});
+}
 
 /** The compact size badge: signed delta stacked over the current size. */
 export function renderSize(

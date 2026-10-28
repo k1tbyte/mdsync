@@ -17,8 +17,16 @@ export {
 	splitSpaceErrors,
 } from "./controller";
 export type { CompareResult, EngineDependencies } from "./engine";
+export { composeChanges } from "./history/changes";
+export {
+	countsBefore,
+	keepSize,
+	RESOLUTIONS,
+} from "./history/model/periods";
+export type { Activity, Resolution } from "./history/model/types";
 export type { VaultRestorePlan } from "./history/restore-vault";
 export type {
+	Dating,
 	DeletedFile,
 	DeletedFilesResult,
 	FileVersion,
@@ -112,6 +120,14 @@ export {
 } from "./types";
 export { type ChangeAction, changeActionOf } from "./ui/change-action";
 export { encryptionSection } from "./ui/encryption-section";
+export { renderActivityCalendar } from "./ui/history/activity-calendar";
+export {
+	type ActivityCalendar,
+	buildCalendar,
+	type CalendarDay,
+	RESOLUTION_TEXT,
+} from "./ui/history/calendar";
+export { renderHistoryHolds } from "./ui/history/holds-row";
 export {
 	addIgnoreMenuItem,
 	carryVaultIgnores,

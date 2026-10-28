@@ -23,7 +23,7 @@ export function addSnapshotPinItems(
 				label,
 			);
 			onChanged();
-			notifyInfo(pinned ? "Snapshot pinned." : "Snapshot unpinned.");
+			notifyInfo(pinned ? "Version pinned." : "Version unpinned.");
 		} catch (error) {
 			notifyError("Could not update pin", error);
 		}
@@ -31,7 +31,7 @@ export function addSnapshotPinItems(
 	if (!snapshot.pinned) {
 		menu.addItem((item) =>
 			item
-				.setTitle("Pin this snapshot")
+				.setTitle("Pin this version")
 				.setIcon("pin")
 				.setDisabled(!canPin)
 				.onClick(() => void update(true)),

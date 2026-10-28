@@ -40,6 +40,7 @@ import {
 } from "@/features/setup";
 import {
 	openSourceControlChanges,
+	openSourceControlTimeline,
 	openSourceControlView,
 	refreshSourceControlViews,
 } from "@/features/source-control";
@@ -241,8 +242,8 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		this.fileIndicators?.refresh(enabled);
 	}
 
-	refreshSourceControlView(): void {
-		refreshSourceControlViews(this.app);
+	refreshSourceControlView(history?: boolean): void {
+		refreshSourceControlViews(this.app, history);
 	}
 
 	openSetup(step?: ESetupStep): void {
@@ -260,6 +261,10 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 
 	openChanges(): Promise<void> {
 		return openSourceControlChanges(this);
+	}
+
+	openTimeline(day?: number): Promise<void> {
+		return openSourceControlTimeline(this, day);
 	}
 
 	scheduleScopeRefresh(reason?: string): void {

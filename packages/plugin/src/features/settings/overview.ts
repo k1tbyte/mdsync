@@ -15,6 +15,7 @@ import {
 	storageIdentity,
 } from "@/features/storage";
 import { canSync, isGuest, VAULT_SPACE } from "@/features/sync";
+import { renderActivityCard } from "./activity-card";
 import type { SettingsTabHost } from "./host";
 
 type Tone = "ok" | "muted" | "warning" | "error";
@@ -68,6 +69,7 @@ export function overviewGroup(
 						renderCard(grid, relayCard(plugin));
 					};
 					draw();
+					renderActivityCard(root, plugin);
 					const { hub, people } = plugin.realtime;
 					const stops = [
 						plugin.controller.subscribe(draw),

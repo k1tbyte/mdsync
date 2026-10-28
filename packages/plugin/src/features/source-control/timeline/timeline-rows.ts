@@ -1,15 +1,15 @@
-import { formatRelativeTime, formatTimestamp, pluralize } from "@/core/shared";
+import { formatTimestamp, pluralize } from "@/core/shared";
 import type { HistoryDiffTarget } from "@/features/diff";
 import type {
 	ChangeAction,
 	HistoryVersionRef,
 	ManifestEntry,
+	Resolution,
 	SnapshotChanges,
 	SnapshotSummary,
 	VaultRestorePlan,
 } from "@/features/sync";
-import { deviceText } from "../changes/row-formatter";
-import { timeInDay } from "../history/day-groups";
+import { ageTitle, lastOf } from "../history/age-groups";
 
 export interface TimelineFileRow {
 	path: string;
@@ -23,73 +23,82 @@ export interface TimelineFileRow {
 	sizeDelta?: number;
 }
 
-export interface TimelineRow {
-	snapshotId: string;
-	createdAt: number;
-	title: string;
-	meta: string;
-	tooltip: string;
+/** What a card says of its changes; all null without a change record. */
+export interface ChangeSummary {
 	counts: string | null;
-	/** Files per kind of change, the non-zero ones; null without a change record. */
+	/** Files per kind of change, the non-zero ones. */
 	tally: Array<[ChangeAction, number]> | null;
-	/** Net bytes the push moved, signed. Null when it moved none, or is unknown. */
+	/** Net bytes moved, signed; null when none moved. */
 	netDelta: number | null;
+	fileCount: number | null;
+}
+
+/** One version: a push, or the last push of a period. */
+export interface TimelineRow extends ChangeSummary {
+	snapshotId: string;
+	at: number;
+	res: Resolution | null;
+	title: string;
+	/** "last of 3 pushes" where the version stands for several. */
+	meta: string | null;
+	tooltip: string;
 	pinned: boolean;
 	isHead: boolean;
 	restorable: boolean;
 	label: string;
+	changes: SnapshotChanges | null;
 	files: TimelineFileRow[] | null;
-}
-
-export interface TimelineRowOptions {
-	now?: number;
-	currentDevice?: { id: string; name: string } | null;
 }
 
 export function buildTimelineRows(
 	snapshots: readonly SnapshotSummary[],
-	options: TimelineRowOptions = {},
+	now: number = Date.now(),
 ): TimelineRow[] {
-	const now = options.now ?? Date.now();
 	return snapshots.map((snapshot) => {
-		const relative = formatRelativeTime(snapshot.createdAt, now);
 		const label = snapshot.label?.trim() ?? "";
-		const device = deviceText(snapshot, options.currentDevice);
+		const changes = snapshot.files;
 		return {
 			snapshotId: snapshot.id,
-			createdAt: snapshot.createdAt,
-			title:
-				label ||
-				(snapshot.pinned ? relative : timeInDay(snapshot.createdAt, now)),
-			// A pin's name replaces the age in the title, and pins sit apart from their day.
-			meta: label ? `${relative} · ${device}` : device,
-			tooltip: formatTimestamp(snapshot.createdAt),
-			counts: countsText(snapshot),
-			tally: snapshot.files ? tallyOf(snapshot.files) : null,
-			netDelta: (snapshot.files && netBytes(snapshot.files)) || null,
+			at: snapshot.at,
+			res: snapshot.res,
+			title: label || ageTitle(snapshot, now),
+			meta: lastOf(snapshot.pushes),
+			tooltip: formatTimestamp(snapshot.at),
+			...summaryOf(changes),
 			pinned: snapshot.pinned,
 			isHead: snapshot.isHead,
 			restorable: snapshot.restorable,
 			label,
+			changes,
 			// Only expanded cards read it, so the rows of a collapsed push are never built.
 			get files() {
-				return snapshot.files
-					? fileRowsOf(snapshot.files, snapshot.createdAt)
-					: null;
+				return changes ? fileRowsOf(changes, snapshot.at) : null;
 			},
 		};
 	});
 }
 
+export function summaryOf(changes: SnapshotChanges | null): ChangeSummary {
+	if (!changes)
+		return { counts: null, tally: null, netDelta: null, fileCount: null };
+	const tally = tallyOf(changes);
+	return {
+		counts: countsText(changes),
+		tally,
+		netDelta: netBytes(changes) || null,
+		fileCount: tally.reduce((sum, [, count]) => sum + count, 0),
+	};
+}
+
 const fileRowCache = new WeakMap<SnapshotChanges, TimelineFileRow[]>();
 
-function fileRowsOf(
+export function fileRowsOf(
 	changes: SnapshotChanges,
-	createdAt: number,
+	at: number,
 ): TimelineFileRow[] {
 	let rows = fileRowCache.get(changes);
 	if (!rows) {
-		rows = buildFileRows(changes, createdAt);
+		rows = buildFileRows(changes, at);
 		fileRowCache.set(changes, rows);
 	}
 	return rows;
@@ -97,11 +106,11 @@ function fileRowsOf(
 
 function buildFileRows(
 	changes: SnapshotChanges,
-	createdAt: number,
+	at: number,
 ): TimelineFileRow[] {
 	const rows: TimelineFileRow[] = [];
 	for (const [path, entry] of Object.entries(changes.added)) {
-		const after = versionRef(entry, createdAt, "after push");
+		const after = versionRef(entry, at, "after push");
 		rows.push({
 			path,
 			action: "add",
@@ -112,8 +121,8 @@ function buildFileRows(
 		});
 	}
 	for (const [path, change] of Object.entries(changes.modified)) {
-		const before = versionRef(change.from, createdAt, "before push");
-		const after = versionRef(change.to, createdAt, "after push");
+		const before = versionRef(change.from, at, "before push");
+		const after = versionRef(change.to, at, "after push");
 		rows.push({
 			path,
 			action: "modify",
@@ -125,14 +134,20 @@ function buildFileRows(
 		});
 	}
 	for (const [path, entry] of Object.entries(changes.deleted)) {
-		const before = versionRef(entry, createdAt, "before push");
+		// A merged record keeps the parent's entry for replay; the content right before the deletion is `deletedLast`.
+		const last =
+			(changes.deletedLast &&
+				Object.hasOwn(changes.deletedLast, path) &&
+				changes.deletedLast[path]) ||
+			entry;
+		const before = versionRef(last, at, "before push");
 		rows.push({
 			path,
 			action: "delete",
 			version: before,
 			before,
 			after: null,
-			size: entry.size,
+			size: last.size,
 		});
 	}
 	return rows.sort((a, b) => a.path.localeCompare(b.path));
@@ -150,13 +165,13 @@ function netBytes(changes: SnapshotChanges): number {
 
 function versionRef(
 	entry: ManifestEntry,
-	createdAt: number,
+	at: number,
 	suffix: string,
 ): HistoryVersionRef {
 	return {
 		hash: entry.hash,
 		size: entry.size,
-		label: `${formatTimestamp(createdAt)} (${suffix})`,
+		label: `${formatTimestamp(at)} (${suffix})`,
 	};
 }
 
@@ -170,9 +185,9 @@ function tallyOf(changes: SnapshotChanges): Array<[ChangeAction, number]> {
 }
 
 /** "+3 new · 2 changed · 1 removed", dropping the parts that are zero. */
-export function countsText(snapshot: SnapshotSummary): string | null {
-	if (!snapshot.files) return null;
-	const parts = tallyOf(snapshot.files).map(([action, count]) =>
+export function countsText(changes: SnapshotChanges | null): string | null {
+	if (!changes) return null;
+	const parts = tallyOf(changes).map(([action, count]) =>
 		COUNT_WORDS[action](count),
 	);
 	return parts.length > 0 ? parts.join(" · ") : "no file changes";

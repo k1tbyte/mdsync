@@ -53,6 +53,7 @@ const TRANSFER_FIELDS = {
 		shareEditsWait: "w",
 		fileHistoryEnabled: "h",
 		fileHistoryKeep: "y",
+		fileHistoryActivity: "f",
 		historyAutoRefresh: "r",
 	},
 	l: {

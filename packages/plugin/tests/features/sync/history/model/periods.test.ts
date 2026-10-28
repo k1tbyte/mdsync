@@ -1,12 +1,15 @@
 import { seeded } from "@tests/helpers/seeded";
 import { describe, expect, it } from "vitest";
 import {
+	countsBefore,
 	dueResolution,
 	groupEnd,
 	groupStart,
 	isDue,
 	keepStart,
+	keptUntil,
 	RESOLUTIONS,
+	stagesOf,
 } from "@/features/sync/history/model/periods";
 
 const MINUTE = 60_000;
@@ -76,5 +79,35 @@ describe("history periods", () => {
 				previous = index;
 			}
 		}
+	});
+
+	it("stages exactly the resolutions a record reaches, none younger than its start", () => {
+		const random = seeded(5);
+		for (const horizon of [7 * DAY, 30 * DAY, QUARTER, null]) {
+			const youngest = new Map<string, number>();
+			for (let i = 0; i < 20; i++) {
+				const at = NOW - Math.floor(random() * 365 * DAY);
+				for (
+					let age = 0;
+					age < (horizon ?? 0) + 120 * DAY;
+					age += 30 * MINUTE
+				) {
+					const res = dueResolution(at, at + age, horizon) ?? "push";
+					youngest.set(res, Math.min(youngest.get(res) ?? age, age));
+				}
+			}
+			const stages = stagesOf(horizon);
+			expect([...youngest.keys()].sort()).toEqual(
+				stages.map((stage) => stage.res).sort(),
+			);
+			for (const { res, from } of stages)
+				expect(youngest.get(res)).toBeGreaterThanOrEqual(from);
+		}
+	});
+
+	it("puts every record before countsBefore past keptUntil, and none after", () => {
+		const cutoff = countsBefore(NOW, QUARTER);
+		expect(keptUntil(cutoff - 1, QUARTER)).toBeLessThanOrEqual(NOW);
+		expect(keptUntil(cutoff, QUARTER)).toBeGreaterThan(NOW);
 	});
 });

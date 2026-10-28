@@ -192,6 +192,17 @@ export class SourceControlView extends ItemView {
 		this.render(this.plugin.controller.getSnapshot(), true);
 	}
 
+	/** On `day`, else as it was left. */
+	showTimeline(day?: number): void {
+		if (day === undefined) {
+			this.activateTab(ESourceTab.Timeline);
+			return;
+		}
+		this.tab = ESourceTab.Timeline;
+		this.timelineTab.showDay(day);
+		this.render(this.plugin.controller.getSnapshot(), true);
+	}
+
 	showChanges(): void {
 		this.activateTab(ESourceTab.Changes);
 	}

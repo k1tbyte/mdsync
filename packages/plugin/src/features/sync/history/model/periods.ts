@@ -65,6 +65,11 @@ export function keepStart(res: Resolution, at: number): number | null {
 	return keep ? floorTo(at, keep) : null;
 }
 
+/** How much time one kept version stands for; null while every push stays. */
+export function keepSize(res: Resolution): number | null {
+	return RUNGS[res].keep?.size ?? null;
+}
+
 /** `horizon` in ms, null to keep forever. */
 export function isDue(
 	res: Resolution,
@@ -83,6 +88,33 @@ export function keptUntil(at: number, horizon: number | null): number | null {
 	return horizon === null
 		? null
 		: groupEnd("counts", groupStart("counts", at)) + horizon;
+}
+
+export interface Stage {
+	res: Resolution;
+	from: number;
+}
+
+/**
+ * What a record thins through with age, each from the youngest age it may reach it at. A rung due no sooner
+ * than counts never shows: the coarsest due wins.
+ */
+export function stagesOf(horizon: number | null): Stage[] {
+	const counts = RUNGS.counts.group.size;
+	return RESOLUTIONS.flatMap((res): Stage[] => {
+		const { settle, group } = RUNGS[res];
+		if (res === "push") return [{ res, from: 0 }];
+		if (settle === "horizon")
+			return horizon === null ? [] : [{ res, from: horizon }];
+		return horizon !== null && settle >= horizon + counts - group.size
+			? []
+			: [{ res, from: settle }];
+	});
+}
+
+/** Records before this are past `keptUntil`: once GC runs, only counts and pins hold them. */
+export function countsBefore(now: number, horizon: number): number {
+	return groupStart("counts", now - horizon);
 }
 
 /** The coarsest resolution whose group around `at` is due; null while it is too fresh to pack. */

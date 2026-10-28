@@ -1,5 +1,6 @@
 export { type HubChannel, HubLink } from "./link";
 export {
+	closePluginSettings,
 	openPluginSettings,
 	RELAY_TEXT,
 	type RelayFix,

@@ -19,6 +19,7 @@ function service(
 ) {
 	const logWarn = vi.fn(() => Promise.resolve());
 	const logInfo = vi.fn(() => Promise.resolve());
+	const remember = vi.fn();
 	const queued: Promise<unknown>[] = [];
 	const maintenance = new MaintenanceService({
 		openSession: async (space) =>
@@ -36,15 +37,21 @@ function service(
 		},
 		logInfo,
 		logWarn,
+		remember,
 	});
 	const settled = () => Promise.all(queued).then(() => undefined);
-	return { maintenance, logWarn, logInfo, settled };
+	return { maintenance, logWarn, logInfo, remember, settled };
 }
 
 beforeEach(() => {
 	vi.useFakeTimers({ toFake: ["Date"] });
 	collect.mockReset();
-	collect.mockResolvedValue({ written: 0, retired: 0, swept: 0 });
+	collect.mockResolvedValue({
+		written: 0,
+		retired: 0,
+		swept: 0,
+		activity: null,
+	});
 });
 afterEach(() => {
 	vi.useRealTimers();
@@ -59,6 +66,19 @@ describe("MaintenanceService.afterPush", () => {
 		maintenance.afterPush(VAULT_SPACE);
 		await settled();
 		expect(collect).toHaveBeenCalledTimes(2);
+	});
+
+	it("remembers the vault's activity, never a share's", async () => {
+		const activity = { 100: [2, 1] as [number, number] };
+		collect.mockResolvedValue({ written: 0, retired: 0, swept: 0, activity });
+		const storage = new FakeStorage();
+		const { maintenance, remember, settled } = service(undefined, storage);
+		maintenance.afterPush({ id: "share", root: "Shared" });
+		maintenance.afterPush(VAULT_SPACE);
+		await settled();
+		expect(remember.mock.calls).toEqual([
+			[storage.identity(), activity, Date.now()],
+		]);
 	});
 
 	it("skips a session with history off and runs nothing once disposed", async () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { clockTime } from "@/features/source-control/history/age-groups";
 import {
 	buildTimelineRows,
 	countsText,
@@ -40,6 +41,10 @@ function snapshot(overrides: Partial<SnapshotSummary> = {}): SnapshotSummary {
 		keptUntil: null,
 		restorable: true,
 		isHead: false,
+		at: NOW - DAY,
+		firstAt: NOW - DAY,
+		pushes: 1,
+		res: "push",
 		...overrides,
 	};
 }
@@ -52,35 +57,31 @@ describe("countsText", () => {
 	it("names only the parts that actually changed", () => {
 		expect(
 			countsText(
-				snapshot({
-					files: changes({
-						added: { a: entry("A1") },
-						modified: {
-							b: { from: entry("B1"), to: entry("B2") },
-							c: { from: entry("C1"), to: entry("C2") },
-						},
-					}),
+				changes({
+					added: { a: entry("A1") },
+					modified: {
+						b: { from: entry("B1"), to: entry("B2") },
+						c: { from: entry("C1"), to: entry("C2") },
+					},
 				}),
 			),
 		).toBe("+1 new · 2 changed");
 	});
 
 	it("says so when a push changed no files", () => {
-		expect(countsText(snapshot({ files: changes() }))).toBe("no file changes");
+		expect(countsText(changes())).toBe("no file changes");
 	});
 
 	it("stays null when no record explains the snapshot", () => {
-		expect(countsText(snapshot({ files: null }))).toBeNull();
+		expect(countsText(null)).toBeNull();
 	});
 
 	it("works with records not arrays", () => {
 		expect(
 			countsText(
-				snapshot({
-					files: changes({
-						added: { x: entry("X1"), y: entry("Y1") },
-						deleted: { z: entry("Z1") },
-					}),
+				changes({
+					added: { x: entry("X1"), y: entry("Y1") },
+					deleted: { z: entry("Z1") },
 				}),
 			),
 		).toBe("+2 new · 1 removed");
@@ -94,24 +95,18 @@ describe("buildTimelineRows", () => {
 				snapshot({ id: "s2", createdAt: NOW, isHead: true }),
 				snapshot({ isHead: false }),
 			],
-			{ now: NOW },
+			NOW,
 		);
 		expect(rows[0]?.isHead).toBe(true);
 		expect(rows[1]?.isHead).toBe(false);
 	});
 
-	it("titles a push from today by age and an older one by its clock time", () => {
-		const rows = buildTimelineRows(
-			[snapshot({ id: "s2", createdAt: NOW - 60_000 }), snapshot()],
-			{ now: NOW },
+	it("titles a push by its storage time, not the device clock", () => {
+		const [row] = buildTimelineRows(
+			[snapshot({ createdAt: NOW - 3 * DAY, at: NOW - 60_000 })],
+			NOW,
 		);
-		expect(rows[0]?.title).toBe("1 minute ago");
-		expect(rows[1]?.title).toBe(
-			new Date(NOW - DAY).toLocaleTimeString(undefined, {
-				hour: "2-digit",
-				minute: "2-digit",
-			}),
-		);
+		expect(row?.title).toBe(clockTime(NOW - 60_000));
 	});
 
 	it("counts each kind of change for the chips, leaving out the empty ones", () => {
@@ -125,7 +120,7 @@ describe("buildTimelineRows", () => {
 					},
 				}),
 			],
-			{ now: NOW },
+			NOW,
 		);
 		expect(row?.tally).toEqual([
 			["add", 1],
@@ -136,7 +131,7 @@ describe("buildTimelineRows", () => {
 	it("real HEAD versus lagging entry", () => {
 		const rows = buildTimelineRows(
 			[snapshot({ id: "old", createdAt: NOW - DAY, isHead: false })],
-			{ now: NOW },
+			NOW,
 		);
 		expect(rows[0]?.isHead).toBe(false);
 	});
@@ -144,19 +139,15 @@ describe("buildTimelineRows", () => {
 	it("prefers a pin's name over the timestamp", () => {
 		const [row] = buildTimelineRows(
 			[snapshot({ pinned: true, label: "  before the rewrite " })],
-			{ now: NOW },
+			NOW,
 		);
 		expect(row?.title).toBe("before the rewrite");
 		expect(row?.pinned).toBe(true);
 		expect(row?.label).toBe("before the rewrite");
-		// The age leaves the title, so it moves to the meta line.
-		expect(row?.meta).toContain("1 day ago");
 	});
 
 	it("carries restorability through untouched", () => {
-		const [row] = buildTimelineRows([snapshot({ restorable: false })], {
-			now: NOW,
-		});
+		const [row] = buildTimelineRows([snapshot({ restorable: false })], NOW);
 		expect(row?.restorable).toBe(false);
 	});
 
@@ -174,7 +165,7 @@ describe("buildTimelineRows", () => {
 					}),
 				}),
 			],
-			{ now: NOW },
+			NOW,
 		);
 		expect(row?.files).toHaveLength(3);
 		const [first, second, third] = row?.files ?? [];
@@ -201,6 +192,27 @@ describe("buildTimelineRows", () => {
 		expect(third?.after?.hash).toBe("N1");
 	});
 
+	it("restores a merged deletion to the content right before it, not the parent's", () => {
+		const [row] = buildTimelineRows(
+			[
+				snapshot({
+					files: changes({
+						deleted: { "a.md": entry("A1", 10) },
+						deletedLast: { "a.md": entry("A2", 30) },
+					}),
+				}),
+			],
+			NOW,
+		);
+		const [file] = row?.files ?? [];
+		expect(file).toMatchObject({
+			action: "delete",
+			version: { hash: "A2", size: 30 },
+			before: { hash: "A2" },
+			size: 30,
+		});
+	});
+
 	it("deletion preserves pre-delete version with size", () => {
 		const [row] = buildTimelineRows(
 			[
@@ -211,7 +223,7 @@ describe("buildTimelineRows", () => {
 					}),
 				}),
 			],
-			{ now: NOW },
+			NOW,
 		);
 		const file = row?.files?.[0];
 		expect(file?.action).toBe("delete");
@@ -229,7 +241,7 @@ describe("buildTimelineRows", () => {
 					}),
 				}),
 			],
-			{ now: NOW },
+			NOW,
 		);
 		const file = row?.files?.[0];
 		expect(file?.action).toBe("add");
@@ -247,7 +259,7 @@ describe("buildTimelineRows", () => {
 					}),
 				}),
 			],
-			{ now: NOW },
+			NOW,
 		);
 		expect(row?.files?.[0]?.path).toBe("constructor");
 	});
@@ -264,7 +276,7 @@ describe("buildTimelineRows", () => {
 					}),
 				}),
 			],
-			{ now: NOW },
+			NOW,
 		);
 		const file = row?.files?.[0];
 		expect(file?.before?.hash).toBe("OLD");
@@ -275,7 +287,7 @@ describe("buildTimelineRows", () => {
 	});
 
 	it("files is null when snapshot has no change record", () => {
-		const [row] = buildTimelineRows([snapshot({ files: null })], { now: NOW });
+		const [row] = buildTimelineRows([snapshot({ files: null })], NOW);
 		expect(row?.files).toBeNull();
 	});
 
@@ -293,7 +305,7 @@ describe("buildTimelineRows", () => {
 					}),
 				}),
 			],
-			{ now: NOW },
+			NOW,
 		);
 		const [modified, deleted, added] = row?.files ?? [];
 		expect(modified?.size).toBe(250);
@@ -317,7 +329,7 @@ describe("buildTimelineRows", () => {
 					}),
 				}),
 			],
-			{ now: NOW },
+			NOW,
 		);
 		// 3072 added, 1024 lost on the edit, 1024 removed.
 		expect(row?.netDelta).toBe(1024);
@@ -334,12 +346,10 @@ describe("buildTimelineRows", () => {
 					}),
 				}),
 			],
-			{ now: NOW },
+			NOW,
 		);
 		expect(even?.netDelta).toBeNull();
-		const [unknown] = buildTimelineRows([snapshot({ files: null })], {
-			now: NOW,
-		});
+		const [unknown] = buildTimelineRows([snapshot({ files: null })], NOW);
 		expect(unknown?.netDelta).toBeNull();
 	});
 });
@@ -464,8 +474,8 @@ describe("buildTimelineRows file rows", () => {
 		const summary = snapshot({
 			files: changes({ added: { "a.md": entry("A1") } }),
 		});
-		const [first] = buildTimelineRows([summary], { now: NOW });
-		const [again] = buildTimelineRows([summary], { now: NOW });
+		const [first] = buildTimelineRows([summary], NOW);
+		const [again] = buildTimelineRows([summary], NOW);
 
 		expect(first?.files).toBe(first?.files);
 		expect(again?.files).toBe(first?.files);

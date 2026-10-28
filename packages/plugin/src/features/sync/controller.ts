@@ -6,6 +6,8 @@ import {
 } from "./automation/auto-push";
 import { clearRemoteTextCache } from "./changes/content";
 import type { EngineDependencies } from "./engine";
+import { ActivityCache, type ActivityStore } from "./history/activity-cache";
+import type { Activity } from "./history/model/types";
 import type { HunkSelection } from "./hunks/hunks";
 import { authorOf, type LastEdit } from "./identity/authors";
 import { defaultDeviceName } from "./identity/device";
@@ -83,6 +85,8 @@ export interface SyncControllerHost {
 		space: Space,
 		partition: readonly Space[],
 	): Promise<EngineDependencies | null>;
+	/** Where the vault's last-read activity is kept on this device; without it nothing is. */
+	activityStore?: ActivityStore;
 	/** A quick local look at the space's files; null where a session would need a prompt. Never reaches the network. */
 	openLocal?: LocalOpener;
 	persistState(state: LocalState): Promise<void>;
@@ -154,10 +158,16 @@ export class SyncController {
 	private localRevision = 0;
 	readonly history: HistoryService;
 	readonly maintenance: MaintenanceService;
+	readonly activity: ActivityCache;
 
 	constructor(host: SyncControllerHost) {
 		this.host = host;
 		this.runtimeState = new SyncControllerRuntimeState();
+		this.activity = new ActivityCache(
+			host.activityStore ?? { load: () => null, save: () => {} },
+		);
+		const remember = (storage: string, activity: Activity, since: number) =>
+			this.activity.remember(storage, activity, since);
 		const open = (space: Space) => this.operations.openSession(space);
 		this.fileDiffs = new FileDiffService({
 			openSession: (path, space) => open(space ?? this.spaceFor(path)),
@@ -200,6 +210,7 @@ export class SyncController {
 				open(path === undefined ? VAULT_SPACE : this.spaceFor(path)),
 			enqueue: (task) => this.runtimeState.enqueue(task),
 			refresh: () => this.operations.refreshNow(),
+			remember,
 		});
 		this.maintenance = new MaintenanceService({
 			openSession: open,
@@ -209,6 +220,7 @@ export class SyncController {
 				this.host.logInfo(operation, message, details),
 			logWarn: (operation, message, details) =>
 				this.host.logWarn(operation, message, details),
+			remember,
 		});
 	}
 
@@ -340,9 +352,12 @@ export class SyncController {
 	}
 
 	async resetRemoteStorage(): Promise<boolean> {
-		return this.operations.runFlow(ESyncLogOperation.Reset, (deps, ctx) =>
-			runResetRemoteStorageFlow(deps, ctx),
+		const reset = await this.operations.runFlow(
+			ESyncLogOperation.Reset,
+			(deps, ctx) => runResetRemoteStorageFlow(deps, ctx),
 		);
+		if (reset) this.activity.forget();
+		return reset;
 	}
 
 	async resetCategory(
@@ -354,9 +369,12 @@ export class SyncController {
 	}
 
 	async adoptNewVault(): Promise<boolean> {
-		return this.operations.runFlow(ESyncLogOperation.Compare, (deps, ctx) =>
-			runAdoptNewVaultFlow(deps, ctx),
+		const adopted = await this.operations.runFlow(
+			ESyncLogOperation.Compare,
+			(deps, ctx) => runAdoptNewVaultFlow(deps, ctx),
 		);
+		if (adopted) this.activity.forget();
+		return adopted;
 	}
 
 	/** Runs between operations: none still running persists over what `task` writes. */

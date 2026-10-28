@@ -16,6 +16,14 @@ export function openSourceControlDeleted(
 	return openSourceControlOn(plugin, (view) => view.showDeleted());
 }
 
+/** The Timeline filtered to the local day starting at `day`. */
+export function openSourceControlTimeline(
+	plugin: SourceControlHost,
+	day?: number,
+): Promise<void> {
+	return openSourceControlOn(plugin, (view) => view.showTimeline(day));
+}
+
 /** An open view keeps its tab; conflicts are only on Changes. */
 export function openSourceControlChanges(
 	plugin: SourceControlHost,
@@ -94,8 +102,12 @@ export function refreshHistoryAfterPush(plugin: SourceControlHost): void {
 	for (const view of openViews(plugin.app)) view.refreshHistory();
 }
 
-export function refreshSourceControlViews(app: App): void {
-	for (const view of openViews(app)) view.refreshDisplaySettings();
+/** `history` also drops loaded history: a new horizon changes every date it computed. */
+export function refreshSourceControlViews(app: App, history = false): void {
+	for (const view of openViews(app)) {
+		if (history) view.refreshHistory();
+		else view.refreshDisplaySettings();
+	}
 }
 
 function openViews(app: App): SourceControlView[] {
