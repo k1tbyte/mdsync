@@ -34,7 +34,8 @@ describe("excalidraw codec", () => {
 			elements: [{ id: "a", text: "x".repeat(8 * 1024 * 1024) }],
 		});
 		expect(encodeDrawing(bytesOf(compressedDrawing(json)))).toBeNull();
-	});
+		// Compressing 8 MB takes seconds, past the default timeout in a loaded suite.
+	}, 30_000);
 
 	it("stores the scene as plain JSON and rebuilds the file byte for byte", () => {
 		const json = sceneJson(60);
