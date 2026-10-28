@@ -6,6 +6,7 @@
 import {
 	bytesToText,
 	loadBaselineText,
+	loadLocalCopy,
 	loadRemoteBytes,
 	loadRemoteText,
 	untouchedSince,
@@ -151,7 +152,9 @@ export async function writeIncoming(
 	entry: ManifestEntry,
 	options: Omit<WriteOptions, "landed"> = {},
 ): Promise<ManifestEntry | null> {
-	const bytes = await loadRemoteBytes(deps, entry.hash, entry.size);
+	const bytes = await loadRemoteBytes(deps, entry.hash, entry.size, () =>
+		loadLocalCopy(deps.adapter, path, entry.size),
+	);
 	if (!bytes) throw new Error(`Missing remote object for ${path}`);
 	const { live: notes } = deps;
 	const { live } = entry;

@@ -89,4 +89,31 @@ describe("a big file pushed in chunks", () => {
 		expect(uploadedHere(storage, h2)).toBe(false);
 		expect(uploadedHere(storage, await sha256Hex(fresh))).toBe(true);
 	});
+
+	it("pulls a new version downloading only the chunks the old one on disk lacks", async () => {
+		const storage = new FakeStorage();
+		const source = new TestSession("device-a", storage);
+		const target = new TestSession("device-b", storage);
+		source.chunkIds = chunkIds;
+		target.chunkIds = chunkIds;
+		const v1 = random(4);
+		await write(source, v1);
+		await pushAll(source);
+		const first = await compare(target.deps());
+		await pullPaths(target.deps(), first, ["big.bin"]);
+		await target.adoptRemote();
+
+		const v2 = v1.slice();
+		v2.set(new Uint8Array(64).fill(1), SIZE / 2);
+		await write(source, v2);
+		await pushAll(source);
+		const get = vi.spyOn(storage, "get");
+		const second = await compare(target.deps());
+		await pullPaths(target.deps(), second, ["big.bin"]);
+
+		const pulled = new Uint8Array(await target.adapter.readBinary("big.bin"));
+		expect(pulled).toEqual(v2);
+		const chunkGets = get.mock.calls.filter(([at]) => at.startsWith("chunks/"));
+		expect(chunkGets.length).toBeLessThanOrEqual(2);
+	});
 });

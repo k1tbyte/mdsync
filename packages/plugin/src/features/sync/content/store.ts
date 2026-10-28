@@ -1,9 +1,9 @@
-import { type ChunkParams, chunkEnds, gearTable } from "@/core/chunking";
 import { chunkId, encryptCompressible, encryptDescribed } from "@/core/crypto";
 import { type DrawingCodec, encodeDrawing } from "@/core/drawing";
 import { runWithConcurrency } from "@/core/utils";
 import type { ObjectStorage } from "@/features/storage";
 import { rememberUpload, uploadedHere } from "../remote/uploads";
+import { cut } from "./cut";
 import type { ChunkRef } from "./header";
 import {
 	CHUNK_THRESHOLD,
@@ -14,17 +14,6 @@ import {
 } from "./keys";
 import { type ContentSource, recipeChunks } from "./load";
 
-// Every device cuts with the same seed and sizes, or one file would be cut two ways and share nothing.
-const GEAR = gearTable(0x6d64);
-const KB = 1024;
-const SMALL_CHUNKS: ChunkParams = { min: 16 * KB, avg: 64 * KB, max: 256 * KB };
-/** Past it, bigger chunks keep a file's recipe and request count small. */
-const LARGE_FILE = 16 * KB * KB;
-const LARGE_CHUNKS: ChunkParams = {
-	min: 256 * KB,
-	avg: 1024 * KB,
-	max: 4096 * KB,
-};
 const CHUNK_WRITES = 4;
 
 interface Stored {
@@ -99,7 +88,7 @@ async function storeChunked(
 		// No CompressionStream here: a whole blob is one every peer reads.
 		return null;
 	}
-	const vouched = await chunksOf(source, previous);
+	const vouched = await vouchedBy(source, previous);
 	const fresh = new Map<string, Uint8Array>();
 	parts.forEach((part, index) => {
 		const id = ids[index] as string;
@@ -124,7 +113,7 @@ async function storeChunked(
 }
 
 /** Chunk ids `previous`'s recipe names; none when it was stored whole or does not read. */
-async function chunksOf(
+async function vouchedBy(
 	source: ContentSource,
 	previous: { hash: string; size: number } | null | undefined,
 ): Promise<Set<string>> {
@@ -133,16 +122,6 @@ async function chunksOf(
 	if (!blob) return new Set();
 	const named = await recipeChunks(source.key, blob).catch(() => []);
 	return new Set(named.map(([id]) => id));
-}
-
-function cut(bytes: Uint8Array, size: number): Uint8Array[] {
-	const params = size > LARGE_FILE ? LARGE_CHUNKS : SMALL_CHUNKS;
-	let start = 0;
-	return chunkEnds(bytes, params, GEAR).map((end) => {
-		const part = bytes.subarray(start, end);
-		start = end;
-		return part;
-	});
 }
 
 async function seal(

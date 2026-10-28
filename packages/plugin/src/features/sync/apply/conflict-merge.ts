@@ -2,11 +2,8 @@ import type { DataAdapter } from "obsidian";
 
 import { isDrawing, mergeDrawings } from "@/core/drawing";
 import { withEolOf } from "@/core/utils";
-import {
-	loadLocalText,
-	loadRemoteText,
-	type RemoteFetchOptions,
-} from "../changes/content";
+import { loadLocalText, loadRemoteText } from "../changes/content";
+import type { ContentSource } from "../content/load";
 import { buildMergeSession, countUnresolved } from "../hunks/merge-model";
 import type { Conflict } from "../types";
 
@@ -15,7 +12,7 @@ import type { Conflict } from "../types";
  * is real. The caller writes the result and should gate on `isTextMergeCandidate` to skip needless downloads.
  */
 export async function tryAutoMergeConflict(
-	deps: RemoteFetchOptions & { adapter: DataAdapter },
+	deps: ContentSource & { adapter: DataAdapter },
 	conflict: Conflict,
 ): Promise<string | null> {
 	if (!conflict.baselineHash || !conflict.localHash || !conflict.remoteHash) {

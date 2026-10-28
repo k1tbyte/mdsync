@@ -8,6 +8,7 @@ import {
 import { decodeDrawing } from "@/core/drawing";
 import { runWithConcurrency } from "@/core/utils";
 import type { ObjectStorage } from "@/features/storage";
+import { chunksOf } from "./cut";
 import { type ChunkRef, type ContentHeader, readHeader } from "./header";
 import { chunkKey, isRecipeKey, readOrder } from "./keys";
 
@@ -27,6 +28,13 @@ export class ContentError extends Error {}
 // file's hash, so one re-put meanwhile can only give the same file.
 const prefetched = new WeakMap<ObjectStorage, Map<string, Uint8Array>>();
 
+/** A copy of the file on this disk, an older version, whose unchanged chunks need no download. */
+export interface LocalCopy {
+	read(): Promise<Uint8Array | null>;
+	/** The remote file's bytes: they pick the chunk sizes. */
+	size: number;
+}
+
 /**
  * The file `hash` names, or null only when no root of it exists; anything else, a missing chunk too, throws.
  * `size`: the file's bytes, which pick where to look first and stretch the transfer deadline.
@@ -35,9 +43,11 @@ export async function loadContent(
 	source: ContentSource,
 	hash: string,
 	size?: number,
+	local?: () => Promise<Uint8Array | null>,
 ): Promise<Uint8Array | null> {
 	const root = await fetchRoot(source.storage, hash, size);
-	return root && openContent(source, root.blob, hash, root.storageKey);
+	const copy = local && size !== undefined ? { read: local, size } : undefined;
+	return root && openContent(source, root.blob, hash, root.storageKey, copy);
 }
 
 /** The first root of `hash` that exists, looked for in {@link readOrder}. */
@@ -63,11 +73,12 @@ export async function openContent(
 	blob: Uint8Array,
 	hash: string,
 	storageKey: string,
+	local?: LocalCopy,
 ): Promise<Uint8Array> {
 	const { codec, chunks, payload } = await content(() =>
 		openRoot(source.key, blob, isRecipeKey(storageKey)),
 	);
-	const stored = chunks ? await readChunks(source, chunks) : payload;
+	const stored = chunks ? await readChunks(source, chunks, local) : payload;
 	const bytes = await content(async () =>
 		codec ? decodeDrawing(stored, codec) : stored,
 	);
@@ -135,9 +146,25 @@ async function openRoot(
 async function readChunks(
 	source: ContentSource,
 	chunks: readonly ChunkRef[],
+	local: LocalCopy | undefined,
 ): Promise<Uint8Array> {
+	// An id is a MAC of the bytes, so a local chunk of the same id is the same chunk; the hash check stays.
+	const onDisk =
+		local && source.chunkIds
+			? await chunksOf(
+					source.chunkIds,
+					local.read,
+					local.size,
+					new Set(chunks.map(([id]) => id)),
+				)
+			: new Map<string, Uint8Array>();
 	const parts: Uint8Array[] = new Array(chunks.length);
 	await runWithConcurrency(chunks, CHUNK_READS, async ([id, size], index) => {
+		const kept = onDisk.get(id);
+		if (kept) {
+			parts[index] = kept;
+			return;
+		}
 		const blob = await source.storage.get(chunkKey(id), size);
 		if (!blob) throw new ContentError(`A chunk of this file is missing: ${id}`);
 		const part = await content(() => decryptBytes(source.key, blob));
