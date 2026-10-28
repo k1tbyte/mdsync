@@ -1,4 +1,6 @@
+import { FakeStorage } from "@tests/helpers/fake-storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { REMOTE_HISTORY_LOG_KEY } from "@/features/sync/constants";
 import type { EngineDependencies } from "@/features/sync/engine";
 import { collectHistoryGarbage } from "@/features/sync/history/gc";
 import { VAULT_SPACE } from "@/features/sync/remote/space";
@@ -13,6 +15,7 @@ const collect = vi.mocked(collectHistoryGarbage);
 /** `null`: history off. */
 function service(
 	history: { horizon: number | null } | null = { horizon: null },
+	storage = new FakeStorage(),
 ) {
 	const logWarn = vi.fn(() => Promise.resolve());
 	const logInfo = vi.fn(() => Promise.resolve());
@@ -21,10 +24,10 @@ function service(
 		openSession: async (space) =>
 			({
 				space,
-				storage: {},
+				storage,
 				key: {},
 				history: history ?? undefined,
-			}) as EngineDependencies,
+			}) as unknown as EngineDependencies,
 		enqueue: (task) => task(),
 		enqueueQuiet: (task) => {
 			const run = Promise.resolve().then(task);
@@ -68,6 +71,34 @@ describe("MaintenanceService.afterPush", () => {
 		disposed.maintenance.dispose();
 		await disposed.settled();
 		expect(collect).not.toHaveBeenCalled();
+	});
+
+	it("clears 1.x history even with history off", async () => {
+		const storage = new FakeStorage();
+		await storage.put(REMOTE_HISTORY_LOG_KEY, new Uint8Array([1]));
+		const { maintenance, logInfo, settled } = service(null, storage);
+		maintenance.afterPush(VAULT_SPACE);
+		await settled();
+		expect(await storage.exists(REMOTE_HISTORY_LOG_KEY)).toBe(false);
+		expect(logInfo).toHaveBeenCalledWith(
+			"push",
+			"Old-format file history removed (1 object(s)).",
+		);
+		expect(collect).not.toHaveBeenCalled();
+	});
+
+	it("scans for 1.x history once a session, again after a failed scan", async () => {
+		const storage = new FakeStorage();
+		const list = vi
+			.spyOn(storage, "list")
+			.mockRejectedValueOnce(new Error("offline"));
+		const { maintenance, settled } = service(null, storage);
+		for (let run = 0; run < 3; run++) {
+			maintenance.afterPush(VAULT_SPACE);
+			await settled();
+			vi.setSystemTime(Date.now() + 10 * 60_000);
+		}
+		expect(list).toHaveBeenCalledTimes(2);
 	});
 
 	it("logs a failure instead of throwing it at the push", async () => {

@@ -10,6 +10,7 @@ import { useEncryptionKey } from "@tests/helpers/session";
 import { describe, expect, it } from "vitest";
 import { REMOTE_MANIFEST_KEY } from "@/core/constants";
 import { encryptJson } from "@/core/crypto/cipher";
+import { MANIFEST_VERSION } from "@/features/sync/constants";
 import { runCategoryResetFlow } from "@/features/sync/operations/config-reset";
 import {
 	EHunkPair,
@@ -48,7 +49,7 @@ describe("remote category reset across devices", () => {
 		expect(reset.compareResult.remote?.folders ?? []).not.toContain(
 			".obsidian/plugins/empty",
 		);
-		expect(reset.compareResult.remote?.version).toBe(2);
+		expect(reset.compareResult.remote?.version).toBe(MANIFEST_VERSION);
 		expect(a.text(pluginPath)).toBe(`initial ${pluginPath}`);
 		expect(a.state.baseline?.files[pluginPath]).toBeUndefined();
 		for (const path of configFiles.filter((p) => p !== pluginPath)) {

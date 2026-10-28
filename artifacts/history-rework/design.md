@@ -116,7 +116,7 @@ history/p/<snapshotId>.enc                          push record, written once by
 history/b/<res>-<groupStart>-<digest>.enc           object: one resolution over one group, written by GC
 history/g/<runId>.enc                               sweep candidates waiting for phase 2 (section 7)
 pins/<snapshotId>.json.enc                          pin: { manifest, label, pinnedAt }
-history.json.enc                                    legacy v2 log; a v3 stub after migration (section 11)
+history.json.enc                                    1.x log, deleted after the first v3 push (section 19)
 objects/<sha256>                                    file content, or a recipe (section 9)
 objects/c/<chunkId>                                 chunk
 ```
@@ -335,8 +335,8 @@ Old clients must not run destructive paths against the new format. Without a fen
 - An in-flight legacy `updateHistoryLog` can overwrite a v3 stub with v2 (unconditional put).
 
 Fence: the new format ships with `MANIFEST_VERSION` 3, like the config reset's version 2.
-1. Migration runs inside a push: import `history.json.enc` into blocks (deterministic), move flagged pins to
-   the new pin shape, delete unflagged leftover pin manifests, publish HEAD v3, then write a v3 log stub.
+1. No import: every new publish carries v3, and the push after it deletes `history.json.enc` and the
+   bare-manifest pins (section 19).
 2. Every release since 1.0.0 refuses a manifest version above its own ("requires a newer MDSync version",
    checked in tag 1.0.0). An old deep clean in flight re-reads HEAD after listing and bails
    (`maintenance.ts:154-160`); an old GC in flight re-reads HEAD late and withholds its sweep (`gc.ts:159-170`, `readHead`).
@@ -422,7 +422,7 @@ Steps 3-6 change the remote format, so they release together (the fence).
 | 3 | History model, pure. 3a: merged records (`composeChanges`, `deletedLast`), activity, ladder and periods, thinning. 3b: cover and the GC plan. Property tests | no |
 | 4 | Write and read: record on push, listing + cover + cache, queries (file history, deleted, timeline, replay), pins in the new shape | no |
 | 5 | GC: phase 1 blocks, phase 2 sweep, schedule; deep clean, verify and reset on the new layout | no |
-| 6 | Migration and fence: `MANIFEST_VERSION` 3, legacy import, pins, stub | with 3-5 |
+| 6 | Fence: `MANIFEST_VERSION` 3 on every publish; 1.x history and pins deleted, not imported (section 19) | with 3-5 |
 | 7 | Settings: **Keep history for**, retire `fileHistoryMaxSnapshots` | with 3-6 |
 | 8 | UI: Timeline sessions, tier headers, filter; History grouping; Deleted "kept until"; activity calendar | with 3-7 |
 | 9 | Measurement script (9.3), content owner, CDC (recipes, chunks, upload trust), Excalidraw codec | yes |
@@ -494,3 +494,27 @@ Tests: pushes under fake time through `FakeStorage`; every retained snapshot rep
 published, before and after GC; a rerun changes nothing; lost sibling, foreign vault and expired-behind-gap
 deletes; an unreadable object stops phase 1; candidates swept only after 24 h and only when unreachable; a pin
 or record appearing between the phases keeps its blobs.
+
+## 19. Step 6 plan: fence and old-history cleanup
+
+Replaces the legacy import (section 11, item 1): old history is deleted, not converted. Paths relative to
+`packages/plugin/src/features/sync/`.
+
+| Module | Holds |
+|---|---|
+| `constants.ts` | `MANIFEST_VERSION` 3 |
+| `remote/manifest.ts` | `buildManifest` publishes `MANIFEST_VERSION` on every manifest (was the parent's version), so every 1.x client refuses the remote from the first new push |
+| `operations/config-reset.ts` | drops its own version override: every manifest already carries one 1.x cannot read |
+| `history/legacy.ts` (replaces `history/store.ts`) | `clearLegacyHistory(storage, key)`: deletes every pin that decrypts to a bare manifest (top-level `snapshotId`), then the log if present; returns the count. Pins are scanned without the log too (an interrupted reset can leave them); a pin it cannot decrypt stays (unknown) |
+| `runtime/maintenance-service.ts` | `afterPush` runs `clearLegacyHistory` before GC once a session per space (again after a failure), history on or off (a legacy pin blocks every sweep), and logs when it removed something |
+| `history/sweep.ts` | `reachableHashes` drops the legacy log: no reader is left, so the blobs only it named are orphans for deep clean. `sweepObjects` refuses a HEAD below `MANIFEST_VERSION`: before the fence 1.x clients still sync and name those blobs |
+| removed | `readHistoryLog`, `historyLogToVault`, `HistoryLog`, `SnapshotEntry` |
+
+No v3 log stub: a 1.x client reads HEAD before any history path and refuses it. A 1.x client stalled
+mid-push across the first v3 publish can still land one v2 HEAD and rewrite `history.json.enc`; the next new
+push publishes v3 again and its cleanup deletes the log again. Versions only the old log or old pins named
+leak until a deep clean.
+
+Tests: `legacy.test.ts` (bare-manifest pins and the log go, new pins and undecryptable ones stay, pins without
+the log go); the service clears with history off, once a session, again after a failure; `buildManifest`
+writes 3 on a v2 parent; deep clean refuses a v2 HEAD.

@@ -3,6 +3,7 @@ import { errorMessage } from "@/core/shared";
 import { LOG_PATH_LIMIT } from "../constants";
 import type { EngineDependencies } from "../engine";
 import { collectHistoryGarbage } from "../history/gc";
+import { clearLegacyHistory } from "../history/legacy";
 import { type Space, VAULT_SPACE } from "../remote/space";
 import {
 	type CleanResult,
@@ -33,11 +34,12 @@ interface MaintenanceServiceDeps {
 
 export class MaintenanceService {
 	private readonly lastGc = new Map<string, number>();
+	private readonly legacyCleared = new Set<string>();
 	private disposed = false;
 
 	constructor(private readonly deps: MaintenanceServiceDeps) {}
 
-	/** Thins history after a published push; never awaited by it, and a failure only logs. */
+	/** Clears 1.x history and thins history after a published push; never awaited by it, and a failure only logs. */
 	afterPush(space: Space): void {
 		const now = Date.now();
 		if (now - (this.lastGc.get(space.id) ?? 0) < HISTORY_GC_EVERY_MS) return;
@@ -46,7 +48,22 @@ export class MaintenanceService {
 			.enqueueQuiet(async () => {
 				if (this.disposed) return;
 				const session = await this.deps.openSession(space);
-				if (!session?.history) return;
+				if (!session) return;
+				// Once a session, history on or off: a 1.x pin blocks every sweep.
+				if (!this.legacyCleared.has(space.id)) {
+					const removed = await clearLegacyHistory(
+						session.storage,
+						session.key,
+					);
+					this.legacyCleared.add(space.id);
+					if (removed > 0) {
+						await this.deps.logInfo(
+							ESyncLogOperation.Push,
+							`Old-format file history removed (${removed} object(s)).`,
+						);
+					}
+				}
+				if (!session.history) return;
 				const { written, retired, swept } = await collectHistoryGarbage(
 					session.storage,
 					session.key,

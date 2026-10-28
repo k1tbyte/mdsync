@@ -41,11 +41,11 @@ History is one encrypted record per push under `history/`, which GC thins into o
 
 - A pin is one object, `pins/<id>.json.enc` (`features/sync/history/pins.ts`): `{ v: 1, manifest, label?, pinnedAt }` with the snapshot's full manifest, so it outlives the records it was replayed from. Nothing else flags it: a pin is on exactly while its object reads.
 - `setSnapshotPinned` (`features/sync/history/query.ts`) keeps a readable pin's manifest and replays only for a new one; a pin that cannot be read is rewritten, never trusted. Unpinning deletes the object. Both run on the operation queue (`features/sync/runtime/history-service.ts`).
-- A listed pin that does not read (corrupt, or a legacy bare manifest) is `unreadable` in `readPins`: what it holds is unknown. Decoded pins are cached only by etag: a timestamp may not move on a rewrite.
+- A listed pin that does not read (corrupt, or a 1.x bare manifest) is `unreadable` in `readPins`: what it holds is unknown. Decoded pins are cached only by etag: a timestamp may not move on a rewrite.
 
 ## GC and deep clean
 
-- Never delete an object reachable from HEAD, from any listed push record or history object (every version it names: `changeEntries`, off the walk too), from a pin, or from the legacy `history.json.enc` until it is imported (`reachableHashes` in `features/sync/history/sweep.ts`). If any of those cannot be read, delete nothing (deep clean and verify throw): a bounded blob leak is acceptable, a dangling reference is not.
+- Never delete an object reachable from HEAD, from any listed push record or history object (every version it names: `changeEntries`, off the walk too), or from a pin (`reachableHashes` in `features/sync/history/sweep.ts`). If any of those cannot be read, delete nothing (deep clean and verify throw): a bounded blob leak is acceptable, a dangling reference is not.
 - Sweep only blobs older than any push in flight: `settledKeys` / `keysByAge` list them by age, `SETTLED_AFTER_MS` is twice `UPLOAD_TRUST_MS`. Another device may have re-uploaded an old hash for a push it has not published. A storage that cannot report object ages cannot be swept (`listDetailed` is required).
 - Deep clean and GC's phase 2 share one sweep (`sweepObjects` in `features/sync/history/sweep.ts`; phase 2 passes `freedOnly`): it needs a published HEAD, deletes nothing written in the last day nor any hash a candidate file younger than a day names (one it cannot read fails closed), and bails if HEAD, the pin listing or a new history key changed while it listed (neither a pin nor a retried record moves HEAD). It deletes no history record, object or pin; settled candidate files go after the sweep.
 - GC (`collectHistoryGarbage` in `features/sync/history/gc.ts`) runs after a push this device published, at most every 10 min per space, on the quiet queue (`MaintenanceService.afterPush`); a failure only logs. Without object ages (`listDetailed`) it does nothing.
@@ -53,3 +53,9 @@ History is one encrypted record per push under `history/`, which GC thins into o
 - Phase 1 deletes no blob: the hashes its retired keys named and the verified objects do not go to `history/g/<runId>.enc` before any delete. Phase 2 sweeps a candidate file only once it is settled (`isSettled`, `SETTLED_AFTER_MS`), so a pin or record written around phase 1 is listed by then and keeps its blobs. `readHistory` lists `history/g/` in its one call.
 - `planGc` deletes only: keys a present object consumes, a settled push that lost the guard (its parent's chain child is another id), another vault's settled keys, and settled keys off the walk whose newest record is past the horizon.
 - Maintenance lists only `objects/`, `pins/` and `history/` of its own space.
+
+## Format fence
+
+- Every manifest carries `MANIFEST_VERSION` 3 (`buildManifest`), and `fetchRemoteManifest` refuses a higher one: a 1.x client stops at HEAD before any GC or deep clean. Raise it whenever an older client would destroy what the new format keeps.
+- 1.x history is deleted, never read: after the first published push of a session per space, history on or off, `clearLegacyHistory` (`features/sync/history/legacy.ts`) deletes every pin that decrypts to a bare manifest, then `history.json.enc`; a failed run is retried at the next push. Pins are scanned even without the log (an interrupted reset can leave them, and one blocks every sweep); a pin it cannot decrypt stays.
+- A sweep refuses a HEAD below `MANIFEST_VERSION`: 1.x clients still sync there, and their history names what looks orphaned.

@@ -1,5 +1,6 @@
 import type { EncryptionKey } from "@/core/crypto/cipher";
 import type { ObjectStorage } from "@/features/storage/types";
+import { MANIFEST_VERSION } from "@/features/sync/constants";
 import { diffManifests } from "@/features/sync/history/changes";
 import { writePin } from "@/features/sync/history/pins";
 import { pushKey, sealPushRecord } from "@/features/sync/history/remote";
@@ -18,7 +19,7 @@ export function manifestOf(
 		entries[path] = { hash, size: 1, mtime: 1, kind: "vault" as EFileKind };
 	}
 	return {
-		version: 1,
+		version: MANIFEST_VERSION,
 		vaultId: "v",
 		snapshotId,
 		parentSnapshotId,

@@ -13,11 +13,9 @@ import {
 	encryptJson,
 } from "@/core/crypto/cipher";
 import {
-	REMOTE_HISTORY_LOG_KEY,
 	REMOTE_OBJECTS_PREFIX,
 	REMOTE_PINS_PREFIX,
 } from "@/features/sync/constants";
-import { diffManifests } from "@/features/sync/history/changes";
 import { objectKey } from "@/features/sync/remote/manifest";
 import {
 	deepCleanOrphans,
@@ -105,31 +103,26 @@ describe("deepCleanOrphans", () => {
 		expect((await deepCleanOrphans(storage, key, "")).deletedObjects).toBe(0);
 	});
 
-	it("keeps versions only the legacy log names until it is imported", async () => {
+	it("refuses a HEAD below the fence: 1.x clients still sync and name what looks orphaned", async () => {
 		const storage = new FakeStorage();
-		const old = manifestOf("s1", null, { "a.md": "LEGACY" });
-		const head = manifestOf("s2", "s1", { "a.md": "H2" });
-		await seedChain(storage, key, [head]);
-		await storage.put(
-			REMOTE_HISTORY_LOG_KEY,
-			await encryptJson(key, {
-				version: 2,
-				snapshots: [{ id: "s1", parentId: null, createdAt: 1, deviceId: "d" }],
-				changes: { s1: diffManifests(null, old) },
-			}),
-		);
-		await putObjects(storage, "H2", "LEGACY");
+		await publishManifest(storage, key, {
+			...manifestOf("s1", null, { "a.md": "H1" }),
+			version: 2,
+		});
+		await putObjects(storage, "H1", "OLD");
 		storage.age(DAY_MS + 1);
 
-		await deepCleanOrphans(storage, key, "");
-		expect(await storage.exists(objectKey("LEGACY"))).toBe(true);
+		await expect(deepCleanOrphans(storage, key, "")).rejects.toThrow(
+			/old file history format/,
+		);
+		expect(await storage.exists(objectKey("OLD"))).toBe(true);
 	});
 
 	it("refuses while a history record or pin cannot be read", async () => {
 		const storage = new FakeStorage();
 		await seedChain(storage, key, [manifestOf("s1", null, { "a.md": "H1" })]);
 		await putObjects(storage, "H1", "ORPHAN");
-		// A legacy pin was a bare manifest: unreadable until imported, so it may still hold blobs.
+		// A 1.x pin is a bare manifest: unreadable until the post-push cleanup deletes it.
 		await storage.put(
 			`${REMOTE_PINS_PREFIX}s0.json.enc`,
 			await encryptJson(key, manifestOf("s0", null, { "a.md": "ORPHAN" })),

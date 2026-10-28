@@ -15,7 +15,7 @@ Paths are relative to `packages/plugin/src/`. Wizard steps and modules: `feature
 
 - User commands are `addCommand` calls in `app/commands.ts` with stable ids: never rename or remove one once released. Hidden-when-unavailable commands use `checkCallback`.
 - Sync is manual by default (`compare`, `push`, `pull`); autosync and push-after-change are opt-in. Push and pull run a compare preflight and surface conflicts, never choose a side silently.
-- `reset-remote-storage` stays confirmation-gated (`confirmRemoteReset`, `features/sync/ui/reset-modal.ts`). It deletes `manifest.json.enc`, `objects/`, `history/`, the legacy `history.json.enc` and `pins/` under the prefix (history must not outlive its objects), keeps local files, clears local `baseline` and `vaultId`, and keeps the salt and key file so the passphrase-derived key stays valid.
+- `reset-remote-storage` stays confirmation-gated (`confirmRemoteReset`, `features/sync/ui/reset-modal.ts`). It deletes `manifest.json.enc`, `objects/`, `history/`, the 1.x `history.json.enc` and `pins/` under the prefix (history must not outlive its objects), keeps local files, clears local `baseline` and `vaultId`, and keeps the salt and key file so the passphrase-derived key stays valid.
 - An automatic push (autosync push-after-pull, after changes settle, shares right away) publishing more than `bulkDeleteLimit` deletions (default 5) holds all of them for review with a notice; `confirmBulkDeletes` turns that off. Manual pushes are never held.
 
 ## Settings
@@ -28,7 +28,7 @@ Paths are relative to `packages/plugin/src/`. Wizard steps and modules: `feature
 - Never transferred (not in `TRANSFER_FIELDS`): `cloudflareToken`, `cloudflareAccountId`, `liveSendMs`, `showChangeMarks`, `showLiveAuthors`, `cachePassphrase`, `spaces`, `links`, the cached passphrase. Also never published to the vault storage: `useSharedFolders`, `pausedSpaces`, `pauseArrivingShares`, `localRoots`; `spaces` and `links` are traded sealed through it.
 - Logs are device-local in `<configDir>/plugins/mdsync/logs.json` (`core/logs/store.ts`), under the plugin folder `ScopePolicy` never syncs.
 - Config categories (core settings, hotkeys, plugin list, plugins, snippets, themes) are per device, default off. A disabled category is invisible: nothing scanned, diffed, pulled or published, and the remote keeps what other devices synced. Turning one off never deletes anything.
-- **Clear on remote** is the only way to remove a category from the remote: it bumps `resetGenerations` so every device forgets that category's baseline instead of reading deletions (`features/sync/operations/config-reset.ts`). Local files stay, enabled devices re-upload, it is confirmation-gated, and it stamps the current manifest version so older clients refuse the cleared remote.
+- **Clear on remote** is the only way to remove a category from the remote: it bumps `resetGenerations` so every device forgets that category's baseline instead of reading deletions (`features/sync/operations/config-reset.ts`). Local files stay, enabled devices re-upload, it is confirmation-gated, and older clients refuse the cleared remote by its manifest version, as every publish.
 
 ## Device transfer (`features/transfer/`)
 

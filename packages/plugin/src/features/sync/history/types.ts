@@ -5,17 +5,6 @@ export interface HistoryConfig {
 	horizon: number | null;
 }
 
-export interface SnapshotEntry {
-	id: string;
-	parentId: string | null;
-	createdAt: number;
-	deviceId: string;
-	deviceName?: string;
-	/** Pinned snapshots are never evicted and keep a full manifest under `pins/`. */
-	pinned?: boolean;
-	label?: string;
-}
-
 export interface FileChange {
 	from: ManifestEntry;
 	to: ManifestEntry;
@@ -29,13 +18,6 @@ export interface SnapshotChanges {
 	deleted: Record<string, ManifestEntry>;
 	/** A merged record's content right before the deletion, where it differs from `deleted`. */
 	deletedLast?: Record<string, ManifestEntry>;
-}
-
-export interface HistoryLog {
-	version: number;
-	/** Newest first. */
-	snapshots: SnapshotEntry[];
-	changes: Record<string, SnapshotChanges>;
 }
 
 export interface FileVersion {

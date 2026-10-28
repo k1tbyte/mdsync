@@ -3,7 +3,7 @@
  * everything is vault paths.
  */
 
-import type { HistoryLog, SnapshotChanges } from "../history/types";
+import type { SnapshotChanges } from "../history/types";
 import type { Manifest } from "../types";
 
 type Rekey = (path: string) => string;
@@ -27,10 +27,6 @@ export function manifestMoved(
 		: manifestToVault(manifestToSpace(manifest, from), to);
 }
 
-export function historyLogToVault(log: HistoryLog, root: string): HistoryLog {
-	return root === "" ? log : rekeyLog(log, addRoot(root));
-}
-
 function rekeyManifest(manifest: Manifest, rekey: Rekey): Manifest {
 	return {
 		...manifest,
@@ -51,14 +47,6 @@ export function changesToVault(
 	root: string,
 ): SnapshotChanges {
 	return root === "" ? changes : rekeyChanges(changes, addRoot(root));
-}
-
-function rekeyLog(log: HistoryLog, rekey: Rekey): HistoryLog {
-	const changes: HistoryLog["changes"] = {};
-	for (const [id, record] of Object.entries(log.changes)) {
-		changes[id] = rekeyChanges(record, rekey);
-	}
-	return { ...log, changes };
 }
 
 function rekeyChanges(changes: SnapshotChanges, rekey: Rekey): SnapshotChanges {

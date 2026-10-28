@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type {
-	HistoryLog,
-	SnapshotChanges,
-} from "@/features/sync/history/types";
+import type { SnapshotChanges } from "@/features/sync/history/types";
 import {
 	changesToSpace,
 	changesToVault,
-	historyLogToVault,
 	manifestToSpace,
 	manifestToVault,
 } from "@/features/sync/remote/space-paths";
@@ -111,38 +107,5 @@ describe("changesToSpace / changesToVault", () => {
 		expect(() => changesToSpace(stray, "Shared/p")).toThrow(
 			"outside the space",
 		);
-	});
-});
-
-describe("historyLogToVault", () => {
-	const log: HistoryLog = {
-		version: 2,
-		snapshots: [{ id: "s1", parentId: null, createdAt: 1, deviceId: "d" }],
-		changes: {
-			s1: {
-				added: { "new.md": entry("N") },
-				modified: {},
-				deleted: { "gone.md": entry("G1") },
-				deletedLast: { "gone.md": entry("G2") },
-			},
-		},
-	};
-
-	it("translates every record's keys to vault paths", () => {
-		const back = historyLogToVault(log, "Shared/p");
-		expect(Object.keys(back.changes.s1?.added ?? {})).toEqual([
-			"Shared/p/new.md",
-		]);
-		expect(Object.keys(back.changes.s1?.deleted ?? {})).toEqual([
-			"Shared/p/gone.md",
-		]);
-		expect(Object.keys(back.changes.s1?.deletedLast ?? {})).toEqual([
-			"Shared/p/gone.md",
-		]);
-		expect(back.snapshots).toBe(log.snapshots);
-	});
-
-	it('returns the same object for root ""', () => {
-		expect(historyLogToVault(log, "")).toBe(log);
 	});
 });
