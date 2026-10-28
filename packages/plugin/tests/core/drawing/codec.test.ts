@@ -31,10 +31,10 @@ describe("excalidraw codec", () => {
 	it("stores a scene past its budget as it is, so no read rebuilds megabytes", () => {
 		const json = JSON.stringify({
 			type: "excalidraw",
-			elements: [{ id: "a", text: "x".repeat(8 * 1024 * 1024) }],
+			elements: [{ id: "a", text: "x".repeat(2 * 1024 * 1024) }],
 		});
 		expect(encodeDrawing(bytesOf(compressedDrawing(json)))).toBeNull();
-		// Compressing 8 MB takes seconds, past the default timeout in a loaded suite.
+		// Compressing megabytes can pass the default timeout in a loaded suite.
 	}, 30_000);
 
 	it("stores the scene as plain JSON and rebuilds the file byte for byte", () => {

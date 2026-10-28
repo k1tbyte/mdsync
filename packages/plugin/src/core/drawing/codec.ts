@@ -19,7 +19,7 @@ export interface DrawingCodec {
 const NAME = "excalidraw-lz";
 const MAX_GAP = 16;
 /** A bigger scene is stored as it is: rebuilding it on every read would hold the main thread for seconds. */
-const MAX_SCENE_CHARS = 8 * 1024 * 1024;
+const MAX_SCENE_CHARS = 2 * 1024 * 1024;
 
 const decoder = new TextDecoder("utf-8", { ignoreBOM: true });
 const encoder = new TextEncoder();
