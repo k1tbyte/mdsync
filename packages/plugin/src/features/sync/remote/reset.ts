@@ -2,10 +2,12 @@ import { DEFAULT_CONCURRENCY, REMOTE_MANIFEST_KEY } from "@/core/constants";
 import { runWithConcurrency } from "@/core/utils";
 import type { StorageAdapter } from "@/features/storage";
 import {
+	REMOTE_CHUNKS_PREFIX,
 	REMOTE_HISTORY_LOG_KEY,
 	REMOTE_HISTORY_PREFIX,
 	REMOTE_OBJECTS_PREFIX,
 	REMOTE_PINS_PREFIX,
+	REMOTE_RECIPES_PREFIX,
 } from "../constants";
 import type { EngineDependencies } from "../engine";
 
@@ -19,25 +21,25 @@ export async function resetRemoteStorage(
 	onProgress?: (done: number, total: number) => void,
 ): Promise<RemoteResetResult> {
 	// History must go with its objects: records and pins left behind would name what is gone.
-	const [objectKeys, pinKeys, historyKeys] = await Promise.all([
+	const [chunkKeys, ...listed] = await Promise.all([
+		storage.list(REMOTE_CHUNKS_PREFIX),
 		storage.list(REMOTE_OBJECTS_PREFIX),
+		storage.list(REMOTE_RECIPES_PREFIX),
 		storage.list(REMOTE_PINS_PREFIX),
 		storage.list(REMOTE_HISTORY_PREFIX),
 	]);
-	const keys = Array.from(
-		new Set([
-			REMOTE_MANIFEST_KEY,
-			REMOTE_HISTORY_LOG_KEY,
-			...objectKeys,
-			...pinKeys,
-			...historyKeys,
-		]),
+	const rest = Array.from(
+		new Set([REMOTE_MANIFEST_KEY, REMOTE_HISTORY_LOG_KEY, ...listed.flat()]),
 	);
+	const keys = [...rest, ...chunkKeys];
 	let done = 0;
-	await runWithConcurrency(keys, concurrency, async (key) => {
-		await storage.delete(key);
-		onProgress?.(++done, keys.length);
-	});
+	// Chunks last: a root still standing guards its chunks (`stillLands`).
+	for (const batch of [rest, chunkKeys]) {
+		await runWithConcurrency(batch, concurrency, async (key) => {
+			await storage.delete(key);
+			onProgress?.(++done, keys.length);
+		});
+	}
 	return { deletedKeys: keys };
 }
 

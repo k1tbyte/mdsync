@@ -4,11 +4,15 @@ import { runWithConcurrency } from "@/core/utils";
 import type { ListedObject, ObjectStorage } from "@/features/storage";
 import {
 	MANIFEST_VERSION,
+	REMOTE_CHUNKS_PREFIX,
 	REMOTE_OBJECTS_PREFIX,
 	REMOTE_PINS_PREFIX,
+	REMOTE_RECIPES_PREFIX,
 } from "../constants";
-import { fetchRemoteManifest, objectKey } from "../remote/manifest";
-import { SETTLED_AFTER_MS, settledKeys } from "../remote/uploads";
+import { chunksNamed } from "../content/closure";
+import { rootHash } from "../content/keys";
+import { fetchRemoteManifest } from "../remote/manifest";
+import { listDated, SETTLED_AFTER_MS } from "../remote/uploads";
 import type { Manifest, ManifestEntry } from "../types";
 import { changeEntries } from "./changes";
 import { pinKey, readPins } from "./pins";
@@ -80,8 +84,8 @@ export function isSettled({ modified }: ListedObject): boolean {
 }
 
 /**
- * Deletes settled objects nothing reaches (HEAD, a history record, a pin), never one a GC run freed within the
- * last day; needs a backend that can list.
+ * Deletes settled roots nothing reaches (HEAD, a history record, a pin), never one a GC run freed within the
+ * last day, then settled chunks no remaining recipe names; needs a backend that can list.
  */
 export async function sweepObjects(
 	storage: ObjectStorage,
@@ -117,27 +121,95 @@ export async function sweepObjects(
 	}
 	// An unreadable settled file only leaks its blobs to the next deep clean.
 	const freed = options.freedOnly
-		? new Set(
-				[...(await readCandidates(storage, key, due)).hashes].map(objectKey),
-			)
+		? (await readCandidates(storage, key, due)).hashes
 		: null;
-	const kept = new Set([...reachable.hashes.keys()].map(objectKey));
+	const kept = new Set(reachable.hashes.keys());
 	// Nothing but candidate files goes then, so the listing, young files and rechecks guard nothing.
-	if (freed && [...freed].every((storageKey) => kept.has(storageKey))) {
+	if (freed && [...freed].every((hash) => kept.has(hash))) {
 		await deleteFiles(storage, due);
 		return 0;
 	}
 
-	const objectKeys = await settledKeys(storage, REMOTE_OBJECTS_PREFIX);
+	const [objects, recipes, chunks] = await Promise.all([
+		listDated(storage, REMOTE_OBJECTS_PREFIX),
+		listDated(storage, REMOTE_RECIPES_PREFIX),
+		listDated(storage, REMOTE_CHUNKS_PREFIX),
+	]);
 
-	// Another device publishing during the listing makes its new objects look like orphans: bail.
+	const held = await readCandidates(storage, key, young);
+	if (held.unreadable.length > 0) {
+		throw new Error(
+			"Some history records could not be read, so orphans cannot be identified safely. Try again later.",
+		);
+	}
+	for (const hash of held.hashes) kept.add(hash);
+	// Judged once: a recipe settling during the reads below must not drop out of both sides.
+	const orphans = new Set(
+		[...objects, ...recipes]
+			.filter((root) => {
+				const hash = rootHash(root.key);
+				return (
+					isSettled(root) &&
+					!kept.has(hash) &&
+					(freed === null || freed.has(hash))
+				);
+			})
+			.map((root) => root.key),
+	);
+	const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
+	const named = (doomed: boolean) =>
+		chunksNamed(
+			storage,
+			key,
+			recipes.filter((recipe) => orphans.has(recipe.key) === doomed),
+			concurrency,
+		);
+	// Phase 2 takes only the chunks of the recipes it deletes; deep clean any settled one.
+	const freedChunks = freed && (await named(true)).chunks;
+	let loose = chunks
+		.filter(
+			(chunk) => isSettled(chunk) && (freedChunks?.has(chunk.key) ?? true),
+		)
+		.map((chunk) => chunk.key);
+	if (loose.length > 0) {
+		// Young and undated recipes survive too, so a push in flight keeps the chunks it trusted.
+		const surviving = await named(false);
+		if (surviving.unreadable.length > 0) {
+			throw new Error(
+				"Some stored files could not be read, so their parts cannot be identified safely. Try again later.",
+			);
+		}
+		loose = loose.filter((chunkKey) => !surviving.chunks.has(chunkKey));
+	}
+	// Checked last, so every read since the listing is guarded too.
+	await assertUnchanged(storage, key, root, reachable);
+	const total = orphans.size + loose.length;
+	let done = 0;
+	// Roots first: a chunk goes only once nothing names it.
+	for (const batch of [[...orphans], loose]) {
+		await runWithConcurrency(batch, concurrency, async (storageKey) => {
+			await storage.delete(storageKey);
+			options.onProgress?.(++done, total);
+		});
+	}
+	await deleteFiles(storage, due);
+	return total;
+}
+
+async function assertUnchanged(
+	storage: ObjectStorage,
+	key: EncryptionKey,
+	root: string,
+	reachable: ReachableSet,
+): Promise<void> {
+	// Another device publishing since the listing makes its new objects look like orphans: bail.
 	const headNow = await fetchRemoteManifest(storage, key, root);
-	if ((headNow?.snapshotId ?? null) !== reachable.head.snapshotId) {
+	if ((headNow?.snapshotId ?? null) !== reachable.head?.snapshotId) {
 		throw new Error(
 			"Another device pushed while cleaning; nothing was deleted. Try again.",
 		);
 	}
-	// Pinning does not move HEAD, so a pin created during the listing needs its own check.
+	// Pinning does not move HEAD, so a pin created since the listing needs its own check.
 	const pinnedNow = (await storage.list(REMOTE_PINS_PREFIX)).sort().join(",");
 	if (pinnedNow !== reachable.pinned) {
 		throw new Error(
@@ -153,29 +225,6 @@ export async function sweepObjects(
 			"Another device wrote file history while cleaning; nothing was deleted. Try again.",
 		);
 	}
-
-	const held = await readCandidates(storage, key, young);
-	if (held.unreadable.length > 0) {
-		throw new Error(
-			"Some history records could not be read, so orphans cannot be identified safely. Try again later.",
-		);
-	}
-	for (const hash of held.hashes) kept.add(objectKey(hash));
-	const orphans = objectKeys.filter(
-		(storageKey) =>
-			!kept.has(storageKey) && (freed === null || freed.has(storageKey)),
-	);
-	let done = 0;
-	await runWithConcurrency(
-		orphans,
-		options.concurrency ?? DEFAULT_CONCURRENCY,
-		async (storageKey) => {
-			await storage.delete(storageKey);
-			options.onProgress?.(++done, orphans.length);
-		},
-	);
-	await deleteFiles(storage, due);
-	return orphans.length;
 }
 
 function deleteFiles(

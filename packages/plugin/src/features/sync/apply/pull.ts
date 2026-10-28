@@ -6,12 +6,12 @@ import { runWithConcurrency } from "@/core/utils";
 import { deletePath, unchangedSince } from "@/core/vault";
 import { runWithFileConcurrency } from "../changes/file-concurrency";
 import { entryAt } from "../changes/records";
+import { prepareContent } from "../content/load";
 import type { CompareResult, EngineDependencies } from "../engine";
 import { coldSince, settleLive, writeIncoming } from "../live-notes";
 import { baseStep } from "../recovery/cut-short";
 import type { Target } from "../recovery/journal";
 import { advanceBaselineForPaths } from "../remote/baseline";
-import { objectKey } from "../remote/manifest";
 import { EChangeType, type Manifest, type ManifestEntry } from "../types";
 import { pullMoves, syncFolders } from "./pull-moves";
 
@@ -88,20 +88,23 @@ async function land(
 	const total = downloads.length + deletions.length;
 	let done = 0;
 
-	const hashes = new Set<string>();
+	const sizes = new Map<string, number>();
 	// Overwrites, and room snapshots for their merge base: any other new file cut short has no base, so it is
 	// never merged.
 	const targets = new Map<string, Target>();
 	for (const change of downloads) {
 		const entry = entryAt(remote.files, change.path);
 		if (!entry) continue;
-		hashes.add(entry.hash);
+		sizes.set(entry.hash, entry.size);
 		if (entry.live || entryAt(compareResult.snapshot.files, change.path)) {
 			const base = baseStep(deps, change.path, entry);
 			targets.set(change.path, { hash: entry.hash, live: entry.live, base });
 		}
 	}
-	deps.storage.prepareReads?.([...hashes].map(objectKey));
+	await prepareContent(
+		deps,
+		[...sizes].map(([hash, size]) => ({ hash, size })),
+	);
 	// One durable claim for the batch, not one per file.
 	const claims = await deps.journal?.claim(deps.space, targets);
 	/** True when live editing settled the path: an open room keeps its file. */

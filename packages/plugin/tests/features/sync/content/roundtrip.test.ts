@@ -7,8 +7,8 @@ import { pairedSessions, useEncryptionKey } from "@tests/helpers/session";
 import { describe, expect, it } from "vitest";
 import { decryptDescribed } from "@/core/crypto";
 import { pullPaths } from "@/features/sync/apply/pull";
+import { objectKey } from "@/features/sync/content/keys";
 import { pushPaths, pushSingleFile } from "@/features/sync/engine";
-import { objectKey } from "@/features/sync/remote/manifest";
 
 useEncryptionKey();
 

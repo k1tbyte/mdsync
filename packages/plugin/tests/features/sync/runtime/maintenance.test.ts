@@ -7,10 +7,12 @@ import {
 	writePushRecord,
 } from "@tests/helpers/history";
 import { publishManifest } from "@tests/helpers/manifest";
+import { putChunked } from "@tests/helpers/recipes";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
 	deriveKey,
 	type EncryptionKey,
+	encryptBytes,
 	encryptDescribed,
 	encryptJson,
 	sha256Hex,
@@ -20,8 +22,12 @@ import {
 	REMOTE_OBJECTS_PREFIX,
 	REMOTE_PINS_PREFIX,
 } from "@/features/sync/constants";
+import {
+	CHUNK_THRESHOLD,
+	chunkKey,
+	objectKey,
+} from "@/features/sync/content/keys";
 import { storeContent } from "@/features/sync/content/store";
-import { objectKey } from "@/features/sync/remote/manifest";
 import {
 	deepCleanOrphans,
 	verifyRemote,
@@ -147,6 +153,59 @@ describe("verifyRemote, deep", () => {
 		expect((await verifyRemote(storage, key, "", true)).missing).toEqual([
 			hash,
 		]);
+	});
+});
+
+describe("verifyRemote, chunked", () => {
+	async function chunkedRemote() {
+		const storage = new FakeStorage();
+		const hash = await putChunked(storage, key, [bytesOf("ab"), bytesOf("cd")]);
+		const head = manifestOf("s1", null, { "big.bin": hash });
+		(head.files["big.bin"] as { size: number }).size = CHUNK_THRESHOLD;
+		await publishManifest(storage, key, head);
+		return { storage, hash };
+	}
+
+	it("passes a complete chunked file, shallow and deep", async () => {
+		const { storage } = await chunkedRemote();
+		for (const deep of [false, true]) {
+			expect(await verifyRemote(storage, key, "", deep)).toEqual({
+				checked: 1,
+				missing: [],
+				corrupt: [],
+			});
+		}
+	});
+
+	it("flags a missing chunk as missing, shallow and deep", async () => {
+		const { storage, hash } = await chunkedRemote();
+		await storage.delete(chunkKey("c1"));
+		for (const deep of [false, true]) {
+			const result = await verifyRemote(storage, key, "", deep);
+			expect(result.missing).toEqual([hash]);
+			expect(result.corrupt).toEqual([]);
+		}
+	});
+
+	it("flags a chunk with other bytes only when deep", async () => {
+		const { storage, hash } = await chunkedRemote();
+		await storage.put(chunkKey("c1"), await encryptBytes(key, bytesOf("xy")));
+		expect((await verifyRemote(storage, key, "", false)).corrupt).toEqual([]);
+		expect((await verifyRemote(storage, key, "", true)).corrupt).toEqual([
+			hash,
+		]);
+	});
+
+	it("aborts on a failed chunk read instead of calling it corrupt", async () => {
+		const { storage } = await chunkedRemote();
+		const get = storage.get.bind(storage);
+		storage.get = (storageKey) =>
+			storageKey === chunkKey("c1")
+				? Promise.reject(new Error("offline"))
+				: get(storageKey);
+		await expect(verifyRemote(storage, key, "", true)).rejects.toThrow(
+			"offline",
+		);
 	});
 });
 

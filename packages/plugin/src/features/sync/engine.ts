@@ -12,6 +12,7 @@ import { runWithFileConcurrency } from "./changes/file-concurrency";
 import { entryAt, sortedByPath } from "./changes/records";
 import { skipUnholdableNames } from "./changes/remote-names";
 import { REMOTE_OBJECTS_PREFIX } from "./constants";
+import { objectKey } from "./content/keys";
 import { storeContent } from "./content/store";
 import { untrackedDir } from "./history/changes";
 import { publishManifestWithHistory } from "./history/publish";
@@ -26,7 +27,6 @@ import { ownedFiles } from "./remote/foreign";
 import {
 	buildManifest,
 	fetchRemoteManifest,
-	objectKey,
 	reconcileRemoteAgainstBaseline,
 } from "./remote/manifest";
 import { assertSpacePresent, type Space } from "./remote/space";

@@ -4,7 +4,13 @@ import {
 	plainDrawing,
 } from "@tests/helpers/drawing-file";
 import { FakeStorage } from "@tests/helpers/fake-storage";
-import { beforeAll, describe, expect, it } from "vitest";
+import {
+	concat,
+	putChunked,
+	putChunks,
+	putRecipe,
+} from "@tests/helpers/recipes";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
 	deriveKey,
 	type EncryptionKey,
@@ -14,8 +20,17 @@ import {
 	sha256Hex,
 } from "@/core/crypto";
 import { encodeDrawing } from "@/core/drawing";
-import { loadContent } from "@/features/sync/content/load";
-import { objectKey } from "@/features/sync/remote/manifest";
+import {
+	CHUNK_THRESHOLD,
+	chunkKey,
+	objectKey,
+	recipeKey,
+} from "@/features/sync/content/keys";
+import {
+	ContentError,
+	loadContent,
+	prepareContent,
+} from "@/features/sync/content/load";
 
 let key: EncryptionKey;
 beforeAll(async () => {
@@ -116,7 +131,7 @@ describe("loadContent", () => {
 				await encryptDescribed(key, header, stored),
 			);
 			await expect(loadContent({ storage, key }, hash)).rejects.toThrow(
-				/stored in chunks/,
+				/Unreadable chunk list/,
 			);
 		}
 	});
@@ -191,5 +206,142 @@ describe("loadContent", () => {
 		blob[blob.length - 1] = (blob[blob.length - 1] ?? 0) ^ 1;
 		const hash = await put(storage, bytes, blob);
 		await expect(loadContent({ storage, key }, hash)).rejects.toThrow();
+	});
+});
+
+describe("loadContent, chunked", () => {
+	const parts = [bytesOf("first part, "), bytesOf("second, "), bytesOf("last")];
+	const bytes = concat(parts);
+	const BIG = CHUNK_THRESHOLD;
+
+	it("joins the chunks a recipe names, looking under recipes/ first for a big file", async () => {
+		const storage = new FakeStorage();
+		const hash = await putChunked(storage, key, parts);
+		const get = vi.spyOn(storage, "get");
+
+		expect(await loadContent({ storage, key }, hash, BIG)).toEqual(bytes);
+		expect(get.mock.calls[0]?.[0]).toBe(recipeKey(hash));
+		expect(get).not.toHaveBeenCalledWith(objectKey(hash), BIG);
+	});
+
+	it("finds a big file stored whole, and a recipe when the size is unknown", async () => {
+		const storage = new FakeStorage();
+		const whole = bytesOf("uploaded before chunking");
+		const hash = await put(storage, whole, await encryptBytes(key, whole));
+		expect(await loadContent({ storage, key }, hash, BIG)).toEqual(whole);
+
+		const chunked = await putChunked(storage, key, parts);
+		expect(await loadContent({ storage, key }, chunked)).toEqual(bytes);
+		expect(await loadContent({ storage, key }, chunked, 10)).toBeNull();
+	});
+
+	it("rebuilds a chunked drawing", async () => {
+		const storage = new FakeStorage();
+		const { bytes: file, stored, codec } = drawing();
+		const half = Math.floor(stored.length / 2);
+		await putChunks(storage, key, {
+			d0: stored.subarray(0, half),
+			d1: stored.subarray(half),
+		});
+		const hash = await sha256Hex(file);
+		const sizes: [string, number][] = [
+			["d0", half],
+			["d1", stored.length - half],
+		];
+		await putRecipe(storage, key, hash, sizes, codec);
+		expect(await loadContent({ storage, key }, hash)).toEqual(file);
+	});
+
+	it("throws, never null, on a missing chunk or one of the wrong size", async () => {
+		const storage = new FakeStorage();
+		const hash = await putChunked(storage, key, parts);
+		await storage.put(chunkKey("c1"), await encryptBytes(key, bytesOf("x")));
+		await expect(loadContent({ storage, key }, hash)).rejects.toThrow(
+			/wrong size/,
+		);
+
+		await storage.delete(chunkKey("c1"));
+		await expect(loadContent({ storage, key }, hash)).rejects.toThrow(
+			ContentError,
+		);
+	});
+
+	it("refuses a recipe that is no recipe: a plain blob, a payload beside chunks, no chunks", async () => {
+		const storage = new FakeStorage();
+		const hash = await putChunked(storage, key, parts);
+		const chunks = { chunks: [["c0", parts[0]?.length]] };
+		for (const blob of [
+			await encryptBytes(key, bytes),
+			await encryptDescribed(key, chunks, bytesOf("payload")),
+			await encryptDescribed(key, {}, bytes),
+		]) {
+			await storage.put(recipeKey(hash), blob);
+			await expect(loadContent({ storage, key }, hash)).rejects.toThrow(
+				ContentError,
+			);
+		}
+	});
+
+	it("refuses joined chunks that do not hash to the name", async () => {
+		const storage = new FakeStorage();
+		await putChunks(storage, key, { x: bytesOf("other") });
+		await putRecipe(storage, key, "a".repeat(64), [["x", 5]]);
+		await expect(loadContent({ storage, key }, "a".repeat(64))).rejects.toThrow(
+			/Hash mismatch/,
+		);
+	});
+});
+
+describe("prepareContent", () => {
+	class HintedStorage extends FakeStorage {
+		readonly hints: string[][] = [];
+
+		prepareReads(keys: string[]): void {
+			this.hints.push(keys);
+		}
+	}
+
+	it("hints roots, then roots and the chunks big files name, and reads each recipe once", async () => {
+		const storage = new HintedStorage();
+		const parts = [bytesOf("one "), bytesOf("two")];
+		const big = await putChunked(storage, key, parts);
+		const legacy = bytesOf("big, stored whole");
+		const whole = await put(storage, legacy, await encryptBytes(key, legacy));
+		const small = await put(
+			storage,
+			bytesOf("s"),
+			await encryptBytes(key, bytesOf("s")),
+		);
+		const source = { storage, key };
+		const entries = [
+			{ hash: big, size: CHUNK_THRESHOLD },
+			{ hash: whole, size: CHUNK_THRESHOLD },
+			{ hash: small, size: 1 },
+		];
+		const roots = [
+			recipeKey(big),
+			objectKey(big),
+			recipeKey(whole),
+			objectKey(whole),
+			objectKey(small),
+		];
+
+		await prepareContent(source, entries);
+		expect(storage.hints).toEqual([
+			roots,
+			[...roots, chunkKey("c0"), chunkKey("c1")],
+		]);
+
+		const get = vi.spyOn(storage, "get");
+		expect(await loadContent(source, big, CHUNK_THRESHOLD)).toEqual(
+			concat(parts),
+		);
+		expect(await loadContent(source, whole, CHUNK_THRESHOLD)).toEqual(legacy);
+		const read = get.mock.calls.map(([storageKey]) => storageKey);
+		expect(read).not.toContain(recipeKey(big));
+
+		// Taken once: a second load reads again.
+		await loadContent(source, big, CHUNK_THRESHOLD);
+		expect(get).toHaveBeenCalledWith(recipeKey(big), CHUNK_THRESHOLD);
 	});
 });

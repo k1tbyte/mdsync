@@ -1,6 +1,6 @@
 import { encryptCompressible, encryptDescribed } from "@/core/crypto";
 import { encodeDrawing } from "@/core/drawing";
-import { objectKey } from "../remote/manifest";
+import { objectKey } from "./keys";
 import type { ContentSource } from "./load";
 
 /** PUTs `bytes` as the object named `hash`. Whether the storage already holds it is the caller's call. */

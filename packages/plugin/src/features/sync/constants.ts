@@ -1,6 +1,9 @@
 /** Remote object layout and engine-wide limits. */
 
 export const REMOTE_OBJECTS_PREFIX = "objects/";
+/** A chunked file's root: its list of chunks (`features/sync/content/`). */
+export const REMOTE_RECIPES_PREFIX = "recipes/";
+export const REMOTE_CHUNKS_PREFIX = "chunks/";
 
 /** The 1.x change log: deleted after the first v3 push (`clearLegacyHistory`), never read. */
 export const REMOTE_HISTORY_LOG_KEY = "history.json.enc";

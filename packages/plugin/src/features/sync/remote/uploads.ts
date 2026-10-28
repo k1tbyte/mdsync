@@ -1,4 +1,4 @@
-import type { ObjectStorage } from "@/features/storage";
+import type { ListedObject, ObjectStorage } from "@/features/storage";
 
 /**
  * Blobs uploaded here but not yet in a published manifest, so an unpublished push resumes. Any other non-head
@@ -37,32 +37,17 @@ export function forgetUploads(
 export const SETTLED_AFTER_MS = 2 * UPLOAD_TRUST_MS;
 
 /**
- * Keys old enough to be no push's: another device's push uploads before it
- * publishes, and a pin's manifest lands before its flag. Undated ones are kept.
+ * Every object under `prefix`, dated: another device's push uploads before it publishes, and a pin's manifest
+ * lands before its flag, so only one older than {@link SETTLED_AFTER_MS} may be no push's. Undated ones are kept.
  */
-export async function settledKeys(
+export async function listDated(
 	storage: ObjectStorage,
 	prefix: string,
-): Promise<string[]> {
-	return [...(await keysByAge(storage, prefix)).settled];
-}
-
-/** {@link settledKeys}, and the present keys a push may still be using; an absent key is in neither. */
-export async function keysByAge(
-	storage: ObjectStorage,
-	prefix: string,
-): Promise<{ settled: Set<string>; settling: Set<string> }> {
+): Promise<ListedObject[]> {
 	if (!storage.listDetailed) {
 		throw new Error(
 			"This storage does not report when objects were written, so a running upload cannot be told from an orphan.",
 		);
 	}
-	const settledBefore = Date.now() - SETTLED_AFTER_MS;
-	const settled = new Set<string>();
-	const settling = new Set<string>();
-	for (const object of await storage.listDetailed(prefix)) {
-		const old = object.modified !== null && object.modified < settledBefore;
-		(old ? settled : settling).add(object.key);
-	}
-	return { settled, settling };
+	return storage.listDetailed(prefix);
 }

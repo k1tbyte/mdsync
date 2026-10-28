@@ -2,13 +2,20 @@ import { DEFAULT_CONCURRENCY } from "@/core/constants";
 import type { EncryptionKey } from "@/core/crypto";
 import type { StorageAdapter } from "@/features/storage";
 import { runWithFileConcurrency } from "../changes/file-concurrency";
-import { openContent } from "../content/load";
+import { REMOTE_CHUNKS_PREFIX } from "../constants";
+import { chunkKey, isRecipeKey } from "../content/keys";
+import {
+	ContentError,
+	fetchRoot,
+	openContent,
+	prepareContent,
+	recipeChunks,
+} from "../content/load";
 import {
 	reachableHashes,
 	type SweepOptions,
 	sweepObjects,
 } from "../history/sweep";
-import { objectKey } from "../remote/manifest";
 
 export type MaintenanceOptions = Omit<SweepOptions, "only">;
 
@@ -38,25 +45,41 @@ export async function verifyRemote(
 		);
 	}
 
-	const list = [...reachable.hashes.keys()];
+	const list = [...reachable.hashes].map(([hash, size]) => ({ hash, size }));
 	const missing: string[] = [];
 	const corrupt: string[] = [];
+	const source = { storage, key };
+	let stored: Promise<Set<string>> | undefined;
+	// One listing of `chunks/` answers for every recipe, listed only once one is met.
+	const chunksMissing = async (blob: Uint8Array): Promise<boolean> => {
+		stored ??= storage.list(REMOTE_CHUNKS_PREFIX).then((keys) => new Set(keys));
+		const have = await stored;
+		return (await recipeChunks(key, blob)).some(
+			([id]) => !have.has(chunkKey(id)),
+		);
+	};
 	let done = 0;
-	storage.prepareReads?.(list.map(objectKey));
+	await prepareContent(source, list);
 	await runWithFileConcurrency(
 		list,
 		concurrency,
-		(hash) => reachable.hashes.get(hash) ?? Number.POSITIVE_INFINITY,
-		async (hash) => {
-			const blob = await storage.get(objectKey(hash));
-			if (!blob) {
-				missing.push(hash);
-			} else if (deep) {
-				try {
-					await openContent(key, blob, hash);
-				} catch {
-					corrupt.push(hash);
+		(file) => file.size,
+		async ({ hash, size }) => {
+			const root = await fetchRoot(storage, hash, size);
+			try {
+				if (!root) missing.push(hash);
+				else if (
+					isRecipeKey(root.storageKey) &&
+					(await chunksMissing(root.blob))
+				) {
+					missing.push(hash);
+				} else if (deep) {
+					await openContent(source, root.blob, hash, root.storageKey);
 				}
+			} catch (error) {
+				// A failed read aborts the check: an outage must not read as corrupt.
+				if (!(error instanceof ContentError)) throw error;
+				corrupt.push(hash);
 			}
 			options.onProgress?.(++done, list.length);
 		},

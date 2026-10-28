@@ -15,6 +15,7 @@ import {
 	vi,
 } from "vitest";
 import { deriveKey, type EncryptionKey } from "@/core/crypto/cipher";
+import { objectKey } from "@/features/sync/content/keys";
 import { collectHistoryGarbage } from "@/features/sync/history/gc";
 import { publishManifestWithHistory } from "@/features/sync/history/publish";
 import {
@@ -22,7 +23,6 @@ import {
 	resolveSnapshotManifest,
 } from "@/features/sync/history/query";
 import { readHistory } from "@/features/sync/history/remote";
-import { objectKey } from "@/features/sync/remote/manifest";
 import {
 	deepCleanOrphans,
 	verifyRemote,

@@ -3,8 +3,9 @@ import type { EncryptionKey } from "@/core/crypto";
 import { reportWarning } from "@/core/shared";
 import { runWithConcurrency } from "@/core/utils";
 import type { StorageAdapter } from "@/features/storage";
-import { REMOTE_OBJECTS_PREFIX } from "../constants";
-import { objectKey, publishManifestWithGuard } from "../remote/manifest";
+import { REMOTE_OBJECTS_PREFIX, REMOTE_RECIPES_PREFIX } from "../constants";
+import { rootKeys } from "../content/keys";
+import { publishManifestWithGuard } from "../remote/manifest";
 import type { Manifest } from "../types";
 import {
 	changeEntries,
@@ -110,13 +111,24 @@ async function stillLands(
 	own: Unwritten,
 ): Promise<boolean> {
 	if (record.key !== own.key || record.vaultId !== own.vaultId) return false;
+	// A root guards its chunks: a sweep deletes them only after it, a reset after every root.
 	if (record.hashes.length > PROBE_LIMIT) {
-		const stored = new Set(await storage.list(REMOTE_OBJECTS_PREFIX));
-		return record.hashes.every((hash) => stored.has(objectKey(hash)));
+		const listed = await Promise.all(
+			[REMOTE_OBJECTS_PREFIX, REMOTE_RECIPES_PREFIX].map((prefix) =>
+				storage.list(prefix),
+			),
+		);
+		const stored = new Set(listed.flat());
+		return record.hashes.every((hash) =>
+			rootKeys(hash).some((storageKey) => stored.has(storageKey)),
+		);
 	}
 	let missing = false;
 	await runWithConcurrency(record.hashes, DEFAULT_CONCURRENCY, async (hash) => {
-		if (!(await storage.exists(objectKey(hash)))) missing = true;
+		for (const storageKey of rootKeys(hash)) {
+			if (await storage.exists(storageKey)) return;
+		}
+		missing = true;
 	});
 	return !missing;
 }

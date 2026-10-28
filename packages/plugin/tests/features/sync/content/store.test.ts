@@ -12,9 +12,9 @@ import {
 	encryptCompressible,
 	sha256Hex,
 } from "@/core/crypto";
+import { objectKey } from "@/features/sync/content/keys";
 import { loadContent } from "@/features/sync/content/load";
 import { storeContent } from "@/features/sync/content/store";
-import { objectKey } from "@/features/sync/remote/manifest";
 
 let key: EncryptionKey;
 beforeAll(async () => {

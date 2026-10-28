@@ -6,7 +6,7 @@ import {
 	randomId,
 } from "@/core/crypto";
 import type { ConditionalRead, ObjectStorage } from "@/features/storage";
-import { MANIFEST_VERSION, REMOTE_OBJECTS_PREFIX } from "../constants";
+import { MANIFEST_VERSION } from "../constants";
 import { defaultDeviceName } from "../identity/device";
 import type { LocalSnapshot, Manifest } from "../types";
 import { manifestToSpace, manifestToVault } from "./space-paths";
@@ -203,8 +203,4 @@ export function buildManifest(
 		folders:
 			snapshot.emptyFolders.length > 0 ? snapshot.emptyFolders : undefined,
 	};
-}
-
-export function objectKey(hash: string): string {
-	return `${REMOTE_OBJECTS_PREFIX}${hash}`;
 }

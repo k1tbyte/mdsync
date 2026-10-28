@@ -2,6 +2,7 @@ import { TestSession, useEncryptionKey } from "@tests/helpers/session";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS_SYNC } from "@/core/settings/model";
 import { REMOTE_HISTORY_PREFIX } from "@/features/sync/constants";
+import { objectKey } from "@/features/sync/content/keys";
 import { compare, pushPaths } from "@/features/sync/engine";
 import { pushKey, readHistory } from "@/features/sync/history/remote";
 import { advanceSessionAfterPush } from "@/features/sync/remote/baseline";
@@ -10,7 +11,6 @@ import {
 	heldShareBases,
 	ownedFiles,
 } from "@/features/sync/remote/foreign";
-import { objectKey } from "@/features/sync/remote/manifest";
 import { SETTLED_AFTER_MS } from "@/features/sync/remote/uploads";
 import { deepCleanOrphans } from "@/features/sync/runtime/maintenance";
 import { createScopePolicy } from "@/features/sync/scope/scope";
