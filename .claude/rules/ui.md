@@ -41,6 +41,7 @@ When one falls short, extend it in `core/ui` instead of writing a second.
 
 ## Style
 
+- Change states use one palette per theme, not the theme's accents: `--mdsync-added`, `--mdsync-modified`, `--mdsync-deleted` (`-rgb` for tints) in `core/ui/styles/tokens.css`, for letters, chips, size deltas, explorer marks, editor change bars and diff lines. Conflicts, warnings, errors and success stay on theme colours.
 - Obsidian variables and tokens first: colors `--color-*`, `--text-*`, `--background-*`; spacing, radii and fonts from Obsidian's scales. A hex is only a fallback inside `var(--color-x, #hex)`, or one fixed on-color text (`features/presence/ui/presence.css`).
 - Class names start `mdsync-`. Obsidian's own classes (`.modal`, `.nav-file-title`, `.cm-line`) appear only as the target of an override.
 - A changed file shows its change by colour and a mark (dot, arrow or warning sign); `showChangeMarks` turns only the mark off, the name keeps the colour.

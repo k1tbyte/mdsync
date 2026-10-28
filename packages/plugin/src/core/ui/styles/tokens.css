@@ -29,6 +29,25 @@ body.is-mobile {
 	--mdsync-status-bar-clearance: 0px;
 }
 
+/* Change states, one palette in every view whatever the theme's accents; `-rgb` for tints. */
+body.theme-dark {
+	--mdsync-added-rgb: 68, 207, 110;
+	--mdsync-modified-rgb: 233, 151, 63;
+	--mdsync-deleted-rgb: 255, 138, 142;
+}
+
+body.theme-light {
+	--mdsync-added-rgb: 26, 127, 55;
+	--mdsync-modified-rgb: 188, 76, 0;
+	--mdsync-deleted-rgb: 207, 34, 46;
+}
+
+body {
+	--mdsync-added: rgb(var(--mdsync-added-rgb));
+	--mdsync-modified: rgb(var(--mdsync-modified-rgb));
+	--mdsync-deleted: rgb(var(--mdsync-deleted-rgb));
+}
+
 /*
  * Set from TypeScript, listed so a reader knows the contract exists:
  *   --mdsync-depth       tree indent level        source-control/change-rows.ts

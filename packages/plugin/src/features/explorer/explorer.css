@@ -1,17 +1,21 @@
 /* One colour per kind of change, shared by the name and its mark. */
 .nav-file-title.mdsync-changed-add {
-	--mdsync-change: var(--color-green);
+	--mdsync-change: var(--mdsync-added);
 }
 
 .nav-file-title.mdsync-changed-modify {
-	--mdsync-change: var(--color-orange);
+	--mdsync-change: var(--mdsync-modified);
 }
 
 .nav-file-title.mdsync-changed-move {
 	--mdsync-change: var(--color-blue);
 }
 
-.nav-file-title:is(.mdsync-changed-delete, .mdsync-changed-conflict) {
+.nav-file-title.mdsync-changed-delete {
+	--mdsync-change: var(--mdsync-deleted);
+}
+
+.nav-file-title.mdsync-changed-conflict {
 	--mdsync-change: var(--color-red);
 }
 

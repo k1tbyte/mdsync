@@ -31,11 +31,11 @@
 
 /* Tint from the theme's own hue, not `--background-modifier-error/success`: solid fills make same-hue text invisible. */
 .mdsync-unified-line.is-add {
-	background-color: rgba(var(--color-green-rgb), 0.15);
+	background-color: rgba(var(--mdsync-added-rgb), 0.15);
 	color: var(--text-normal);
 }
 
 .mdsync-unified-line.is-del {
-	background-color: rgba(var(--color-red-rgb), 0.15);
+	background-color: rgba(var(--mdsync-deleted-rgb), 0.15);
 	color: var(--text-normal);
 }

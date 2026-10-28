@@ -82,11 +82,11 @@
 }
 
 .mdsync-size-delta.is-positive {
-	color: var(--color-green);
+	color: var(--mdsync-added);
 }
 
 .mdsync-size-delta.is-negative {
-	color: var(--color-red);
+	color: var(--mdsync-deleted);
 }
 
 .mdsync-size-delta.is-neutral {
@@ -98,15 +98,15 @@
 }
 
 .mdsync-status-add {
-	color: var(--color-green);
+	color: var(--mdsync-added);
 }
 
 .mdsync-status-modify {
-	color: var(--color-orange);
+	color: var(--mdsync-modified);
 }
 
 .mdsync-status-delete {
-	color: var(--color-red);
+	color: var(--mdsync-deleted);
 }
 
 .mdsync-status-move {

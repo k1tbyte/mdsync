@@ -47,7 +47,7 @@ Paths in this file are relative to `packages/plugin/src/`.
 
 - A stylesheet sits in its feature (`features/<name>/styles/` or `ui/`), shared ones in `core/ui/styles/`. Each is imported from `styles.css`: core first, features lowest first, `core/ui/styles/mobile.css` last. Import order is the cascade: append within a slice, never reorder.
 - Phone overrides live next to the component they override; `core/ui/styles/mobile.css` is only the cross-cutting touch-target pass.
-- Spacing is Obsidian's 4px grid (`--size-4-*`, `--size-2-*`), never a parallel scale. `core/ui/styles/tokens.css` holds only what Obsidian lacks (`--mdsync-icon`, `--mdsync-touch`, `--mdsync-bar`, `--mdsync-bar-strong`, `--mdsync-radius-pill`). The bar is the tone change bar, the strong one the accent bar of a chosen side.
+- Spacing is Obsidian's 4px grid (`--size-4-*`, `--size-2-*`), never a parallel scale. `core/ui/styles/tokens.css` holds only what Obsidian lacks (`--mdsync-icon`, `--mdsync-touch`, `--mdsync-bar`, `--mdsync-bar-strong`, `--mdsync-radius-pill`, the change-state palette). The bar is the tone change bar, the strong one the accent bar of a chosen side.
 - Raw px only for hairlines and off-grid values with no token. Row `min-height` is a contract with `features/source-control/virtual-list.ts`, which measures it and sets `--mdsync-row-height`: do not round it.
 
 ## Conventions

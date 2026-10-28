@@ -13,8 +13,8 @@
 
 /* Square ends, so a block of changed lines reads as one stroke. */
 .mdsync-sign {
-	--mdsync-sign-change: var(--color-orange, #e9973f);
-	--mdsync-sign-delete: var(--color-red, #d04a4a);
+	--mdsync-sign-change: var(--mdsync-modified);
+	--mdsync-sign-delete: var(--mdsync-deleted);
 	position: absolute;
 	top: 0;
 	bottom: 0;
@@ -30,7 +30,7 @@
 }
 
 .mdsync-sign-add {
-	background-color: var(--color-green, #2bb673);
+	background-color: var(--mdsync-added);
 }
 
 .mdsync-sign-change {
@@ -63,16 +63,16 @@
 
 /* The lines of the change whose popup is open. */
 .cm-line.mdsync-hunk-open {
-	--mdsync-hunk: var(--color-orange, #e9973f);
+	--mdsync-hunk: var(--mdsync-modified);
 	background-color: color-mix(in srgb, var(--mdsync-hunk) 8%, transparent);
 }
 
 .cm-line.mdsync-hunk-open.is-add {
-	--mdsync-hunk: var(--color-green, #2bb673);
+	--mdsync-hunk: var(--mdsync-added);
 }
 
 .cm-line.mdsync-hunk-open:is(.is-delete, .is-topdelete) {
-	--mdsync-hunk: var(--color-red, #d04a4a);
+	--mdsync-hunk: var(--mdsync-deleted);
 }
 
 @media (prefers-reduced-motion: reduce) {
