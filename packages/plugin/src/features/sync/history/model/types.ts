@@ -16,6 +16,8 @@ export interface PushRecord {
 	deviceId: string;
 	deviceName?: string;
 	changes: SnapshotChanges;
+	/** Versions this push named outside history (the configuration folder): freed with the record, never shown. */
+	released?: string[];
 }
 
 /** What GC writes: one resolution over one group. Immutable; a new content is a new object. */

@@ -5,6 +5,7 @@ import {
 	compare,
 	type EngineDependencies,
 } from "../engine";
+import { untrackedDir } from "../history/changes";
 import { publishManifestWithHistory } from "../history/publish";
 import { reconcileBaselineResetGenerations } from "../remote/config-reset";
 import { buildManifest } from "../remote/manifest";
@@ -55,6 +56,7 @@ export async function runCategoryResetFlow(
 		remote,
 		deps.history,
 		deps.state.baseline,
+		untrackedDir(deps),
 	);
 	const state = {
 		...deps.state,

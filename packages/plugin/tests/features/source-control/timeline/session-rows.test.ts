@@ -32,7 +32,7 @@ function version(
 		deviceId: "phone",
 		deviceName: "Phone",
 		pinned: false,
-		files: changes(),
+		files: changes({ added: { "a.md": entry("a", 1) } }),
 		keptUntil: null,
 		restorable: true,
 		isHead: false,
@@ -89,7 +89,7 @@ describe("buildSessionRows", () => {
 		);
 		// A picked day matches the session from its first push, not only its last.
 		expect(row).toMatchObject({
-			meta: "2 versions · 7 pushes · 0 files",
+			meta: "2 versions · 7 pushes · 1 file",
 			everyPush: false,
 			firstAt: NOW - 6 * HOUR,
 		});

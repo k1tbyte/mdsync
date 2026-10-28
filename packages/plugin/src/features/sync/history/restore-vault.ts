@@ -24,6 +24,8 @@ export function planVaultRestore(
 	target: Manifest,
 	local: LocalSnapshot,
 	inScope: (path: string) => boolean = () => true,
+	/** Paths history keeps: the rest is neither written, removed nor counted. */
+	tracks: (path: string) => boolean = () => true,
 ): VaultRestorePlan {
 	const ignored = new Set(local.ignoredPaths);
 	const plan: VaultRestorePlan = {
@@ -33,6 +35,7 @@ export function planVaultRestore(
 		ignored: [],
 	};
 	for (const [path, entry] of Object.entries(target.files)) {
+		if (!tracks(path)) continue;
 		if (ignored.has(path) || !inScope(path)) {
 			plan.ignored.push(path);
 			continue;
@@ -46,7 +49,8 @@ export function planVaultRestore(
 	}
 	const written = new Set(plan.write.map(({ path }) => path.toLowerCase()));
 	for (const path of Object.keys(local.files)) {
-		if (ignored.has(path) || entryAt(target.files, path)) continue;
+		if (!tracks(path) || ignored.has(path) || entryAt(target.files, path))
+			continue;
 		if (written.has(path.toLowerCase())) continue;
 		plan.remove.push(path);
 	}

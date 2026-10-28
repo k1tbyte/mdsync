@@ -171,7 +171,9 @@ export class TimelineTab {
 			);
 		}
 		const rows = this.sessionRows(result);
-		if (rows.length === 0 && !result.lagging) {
+		// A packed version whose changes cancel out is no row, yet its pushes are activity.
+		const empty = rows.length === 0 && !Object.keys(result.activity).length;
+		if (empty && !result.lagging) {
 			renderEmptyState(body, {
 				icon: "clock-3",
 				title: "No pushes yet",

@@ -12,6 +12,7 @@ import {
 } from "../changes/content";
 import { runWithFileConcurrency } from "../changes/file-concurrency";
 import type { EngineDependencies } from "../engine";
+import { historyTracks, untrackedDir } from "../history/changes";
 import type { Activity } from "../history/model/types";
 import {
 	type HistoryQuery,
@@ -154,6 +155,7 @@ export class HistoryService {
 			target,
 			await scanLocal(session),
 			(path) => session.scope.includes(path) && !diskRefuses(path),
+			historyTracks(untrackedDir(session)),
 		);
 	}
 
@@ -281,6 +283,7 @@ function queryOf(session: EngineDependencies): HistoryQuery {
 		key: session.key,
 		root: session.space.root,
 		horizon: session.history?.horizon ?? null,
+		configDir: untrackedDir(session),
 	};
 }
 

@@ -576,7 +576,7 @@ whole horizon. Sync of `.obsidian` is unchanged.
 
 | Module (`features/sync/`) | Change |
 |---|---|
-| `history/changes.ts` | `splitTracked(changes, configDir)`: the record keeps paths outside `<configDir>/`; every hash the config side names (`changeEntries`) becomes `released`, so a sibling that lost the guard frees what it uploaded too. No `configDir` (a share): nothing split |
+| `history/changes.ts` | `splitTracked(changes, configDir)`: the record keeps paths outside `<configDir>/`; every hash the config side names (`changeEntries`) becomes `released`, so a sibling that lost the guard frees what it uploaded too. Only the vault's folder, in any casing (`untrackedDir`: a share's scope names it too) |
 | `history/model/types.ts` | `PushRecord.released?: string[]`: versions this push stopped naming that history does not keep. Never shown, never reachable by itself |
 | `history/publish.ts` | splits before sealing; `configDir` from the caller (`engine.ts` and `operations/config-reset.ts` pass `deps.scope.configDir`) |
 | `history/gc.ts` | a retired push's `released` joins the freed hashes, so phase 2 sweeps them once settled; HEAD, pins and records still keep anything they name (sweep's reachability is unchanged) |

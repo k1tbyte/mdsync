@@ -189,6 +189,31 @@ describe("TimelineTab session rows", () => {
 		expect(listSnapshots).toHaveBeenCalledTimes(1);
 	});
 
+	it("says no pushes only when none was recorded, not when every version is hidden", async () => {
+		const hidden = (activity: SnapshotListResult["activity"]) => ({
+			...loaded(),
+			snapshots: [
+				{
+					...version("s1", NOW - HOUR, "a.md"),
+					files: { added: {}, modified: {}, deleted: {} },
+				},
+			],
+			activity,
+		});
+		const { tab, draw, pane } = harness([
+			hidden({}),
+			hidden({ [Math.floor((NOW - HOUR) / HOUR)]: [2, 0] }),
+		]);
+		draw();
+		await settled();
+		expect(pane().textContent).toContain("No pushes yet");
+
+		tab.clear();
+		draw();
+		await settled();
+		expect(pane().textContent).not.toContain("No pushes yet");
+	});
+
 	it("builds new rows once a new result loads", async () => {
 		const { tab, draw, listSnapshots } = harness([loaded(), loaded()]);
 		draw();
