@@ -30,6 +30,15 @@ export const HISTORY_KEEP_MS = {
 	forever: null,
 } as const;
 
+/** How **Keep history for** names each choice; the Deleted tab says it too. */
+export const HISTORY_KEEP_TEXT = {
+	week: "1 week",
+	month: "1 month",
+	quarter: "3 months",
+	year: "1 year",
+	forever: "Forever",
+} as const satisfies Record<keyof typeof HISTORY_KEEP_MS, string>;
+
 export const SOURCE_CONTROL_VIEW_TYPE = "mdsync-source-control";
 
 export const DIFF_VIEW_TYPE = "mdsync-diff";

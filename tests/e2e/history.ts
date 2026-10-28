@@ -86,6 +86,7 @@ await runScenario("history e2e", async () => {
 		await checkFilter(device, page);
 		await checkDayChip(device, page);
 		await checkFileHistory(device, page);
+		await checkDeleted(device, page);
 		await checkActivitySetting(device, browser);
 	} finally {
 		s3.stop();
@@ -442,6 +443,56 @@ async function checkFileHistory(device: Obsidian, page: Page): Promise<void> {
 		true,
 	);
 	await shot(page, "6-history");
+}
+
+/** Draft.md on the Deleted tab: how long history keeps it, and the path filter. */
+async function checkDeleted(device: Obsidian, page: Page): Promise<void> {
+	await page.locator('[data-mdsync-tab="deleted"]').click();
+	await device.waitFor(
+		"the deleted rows",
+		() => document.querySelectorAll(".mdsync-deleted-row").length,
+		(count: number) => count > 0,
+	);
+	const seen = await device.evaluate(() => ({
+		kept: document.querySelector(".mdsync-deleted-kept")?.textContent ?? "",
+		notes: [...document.querySelectorAll(".mdsync-deleted-note")].map(
+			(each) => each.textContent ?? "",
+		),
+	}));
+	console.log(`deleted: ${JSON.stringify(seen)}`);
+	check("the head says how long", seen.kept, "Kept 3 months after deletion");
+	check(
+		"the draft says until when",
+		seen.notes.some((note) => note.startsWith("Kept until")),
+		true,
+	);
+	await shot(page, "7-deleted");
+	const input = page.locator(
+		".mdsync-deleted-panel .mdsync-timeline-filter input",
+	);
+	await input.click();
+	await page.keyboard.type("zzz-none", { delay: 60 });
+	await device.waitFor(
+		"the no-match state",
+		() =>
+			document.querySelector(".mdsync-deleted-list .mdsync-empty-state")
+				?.textContent ?? "",
+		(text: string) => text.includes("No deleted files match"),
+	);
+	check(
+		"the filter keeps focus on a miss",
+		await device.evaluate(
+			() =>
+				document.activeElement?.matches(".mdsync-deleted-panel input") ?? false,
+		),
+		true,
+	);
+	await input.fill("draft");
+	await device.waitFor(
+		"the draft alone",
+		() => document.querySelectorAll(".mdsync-deleted-row").length,
+		(count: number) => count === 1,
+	);
 }
 
 /** The plugin's Sync page, scrolled to the toggle that hides the calendar. */

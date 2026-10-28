@@ -21,5 +21,5 @@ export interface SettingsTabHost
 	openSetup(step?: "relay"): void;
 	refreshEditorSigns(enabled: boolean): void;
 	refreshFileIndicators(enabled: boolean): void;
-	refreshSourceControlView(): void;
+	refreshSourceControlView(history?: boolean): void;
 }

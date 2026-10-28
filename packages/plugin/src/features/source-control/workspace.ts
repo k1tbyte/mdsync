@@ -94,8 +94,12 @@ export function refreshHistoryAfterPush(plugin: SourceControlHost): void {
 	for (const view of openViews(plugin.app)) view.refreshHistory();
 }
 
-export function refreshSourceControlViews(app: App): void {
-	for (const view of openViews(app)) view.refreshDisplaySettings();
+/** `history` also drops loaded history: a new horizon changes every date it computed. */
+export function refreshSourceControlViews(app: App, history = false): void {
+	for (const view of openViews(app)) {
+		if (history) view.refreshHistory();
+		else view.refreshDisplaySettings();
+	}
 }
 
 function openViews(app: App): SourceControlView[] {

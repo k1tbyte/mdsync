@@ -204,6 +204,17 @@
 }
 
 /* Deleted files: a box to tick, the file, what history says of it. */
+.mdsync-deleted-panel .mdsync-timeline-filter {
+	margin-bottom: var(--size-4-2);
+}
+
+.mdsync-deleted-list {
+	display: flex;
+	flex: 0 0 auto;
+	flex-direction: column;
+	gap: var(--size-2-1);
+}
+
 .mdsync-deleted-head {
 	display: flex;
 	flex: 0 0 auto;
@@ -224,7 +235,7 @@
 	cursor: pointer;
 }
 
-.mdsync-deleted-count {
+.mdsync-deleted-kept {
 	margin-left: auto;
 	color: var(--text-faint);
 	font-size: var(--font-ui-smaller);

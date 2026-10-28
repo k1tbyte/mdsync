@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRelativeTime } from "@/core/shared/format";
+import { formatDay, formatRelativeTime } from "@/core/shared/format";
 import {
 	buildTrashRows,
 	resolveRestoreTarget,
@@ -40,7 +40,7 @@ describe("formatRelativeTime", () => {
 	it("switches to a date once the distance stops being useful", () => {
 		const old = formatRelativeTime(NOW - 60 * DAY, NOW);
 		expect(old).not.toContain("ago");
-		expect(old).toBe(new Date(NOW - 60 * DAY).toLocaleDateString());
+		expect(old).toBe(formatDay(NOW - 60 * DAY, NOW, false));
 	});
 
 	it("treats a clock-skewed future stamp as now, not as negative time", () => {
@@ -50,31 +50,31 @@ describe("formatRelativeTime", () => {
 
 describe("retentionText", () => {
 	it("names the date history keeps the record until", () => {
-		expect(retentionText({ pinned: false, keptUntil: KEPT_UNTIL })).toBe(
-			`Kept in history until ${new Date(KEPT_UNTIL).toLocaleDateString()}`,
+		expect(retentionText({ pinned: false, keptUntil: KEPT_UNTIL }, NOW)).toBe(
+			`Kept until ${formatDay(KEPT_UNTIL, NOW, false)}`,
 		);
 	});
 
 	it("still names a date that has passed while cleanup has not caught up", () => {
 		// Retention promises "at least": a record can outlive its date and still be listed.
 		const past = NOW - DAY;
-		expect(retentionText({ pinned: false, keptUntil: past })).toBe(
-			`Kept in history until ${new Date(past).toLocaleDateString()}`,
+		expect(retentionText({ pinned: false, keptUntil: past }, NOW)).toBe(
+			`Kept until ${formatDay(past, NOW, false)}`,
 		);
 	});
 
 	it("says nothing when no date applies", () => {
-		expect(retentionText({ pinned: false, keptUntil: null })).toBeNull();
+		expect(retentionText({ pinned: false, keptUntil: null }, NOW)).toBeNull();
 	});
 
 	it("says a pin holds the record", () => {
-		expect(retentionText({ pinned: true, keptUntil: null })).toBe(
+		expect(retentionText({ pinned: true, keptUntil: null }, NOW)).toBe(
 			"Kept by a pinned snapshot",
 		);
 	});
 
 	it("lets a pin win over a date", () => {
-		expect(retentionText({ pinned: true, keptUntil: KEPT_UNTIL })).toBe(
+		expect(retentionText({ pinned: true, keptUntil: KEPT_UNTIL }, NOW)).toBe(
 			"Kept by a pinned snapshot",
 		);
 	});
@@ -91,7 +91,7 @@ describe("buildTrashRows", () => {
 		expect(row?.hash).toBe("H1");
 		expect(row?.meta).toBe("deleted 3 days ago · Device device-a · 2.0 KB");
 		expect(row?.note).toEqual({
-			text: `Kept in history until ${new Date(KEPT_UNTIL).toLocaleDateString()}`,
+			text: `Kept until ${formatDay(KEPT_UNTIL, NOW, false)}`,
 			tone: "plain",
 			icon: "hourglass",
 		});

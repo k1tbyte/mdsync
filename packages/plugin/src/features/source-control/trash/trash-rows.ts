@@ -1,4 +1,9 @@
-import { formatBytes, formatRelativeTime, normalizePath } from "@/core/shared";
+import {
+	formatBytes,
+	formatDay,
+	formatRelativeTime,
+	normalizePath,
+} from "@/core/shared";
 import type { DeletedFile } from "@/features/sync";
 import { deviceText } from "../changes/row-formatter";
 
@@ -71,7 +76,7 @@ export function buildTrashRows(
 }
 
 function retentionNote(file: DeletedFile, now: number): TrashNote | null {
-	const text = retentionText(file);
+	const text = retentionText(file, now);
 	if (text === null) return null;
 	if (file.pinned) return { text, tone: "pinned", icon: "pin" };
 	const soon = file.keptUntil !== null && file.keptUntil - now <= SOON_MS;
@@ -100,8 +105,9 @@ export function resolveRestoreTarget(input: string): string | null {
 /** Retention promises "at least": GC may keep a version past this date, never drops it before. */
 export function retentionText(
 	file: Pick<DeletedFile, "pinned" | "keptUntil">,
+	now: number,
 ): string | null {
 	if (file.pinned) return "Kept by a pinned snapshot";
 	if (file.keptUntil === null) return null;
-	return `Kept in history until ${new Date(file.keptUntil).toLocaleDateString()}`;
+	return `Kept until ${formatDay(file.keptUntil, now, false)}`;
 }

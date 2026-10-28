@@ -47,7 +47,7 @@ export function formatRelativeTime(
 	if (delta < RELATIVE_DAY_LIMIT * MS_PER_DAY) {
 		return agoText(delta / MS_PER_DAY, "day");
 	}
-	return new Date(ms).toLocaleDateString();
+	return formatDay(ms, now, false);
 }
 
 /** Heading for a day of rows: recent days read better by name than by date. */

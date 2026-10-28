@@ -6,6 +6,7 @@ import {
 	AUTO_SYNC_MIN_MINUTES,
 	BULK_DELETE_LIMIT_MAX,
 	BULK_DELETE_LIMIT_MIN,
+	HISTORY_KEEP_TEXT,
 	LIVE_SEND_MS,
 } from "@/core/constants";
 import type { RelayStatus } from "@/core/hub";
@@ -178,15 +179,10 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 		desc: "Every push stays for an hour, then one version per 10 minutes, hour, day and week; past this only how busy each day was remains. Pinned versions stay. Each device thins the same history, so the shortest choice among them applies.",
 		when: (s) => s.fileHistoryEnabled,
 		sub: true,
-		options: {
-			week: "1 week",
-			month: "1 month",
-			quarter: "3 months",
-			year: "1 year",
-			forever: "Forever",
-		} satisfies Record<HistoryKeep, string>,
+		options: HISTORY_KEEP_TEXT,
 		get: (s) => s.fileHistoryKeep,
 		set: (v) => ({ fileHistoryKeep: v as HistoryKeep }),
+		after: (plugin) => plugin.refreshSourceControlView(true),
 	},
 	{
 		kind: EFieldKind.Toggle,

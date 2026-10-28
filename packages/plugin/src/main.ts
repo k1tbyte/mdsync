@@ -241,8 +241,8 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		this.fileIndicators?.refresh(enabled);
 	}
 
-	refreshSourceControlView(): void {
-		refreshSourceControlViews(this.app);
+	refreshSourceControlView(history?: boolean): void {
+		refreshSourceControlViews(this.app, history);
 	}
 
 	openSetup(step?: ESetupStep): void {
