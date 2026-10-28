@@ -9,8 +9,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { sha256Hex } from "@/core/crypto/cipher";
 import { pullPaths } from "@/features/sync/apply/pull";
 import { textToBytes } from "@/features/sync/changes/content";
+import { objectKey } from "@/features/sync/content/keys";
 import { SyncController } from "@/features/sync/controller";
-import { objectKey } from "@/features/sync/remote/manifest";
 
 useEncryptionKey();
 afterEach(() => vi.restoreAllMocks());

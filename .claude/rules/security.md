@@ -35,6 +35,11 @@ Follows Obsidian's Developer Policies and Plugin Guidelines. Link model and limi
 - The plugin's own folder is outside the sync scope (`features/sync/scope/scope.ts`), and syncing it with another tool is unsupported: the other device cannot open this device's envelope.
 - Other plugins can read SecretStorage as they can read data.json: the envelope defends against copies of the folder, not against code running on the device.
 
+## Blob envelopes
+
+- Version byte `0x01` AES-GCM, `0x02` gzip then AES-GCM, `0x03` described (`BLOB_VERSION_DESCRIBED`): gzip-sealed like `0x02`, its plaintext a length-prefixed JSON header then a payload (`encryptDescribed`). `0x02` and `0x03` bind the version as additional data, so a relabelled blob fails; padding hides compressed length.
+- `decryptBytes` refuses `0x03` on purpose: it also opens JSON, keys and links, and described content is only for file content (`features/sync/content/`). Only `decryptDescribed` opens it, and its header is validated there before anything is rebuilt.
+
 ## What the relay may see
 
 - Ciphertext, sizes, timings, a hash of the storage identity, a device id per connection. Never file contents, names or keys: frames and presence are sealed under the space's key with the frame's place as additional data (`core/crypto/seal.ts`).

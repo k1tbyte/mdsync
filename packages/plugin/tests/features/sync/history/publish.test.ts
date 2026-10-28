@@ -3,9 +3,9 @@ import { manifestOf } from "@tests/helpers/history";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { REMOTE_MANIFEST_KEY } from "@/core/constants";
 import { deriveKey, type EncryptionKey } from "@/core/crypto/cipher";
+import { objectKey, recipeKey } from "@/features/sync/content/keys";
 import { publishManifestWithHistory } from "@/features/sync/history/publish";
 import { pushKey, readHistory } from "@/features/sync/history/remote";
-import { objectKey } from "@/features/sync/remote/manifest";
 import { resetRemoteStorage } from "@/features/sync/remote/reset";
 
 let key: EncryptionKey;
@@ -117,13 +117,28 @@ describe("publishManifestWithHistory", () => {
 		expect(await storage.list("history/")).toEqual([pushKey("s2")]);
 	});
 
-	it("checks a record naming more than a listing page with one listing, not a probe per blob", async () => {
+	it("lands a delayed record whose blob is chunked", async () => {
+		const storage = await stored();
+		vi.spyOn(console, "warn").mockImplementation(() => {});
+		failPutOnce(storage, pushKey("s1"));
+		await publishManifestWithHistory(storage, key, "", s1, null, history);
+		vi.mocked(storage.put).mockRestore();
+
+		await storage.delete(objectKey("A1"));
+		await storage.put(recipeKey("A1"), new Uint8Array([1]));
+		await publishManifestWithHistory(storage, key, "", s2, s1, history);
+		expect(await storage.exists(pushKey("s1"))).toBe(true);
+	});
+
+	it("checks a record naming more than a listing page with a listing per root folder, not a probe per blob", async () => {
 		const storage = new FakeStorage("big");
 		vi.spyOn(console, "warn").mockImplementation(() => {});
 		const hashes = Array.from({ length: 1001 }, (_, i) => `h${i}`);
 		for (const hash of [...hashes, "A2"]) {
 			await storage.put(objectKey(hash), new Uint8Array([1]));
 		}
+		await storage.delete(objectKey("h7"));
+		await storage.put(recipeKey("h7"), new Uint8Array([1]));
 		const big = manifestOf(
 			"big1",
 			null,
@@ -139,7 +154,7 @@ describe("publishManifestWithHistory", () => {
 		await publishManifestWithHistory(storage, key, "", next, big, history);
 
 		expect(storage.existsCalls).toBe(0);
-		expect(storage.listCalls).toBe(1);
+		expect(storage.listCalls).toBe(2);
 		expect(storage.map.has(pushKey("big1"))).toBe(true);
 		expect(storage.map.has(pushKey("big2"))).toBe(true);
 	});

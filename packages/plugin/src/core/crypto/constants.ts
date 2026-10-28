@@ -12,6 +12,15 @@ export const BLOB_VERSION = 0x01;
 export const BLOB_VERSION_GZIP = 0x02;
 
 /**
+ * Gzip-sealed like 0x02, its plaintext a length-prefixed JSON header and then a payload. The one blob that
+ * `decryptBytes` refuses: it is file content only, never JSON, a key or a link.
+ */
+export const BLOB_VERSION_DESCRIBED = 0x03;
+
+/** uint32 little-endian length of the header JSON, ahead of it in a described plaintext. */
+export const DESCRIBED_HEADER_BYTES = 4;
+
+/**
  * Below this gzip framing costs more than it saves and any build can read the document (a 20k-file manifest
  * gzips 3.4 MB to 1.0 MB).
  */

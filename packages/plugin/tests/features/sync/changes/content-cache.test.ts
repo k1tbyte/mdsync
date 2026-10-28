@@ -11,7 +11,7 @@ import {
 	loadRemoteText,
 	textToBytes,
 } from "@/features/sync/changes/content";
-import { objectKey } from "@/features/sync/remote/manifest";
+import { objectKey } from "@/features/sync/content/keys";
 
 async function seed(
 	storage: FakeStorage,
@@ -66,7 +66,8 @@ describe("remote text cache", () => {
 		expect(await loadRemoteText(deps, hash)).toBe(
 			"uploaded later by another device",
 		);
-		expect(storage.getCalls).toBe(2);
+		// Without a size, a miss looks under both root folders.
+		expect(storage.getCalls).toBe(3);
 	});
 
 	it("never serves one remote's content to another", async () => {
@@ -79,7 +80,7 @@ describe("remote text cache", () => {
 
 		const share = new FakeStorage();
 		expect(await loadRemoteText({ storage: share, key }, hash)).toBeNull();
-		expect(share.getCalls).toBe(1);
+		expect(share.getCalls).toBe(2);
 	});
 
 	it("keeps its budget intact when callers race the same hash", async () => {

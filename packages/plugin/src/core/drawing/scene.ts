@@ -1,11 +1,14 @@
 import { sha256Hex } from "@/core/crypto";
 
-import { isDrawing, readDrawing, type SceneElement } from "./format";
+import {
+	HEAD_BYTES,
+	isDrawing,
+	readDrawing,
+	type SceneElement,
+} from "./format";
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
-/** Front matter sits at the top; a drawing names itself well before this. */
-const HEAD_BYTES = 1024;
 
 /**
  * A drawing's identity regardless of view state: its text outside the scene plus element versions. Undefined
