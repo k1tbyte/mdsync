@@ -49,6 +49,7 @@ export function relayFixOf(status: RelayStatus): RelayFix | null {
 
 interface SettingsDialog {
 	open(): void;
+	close(): void;
 	openTabById(id: string): void;
 }
 
@@ -56,4 +57,8 @@ export function openPluginSettings(app: App): void {
 	const { setting } = app as App & { setting?: SettingsDialog };
 	setting?.open();
 	setting?.openTabById(PLUGIN_ID);
+}
+
+export function closePluginSettings(app: App): void {
+	(app as App & { setting?: SettingsDialog }).setting?.close();
 }

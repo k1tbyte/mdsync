@@ -16,6 +16,14 @@ export function openSourceControlDeleted(
 	return openSourceControlOn(plugin, (view) => view.showDeleted());
 }
 
+/** The Timeline filtered to the local day starting at `day`. */
+export function openSourceControlTimeline(
+	plugin: SourceControlHost,
+	day: number,
+): Promise<void> {
+	return openSourceControlOn(plugin, (view) => view.showTimeline(day));
+}
+
 /** An open view keeps its tab; conflicts are only on Changes. */
 export function openSourceControlChanges(
 	plugin: SourceControlHost,

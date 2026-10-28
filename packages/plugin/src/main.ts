@@ -40,6 +40,7 @@ import {
 } from "@/features/setup";
 import {
 	openSourceControlChanges,
+	openSourceControlTimeline,
 	openSourceControlView,
 	refreshSourceControlViews,
 } from "@/features/source-control";
@@ -260,6 +261,10 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 
 	openChanges(): Promise<void> {
 		return openSourceControlChanges(this);
+	}
+
+	openTimeline(day: number): Promise<void> {
+		return openSourceControlTimeline(this, day);
 	}
 
 	scheduleScopeRefresh(reason?: string): void {

@@ -31,8 +31,6 @@ import { buildSessionRows, type SessionRow, touches } from "./session-rows";
 import { TimelineActions } from "./timeline-actions";
 import { type TimelineFileRow, timelineDiffTarget } from "./timeline-rows";
 
-const CALENDAR_WEEKS = 53;
-
 export class TimelineTab {
 	private readonly snapshots = new HistoryList<SnapshotListResult>(() => {
 		const loaded = this.snapshots.value;
@@ -170,16 +168,16 @@ export class TimelineTab {
 			});
 			return;
 		}
-		const calendar = this.plugin.settings.fileHistoryActivity
-			? buildCalendar(result.activity, result.snapshots, CALENDAR_WEEKS)
-			: null;
+		// Built while hidden too: a day picked in settings filters by it.
+		const calendar = buildCalendar(result.activity, result.snapshots);
 		// A reload may have thinned the picked day, or moved it off the calendar.
 		const picked = this.picked?.start;
 		this.picked =
-			calendar?.weeks
+			calendar.weeks
 				.flatMap((week) => week.days)
 				.find((day) => day.start === picked) ?? null;
-		if (calendar) this.renderActivity(body, calendar);
+		if (this.plugin.settings.fileHistoryActivity)
+			this.renderActivity(body, calendar);
 		this.renderFilter(body);
 		const sessions = body.createDiv({ cls: "mdsync-timeline-sessions" });
 		this.redrawSessions = () => {
@@ -248,10 +246,10 @@ export class TimelineTab {
 		el: HTMLElement,
 		rows: readonly SessionRow[],
 		result: SnapshotListResult,
-		calendar: ActivityCalendar | null,
+		calendar: ActivityCalendar,
 	): void {
 		const picked = this.picked;
-		if (picked?.res === "counts" && calendar) {
+		if (picked?.res === "counts") {
 			this.renderCountsDay(el, picked, result, calendar);
 			return;
 		}
@@ -317,6 +315,15 @@ export class TimelineTab {
 			this.picked = target;
 			this.onRerender();
 		});
+	}
+
+	/** Fresh history from the top; the day is rebound to the calendar's own once it loads. */
+	showDay(start: number): void {
+		this.snapshots.clear();
+		this.picked = { start, pushes: 0, level: 0, res: null };
+		this.query = "";
+		this.scrollTop = 0;
+		this.focusKey = null;
 	}
 
 	private clearQuery(): void {

@@ -5,6 +5,7 @@ import {
 	buildCalendar,
 	type CalendarDay,
 	dayTooltip,
+	ladderOf,
 } from "@/features/sync/ui/history/calendar";
 
 // Wednesday.
@@ -220,5 +221,39 @@ describe("dayTooltip", () => {
 			`${date}: 1 push · only counts kept`,
 		);
 		expect(dayTooltip(day(0, "1d"), NOW)).toBe(`${date}: no pushes`);
+	});
+});
+
+describe("ladderOf", () => {
+	const DAY = 24 * HOUR;
+	const steps = (horizon: number | null) =>
+		ladderOf(horizon, NOW).map((step) => `${step.title} · ${step.span}`);
+
+	it("climbs from every push to activity only, the last version back to the counts cutoff", () => {
+		const ladder = steps(91 * DAY);
+		expect(ladder.slice(0, 4)).toEqual([
+			"Every push · Last hour",
+			"1 per 10 min · Last 24 hours",
+			"1 per hour · Last 7 days",
+			"1 per day · Last 30 days",
+		]);
+		expect(ladder[4]).toMatch(/^1 per week · Back to /);
+		expect(ladder[5]).toBe("Activity only · Older");
+	});
+
+	it("leaves out a week a short horizon never keeps", () => {
+		const ladder = steps(7 * DAY);
+		expect(ladder.map((step) => step.split(" · ")[0])).toEqual([
+			"Every push",
+			"1 per 10 min",
+			"1 per hour",
+			"1 per day",
+			"Activity only",
+		]);
+		expect(ladder[3]).toMatch(/^1 per day · Back to /);
+	});
+
+	it("keeps weekly versions for good without a horizon", () => {
+		expect(steps(null).slice(-1)).toEqual(["1 per week · Kept for good"]);
 	});
 });

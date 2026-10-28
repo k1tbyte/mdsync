@@ -192,6 +192,12 @@ export class SourceControlView extends ItemView {
 		this.render(this.plugin.controller.getSnapshot(), true);
 	}
 
+	showTimeline(day: number): void {
+		this.tab = ESourceTab.Timeline;
+		this.timelineTab.showDay(day);
+		this.render(this.plugin.controller.getSnapshot(), true);
+	}
+
 	showChanges(): void {
 		this.activateTab(ESourceTab.Changes);
 	}

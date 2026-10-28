@@ -90,6 +90,28 @@ export function keptUntil(at: number, horizon: number | null): number | null {
 		: groupEnd("counts", groupStart("counts", at)) + horizon;
 }
 
+export interface Stage {
+	res: Resolution;
+	from: number;
+}
+
+/**
+ * What a record thins through with age, each from the youngest age it may reach it at. A rung due no sooner
+ * than counts never shows: the coarsest due wins.
+ */
+export function stagesOf(horizon: number | null): Stage[] {
+	const counts = RUNGS.counts.group.size;
+	return RESOLUTIONS.flatMap((res): Stage[] => {
+		const { settle, group } = RUNGS[res];
+		if (res === "push") return [{ res, from: 0 }];
+		if (settle === "horizon")
+			return horizon === null ? [] : [{ res, from: horizon }];
+		return horizon !== null && settle >= horizon + counts - group.size
+			? []
+			: [{ res, from: settle }];
+	});
+}
+
 /** Records before this are past `keptUntil`: once GC runs, only counts and pins hold them. */
 export function countsBefore(now: number, horizon: number): number {
 	return groupStart("counts", now - horizon);

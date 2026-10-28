@@ -88,6 +88,7 @@ await runScenario("history e2e", async () => {
 		await checkFileHistory(device, page);
 		await checkDeleted(device, page);
 		await checkActivitySetting(device, browser);
+		await checkHolds(device, browser);
 	} finally {
 		s3.stop();
 		await browser?.close().catch(() => undefined);
@@ -533,6 +534,51 @@ async function checkActivitySetting(
 		return undefined;
 	});
 	await shot(page, "5-activity-setting");
+}
+
+/** **What history holds** under **Keep history for**; a day opens the Timeline on it. */
+async function checkHolds(
+	device: Obsidian,
+	browser: NonNullable<Awaited<ReturnType<typeof chromium.connectOverCDP>>>,
+): Promise<void> {
+	const ladder = await device.waitFor(
+		"the holds calendar",
+		() => {
+			const row = activeDocument.querySelector<HTMLElement>(".mdsync-holds");
+			if (!row?.querySelector(".mdsync-calendar-day")) return null;
+			row.scrollIntoView({ block: "center" });
+			return [...row.querySelectorAll(".mdsync-holds-step")].map((step) =>
+				[...step.children].map((part) => part.textContent).join(""),
+			);
+		},
+		(steps: string[] | null) => steps !== null,
+	);
+	console.log(`ladder: ${JSON.stringify(ladder)}`);
+	check("the ladder starts at every push", ladder?.[0], "Every pushLast hour");
+	check(
+		"the ladder ends at activity only",
+		ladder?.at(-1),
+		"Activity onlyOlder",
+	);
+	for (const candidate of browser.contexts().flatMap((c) => c.pages())) {
+		if ((await candidate.locator(".mdsync-holds").count()) === 0) continue;
+		await shot(candidate, "8-holds");
+		await candidate
+			.locator(".mdsync-holds .mdsync-calendar-day")
+			.last()
+			.click();
+	}
+	const chip = await device.waitFor(
+		"the Timeline on the picked day",
+		() => document.querySelector(".mdsync-timeline-day-chip")?.textContent,
+		(text: string | undefined) => Boolean(text),
+	);
+	check("a day opens the Timeline on it", Boolean(chip), true);
+	check(
+		"the settings close",
+		await device.evaluate(() => !document.querySelector(".mod-settings")),
+		true,
+	);
 }
 
 async function shot(page: Page, name: string): Promise<void> {

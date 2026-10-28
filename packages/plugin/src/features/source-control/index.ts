@@ -6,6 +6,7 @@ export {
 	openSourceControlChanges,
 	openSourceControlDeleted,
 	openSourceControlHistory,
+	openSourceControlTimeline,
 	openSourceControlView,
 	refreshHistoryAfterPush,
 	refreshSourceControlViews,

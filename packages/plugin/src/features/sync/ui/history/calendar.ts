@@ -1,9 +1,16 @@
 import { formatDay, pluralize, startOfDay, startOfWeek } from "@/core/shared";
-import { RESOLUTIONS } from "../../history/model/periods";
+import {
+	countsBefore,
+	RESOLUTIONS,
+	type Stage,
+	stagesOf,
+} from "../../history/model/periods";
 import type { Activity, Resolution } from "../../history/model/types";
 import type { Dating } from "../../history/types";
 
 const HOUR_MS = 3_600_000;
+/** A year: Settings and the Timeline show the same days, so a day picked in one exists in the other. */
+const WEEKS = 53;
 /** Upper bounds of pushes per day for levels 1-3; more is level 4. */
 const LEVELS = [5, 12, 24];
 
@@ -44,7 +51,7 @@ export interface ActivityCalendar {
 export function buildCalendar(
 	activity: Activity,
 	versions: readonly Dating[],
-	weekCount: number,
+	weekCount = WEEKS,
 	now: number = Date.now(),
 ): ActivityCalendar {
 	const perDay = new Map<number, number>();
@@ -105,6 +112,43 @@ export function buildCalendar(
 		if (last >= known.from) week.res ??= weeks[index + 1]?.res ?? null;
 	}
 	return { weeks, pushes, since: dayStart(0) };
+}
+
+export interface LadderStep {
+	res: Resolution;
+	title: string;
+	/** The ages it covers: "Last 7 days", "Back to 29 Jul", "Older". */
+	span: string;
+}
+
+/** How finely history keeps each age under `horizon`, newest first. */
+export function ladderOf(
+	horizon: number | null,
+	now: number = Date.now(),
+): LadderStep[] {
+	const stages = stagesOf(horizon);
+	return stages.map(({ res }, index) => {
+		const text = RESOLUTION_TEXT[res];
+		return {
+			res,
+			title:
+				res === "counts"
+					? "Activity only"
+					: `${text.charAt(0).toUpperCase()}${text.slice(1)}`,
+			span: spanOf(res, stages[index + 1], now),
+		};
+	});
+}
+
+/** A stage lasts until the next one may start. */
+function spanOf(res: Resolution, next: Stage | undefined, now: number): string {
+	if (res === "counts") return "Older";
+	if (!next) return "Kept for good";
+	if (next.res === "counts")
+		return `Back to ${formatDay(countsBefore(now, next.from), now, false)}`;
+	const hours = next.from / HOUR_MS;
+	if (hours === 1) return "Last hour";
+	return hours <= 24 ? `Last ${hours} hours` : `Last ${hours / 24} days`;
 }
 
 /** Runs of weeks kept alike, oldest first, for the strip under the calendar. */

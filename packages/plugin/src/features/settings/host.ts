@@ -22,4 +22,5 @@ export interface SettingsTabHost
 	refreshEditorSigns(enabled: boolean): void;
 	refreshFileIndicators(enabled: boolean): void;
 	refreshSourceControlView(history?: boolean): void;
+	openTimeline(day: number): Promise<void>;
 }

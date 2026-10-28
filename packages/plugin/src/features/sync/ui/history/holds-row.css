@@ -1,0 +1,80 @@
+/* The calendar and the ladder take the row's whole width, under its name. */
+.mdsync-holds.setting-item {
+	flex-direction: column;
+	align-items: stretch;
+	gap: var(--size-4-3);
+}
+
+.mdsync-holds .setting-item-info {
+	margin-inline-end: 0;
+}
+
+.mdsync-holds-calendar {
+	min-height: 120px;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.mdsync-holds-ladder {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+	gap: var(--size-4-1);
+}
+
+.mdsync-holds-step {
+	padding: var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.mdsync-holds-title {
+	margin-top: var(--size-4-2);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	color: var(--text-normal);
+}
+
+.mdsync-holds-span {
+	font-size: var(--font-smallest);
+	color: var(--text-muted);
+}
+
+/* One tick per kept version: sparser down the ladder. */
+.mdsync-holds-ticks {
+	--mdsync-tick: 6px;
+	height: 12px;
+	background: repeating-linear-gradient(
+		90deg,
+		var(--interactive-accent) 0 2px,
+		transparent 2px var(--mdsync-tick)
+	);
+}
+
+.mdsync-holds-step[data-res="10m"] .mdsync-holds-ticks {
+	--mdsync-tick: 11px;
+}
+
+.mdsync-holds-step[data-res="1h"] .mdsync-holds-ticks {
+	--mdsync-tick: 18px;
+}
+
+.mdsync-holds-step[data-res="1d"] .mdsync-holds-ticks {
+	--mdsync-tick: 30px;
+}
+
+.mdsync-holds-step[data-res="1w"] .mdsync-holds-ticks {
+	--mdsync-tick: 64px;
+}
+
+.mdsync-holds-step[data-res="counts"] .mdsync-holds-ticks {
+	width: 28px;
+	background: repeating-linear-gradient(
+		90deg,
+		var(--background-modifier-border-hover) 0 8px,
+		transparent 8px 10px
+	);
+	background-size: 100% 8px;
+	background-repeat: no-repeat;
+	background-position: left center;
+}

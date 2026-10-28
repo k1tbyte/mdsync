@@ -6,11 +6,12 @@ import {
 	AUTO_SYNC_MIN_MINUTES,
 	BULK_DELETE_LIMIT_MAX,
 	BULK_DELETE_LIMIT_MIN,
+	HISTORY_KEEP_MS,
 	HISTORY_KEEP_TEXT,
 	LIVE_SEND_MS,
 } from "@/core/constants";
 import type { RelayStatus } from "@/core/hub";
-import { RELAY_TEXT } from "@/core/hub";
+import { closePluginSettings, RELAY_TEXT } from "@/core/hub";
 import {
 	DEFAULT_CORE_SETTINGS,
 	EFieldKind,
@@ -21,12 +22,13 @@ import {
 	isRelayConfigured,
 	type SettingsField,
 	type SettingsHost,
+	type SettingsRow,
 	SUB_SETTING_CLASS,
 } from "@/core/settings";
 import type { LiveSessions } from "@/features/live";
 import type { People } from "@/features/presence";
 import type { HubConnection } from "@/features/relay";
-import { VAULT_SPACE } from "@/features/sync";
+import { renderHistoryHolds, VAULT_SPACE } from "@/features/sync";
 import type { SettingsTabHost } from "../host";
 
 /** The wizard shows these too, so they ask only what its host has. */
@@ -89,6 +91,20 @@ export const SETUP_FIELDS: ReadonlyArray<SettingsField<RealtimeFieldHost>> = [
 	{ ...REALTIME_FIELD, when: isRelayConfigured },
 	LIVE_EDITING_FIELD,
 ];
+
+const KEEP_HISTORY_FIELD: SettingsField<SettingsTabHost> = {
+	kind: EFieldKind.Choice,
+	name: "Keep history for",
+	desc: "Every push stays for an hour, then one version per 10 minutes, hour, day and week; past this only how busy each day was remains. Pinned versions stay. Each device thins the same history, so the shortest choice among them applies.",
+	when: (s) => s.fileHistoryEnabled,
+	sub: true,
+	options: HISTORY_KEEP_TEXT,
+	get: (s) => s.fileHistoryKeep,
+	set: (v) => ({ fileHistoryKeep: v as HistoryKeep }),
+	after: (plugin) => plugin.refreshSourceControlView(true),
+	// The ladder below it follows the choice.
+	rerender: true,
+};
 
 const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 	AUTOSYNC_FIELD,
@@ -173,17 +189,7 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 		set: (v) => ({ fileHistoryEnabled: v }),
 		rerender: true,
 	},
-	{
-		kind: EFieldKind.Choice,
-		name: "Keep history for",
-		desc: "Every push stays for an hour, then one version per 10 minutes, hour, day and week; past this only how busy each day was remains. Pinned versions stay. Each device thins the same history, so the shortest choice among them applies.",
-		when: (s) => s.fileHistoryEnabled,
-		sub: true,
-		options: HISTORY_KEEP_TEXT,
-		get: (s) => s.fileHistoryKeep,
-		set: (v) => ({ fileHistoryKeep: v as HistoryKeep }),
-		after: (plugin) => plugin.refreshSourceControlView(true),
-	},
+	KEEP_HISTORY_FIELD,
 	{
 		kind: EFieldKind.Toggle,
 		name: "Show activity in Timeline",
@@ -220,14 +226,37 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 export function automationSection(
 	ctx: FieldContext<SettingsTabHost>,
 ): SettingDefinitionGroup {
+	const rows = AUTOMATION_FIELDS.map((field) => fieldRow(ctx, field));
+	const keep = AUTOMATION_FIELDS.indexOf(KEEP_HISTORY_FIELD) + 1;
 	return group("Automation", [
-		...AUTOMATION_FIELDS.map((field) => fieldRow(ctx, field)),
+		...rows.slice(0, keep),
+		historyHoldsRow(ctx.plugin),
+		...rows.slice(keep),
 		{
 			name: "Connected devices",
 			visible: () => ctx.plugin.settings.realtimeSync,
 			render: (setting) => renderConnectedDevices(setting, ctx.plugin),
 		},
 	]);
+}
+
+function historyHoldsRow(plugin: SettingsTabHost): SettingsRow {
+	return {
+		name: "What history holds",
+		desc: "Pushes per day across your devices. Faded days keep counts only. Select a day to open it in Timeline.",
+		visible: () => plugin.settings.fileHistoryEnabled,
+		render: (setting) => {
+			setting.settingEl.addClass(SUB_SETTING_CLASS);
+			renderHistoryHolds(setting, {
+				load: () => plugin.controller.history.listSnapshots(),
+				horizon: HISTORY_KEEP_MS[plugin.settings.fileHistoryKeep],
+				onPick: (day) => {
+					closePluginSettings(plugin.app);
+					void plugin.openTimeline(day.start);
+				},
+			});
+		},
+	};
 }
 
 function renderConnectedDevices(

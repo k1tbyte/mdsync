@@ -127,6 +127,7 @@ export {
 	type CalendarDay,
 	RESOLUTION_TEXT,
 } from "./ui/history/calendar";
+export { renderHistoryHolds } from "./ui/history/holds-row";
 export {
 	addIgnoreMenuItem,
 	carryVaultIgnores,
