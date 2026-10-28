@@ -58,10 +58,11 @@ export function buildTrashRows(
 			age,
 			title: file.path,
 			label,
+			// Size before the device: a narrow pane cuts the end.
 			meta: [
 				label,
-				deviceText(file, options.currentDevice),
 				formatBytes(file.entry.size),
+				deviceText(file, options.currentDevice),
 			].join(" · "),
 			note: options.inVault?.(file.path)
 				? {

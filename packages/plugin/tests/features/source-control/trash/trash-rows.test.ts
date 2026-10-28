@@ -89,7 +89,7 @@ describe("buildTrashRows", () => {
 
 		expect(row?.title).toBe("notes/gone.md");
 		expect(row?.hash).toBe("H1");
-		expect(row?.meta).toBe("deleted 3 days ago · Device device-a · 2.0 KB");
+		expect(row?.meta).toBe("deleted 3 days ago · 2.0 KB · Device device-a");
 		expect(row?.note).toEqual({
 			text: `Kept until ${formatDay(KEPT_UNTIL, NOW, false)}`,
 			tone: "plain",
