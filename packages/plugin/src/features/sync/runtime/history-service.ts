@@ -12,6 +12,7 @@ import {
 } from "../changes/content";
 import { runWithFileConcurrency } from "../changes/file-concurrency";
 import type { EngineDependencies } from "../engine";
+import type { Activity } from "../history/model/types";
 import {
 	type HistoryQuery,
 	loadVersionBytes,
@@ -54,6 +55,8 @@ interface HistoryServiceDeps {
 	/** Serialises writes against the rest of the sync queue. */
 	enqueue: <T>(task: () => Promise<T>) => Promise<T>;
 	refresh: () => Promise<void>;
+	/** Keeps the vault's activity for the settings overview. */
+	remember: (storage: string, activity: Activity, since: number) => void;
 }
 
 /** Reads and restores past file versions from the snapshot history. */
@@ -80,7 +83,10 @@ export class HistoryService {
 		const session = await this.deps.openSession();
 		if (!session)
 			return { snapshots: [], lagging: false, truncated: false, activity: {} };
-		return querySnapshots(queryOf(session));
+		const since = Date.now();
+		const result = await querySnapshots(queryOf(session));
+		this.deps.remember(session.storage.identity(), result.activity, since);
+		return result;
 	}
 
 	/** What a restore would change, computed against a fresh scan of the vault. */

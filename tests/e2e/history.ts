@@ -89,6 +89,7 @@ await runScenario("history e2e", async () => {
 		await checkDeleted(device, page);
 		await checkActivitySetting(device, browser);
 		await checkHolds(device, browser);
+		await checkDashboard(device, browser);
 	} finally {
 		s3.stop();
 		await browser?.close().catch(() => undefined);
@@ -600,6 +601,58 @@ async function checkHolds(
 		await device.evaluate(() => !document.querySelector(".mod-settings")),
 		true,
 	);
+}
+
+/** The root page draws the activity the Timeline already read, then opens the Timeline. */
+async function checkDashboard(
+	device: Obsidian,
+	browser: NonNullable<Awaited<ReturnType<typeof chromium.connectOverCDP>>>,
+): Promise<void> {
+	await openSettings(device);
+	const head = await device.waitFor(
+		"the dashboard activity",
+		() => {
+			const card = activeDocument.querySelector(".mdsync-overview-activity");
+			if (!card?.querySelector(".mdsync-calendar-day")) return null;
+			return {
+				text:
+					card.querySelector(".mdsync-overview-card-lines")?.textContent ?? "",
+				bands: card.querySelector(".mdsync-calendar-bands") !== null,
+				today: (() => {
+					const scroller = card.querySelector(
+						".mdsync-calendar",
+					) as HTMLElement;
+					return (
+						scroller.scrollLeft + scroller.clientWidth >=
+						scroller.scrollWidth - 1
+					);
+				})(),
+			};
+		},
+		(found: { text: string; bands: boolean; today: boolean } | null) =>
+			found?.today === true,
+	);
+	console.log(`dashboard: ${JSON.stringify(head)}`);
+	check("the dashboard counts pushes", /\d+ push/.test(head?.text ?? ""), true);
+	check("the dashboard names no resolutions", head?.bands, false);
+	for (const candidate of browser.contexts().flatMap((c) => c.pages())) {
+		if ((await candidate.locator(".mdsync-overview-activity").count()) === 0)
+			continue;
+		await shot(candidate, "9-dashboard");
+		await candidate
+			.locator(".mdsync-overview-activity button", { hasText: "Open timeline" })
+			.click();
+	}
+	const shown = await device.waitFor(
+		"the Timeline from the dashboard",
+		() =>
+			!document.querySelector(".mod-settings") &&
+			document
+				.querySelector('[data-mdsync-tab="timeline"]')
+				?.getAttribute("aria-selected") === "true",
+		(open: boolean) => open,
+	);
+	check("Open timeline shows the Timeline", shown, true);
 }
 
 async function shot(page: Page, name: string): Promise<void> {

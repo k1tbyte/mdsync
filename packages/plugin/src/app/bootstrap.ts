@@ -24,6 +24,8 @@ import {
 } from "@/features/sync";
 import { createSessionOpeners } from "./session-factory";
 
+const ACTIVITY_KEY = "mdsync-activity";
+
 export interface PluginRuntime {
 	controller: SyncController;
 	logs: LogService;
@@ -135,6 +137,10 @@ export async function bootstrapPluginRuntime(
 		},
 		openSession,
 		openLocal,
+		activityStore: {
+			load: () => app.loadLocalStorage(ACTIVITY_KEY) as unknown,
+			save: (value) => app.saveLocalStorage(ACTIVITY_KEY, value),
+		},
 		persistState: (state) => statePersister.persist(state),
 		getState: () => statePersister.state,
 		logInfo: (op, msg, details) => logs.info(op, msg, details),

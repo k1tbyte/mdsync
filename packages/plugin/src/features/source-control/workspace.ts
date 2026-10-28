@@ -19,7 +19,7 @@ export function openSourceControlDeleted(
 /** The Timeline filtered to the local day starting at `day`. */
 export function openSourceControlTimeline(
 	plugin: SourceControlHost,
-	day: number,
+	day?: number,
 ): Promise<void> {
 	return openSourceControlOn(plugin, (view) => view.showTimeline(day));
 }

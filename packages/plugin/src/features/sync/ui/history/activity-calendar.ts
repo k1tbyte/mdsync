@@ -50,16 +50,7 @@ export function renderActivityCalendar(
 			cells.push(cell);
 		}
 	}
-	const strip = scroller.createDiv({ cls: "mdsync-calendar-bands" });
-	for (const band of bandsOf(calendar.weeks)) {
-		const el = strip.createDiv({
-			cls: "mdsync-calendar-band",
-			attr: { "data-res": band.res ?? "none" },
-		});
-		el.style.setProperty("--mdsync-weeks", String(band.weeks));
-		if (band.res && band.weeks >= LABELED_WEEKS)
-			el.createSpan({ text: RESOLUTION_TEXT[band.res] });
-	}
+	renderBands(scroller, calendar.weeks);
 	const ringed = grid.querySelector<HTMLElement>(".is-picked");
 	let tip: Notice | null = null;
 	const pick = (cell: HTMLElement): void => {
@@ -80,11 +71,34 @@ export function renderActivityCalendar(
 		if (cell) pick(cell);
 	});
 	if (onPick) makeRoving(grid, cells, ringed ?? cells[cells.length - 1], pick);
-	requestAnimationFrame(() => {
+	// Until it overflows: settings lay it out wide, then narrow it as the page opens.
+	const anchor = new ResizeObserver(() => {
+		if (!scroller.isConnected) return anchor.disconnect();
 		scroller.scrollLeft = ringed
 			? ringed.offsetLeft - scroller.clientWidth / 2
 			: scroller.scrollWidth;
+		if (scroller.scrollWidth > scroller.clientWidth) anchor.disconnect();
 	});
+	anchor.observe(scroller);
+}
+
+/** Left out when no week's resolution is known. */
+function renderBands(
+	scroller: HTMLElement,
+	weeks: ActivityCalendar["weeks"],
+): void {
+	const bands = bandsOf(weeks);
+	if (!bands.some((band) => band.res)) return;
+	const strip = scroller.createDiv({ cls: "mdsync-calendar-bands" });
+	for (const band of bands) {
+		const el = strip.createDiv({
+			cls: "mdsync-calendar-band",
+			attr: { "data-res": band.res ?? "none" },
+		});
+		el.style.setProperty("--mdsync-weeks", String(band.weeks));
+		if (band.res && band.weeks >= LABELED_WEEKS)
+			el.createSpan({ text: RESOLUTION_TEXT[band.res] });
+	}
 }
 
 /** One tab stop for the whole grid; arrows move a day or a week, Enter or Space picks. */

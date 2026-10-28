@@ -263,7 +263,7 @@ export default class MdsyncPlugin extends Plugin implements PluginHost {
 		return openSourceControlChanges(this);
 	}
 
-	openTimeline(day: number): Promise<void> {
+	openTimeline(day?: number): Promise<void> {
 		return openSourceControlTimeline(this, day);
 	}
 

@@ -94,6 +94,15 @@ describe("buildCalendar", () => {
 		expect(calendar.weeks.map((week) => week.res)).toEqual(["1d", "push"]);
 	});
 
+	it("names no resolution when the versions are unknown", () => {
+		const calendar = buildCalendar(activity([local(9, 20), 4]), null, 2, NOW);
+		expect(dayOf(calendar, new Date(2026, 9, 20).getTime())).toMatchObject({
+			pushes: 4,
+			res: null,
+		});
+		expect(bandsOf(calendar.weeks)).toEqual([{ res: null, weeks: 2 }]);
+	});
+
 	it("carries the newer week's resolution over a week no version covers", () => {
 		const calendar = buildCalendar(
 			activity([local(9, 7), 1], [local(9, 28), 1]),

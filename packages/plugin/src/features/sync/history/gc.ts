@@ -5,8 +5,10 @@ import type { ObjectStorage } from "@/features/storage";
 import { fetchRemoteManifest } from "../remote/manifest";
 import { SETTLED_AFTER_MS } from "../remote/uploads";
 import type { Manifest } from "../types";
+import { activityOf } from "./model/activity";
 import { coverOf, type HistoryView } from "./model/cover";
 import { freedHashes, planGc } from "./model/plan";
+import type { Activity } from "./model/types";
 import {
 	type HistoryRead,
 	readHistory,
@@ -23,6 +25,8 @@ export interface GcResult {
 	retired: number;
 	/** File blobs deleted. */
 	swept: number;
+	/** Pushes per hour as this run read them; null without a HEAD. */
+	activity: Activity | null;
 }
 
 /**
@@ -38,7 +42,7 @@ export async function collectHistoryGarbage(
 	const head = storage.listDetailed
 		? await fetchRemoteManifest(storage, key, root)
 		: null;
-	if (!head) return { written: 0, retired: 0, swept: 0 };
+	if (!head) return { written: 0, retired: 0, swept: 0, activity: null };
 	const read = await readHistory(storage, key, root);
 	const thinned = await thinHistory(storage, key, root, history, head, read);
 	const swept = read.candidates.some(isSettled)
@@ -96,7 +100,11 @@ async function thinHistory(
 	await runWithConcurrency(gone, DEFAULT_CONCURRENCY, (storageKey) =>
 		storage.delete(storageKey),
 	);
-	return { written: written.size, retired: gone.length };
+	return {
+		written: written.size,
+		retired: gone.length,
+		activity: activityOf(view, cover, head.vaultId),
+	};
 }
 
 function changesOf(

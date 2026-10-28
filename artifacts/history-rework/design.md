@@ -536,7 +536,7 @@ setting and the READMEs). Changelog (at release): 1.x devices must update; old h
 ## 21. Step 8 plan: UI
 
 Target: `artifacts/history-mockup/History Rework.dc.html`; state colours from both mockups. Decided with the
-user: calendar in settings under **Keep history for** only (2b, not the root card); a toggle hides the Timeline
+user: calendar in settings under **Keep history for** (2b); the root page draws one too, from the activity this device last read (`ActivityCache`, no request); a toggle hides the Timeline
 calendar; rows say "pushes", never "saves"; the phone shell stays. Plugin paths under `packages/plugin/src/`.
 
 What stored data cannot show, so the UI does not: a file's push count ("from 214 saves"), distinct files per

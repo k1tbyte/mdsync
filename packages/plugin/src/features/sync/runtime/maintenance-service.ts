@@ -4,6 +4,7 @@ import { LOG_PATH_LIMIT } from "../constants";
 import type { EngineDependencies } from "../engine";
 import { collectHistoryGarbage } from "../history/gc";
 import { clearLegacyHistory } from "../history/legacy";
+import type { Activity } from "../history/model/types";
 import { type Space, VAULT_SPACE } from "../remote/space";
 import {
 	type CleanResult,
@@ -30,6 +31,8 @@ interface MaintenanceServiceDeps {
 	enqueueQuiet: <T>(task: () => Promise<T>) => Promise<T>;
 	logInfo: Log;
 	logWarn: Log;
+	/** Keeps the vault's activity GC read anyway, for the settings overview. */
+	remember: (storage: string, activity: Activity, since: number) => void;
 }
 
 export class MaintenanceService {
@@ -64,12 +67,16 @@ export class MaintenanceService {
 					}
 				}
 				if (!session.history) return;
-				const { written, retired, swept } = await collectHistoryGarbage(
-					session.storage,
-					session.key,
-					session.space.root,
-					session.history,
-				);
+				const since = Date.now();
+				const { written, retired, swept, activity } =
+					await collectHistoryGarbage(
+						session.storage,
+						session.key,
+						session.space.root,
+						session.history,
+					);
+				if (activity && space.id === VAULT_SPACE.id)
+					this.deps.remember(session.storage.identity(), activity, since);
 				if (written + retired + swept > 0) {
 					await this.deps.logInfo(
 						ESyncLogOperation.Push,

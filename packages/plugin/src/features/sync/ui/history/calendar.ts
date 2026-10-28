@@ -47,10 +47,10 @@ export interface ActivityCalendar {
 	since: number;
 }
 
-/** Pushes per local day over `weekCount` weeks to today, with how finely history keeps each day. */
+/** Pushes per local day over `weekCount` weeks to today, with how finely history keeps each day; `versions` null: unknown. */
 export function buildCalendar(
 	activity: Activity,
-	versions: readonly Dating[],
+	versions: readonly Dating[] | null,
 	weekCount = WEEKS,
 	now: number = Date.now(),
 ): ActivityCalendar {
@@ -61,11 +61,13 @@ export function buildCalendar(
 		perDay.set(day, (perDay.get(day) ?? 0) + pushes);
 		origin = Math.min(origin, day);
 	}
-	const walked = versions.filter((version) => version.res !== null);
-	const cut = walked.reduce(
-		(oldest, version) => Math.min(oldest, version.firstAt),
-		Number.POSITIVE_INFINITY,
-	);
+	const walked = versions?.filter((version) => version.res !== null) ?? [];
+	const cut = versions
+		? walked.reduce(
+				(oldest, version) => Math.min(oldest, version.firstAt),
+				Number.POSITIVE_INFINITY,
+			)
+		: Number.NEGATIVE_INFINITY;
 	// Before the first known push nothing was kept or dropped; activity covers every walked push.
 	const known = { from: origin, cut };
 	const monday = new Date(startOfWeek(now));

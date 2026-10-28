@@ -47,6 +47,6 @@ export interface PluginHost {
 	openSetup(step?: ESetupStep): void;
 	openSourceControl(): Promise<void>;
 	openChanges(): Promise<void>;
-	/** The Timeline on the local day starting at `day`. */
-	openTimeline(day: number): Promise<void>;
+	/** The Timeline on the local day starting at `day`, else as it was left. */
+	openTimeline(day?: number): Promise<void>;
 }

@@ -134,7 +134,11 @@ describe("collectHistoryGarbage", () => {
 		expect(after.length).toBeLessThan(before.length + 1);
 		expect(after[0]).toBe(device.head?.snapshotId);
 
-		expect(await device.gc()).toEqual({ written: 0, retired: 0, swept: 0 });
+		expect(await device.gc()).toMatchObject({
+			written: 0,
+			retired: 0,
+			swept: 0,
+		});
 	});
 
 	it("lists packed snapshots at their period, with every push still counted", async () => {
@@ -288,7 +292,12 @@ describe("collectHistoryGarbage", () => {
 		vi.setSystemTime(Date.now() + 2 * DAY);
 		Object.assign(device.storage, { listDetailed: undefined });
 
-		expect(await device.gc()).toEqual({ written: 0, retired: 0, swept: 0 });
+		expect(await device.gc()).toEqual({
+			written: 0,
+			retired: 0,
+			swept: 0,
+			activity: null,
+		});
 	});
 
 	it("holds every promise over a seeded season of pushes and GC runs", async () => {
