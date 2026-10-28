@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { clockTime } from "@/features/source-control/history/age-groups";
 import {
 	buildTimelineRows,
 	countsText,
@@ -104,18 +105,12 @@ describe("buildTimelineRows", () => {
 		expect(rows[1]?.isHead).toBe(false);
 	});
 
-	it("titles a push from today by age and an older one by its clock time", () => {
-		const rows = buildTimelineRows(
-			[snapshot({ id: "s2", createdAt: NOW - 60_000 }), snapshot()],
+	it("titles a push by its storage time, not the device clock", () => {
+		const [row] = buildTimelineRows(
+			[snapshot({ createdAt: NOW - 3 * DAY, at: NOW - 60_000 })],
 			{ now: NOW },
 		);
-		expect(rows[0]?.title).toBe("1 minute ago");
-		expect(rows[1]?.title).toBe(
-			new Date(NOW - DAY).toLocaleTimeString(undefined, {
-				hour: "2-digit",
-				minute: "2-digit",
-			}),
-		);
+		expect(row?.title).toBe(clockTime(NOW - 60_000));
 	});
 
 	it("counts each kind of change for the chips, leaving out the empty ones", () => {

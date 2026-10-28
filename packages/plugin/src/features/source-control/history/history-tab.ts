@@ -20,7 +20,7 @@ import {
 	renderLoading,
 } from "../tab-states";
 import { addSnapshotPinItems } from "../timeline/snapshot-menu";
-import { groupRows } from "./day-groups";
+import { groupByAge } from "./age-groups";
 import { HistoryList } from "./history-list";
 import { buildHistoryRows, type HistoryRow } from "./history-rows";
 
@@ -135,7 +135,7 @@ export class HistoryTab {
 		const rows = buildHistoryRows(versions, {
 			currentDevice: this.plugin.controller.currentDevice(),
 		});
-		for (const group of groupRows(rows)) {
+		for (const group of groupByAge(rows)) {
 			body.createDiv({ cls: "mdsync-timeline-day", text: group.label });
 			const list = body.createDiv({ cls: "mdsync-history-rows" });
 			for (const row of group.rows) this.renderRow(list, path, row);

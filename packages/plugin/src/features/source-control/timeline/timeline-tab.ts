@@ -11,7 +11,7 @@ import {
 import type { HistoryDiffTarget } from "@/features/diff";
 import type { SnapshotListResult } from "@/features/sync";
 import { STATUS_CLASSES, STATUS_LETTERS } from "../changes/row-formatter";
-import { groupRows } from "../history/day-groups";
+import { groupByAge } from "../history/age-groups";
 import { HistoryList } from "../history/history-list";
 import { RowPager } from "../history/row-pager";
 import type { SourceControlHost } from "../host";
@@ -163,7 +163,7 @@ export class TimelineTab {
 				text: "No pushes recorded yet. The timeline fills up as you push.",
 			});
 		}
-		for (const group of groupRows(rows)) {
+		for (const group of groupByAge(rows)) {
 			body.createDiv({ cls: "mdsync-timeline-day", text: group.label });
 			for (const row of group.rows) this.renderRow(body, row);
 		}

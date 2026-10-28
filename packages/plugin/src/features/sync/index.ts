@@ -17,8 +17,12 @@ export {
 	splitSpaceErrors,
 } from "./controller";
 export type { CompareResult, EngineDependencies } from "./engine";
+export { composeChanges } from "./history/changes";
+export { keepSize, RESOLUTIONS } from "./history/model/periods";
+export type { Activity, Resolution } from "./history/model/types";
 export type { VaultRestorePlan } from "./history/restore-vault";
 export type {
+	Dating,
 	DeletedFile,
 	DeletedFilesResult,
 	FileVersion,

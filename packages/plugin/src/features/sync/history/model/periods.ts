@@ -65,6 +65,11 @@ export function keepStart(res: Resolution, at: number): number | null {
 	return keep ? floorTo(at, keep) : null;
 }
 
+/** How much time one kept version stands for; null while every push stays. */
+export function keepSize(res: Resolution): number | null {
+	return RUNGS[res].keep?.size ?? null;
+}
+
 /** `horizon` in ms, null to keep forever. */
 export function isDue(
 	res: Resolution,

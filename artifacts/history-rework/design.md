@@ -532,3 +532,30 @@ writes 3 on a v2 parent; deep clean refuses a v2 HEAD.
 The horizon stays a device setting, as N was: each device's GC applies its own, so the shortest wins (said in the
 setting and the READMEs). Changelog (at release): 1.x devices must update; old history and pins are removed;
 **Keep history for** replaces **Versions to keep**.
+
+## 21. Step 8 plan: UI
+
+Target: `artifacts/history-mockup/History Rework.dc.html`; state colours from both mockups. Decided with the
+user: calendar in settings under **Keep history for** only (2b, not the root card); a toggle hides the Timeline
+calendar; rows say "pushes", never "saves"; the phone shell stays. Plugin paths under `packages/plugin/src/`.
+
+What stored data cannot show, so the UI does not: a file's push count ("from 214 saves"), distinct files per
+day (activity sums paths per push), the pushes inside a merged version ("Show all N pushes" only for
+every-push sessions), a merged version's other devices (a session goes by each version's last device),
+deleted rows past the horizon.
+
+Stages, each its own commit:
+
+| # | Stage | Modules |
+|---|---|---|
+| 1 | Palette | `core/ui/styles/tokens.css`: `--mdsync-added-rgb`, `--mdsync-modified-rgb`, `--mdsync-deleted-rgb` per theme (dark = mockup `#44cf6e`, `#e9973f`, `#ff8a8e`; light = `#1a7f37`, `#bc4c00`, `#cf222e`) and `--mdsync-added/modified/deleted`; every A/M/D letter and chip, size delta, explorer mark, editor change bar and diff tone reads them. Warnings, errors and success stay on theme colours |
+| 2 | Data | `history/model/cover.ts`: `WalkedRecord.res`. `history/types.ts`: `SnapshotSummary` + `at`, `firstAt`, `pushes`, `res` (null off the walk); `FileVersion` + `at`, `pushes`, `res`, `first`; `SnapshotListResult` + `truncated`, `activity`. `history/query.ts` fills them (`readTimeline` returns the view for `activityOf`) |
+| 3 | Shaping, pure | `source-control/history/age-groups.ts` (replaces `day-groups.ts`): Pinned, then "Last hour" (every-push within the hour), a day per header for push / 10 min / hour versions, a week ("Oct 12 – 18") for daily, a month for weekly; the chip names the coarsest stored resolution in the group, shown where it changes; dated by `at`; titles by `ageTitle`. `source-control/timeline/sessions.ts`: consecutive versions of one device and resolution under one header, < 10 min or one kept period apart, a pin alone (sessions run on the walk order, so a composed session never skips a link), composed lazily with `composeChanges`. `sync/ui/history/calendar.ts` (next to its renderer): activity to local days, level 0 / 1-5 / 6-12 / 13-24 / 25+, a day at the coarsest version covering it, counts before the oldest walked version, a week at its newest kept day else the newer week's, bands, tooltip. `core/shared`: `formatDay`, `startOfDay`, `startOfWeek`, `pluralize` plural |
+| 4 | Timeline | `sync/ui/history/activity-calendar.ts` (renderer shared with settings, exported by the sync facade; `sync/ui` is at 11 modules): a year of weeks, scrolled to today, horizontal scroll, `aria-label` tooltip, tap on a phone shows it as a notice; resolution strip under it. `source-control/timeline/*`: collapsible Activity card ("N pushes since <date>"), path filter with a day chip, day pick filters the list, a counts-only day shows its card with **Show nearest version**, session cards ("Laptop · 08:40-12:10", "N versions · N pushes · N files", chips, net size neutral), expanded: composed files plus **Show all N pushes** for every-push sessions, else "Last version of each <period>" rows; menus "Pin this version", "Restore vault to end of session…"; gap callout "Older history is out of reach"; filter with no match: "No pushes touch <q>" + **Clear filter**. Setting `fileHistoryActivity` (default on, transfer `f`), **Show activity in Timeline** |
+| 5 | History | grouped like the Timeline with chips; titles "14:41" / "Wed 14 Oct" / "Week of 7 Sep"; meta "Phone · last of 3 pushes", "first version"; size above a coloured delta; footer "Older versions thin out with age; before <date> only activity counts remain." + **Keep history for** (opens settings); forever: "Older versions thin to one per week and are kept for good." |
+| 6 | Deleted | path filter (Select all acts on the shown rows; hidden ones leave the selection), header "Kept <3 months> after deletion" / "Kept for good", note "Kept until 24 Feb 2027", empty "Nothing deleted in the last <3 months>. Older deletions drop out unless a pinned snapshot holds them." |
+| 7 | Settings | `sync/ui/history/holds-row.ts`, exported by the sync facade and composed by `settings/sections/automation.ts` (loading and the ladder stay with sync's history UI): **What history holds** row under **Keep history for**: calendar, strip and a ladder of the kept resolutions for the chosen horizon ("Every push · Last hour" ... "1 per week · Back to <date>", "Activity only · Older"); a day click opens the Timeline on it (`openTimeline(day)` host callback, declared structurally, `source-control/workspace.ts`; `HistoryService.readActivity()`); loads lazily, a failure says so in the row |
+
+Tests: stage 2 on `FakeStorage` pushes (fields, activity, truncated); stage 3 pure (groups across tiers and the
+hour boundary, sessions split by device, gap, resolution and header; calendar levels, local days across DST,
+counts-only cut, bands); stages 4-7 rows-level builders, DOM only where a builder cannot show it.

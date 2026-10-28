@@ -3,10 +3,13 @@ export { reportWarning, setDiagnosticsSink } from "./diagnostics";
 export { asError, errorMessage } from "./errors";
 export {
 	formatBytes,
+	formatDay,
 	formatDayLabel,
 	formatRelativeTime,
 	formatTimestamp,
 	pluralize,
+	startOfDay,
+	startOfWeek,
 	sumBytes,
 	withDevices,
 } from "./format";

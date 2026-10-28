@@ -4,12 +4,13 @@ import type {
 	ChangeAction,
 	HistoryVersionRef,
 	ManifestEntry,
+	Resolution,
 	SnapshotChanges,
 	SnapshotSummary,
 	VaultRestorePlan,
 } from "@/features/sync";
 import { deviceText } from "../changes/row-formatter";
-import { timeInDay } from "../history/day-groups";
+import { ageTitle } from "../history/age-groups";
 
 export interface TimelineFileRow {
 	path: string;
@@ -26,6 +27,8 @@ export interface TimelineFileRow {
 export interface TimelineRow {
 	snapshotId: string;
 	createdAt: number;
+	at: number;
+	res: Resolution | null;
 	title: string;
 	meta: string;
 	tooltip: string;
@@ -58,9 +61,9 @@ export function buildTimelineRows(
 		return {
 			snapshotId: snapshot.id,
 			createdAt: snapshot.createdAt,
-			title:
-				label ||
-				(snapshot.pinned ? relative : timeInDay(snapshot.createdAt, now)),
+			at: snapshot.at,
+			res: snapshot.res,
+			title: label || (snapshot.pinned ? relative : ageTitle(snapshot, now)),
 			// A pin's name replaces the age in the title, and pins sit apart from their day.
 			meta: label ? `${relative} · ${device}` : device,
 			tooltip: formatTimestamp(snapshot.createdAt),

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ageTitle } from "@/features/source-control/history/age-groups";
 import { buildHistoryRows } from "@/features/source-control/history/history-rows";
 import type { FileVersion } from "@/features/sync/history/types";
 import type { EFileKind } from "@/features/sync/types";
@@ -39,11 +40,19 @@ describe("buildHistoryRows", () => {
 		expect(row?.tooltip).toBe(new Date(NOW - DAY).toLocaleString());
 	});
 
-	it("titles a row from today by its age", () => {
-		const [row] = buildHistoryRows([version({ createdAt: NOW - 60_000 })], {
-			now: NOW,
-		});
-		expect(row?.title).toBe("1 minute ago");
+	it("titles a row by storage time, as finely as it is kept", () => {
+		const at = NOW - 60_000;
+		const rows = buildHistoryRows(
+			[
+				version({ createdAt: NOW - DAY, at, res: "push" }),
+				version({ createdAt: at, at, res: "1d" }),
+			],
+			{ now: NOW },
+		);
+		expect(rows.map((row) => row.title)).toEqual([
+			ageTitle({ at, res: "push" }, NOW),
+			ageTitle({ at, res: "1d" }, NOW),
+		]);
 	});
 
 	it("measures the size against the next older version", () => {

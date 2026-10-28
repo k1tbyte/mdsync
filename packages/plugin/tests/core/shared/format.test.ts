@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
 	formatBytes,
 	formatDayLabel,
 	pluralize,
+	startOfWeek,
 	withDevices,
 } from "@/core/shared/format";
 
@@ -35,6 +36,7 @@ describe("pluralize", () => {
 		expect(pluralize(1, "file")).toBe("1 file");
 		expect(pluralize(0, "file")).toBe("0 files");
 		expect(pluralize(2, "file")).toBe("2 files");
+		expect(pluralize(2, "push", "pushes")).toBe("2 pushes");
 	});
 });
 
@@ -48,19 +50,38 @@ describe("formatDayLabel", () => {
 		expect(formatDayLabel(day(1, 23), noon)).toBe("Yesterday");
 	});
 
-	it("names the weekday for the rest of the week", () => {
-		const midweek = day(3);
-		expect(formatDayLabel(midweek, noon)).toBe(
-			new Date(midweek).toLocaleDateString(undefined, { weekday: "long" }),
-		);
-	});
-
-	it("falls back to the date once the week is out", () => {
+	it("dates the rest by weekday and date, with the year only when it differs", () => {
+		const short = { weekday: "short", day: "numeric", month: "short" } as const;
 		const old = day(10);
-		expect(formatDayLabel(old, noon)).toBe(new Date(old).toLocaleDateString());
+		expect(formatDayLabel(old, noon)).toBe(
+			new Date(old).toLocaleDateString(undefined, short),
+		);
+		const lastYear = day(200);
+		expect(formatDayLabel(lastYear, noon)).toBe(
+			new Date(lastYear).toLocaleDateString(undefined, {
+				...short,
+				year: "numeric",
+			}),
+		);
 	});
 
 	it("treats a clock skew into the future as today", () => {
 		expect(formatDayLabel(day(-1), noon)).toBe("Today");
+	});
+});
+
+describe("startOfWeek", () => {
+	const zone = process.env.TZ;
+	afterEach(() => {
+		if (zone === undefined) delete process.env.TZ;
+		else process.env.TZ = zone;
+	});
+
+	it("lands on Monday's midnight, also from a Sunday whose midnight was skipped", () => {
+		process.env.TZ = "America/Santiago";
+		const monday = new Date(2026, 7, 31).getTime();
+		expect(startOfWeek(new Date(2026, 8, 6, 12).getTime())).toBe(monday);
+		expect(startOfWeek(new Date(2026, 7, 31, 23).getTime())).toBe(monday);
+		expect(new Date(monday).getHours()).toBe(0);
 	});
 });

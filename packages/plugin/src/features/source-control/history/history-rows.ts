@@ -1,7 +1,7 @@
 import { formatRelativeTime, formatTimestamp } from "@/core/shared";
-import type { FileVersion } from "@/features/sync";
+import type { FileVersion, Resolution } from "@/features/sync";
 import { deviceText } from "../changes/row-formatter";
-import { timeInDay } from "./day-groups";
+import { ageTitle } from "./age-groups";
 
 export interface HistoryRowVersion {
 	hash: string;
@@ -12,11 +12,13 @@ export interface HistoryRowVersion {
 export interface HistoryRow {
 	snapshotId: string;
 	createdAt: number;
+	at: number;
+	res: Resolution | null;
 	hash: string;
 	size: number;
 	/** Bytes gained or lost against the next older version. Absent on the oldest. */
 	sizeDelta?: number;
-	/** The pin's name, else the age of a pin or a version from today, else the clock time. */
+	/** The pin's name, else the age of a pin, else what its group leaves to say (`ageTitle`). */
 	title: string;
 	meta: string;
 	/** Absolute timestamp; the title is relative, which alone is not precise. */
@@ -49,12 +51,12 @@ export function buildHistoryRows(
 		return {
 			snapshotId: version.snapshotId,
 			createdAt: version.createdAt,
+			at: version.at,
+			res: version.res,
 			hash: version.hash,
 			size: version.size,
 			sizeDelta: older ? version.size - older.size : undefined,
-			title:
-				label ||
-				(version.pinned ? relative : timeInDay(version.createdAt, now)),
+			title: label || (version.pinned ? relative : ageTitle(version, now)),
 			// A pin's name replaces the age in the title, and pins sit apart from their day.
 			meta: label ? `${relative} · ${device}` : device,
 			tooltip: formatTimestamp(version.createdAt),

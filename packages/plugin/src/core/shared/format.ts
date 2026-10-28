@@ -55,16 +55,38 @@ export function formatDayLabel(ms: number, now: number = Date.now()): string {
 	const days = Math.round((startOfDay(now) - startOfDay(ms)) / MS_PER_DAY);
 	if (days <= 0) return "Today";
 	if (days === 1) return "Yesterday";
-	if (days < 7) {
-		return new Date(ms).toLocaleDateString(undefined, { weekday: "long" });
-	}
-	return new Date(ms).toLocaleDateString();
+	return formatDay(ms, now);
 }
 
-function startOfDay(ms: number): number {
+/** "Wed 14 Oct", with the year once it is not this one. */
+export function formatDay(
+	ms: number,
+	now: number = Date.now(),
+	weekday = true,
+): string {
+	const date = new Date(ms);
+	const year =
+		date.getFullYear() === new Date(now).getFullYear() ? undefined : "numeric";
+	return date.toLocaleDateString(undefined, {
+		weekday: weekday ? "short" : undefined,
+		day: "numeric",
+		month: "short",
+		year,
+	});
+}
+
+export function startOfDay(ms: number): number {
 	const date = new Date(ms);
 	date.setHours(0, 0, 0, 0);
 	return date.getTime();
+}
+
+/** Local Monday, as history's weeks run Monday to Sunday. */
+export function startOfWeek(ms: number): number {
+	const date = new Date(ms);
+	// Monday first, then its midnight: a DST switch can skip the Sunday's.
+	date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+	return startOfDay(date.getTime());
 }
 
 function agoText(value: number, unit: string): string {
@@ -73,6 +95,10 @@ function agoText(value: number, unit: string): string {
 }
 
 /** "1 file" / "3 files". Counts read wrong without it in the restore warnings. */
-export function pluralize(count: number, noun: string): string {
-	return `${count} ${noun}${count === 1 ? "" : "s"}`;
+export function pluralize(
+	count: number,
+	noun: string,
+	plural = `${noun}s`,
+): string {
+	return `${count} ${count === 1 ? noun : plural}`;
 }
