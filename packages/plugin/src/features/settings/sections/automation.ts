@@ -28,7 +28,11 @@ import {
 import type { LiveSessions } from "@/features/live";
 import type { People } from "@/features/presence";
 import type { HubConnection } from "@/features/relay";
-import { renderHistoryHolds, VAULT_SPACE } from "@/features/sync";
+import {
+	renderHistoryHolds,
+	type SnapshotListResult,
+	VAULT_SPACE,
+} from "@/features/sync";
 import type { SettingsTabHost } from "../host";
 
 /** The wizard shows these too, so they ask only what its host has. */
@@ -225,12 +229,13 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 
 export function automationSection(
 	ctx: FieldContext<SettingsTabHost>,
+	loadHistory: () => Promise<SnapshotListResult>,
 ): SettingDefinitionGroup {
 	const rows = AUTOMATION_FIELDS.map((field) => fieldRow(ctx, field));
 	const keep = AUTOMATION_FIELDS.indexOf(KEEP_HISTORY_FIELD) + 1;
 	return group("Automation", [
 		...rows.slice(0, keep),
-		historyHoldsRow(ctx.plugin),
+		historyHoldsRow(ctx.plugin, loadHistory),
 		...rows.slice(keep),
 		{
 			name: "Connected devices",
@@ -240,7 +245,10 @@ export function automationSection(
 	]);
 }
 
-function historyHoldsRow(plugin: SettingsTabHost): SettingsRow {
+function historyHoldsRow(
+	plugin: SettingsTabHost,
+	loadHistory: () => Promise<SnapshotListResult>,
+): SettingsRow {
 	return {
 		name: "What history holds",
 		desc: "Pushes per day across your devices. Faded days keep counts only. Select a day to open it in Timeline.",
@@ -248,7 +256,7 @@ function historyHoldsRow(plugin: SettingsTabHost): SettingsRow {
 		render: (setting) => {
 			setting.settingEl.addClass(SUB_SETTING_CLASS);
 			renderHistoryHolds(setting, {
-				load: () => plugin.controller.history.listSnapshots(),
+				load: loadHistory,
 				horizon: HISTORY_KEEP_MS[plugin.settings.fileHistoryKeep],
 				onPick: (day) => {
 					closePluginSettings(plugin.app);

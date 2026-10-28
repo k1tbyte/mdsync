@@ -406,6 +406,76 @@ describe("listDeletedFiles", () => {
 		expect(result.files.every((file) => file.pinned)).toBe(true);
 	});
 
+	it("keeps rows, order and marks when several pins share absent paths", async () => {
+		const chain = [
+			manifest(
+				"w1",
+				null,
+				{ k: entry("K1"), walked: entry("W1"), other: entry("O1") },
+				100,
+			),
+			manifest("w2", "w1", { k: entry("K1") }, 200),
+		];
+		const storage = await seed(chain);
+		// Newest first: p2 (500), then the 400 tie in read order (p4 is read before p3), then p1 (300).
+		const pins = [
+			manifest(
+				"p1",
+				null,
+				{
+					k: entry("K1"),
+					early: entry("E1"),
+					shared: entry("S1"),
+					walked: entry("W1"),
+					other: entry("O0"),
+				},
+				300,
+			),
+			manifest(
+				"p2",
+				null,
+				{ shared: entry("S2"), walked: entry("W2"), solo: entry("X2") },
+				500,
+			),
+			manifest(
+				"p3",
+				null,
+				{ shared: entry("S3"), tied: entry("T3"), mid: entry("M3") },
+				400,
+			),
+			manifest("p4", null, { tied: entry("T4"), shared: entry("S4") }, 400),
+		];
+		const delays: Record<string, number> = { p1: 40, p2: 0, p3: 25, p4: 5 };
+		for (const pinned of pins) await pinSnapshot(storage, key, pinned);
+		const get = storage.get.bind(storage);
+		vi.spyOn(storage, "get").mockImplementation(async (path) => {
+			const id = Object.keys(delays).find((pin) => path === pinKey(pin));
+			if (id) await new Promise((r) => setTimeout(r, delays[id]));
+			return get(path);
+		});
+
+		const result = await deleted(storage, HORIZON);
+		expect(
+			result.files.map((file) => [
+				file.path,
+				file.source,
+				file.snapshotId,
+				file.entry.hash,
+				file.pinned,
+				file.keptUntil !== null,
+			]),
+		).toEqual([
+			// The walk's rows come first; a pin marks one only for the hash it holds.
+			["walked", "deleted", "w2", "W1", true, false],
+			["other", "deleted", "w2", "O1", false, true],
+			["shared", "pinned", "p2", "S2", true, false],
+			["solo", "pinned", "p2", "X2", true, false],
+			["tied", "pinned", "p4", "T4", true, false],
+			["mid", "pinned", "p3", "M3", true, false],
+			["early", "pinned", "p1", "E1", true, false],
+		]);
+	});
+
 	it("returns nothing when no vault is published", async () => {
 		const storage = new FakeStorage();
 		const result = await deleted(storage);

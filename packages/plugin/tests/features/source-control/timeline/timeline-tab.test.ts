@@ -9,6 +9,8 @@ import { TimelineTab } from "@/features/source-control/timeline/timeline-tab";
 import type { SnapshotListResult, SnapshotSummary } from "@/features/sync";
 import type { EFileKind, ManifestEntry } from "@/features/sync/types";
 
+const search = vi.hoisted(() => ({ change: (_value: string) => {} }));
+
 vi.mock("obsidian", async (importOriginal) => ({
 	...(await importOriginal<object>()),
 	SearchComponent: class {
@@ -19,7 +21,28 @@ vi.mock("obsidian", async (importOriginal) => ({
 		setValue() {
 			return this;
 		}
-		onChange() {
+		onChange(fn: (value: string) => void) {
+			search.change = fn;
+			return this;
+		}
+	},
+	ButtonComponent: class {
+		readonly buttonEl: HTMLButtonElement;
+		disabled = false;
+		constructor(parent: HTMLElement) {
+			this.buttonEl = parent.createEl("button") as HTMLButtonElement;
+		}
+		setButtonText(text: string) {
+			this.buttonEl.textContent = text;
+			return this;
+		}
+		setDisabled(disabled: boolean) {
+			this.disabled = disabled;
+			this.buttonEl.disabled = disabled;
+			return this;
+		}
+		onClick(fn: () => void) {
+			this.buttonEl.addEventListener("click", fn);
 			return this;
 		}
 	},
@@ -29,9 +52,13 @@ vi.mock("@/features/source-control/timeline/session-card", () => ({
 }));
 
 installElementMethods();
+// jsdom has no layout, so it lacks scrollIntoView.
+const scrollIntoView = vi.fn();
+Element.prototype.scrollIntoView = scrollIntoView;
 
 const NOW = new Date(2026, 9, 28, 18, 0).getTime();
 const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
 const ME = { id: "laptop", name: "Laptop" };
 
 function entry(hash: string): ManifestEntry {
@@ -83,12 +110,44 @@ function harness(results: SnapshotListResult[]) {
 		},
 	} as unknown as SourceControlHost;
 	let tab!: TimelineTab;
+	let pane!: HTMLElement;
 	const draw = () => {
-		const parent = document.createElement("div");
-		tab.render(parent, document.createElement("div"));
+		pane = document.createElement("div");
+		tab.render(pane, document.createElement("div"));
 	};
 	tab = new TimelineTab(plugin, draw, vi.fn(), vi.fn());
-	return { tab, draw, listSnapshots };
+	return {
+		tab,
+		draw,
+		listSnapshots,
+		pane: () => pane,
+	};
+}
+
+/** One push per hour on its own path, newest first: each is a session of its own. */
+function many(count: number): SnapshotListResult {
+	return {
+		snapshots: Array.from({ length: count }, (_, index) =>
+			version(`s${index}`, NOW - index * HOUR, `n${index}.md`),
+		),
+		lagging: false,
+		truncated: false,
+		activity: {},
+	};
+}
+
+function pagerOf(pane: HTMLElement) {
+	const buttons = Array.from(
+		pane.querySelectorAll<HTMLButtonElement>(
+			".mdsync-history-row-actions button",
+		),
+	);
+	return {
+		meta: pane.querySelector(
+			".mdsync-history-row-actions .mdsync-history-row-meta",
+		)?.textContent,
+		next: buttons.find((button) => button.textContent === "Next page"),
+	};
 }
 
 /** The session rows the last render handed to the cards, and the card context. */
@@ -181,5 +240,111 @@ describe("TimelineTab session rows", () => {
 		draw();
 
 		expect(lastDrawn().rows[0]).not.toBe(first);
+	});
+});
+
+describe("TimelineTab paging", () => {
+	beforeEach(() => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(NOW);
+		vi.mocked(renderSessionCard).mockClear();
+	});
+	afterEach(() => vi.useRealTimers());
+
+	it("renders 100 cards of 150 sessions with the pager, and the next page the rest", async () => {
+		const { draw, pane } = harness([many(150)]);
+		draw();
+		await settled();
+		vi.mocked(renderSessionCard).mockClear();
+		draw();
+
+		expect(lastDrawn().rows.map((row) => row.key)).toEqual(
+			Array.from({ length: 100 }, (_, index) => `s${index}`),
+		);
+		expect(pagerOf(pane()).meta).toBe("1-100 of 150");
+
+		vi.mocked(renderSessionCard).mockClear();
+		scrollIntoView.mockClear();
+		pagerOf(pane()).next?.click();
+
+		expect(lastDrawn().rows.map((row) => row.key)).toEqual(
+			Array.from({ length: 50 }, (_, index) => `s${index + 100}`),
+		);
+		// The new page reads from its first card, not from the calendar above it.
+		expect(scrollIntoView).toHaveBeenCalledTimes(1);
+		expect(pagerOf(pane()).meta).toBe("101-150 of 150");
+	});
+
+	it("repeats the age header at the top of a page when its group continues", async () => {
+		const { draw, pane } = harness([many(150)]);
+		draw();
+		await settled();
+		draw();
+		const headers = (el: HTMLElement) =>
+			Array.from(
+				el.querySelectorAll(".mdsync-timeline-day span:first-child"),
+			).map((span) => span.textContent);
+		const first = headers(pane());
+		pagerOf(pane()).next?.click();
+
+		// Hourly pushes cross a few days, so the day cut by the page edge heads both pages.
+		expect(first.at(-1)).toBe(headers(pane())[0]);
+	});
+
+	it("keeps the page across UI-only rerenders", async () => {
+		const { draw, pane } = harness([many(150)]);
+		draw();
+		await settled();
+		draw();
+		pagerOf(pane()).next?.click();
+		const { ctx } = lastDrawn();
+		vi.mocked(renderSessionCard).mockClear();
+
+		ctx?.toggle("s100");
+
+		expect(lastDrawn().rows).toHaveLength(50);
+		expect(pagerOf(pane()).meta).toBe("101-150 of 150");
+	});
+
+	it("starts over at page 1 on a new filter", async () => {
+		const { draw, pane } = harness([many(150)]);
+		draw();
+		await settled();
+		draw();
+		pagerOf(pane()).next?.click();
+		vi.mocked(renderSessionCard).mockClear();
+
+		// Every path ends in .md, so all 150 still match and only the query changed.
+		search.change(".md");
+
+		expect(lastDrawn().rows).toHaveLength(100);
+		expect(lastDrawn().rows[0]?.key).toBe("s0");
+		expect(pagerOf(pane()).meta).toBe("1-100 of 150");
+	});
+
+	it("starts over at page 1 on a new result", async () => {
+		const { tab, draw, pane } = harness([many(150), many(150)]);
+		draw();
+		await settled();
+		draw();
+		pagerOf(pane()).next?.click();
+
+		tab.clear();
+		draw();
+		await settled();
+		vi.mocked(renderSessionCard).mockClear();
+		draw();
+
+		expect(lastDrawn().rows).toHaveLength(100);
+		expect(pagerOf(pane()).meta).toBe("1-100 of 150");
+	});
+
+	it("shows no pager for a short list", async () => {
+		const { draw, pane } = harness([many(100)]);
+		draw();
+		await settled();
+		draw();
+
+		expect(pagerOf(pane()).meta).toBeUndefined();
 	});
 });

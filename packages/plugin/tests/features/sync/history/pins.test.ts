@@ -15,7 +15,10 @@ import {
 	readPins,
 	writePin,
 } from "@/features/sync/history/pins";
-import { setSnapshotPinned } from "@/features/sync/history/query";
+import {
+	resolveSnapshotManifest,
+	setSnapshotPinned,
+} from "@/features/sync/history/query";
 import { pushKey } from "@/features/sync/history/remote";
 import type { Manifest } from "@/features/sync/types";
 
@@ -89,6 +92,33 @@ describe("setSnapshotPinned", () => {
 			setSnapshotPinned({ storage, key, root: "" }, "s1", true),
 		).rejects.toThrow(/can no longer be rebuilt/);
 		expect(await storage.exists(pinKey("s1"))).toBe(false);
+	});
+
+	it("reads the pin once when history cannot rebuild the snapshot", async () => {
+		const storage = await seeded();
+		await storage.delete(pushKey("s2"));
+		const get = vi.spyOn(storage, "get");
+
+		await expect(
+			setSnapshotPinned({ storage, key, root: "" }, "s1", true),
+		).rejects.toThrow(/can no longer be rebuilt/);
+		expect(get.mock.calls.filter(([got]) => got === pinKey("s1"))).toHaveLength(
+			1,
+		);
+	});
+});
+
+describe("resolveSnapshotManifest", () => {
+	it("falls back to the pin once replay cannot reach the snapshot", async () => {
+		const storage = await seeded();
+		const source = { storage, key, root: "" };
+		await setSnapshotPinned(source, "s1", true);
+		await storage.delete(pushKey("s2"));
+
+		expect((await resolveSnapshotManifest(source, "s1"))?.files).toEqual(
+			chain[0]?.files,
+		);
+		expect(await resolveSnapshotManifest(source, "s2")).toBeNull();
 	});
 });
 
@@ -215,6 +245,68 @@ describe("readPins", () => {
 		await readPins(storage, key, "", () => null);
 		await readPins(storage, key, "", () => null);
 		expect(get).toHaveBeenCalledTimes(2);
+	});
+
+	it("keeps every pin of a small vault, so a second read downloads none", async () => {
+		const storage = new RevalidatingStorage();
+		await pinMany(storage, 6);
+		await readPins(storage, key, "", () => null);
+		const get = vi.spyOn(storage, "get");
+
+		const read = await readPins(storage, key, "", () => null);
+		expect(read.pins).toHaveLength(6);
+		expect(get).not.toHaveBeenCalled();
+	});
+
+	it("drops the manifest of a pin that is no longer listed", async () => {
+		const storage = new RevalidatingStorage();
+		await pinMany(storage, 3);
+		await readPins(storage, key, "", () => null);
+		const list = storage.listDetailed.bind(storage);
+		vi.spyOn(storage, "listDetailed").mockImplementationOnce(async (prefix) =>
+			(await list(prefix)).filter((object) => object.key !== pinKey("p1")),
+		);
+		await readPins(storage, key, "", () => null);
+		const get = vi.spyOn(storage, "get");
+
+		// Listed again with the etag it had: a manifest held meanwhile would answer without a GET.
+		await readPins(storage, key, "", () => null);
+		expect(get.mock.calls).toEqual([[pinKey("p1")]]);
+	});
+
+	describe("past the cache bound", () => {
+		// Two of these are past the 200k file entries the cache holds; one alone is under it.
+		const big = (id: string, createdAt: number, count = 110_000): Manifest =>
+			manifestOf(
+				id,
+				null,
+				Object.fromEntries(
+					Array.from({ length: count }, (_, i) => [`${id}/${i}`, `h${i}`]),
+				),
+				createdAt,
+			);
+
+		it("drops the oldest read first and keeps the rest", async () => {
+			const storage = new RevalidatingStorage();
+			await pinSnapshot(storage, key, big("big1", 1));
+			await readPins(storage, key, "", () => null);
+			await pinSnapshot(storage, key, big("big2", 2));
+			await readPins(storage, key, "", () => null);
+			const get = vi.spyOn(storage, "get");
+
+			await readPins(storage, key, "", () => null);
+			expect(get.mock.calls).toEqual([[pinKey("big1")]]);
+		});
+
+		it("keeps the pin just read even when it alone is past the bound", async () => {
+			const storage = new RevalidatingStorage();
+			await pinSnapshot(storage, key, big("huge", 1, 200_001));
+			await readPins(storage, key, "", () => null);
+			const get = vi.spyOn(storage, "get");
+
+			await readPins(storage, key, "", () => null);
+			expect(get).not.toHaveBeenCalled();
+		});
 	});
 
 	it("stores a share's pin in space paths and reads it back in vault paths", async () => {

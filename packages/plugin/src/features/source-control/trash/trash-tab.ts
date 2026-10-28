@@ -430,28 +430,34 @@ export class TrashTab implements SelectionSource {
 			})),
 		);
 		if (!confirmed) return;
+		// Same guard as a single restore, collected instead of one notice each.
+		const folders = new Set(
+			rows
+				.filter(
+					(row) =>
+						this.plugin.app.vault.getAbstractFileByPath(row.path) instanceof
+						TFolder,
+				)
+				.map((row) => row.path),
+		);
+		const items = rows
+			.filter((row) => !folders.has(row.path))
+			.map(({ path, hash }) => ({ path, hash }));
+		// A rejection is the closing refresh and loses which paths failed, so all stay selected, as a refresh per file did.
+		const failed = new Set([
+			...folders,
+			...(await this.plugin.controller.history
+				.restoreFileVersions(items)
+				.catch(() => items.map((item) => item.path))),
+		]);
 		let restored = 0;
-		const failures: string[] = [];
-		for (const row of rows) {
-			// Same guard as a single restore, collected instead of one notice each.
-			if (
-				this.plugin.app.vault.getAbstractFileByPath(row.path) instanceof TFolder
-			) {
-				failures.push(row.path);
-				continue;
-			}
-			try {
-				await this.plugin.controller.history.restoreFileVersion(
-					row.path,
-					row.hash,
-				);
-				// Failures stay selected so the user can retry them.
-				this.selected.delete(row.path);
-				restored++;
-			} catch {
-				failures.push(row.path);
-			}
+		for (const { path } of items) {
+			if (failed.has(path)) continue;
+			// Failures stay selected so the user can retry them.
+			this.selected.delete(path);
+			restored++;
 		}
+		const failures = rows.map((row) => row.path).filter((p) => failed.has(p));
 		if (restored > 0) {
 			notifyInfo(`Restored ${restored} file(s). Review and push when ready.`);
 		}

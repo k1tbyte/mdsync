@@ -109,6 +109,25 @@ export async function sweepObjects(
 		);
 	}
 
+	// Split once, before the listing: a file settling during it stays young, so its blobs stay held.
+	const due: ListedObject[] = [];
+	const young: ListedObject[] = [];
+	for (const file of reachable.candidates) {
+		(isSettled(file) ? due : young).push(file);
+	}
+	// An unreadable settled file only leaks its blobs to the next deep clean.
+	const freed = options.freedOnly
+		? new Set(
+				[...(await readCandidates(storage, key, due)).hashes].map(objectKey),
+			)
+		: null;
+	const kept = new Set([...reachable.hashes.keys()].map(objectKey));
+	// Nothing but candidate files goes then, so the listing, young files and rechecks guard nothing.
+	if (freed && [...freed].every((storageKey) => kept.has(storageKey))) {
+		await deleteFiles(storage, due);
+		return 0;
+	}
+
 	const objectKeys = await settledKeys(storage, REMOTE_OBJECTS_PREFIX);
 
 	// Another device publishing during the listing makes its new objects look like orphans: bail.
@@ -135,26 +154,13 @@ export async function sweepObjects(
 		);
 	}
 
-	const due = reachable.candidates.filter(isSettled);
-	const held = await readCandidates(
-		storage,
-		key,
-		reachable.candidates.filter((file) => !isSettled(file)),
-	);
+	const held = await readCandidates(storage, key, young);
 	if (held.unreadable.length > 0) {
 		throw new Error(
 			"Some history records could not be read, so orphans cannot be identified safely. Try again later.",
 		);
 	}
-	// An unreadable settled file only leaks its blobs to the next deep clean.
-	const freed = options.freedOnly
-		? new Set(
-				[...(await readCandidates(storage, key, due)).hashes].map(objectKey),
-			)
-		: null;
-	const kept = new Set(
-		[...reachable.hashes.keys(), ...held.hashes].map(objectKey),
-	);
+	for (const hash of held.hashes) kept.add(objectKey(hash));
 	const orphans = objectKeys.filter(
 		(storageKey) =>
 			!kept.has(storageKey) && (freed === null || freed.has(storageKey)),
@@ -168,10 +174,17 @@ export async function sweepObjects(
 			options.onProgress?.(++done, orphans.length);
 		},
 	);
-	await runWithConcurrency(due, DEFAULT_CONCURRENCY, (file) =>
+	await deleteFiles(storage, due);
+	return orphans.length;
+}
+
+function deleteFiles(
+	storage: ObjectStorage,
+	files: readonly ListedObject[],
+): Promise<void> {
+	return runWithConcurrency(files, DEFAULT_CONCURRENCY, (file) =>
 		storage.delete(file.key),
 	);
-	return orphans.length;
 }
 
 function historyKeys(read: HistoryRead): string[] {

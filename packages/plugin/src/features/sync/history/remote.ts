@@ -97,14 +97,15 @@ export async function writeHistoryObject(
 	);
 	const blob = await storage.get(storageKey);
 	const read = blob && (await decryptJson<HistoryObject>(key, blob));
-	if (!read || (await objectKeyOf(read)) !== storageKey) {
+	// decodeRaw recomputes the key from the read-back, so a null is one that is not what was written.
+	const decoded = read && (await decodeRaw(root, storageKey, read));
+	if (!read || !decoded) {
 		throw new Error(
 			`History object ${storageKey} did not read back as written.`,
 		);
 	}
 	// Seeded from the read-back only, so the next read of this key costs no GET.
-	const decoded = await decodeRaw(root, storageKey, read);
-	if (decoded) cacheOf(storage, key, root).set(storageKey, decoded);
+	cacheOf(storage, key, root).set(storageKey, decoded);
 	return { key: storageKey, object: read };
 }
 

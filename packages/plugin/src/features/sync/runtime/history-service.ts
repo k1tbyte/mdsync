@@ -192,11 +192,34 @@ export class HistoryService {
 
 	async restoreFileVersion(path: string, hash: string): Promise<void> {
 		await this.deps.enqueue(async () => {
-			const session = await this.requireSession(path);
-			const bytes = await loadVersionBytes(session.storage, session.key, hash);
-			await writeLocalFile(session, path, bytes);
+			await this.writeVersion(path, hash);
 			await this.deps.refresh();
 		});
+	}
+
+	/**
+	 * Many files in one queue turn and one refresh: each refresh is a full vault scan and remote compare.
+	 * Returns the paths that failed; only the closing refresh rejects.
+	 */
+	async restoreFileVersions(
+		items: { path: string; hash: string }[],
+	): Promise<string[]> {
+		if (items.length === 0) return [];
+		return this.deps.enqueue(async () => {
+			const failed: string[] = [];
+			for (const { path, hash } of items) {
+				await this.writeVersion(path, hash).catch(() => failed.push(path));
+			}
+			if (failed.length < items.length) await this.deps.refresh();
+			return failed;
+		});
+	}
+
+	/** The session is the path's own: a batch may span spaces. */
+	private async writeVersion(path: string, hash: string): Promise<void> {
+		const session = await this.requireSession(path);
+		const bytes = await loadVersionBytes(session.storage, session.key, hash);
+		await writeLocalFile(session, path, bytes);
 	}
 
 	async restoreHistoryHunks(

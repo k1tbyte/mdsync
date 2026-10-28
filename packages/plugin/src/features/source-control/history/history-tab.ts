@@ -25,6 +25,7 @@ import { addSnapshotPinItems } from "../timeline/snapshot-menu";
 import { groupByAge } from "./age-groups";
 import { HistoryList } from "./history-list";
 import { buildHistoryRows, type HistoryRow } from "./history-rows";
+import { RowPager } from "./row-pager";
 
 export class HistoryTab {
 	private explicitPath: string | null = null;
@@ -34,6 +35,7 @@ export class HistoryTab {
 	/** The version whose diff was opened last. */
 	private selected: string | null = null;
 	private loadedPath: string | null = null;
+	private pager = new RowPager();
 
 	constructor(
 		private readonly plugin: SourceControlHost,
@@ -62,6 +64,8 @@ export class HistoryTab {
 	clearVersions(): void {
 		this.versions.clear();
 		this.loadedPath = null;
+		// A new path or result always follows a clear.
+		this.pager = new RowPager();
 	}
 
 	clearOffline(): boolean {
@@ -137,11 +141,17 @@ export class HistoryTab {
 		const rows = buildHistoryRows(versions, {
 			currentDevice: this.plugin.controller.currentDevice(),
 		});
-		for (const group of groupByAge(rows)) {
+		// Pinned lead, as groupByAge orders them, so a page break never splits the pinned group.
+		const ordered = [
+			...rows.filter((row) => row.pinned),
+			...rows.filter((row) => !row.pinned),
+		];
+		for (const group of groupByAge(this.pager.slice(ordered))) {
 			renderAgeHeader(body, group);
 			const list = body.createDiv({ cls: "mdsync-history-rows" });
 			for (const row of group.rows) this.renderRow(list, path, row);
 		}
+		this.pager.render(body, ordered.length, this.onRerender);
 		this.renderFooter(body);
 	}
 

@@ -3,6 +3,7 @@ import type { EncryptionKey } from "@/core/crypto";
 import { reportWarning } from "@/core/shared";
 import { runWithConcurrency } from "@/core/utils";
 import type { StorageAdapter } from "@/features/storage";
+import { REMOTE_OBJECTS_PREFIX } from "../constants";
 import { objectKey, publishManifestWithGuard } from "../remote/manifest";
 import type { Manifest } from "../types";
 import { changeEntries, diffManifests } from "./changes";
@@ -20,6 +21,9 @@ interface Unwritten {
 // A gap in the chain until a later push writes them. Keyed by identity, as a share move or a token refresh
 // rebuilds the adapter.
 const unwritten = new Map<string, Map<string, Unwritten>>();
+
+// One listing page: past it, listing `objects/` once takes fewer requests than a probe per blob.
+const PROBE_LIMIT = 1000;
 
 /**
  * The record lands before the publish, so a won push always has one; a lost push leaves a sibling GC removes.
@@ -96,6 +100,10 @@ async function stillLands(
 	own: Unwritten,
 ): Promise<boolean> {
 	if (record.key !== own.key || record.vaultId !== own.vaultId) return false;
+	if (record.hashes.length > PROBE_LIMIT) {
+		const stored = new Set(await storage.list(REMOTE_OBJECTS_PREFIX));
+		return record.hashes.every((hash) => stored.has(objectKey(hash)));
+	}
 	let missing = false;
 	await runWithConcurrency(record.hashes, DEFAULT_CONCURRENCY, async (hash) => {
 		if (!(await storage.exists(objectKey(hash)))) missing = true;

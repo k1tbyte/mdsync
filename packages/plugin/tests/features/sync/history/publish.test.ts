@@ -117,6 +117,56 @@ describe("publishManifestWithHistory", () => {
 		expect(await storage.list("history/")).toEqual([pushKey("s2")]);
 	});
 
+	it("checks a record naming more than a listing page with one listing, not a probe per blob", async () => {
+		const storage = new FakeStorage("big");
+		vi.spyOn(console, "warn").mockImplementation(() => {});
+		const hashes = Array.from({ length: 1001 }, (_, i) => `h${i}`);
+		for (const hash of [...hashes, "A2"]) {
+			await storage.put(objectKey(hash), new Uint8Array([1]));
+		}
+		const big = manifestOf(
+			"big1",
+			null,
+			Object.fromEntries(hashes.map((hash) => [`${hash}.md`, hash])),
+		);
+		const next = manifestOf("big2", "big1", { "a.md": "A2" });
+		failPutOnce(storage, pushKey("big1"));
+		await publishManifestWithHistory(storage, key, "", big, null, history);
+		vi.mocked(storage.put).mockRestore();
+		storage.existsCalls = 0;
+		storage.listCalls = 0;
+
+		await publishManifestWithHistory(storage, key, "", next, big, history);
+
+		expect(storage.existsCalls).toBe(0);
+		expect(storage.listCalls).toBe(1);
+		expect(storage.map.has(pushKey("big1"))).toBe(true);
+		expect(storage.map.has(pushKey("big2"))).toBe(true);
+	});
+
+	it("withholds a record naming more than a listing page once one of its blobs is swept", async () => {
+		const storage = new FakeStorage("big-swept");
+		vi.spyOn(console, "warn").mockImplementation(() => {});
+		const hashes = Array.from({ length: 1001 }, (_, i) => `h${i}`);
+		for (const hash of [...hashes, "A2"]) {
+			await storage.put(objectKey(hash), new Uint8Array([1]));
+		}
+		const big = manifestOf(
+			"big1",
+			null,
+			Object.fromEntries(hashes.map((hash) => [`${hash}.md`, hash])),
+		);
+		const next = manifestOf("big2", "big1", { "a.md": "A2" });
+		failPutOnce(storage, pushKey("big1"));
+		await publishManifestWithHistory(storage, key, "", big, null, history);
+		vi.mocked(storage.put).mockRestore();
+
+		await storage.delete(objectKey("h500"));
+		await publishManifestWithHistory(storage, key, "", next, big, history);
+
+		expect(await storage.list("history/")).toEqual([pushKey("big2")]);
+	});
+
 	it("withholds a delayed record of another vault", async () => {
 		const storage = await stored();
 		vi.spyOn(console, "warn").mockImplementation(() => {});

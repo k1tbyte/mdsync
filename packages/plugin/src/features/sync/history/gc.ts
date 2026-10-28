@@ -1,7 +1,7 @@
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
 import type { EncryptionKey } from "@/core/crypto";
 import { runWithConcurrency } from "@/core/utils";
-import type { ObjectStorage } from "@/features/storage";
+import type { ListedObject, ObjectStorage } from "@/features/storage";
 import { fetchRemoteManifest } from "../remote/manifest";
 import { SETTLED_AFTER_MS } from "../remote/uploads";
 import type { Manifest } from "../types";
@@ -15,7 +15,7 @@ import {
 	writeCandidates,
 	writeHistoryObject,
 } from "./remote";
-import { isSettled, sweepObjects } from "./sweep";
+import { sweepObjects } from "./sweep";
 import type { HistoryConfig, SnapshotChanges } from "./types";
 
 export interface GcResult {
@@ -45,10 +45,18 @@ export async function collectHistoryGarbage(
 	if (!head) return { written: 0, retired: 0, swept: 0, activity: null };
 	const read = await readHistory(storage, key, root);
 	const thinned = await thinHistory(storage, key, root, history, head, read);
-	const swept = read.candidates.some(isSettled)
+	const swept = read.candidates.some(sweepDue)
 		? await sweepObjects(storage, key, root, { freedOnly: true })
 		: 0;
 	return { ...thinned, swept };
+}
+
+/**
+ * A day past settling: the sweep then takes every settled file at once, so its full listing of `objects/`
+ * runs about once a day, not after every run.
+ */
+function sweepDue({ modified }: ListedObject): boolean {
+	return modified !== null && modified < Date.now() - 2 * SETTLED_AFTER_MS;
 }
 
 /** Writes and verifies the planned objects, records what they freed, then retires what they replace. */

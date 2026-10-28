@@ -47,6 +47,13 @@ export class TimelineTab {
 		rows: SessionRow[];
 	} | null = null;
 	private query = "";
+	private sessionPager = new RowPager();
+	/** What the session pager counts pages of: another result, filter or day starts it over. */
+	private pagedFor: {
+		result: SnapshotListResult;
+		query: string;
+		day: number | null;
+	} | null = null;
 	private picked: CalendarDay | null = null;
 	private activityOpen = true;
 	private selected: string | null = null;
@@ -275,11 +282,12 @@ export class TimelineTab {
 		calendar: ActivityCalendar,
 	): void {
 		const picked = this.picked;
+		const query = this.query.trim().toLowerCase();
+		const pager = this.pagerFor(result, query, picked?.start ?? null);
 		if (picked?.res === "counts") {
 			this.renderCountsDay(el, picked, result, calendar);
 			return;
 		}
-		const query = this.query.trim().toLowerCase();
 		const dayEnd = picked && new Date(picked.start);
 		dayEnd?.setDate(dayEnd.getDate() + 1);
 		const shown = rows.filter(
@@ -299,10 +307,20 @@ export class TimelineTab {
 			});
 		}
 		const ctx = this.cardContext(query);
-		for (const group of groupByAge(shown)) {
+		// Pinned lead, as groupByAge orders them, so a page break never splits the pinned group.
+		const ordered = [
+			...shown.filter((row) => row.pinned),
+			...shown.filter((row) => !row.pinned),
+		];
+		for (const group of groupByAge(pager.slice(ordered))) {
 			renderAgeHeader(el, group);
 			for (const row of group.rows) renderSessionCard(el, row, ctx);
 		}
+		pager.render(el, ordered.length, () => {
+			this.redrawSessions();
+			// The button sat at the foot of the old page; the next one reads from its top.
+			el.scrollIntoView({ block: "start" });
+		});
 		if (result.truncated)
 			callout(
 				el,
@@ -310,6 +328,23 @@ export class TimelineTab {
 				"A push record is missing, so the versions before it are hidden.",
 				"Older history is out of reach",
 			);
+	}
+
+	private pagerFor(
+		result: SnapshotListResult,
+		query: string,
+		day: number | null,
+	): RowPager {
+		const paged = this.pagedFor;
+		if (
+			paged?.result !== result ||
+			paged.query !== query ||
+			paged.day !== day
+		) {
+			this.sessionPager = new RowPager();
+			this.pagedFor = { result, query, day };
+		}
+		return this.sessionPager;
 	}
 
 	/** Past the horizon a day kept only its counts; the nearest version is the oldest still walked. */

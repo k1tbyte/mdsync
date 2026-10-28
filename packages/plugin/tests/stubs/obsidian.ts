@@ -41,7 +41,9 @@ class Stub {}
 export class Notice extends Stub {}
 export class Modal extends Stub {}
 export class Plugin extends Stub {}
-export class PluginSettingTab extends Stub {}
+export class PluginSettingTab extends Stub {
+	hide(): void {}
+}
 export class Setting extends Stub {}
 export class ButtonComponent extends Stub {}
 export class ItemView extends Stub {}

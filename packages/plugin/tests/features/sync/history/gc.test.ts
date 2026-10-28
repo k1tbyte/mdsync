@@ -178,7 +178,7 @@ describe("collectHistoryGarbage", () => {
 		for (const s of snapshots) expect(s.firstAt).toBeLessThanOrEqual(s.at);
 	});
 
-	it("sweeps the versions it freed only a day later, and leaves nothing dangling", async () => {
+	it("sweeps the versions it freed only two days later, and leaves nothing dangling", async () => {
 		const device = new Device(new FakeStorage(), { horizon: null });
 		await pushEvery(device, 7 * MINUTE, 60);
 		vi.setSystemTime(Date.now() + 2 * DAY);
@@ -192,6 +192,9 @@ describe("collectHistoryGarbage", () => {
 		expect(blobs()).toBe(uploaded);
 
 		vi.setSystemTime(Date.now() + DAY + MINUTE);
+		expect((await device.gc()).swept).toBe(0);
+
+		vi.setSystemTime(Date.now() + DAY);
 		expect((await device.gc()).swept).toBeGreaterThan(0);
 		expect(blobs()).toBeLessThan(uploaded);
 		expect(
