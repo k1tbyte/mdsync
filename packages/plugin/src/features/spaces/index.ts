@@ -1,4 +1,4 @@
-export { shareKey, shareStorage } from "./access";
+export { shareChunkIds, shareKey, shareStorage } from "./access";
 export { type BrokerAdmin, relayAdmin } from "./broker/share-broker";
 export type { SpacesHost } from "./host";
 export { INVITE_ACTION, invitePassword } from "./invite";

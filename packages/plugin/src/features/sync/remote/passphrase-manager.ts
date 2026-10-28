@@ -30,6 +30,7 @@ export interface RotationFeedback {
 interface CachedKey {
 	key: EncryptionKey;
 	liveKeys: LiveKeys;
+	chunkIds: CryptoKey;
 	signature: string;
 	epoch: number;
 }
@@ -267,13 +268,13 @@ export class PassphraseManager {
 		passphrase: string,
 		signature: string,
 	): Promise<EncryptionKey> {
-		const { contentKey, liveKeys, epoch } = await resolveContentKey(
+		const { contentKey, liveKeys, chunkIds, epoch } = await resolveContentKey(
 			storage,
 			passphrase,
 		);
 		// Forgotten or replaced meanwhile: the old key must not come back.
 		if (this.passphrase !== passphrase) return contentKey;
-		this.cachedKey = { key: contentKey, liveKeys, signature, epoch };
+		this.cachedKey = { key: contentKey, liveKeys, chunkIds, signature, epoch };
 		if (this.unverified) {
 			this.unverified = false;
 			await this.persistIfEnabled();
@@ -288,10 +289,17 @@ export class PassphraseManager {
 
 	/** Live-layer keys of the current storage, once a sync session resolved the key. */
 	liveKeys(): LiveKeys | null {
+		return this.bound()?.liveKeys ?? null;
+	}
+
+	/** The chunk naming key of the current storage, once a sync session resolved the key. */
+	chunkIds(): CryptoKey | null {
+		return this.bound()?.chunkIds ?? null;
+	}
+
+	private bound(): CachedKey | null {
 		const cached = this.cachedKey;
-		return cached?.signature === this.bindingSignature()
-			? cached.liveKeys
-			: null;
+		return cached?.signature === this.bindingSignature() ? cached : null;
 	}
 
 	private bindingSignature(): string {

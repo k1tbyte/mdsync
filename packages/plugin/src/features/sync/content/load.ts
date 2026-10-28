@@ -14,6 +14,8 @@ import { chunkKey, isRecipeKey, readOrder } from "./keys";
 export interface ContentSource {
 	storage: ObjectStorage;
 	key: EncryptionKey;
+	/** Names chunks; absent stores every file whole. */
+	chunkIds?: CryptoKey;
 }
 
 const CHUNK_READS = 4;

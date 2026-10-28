@@ -19,6 +19,14 @@ const PREPARE_READS_MIN = 256;
 const PRIME_PAGE_SLACK = 2;
 const NOT_FOUND = 404;
 
+interface Hint {
+	keys: Set<string>;
+	prefix: string;
+	ready?: Promise<void>;
+	// Write hints: keys the listing did not find. Only put() may create them unlooked: exists() and putIfAbsent() must ask.
+	absent?: Set<string>;
+}
+
 interface GoogleDriveListResponse {
 	files?: {
 		id?: string;
@@ -49,18 +57,8 @@ export function createGoogleDriveAdapter(
 	// name -> file id. Only positive entries are cached: a negative one would keep reporting a file another
 	// device uploaded this session as missing, failing the pull.
 	const fileIdCache = new Map<string, string>();
-	let readHint: {
-		keys: Set<string>;
-		prefix: string;
-		ready?: Promise<void>;
-	} | null = null;
-	let writeHint: {
-		keys: Set<string>;
-		prefix: string;
-		ready?: Promise<void>;
-		// Hinted keys the listing did not find. Only put() may create them unlooked: exists() and putIfAbsent() must ask.
-		absent?: Set<string>;
-	} | null = null;
+	let readHints: Hint[] = [];
+	let writeHints: Hint[] = [];
 
 	const refreshAccessToken = async (): Promise<void> => {
 		const res = await driveRequest({
@@ -247,16 +245,17 @@ export function createGoogleDriveAdapter(
 		return res.json as { md5Checksum?: string; headRevisionId?: string };
 	};
 
-	/** A hint is worth one listing when many uncached keys share a prefix. */
-	const hintOf = (keys: string[]) => {
-		const missing = keys.filter((key) => !fileIdCache.has(key));
-		const first = missing[0];
-		const prefix = first?.slice(0, first.lastIndexOf("/") + 1) ?? "";
-		return missing.length >= PREPARE_READS_MIN &&
-			prefix !== "" &&
-			missing.every((key) => key.startsWith(prefix))
-			? { keys: new Set(missing), prefix }
-			: null;
+	/** A folder is worth one listing when many uncached keys share it; a batch may span several. */
+	const hintsOf = (keys: string[]): Hint[] => {
+		const byPrefix = new Map<string, Set<string>>();
+		for (const key of keys) {
+			const prefix = key.slice(0, key.lastIndexOf("/") + 1);
+			if (prefix === "" || fileIdCache.has(key)) continue;
+			byPrefix.set(prefix, (byPrefix.get(prefix) ?? new Set()).add(key));
+		}
+		return [...byPrefix]
+			.filter(([, group]) => group.size >= PREPARE_READS_MIN)
+			.map(([prefix, group]) => ({ keys: group, prefix }));
 	};
 
 	/**
@@ -335,22 +334,22 @@ export function createGoogleDriveAdapter(
 		},
 
 		prepareReads(keys) {
-			readHint = hintOf(keys);
+			readHints = hintsOf(keys);
 		},
 
 		prepareWrites(keys) {
-			writeHint = hintOf(keys);
+			writeHints = hintsOf(keys);
 		},
 
 		async get(key: string, size?: number): Promise<Uint8Array | null> {
-			if (readHint?.keys.has(key) && !fileIdCache.has(key)) {
-				const hint = readHint;
+			const hint = readHints.find((each) => each.keys.has(key));
+			if (hint && !fileIdCache.has(key)) {
 				hint.ready ??= listObjects(hint.prefix, false, hint).then(
 					() => undefined,
 					() => undefined,
 				);
 				await hint.ready;
-				if (readHint === hint) readHint = null;
+				readHints = readHints.filter((each) => each !== hint);
 			}
 			const cached = fileIdCache.has(key);
 			const body = await download(key, size);
@@ -380,8 +379,8 @@ export function createGoogleDriveAdapter(
 		},
 
 		async put(key, body, contentType) {
-			const hint = writeHint;
-			if (hint?.keys.has(key) && !fileIdCache.has(key)) {
+			const hint = writeHints.find((each) => each.keys.has(key));
+			if (hint && !fileIdCache.has(key)) {
 				hint.ready ??= listObjects(hint.prefix, false, hint).then(
 					({ complete }) => {
 						// A cut-short listing proves nothing absent: the rest are looked up exactly.

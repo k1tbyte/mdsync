@@ -134,7 +134,12 @@ export const batchKeepLocalOp: Operation<ReadonlySet<string>> = async (
 				return null;
 			}
 			const entry = await withLocalMtime(deps.adapter, path, {
-				hash: await storeObject(deps, known, bytes),
+				hash: await storeObject(
+					deps,
+					known,
+					bytes,
+					entryAt(result.remote?.files ?? {}, path),
+				),
 				size: bytes.length,
 				kind: deps.scope.classify(path),
 				scene: await sceneOfBytes(path, bytes),

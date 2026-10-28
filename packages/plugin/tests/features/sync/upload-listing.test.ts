@@ -128,7 +128,7 @@ describe("upload existence probes", () => {
 		expect(storage.existsCalls).toBe(3);
 	});
 
-	it("lists once to resume a big push, confirming each object it names", async () => {
+	it("lists each root folder once to resume a big push, confirming each object it names", async () => {
 		const adapter = new InMemoryAdapter();
 		const storage = new PushStorage();
 		seed(adapter, BIG);
@@ -138,7 +138,7 @@ describe("upload existence probes", () => {
 		await pushAll(adapter, storage);
 
 		expect(storage.objectPuts).toBe(0);
-		expect(storage.listCalls).toBe(1);
+		expect(storage.listCalls).toBe(2);
 		// A listing can name an object being deleted, so a positive is worth a probe.
 		expect(storage.existsCalls).toBe(BIG);
 	});
