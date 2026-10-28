@@ -238,6 +238,19 @@ describe("Google Drive bulk write hint", () => {
 		).toBe(true);
 	});
 
+	it("lists each folder of a mixed batch once", async () => {
+		const drive = adapter();
+		const recipes = keys.map((key) => key.replace("objects/", "recipes/"));
+		drive.prepareWrites?.([...keys, ...recipes, "chunks/a"]);
+		replies = [FOLDER, { files: [] }, { files: [] }];
+		for (const key of ["objects/1", "recipes/1", "objects/2", "recipes/2"]) {
+			await drive.put(key, new Uint8Array([1]));
+		}
+
+		expect(searches()).toHaveLength(3);
+		expect(creates()).toHaveLength(4);
+	});
+
 	it("still asks Drive for exists() and putIfAbsent()", async () => {
 		const drive = adapter();
 		drive.prepareWrites?.(keys);

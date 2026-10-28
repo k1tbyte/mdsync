@@ -6,6 +6,10 @@ import type { ListedObject, ObjectStorage } from "@/features/storage";
  */
 export const UPLOAD_TRUST_MS = 12 * 60 * 60 * 1000;
 
+/** Chunk keys join the log and no publish forgets them; past this, the oldest go, as a miss only re-uploads. */
+const UPLOAD_LOG_MAX = 20_000;
+
+// Oldest first: an entry is re-inserted on each upload.
 const uploads = new WeakMap<ObjectStorage, Map<string, number>>();
 
 export function rememberUpload(storage: ObjectStorage, hash: string): void {
@@ -14,7 +18,12 @@ export function rememberUpload(storage: ObjectStorage, hash: string): void {
 		byHash = new Map();
 		uploads.set(storage, byHash);
 	}
+	byHash.delete(hash);
 	byHash.set(hash, Date.now());
+	for (const [oldest] of byHash) {
+		if (byHash.size <= UPLOAD_LOG_MAX) break;
+		byHash.delete(oldest);
+	}
 }
 
 /** Still worth a probe; the probe decides. */

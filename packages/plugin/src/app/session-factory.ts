@@ -9,6 +9,7 @@ import { createSymlinkDetector, createVaultIndex } from "@/core/vault";
 import type { SpaceRecords } from "@/features/spaces";
 import {
 	pauseOf,
+	shareChunkIds,
 	shareIdentity,
 	shareKey,
 	shareStorage,
@@ -97,6 +98,7 @@ function sessionOpener(
 			storage: opened.storage,
 			index: createVaultIndex(app.vault),
 			key: opened.key,
+			chunkIds: opened.chunkIds,
 			concurrency: opened.concurrency,
 			history: settings.fileHistoryEnabled
 				? { horizon: HISTORY_KEEP_MS[settings.fileHistoryKeep] }
@@ -168,6 +170,7 @@ async function sessionFiles(
 interface OpenedStorage {
 	storage: StorageAdapter;
 	key: EncryptionKey;
+	chunkIds?: CryptoKey;
 	concurrency: number;
 	/** Unset in the vault, which publishes as the device. */
 	author?: ManifestAuthor;
@@ -229,9 +232,13 @@ async function openVault(
 		warn: (message) => deps.logs.warn(ESyncLogOperation.Session, message),
 		notify: deps.notify,
 	});
-	return key
-		? { storage, key, concurrency: activeStorage(deps.settings).concurrency }
-		: null;
+	if (!key) return null;
+	return {
+		storage,
+		key,
+		chunkIds: deps.passphrase.chunkIds() ?? undefined,
+		concurrency: activeStorage(deps.settings).concurrency,
+	};
 }
 
 function vaultStorage(
@@ -274,6 +281,7 @@ async function openShare(
 	return {
 		storage: getStorage(space.id, storage.memo, storage.create),
 		key: await shareKey(record),
+		chunkIds: await shareChunkIds(record),
 		concurrency: storage.concurrency,
 		author: { key: person, name },
 	};

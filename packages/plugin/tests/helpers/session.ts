@@ -28,6 +28,8 @@ export class TestSession {
 	readonly adapter = new InMemoryAdapter();
 	journal = new WriteJournal(this.adapter.asDataAdapter(), ".obsidian");
 	readonly logged: string[] = [];
+	/** Set to store big files in chunks. */
+	chunkIds?: CryptoKey;
 	state: SessionState;
 
 	constructor(
@@ -50,6 +52,7 @@ export class TestSession {
 			storage: this.storage,
 			scope,
 			key: sharedKey,
+			chunkIds: this.chunkIds,
 			state: this.state,
 			maxFileBytes: 1_000_000,
 			concurrency: 2,

@@ -10,8 +10,10 @@ import {
 	putChunks,
 	putRecipe,
 } from "@tests/helpers/recipes";
+import { seeded } from "@tests/helpers/seeded";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
+	deriveChunkIds,
 	deriveKey,
 	type EncryptionKey,
 	encryptBytes,
@@ -31,6 +33,7 @@ import {
 	loadContent,
 	prepareContent,
 } from "@/features/sync/content/load";
+import { storeContent } from "@/features/sync/content/store";
 
 let key: EncryptionKey;
 beforeAll(async () => {
@@ -343,5 +346,61 @@ describe("prepareContent", () => {
 		// Taken once: a second load reads again.
 		await loadContent(source, big, CHUNK_THRESHOLD);
 		expect(get).toHaveBeenCalledWith(recipeKey(big), CHUNK_THRESHOLD);
+	});
+});
+
+describe("loadContent, with a local copy", () => {
+	const SIZE = 600 * 1024;
+	let chunkIds: CryptoKey;
+	beforeAll(async () => {
+		chunkIds = await deriveChunkIds(new Uint8Array(32).fill(5));
+	});
+
+	function random(seed: number): Uint8Array {
+		const next = seeded(seed);
+		return new Uint8Array(SIZE).map(() => Math.floor(next() * 256));
+	}
+
+	/** v2 stored chunked; v1 is what the disk holds. */
+	async function versions() {
+		const storage = new FakeStorage();
+		const v1 = random(1);
+		const v2 = v1.slice();
+		v2.set(bytesOf("an edit in the middle"), SIZE / 2);
+		const h2 = await sha256Hex(v2);
+		await storeContent({ storage, key, chunkIds }, h2, v2);
+		const all = (await storage.list("chunks/")).length;
+		const gets = vi.spyOn(storage, "get");
+		const chunkGets = () =>
+			gets.mock.calls.filter(([at]) => at.startsWith("chunks/")).length;
+		return { storage, v1, v2, h2, all, chunkGets };
+	}
+
+	it("downloads only the chunks the local copy lacks", async () => {
+		const { storage, v1, v2, h2, chunkGets } = await versions();
+		const loaded = await loadContent(
+			{ storage, key, chunkIds },
+			h2,
+			SIZE,
+			async () => v1,
+		);
+		expect(loaded).toEqual(v2);
+		expect(chunkGets()).toBeLessThanOrEqual(2);
+	});
+
+	it("downloads every chunk without a chunk key, or when the copy does not read", async () => {
+		const { storage, v1, v2, h2, all, chunkGets } = await versions();
+		expect(
+			await loadContent({ storage, key }, h2, SIZE, async () => v1),
+		).toEqual(v2);
+		expect(chunkGets()).toBe(all);
+
+		const failing = async (): Promise<Uint8Array> => {
+			throw new Error("locked");
+		};
+		expect(
+			await loadContent({ storage, key, chunkIds }, h2, SIZE, failing),
+		).toEqual(v2);
+		expect(chunkGets()).toBe(2 * all);
 	});
 });

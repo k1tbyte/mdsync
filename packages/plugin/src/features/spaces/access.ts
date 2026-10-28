@@ -1,4 +1,5 @@
 import {
+	deriveChunkIds,
 	deriveLiveKeys,
 	type EncryptionKey,
 	importAesKey,
@@ -64,6 +65,10 @@ export function shareKey(record: SpaceRecord): Promise<EncryptionKey> {
 	if (shareKeys.size > SHARE_KEYS_MAX && oldest) shareKeys.delete(oldest);
 	key.catch(() => shareKeys.delete(record.key));
 	return key;
+}
+
+export function shareChunkIds(record: SpaceRecord): Promise<CryptoKey> {
+	return deriveChunkIds(base64ToBytes(record.key));
 }
 
 export function shareLiveKeys(record: SpaceRecord): Promise<LiveKeys> {

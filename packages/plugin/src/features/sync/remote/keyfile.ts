@@ -1,5 +1,6 @@
 import {
 	decryptBytes,
+	deriveChunkIds,
 	deriveKey,
 	deriveLiveKeys,
 	type EncryptionKey,
@@ -41,6 +42,7 @@ export interface Keyfile {
 export interface ResolvedContentKey {
 	contentKey: EncryptionKey;
 	liveKeys: LiveKeys;
+	chunkIds: CryptoKey;
 	epoch: number;
 }
 
@@ -148,11 +150,12 @@ async function resolvedFrom(
 	raw: Uint8Array,
 	epoch: number,
 ): Promise<ResolvedContentKey> {
-	const [contentKey, liveKeys] = await Promise.all([
+	const [contentKey, liveKeys, chunkIds] = await Promise.all([
 		importAesKey(raw),
 		deriveLiveKeys(raw),
+		deriveChunkIds(raw),
 	]);
-	return { contentKey, liveKeys, epoch };
+	return { contentKey, liveKeys, chunkIds, epoch };
 }
 
 /** Re-wraps the data key under a new passphrase without re-encrypting content. Returns the new epoch. */

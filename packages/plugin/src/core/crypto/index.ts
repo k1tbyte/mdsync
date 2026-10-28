@@ -1,3 +1,4 @@
+export { chunkId, deriveChunkIds } from "./chunk-ids";
 export {
 	decryptBytes,
 	decryptDescribed,

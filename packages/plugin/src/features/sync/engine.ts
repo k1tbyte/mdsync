@@ -11,9 +11,9 @@ import { diffWithin } from "./changes/diff";
 import { runWithFileConcurrency } from "./changes/file-concurrency";
 import { entryAt, sortedByPath } from "./changes/records";
 import { skipUnholdableNames } from "./changes/remote-names";
-import { REMOTE_OBJECTS_PREFIX } from "./constants";
-import { objectKey } from "./content/keys";
-import { storeContent } from "./content/store";
+import { REMOTE_OBJECTS_PREFIX, REMOTE_RECIPES_PREFIX } from "./constants";
+import { readOrder, rootHash } from "./content/keys";
+import { isStored, storeContent } from "./content/store";
 import { untrackedDir } from "./history/changes";
 import { publishManifestWithHistory } from "./history/publish";
 import type { HistoryConfig } from "./history/types";
@@ -54,6 +54,8 @@ export interface EngineDependencies {
 	/** Absent falls the scanner back to walking the adapter. */
 	index?: VaultIndex;
 	key: EncryptionKey;
+	/** Names chunks; absent stores every file whole. */
+	chunkIds?: CryptoKey;
 	state: SessionState;
 	maxFileBytes: number;
 	concurrency?: number;
@@ -168,7 +170,7 @@ export async function pushPaths(
 	deps.storage.prepareWrites?.(
 		uploads
 			.filter((entry) => !knownHashes.has(entry.hash))
-			.map((entry) => objectKey(entry.hash)),
+			.flatMap((entry) => readOrder(entry.hash, entry.size)),
 	);
 	let done = 0;
 	await runWithFileConcurrency(
@@ -181,7 +183,8 @@ export async function pushPaths(
 				const probe =
 					resumed.has(entry.hash) &&
 					(listed === null || listed.has(entry.hash));
-				await uploadObject(deps, entry, probe);
+				const previous = entryAt(compareResult.remote?.files ?? {}, entry.path);
+				await uploadObject(deps, entry, probe, previous);
 			}
 			onProgress?.(++done, uploads.length);
 		},
@@ -200,21 +203,24 @@ export async function pushPaths(
 	return manifest;
 }
 
+/** `previous`: HEAD's entry at the path the bytes go to, whose chunks HEAD vouches for. */
 export async function storeObject(
 	deps: EngineDependencies,
 	known: ReadonlySet<string>,
 	bytes: Uint8Array,
+	previous?: ManifestEntry,
 ): Promise<string> {
 	const hash = await sha256Hex(bytes);
 	if (known.has(hash)) return hash;
 	if (
 		uploadedHere(deps.storage, hash) &&
-		(await deps.storage.exists(objectKey(hash)))
+		(await isStored(deps.storage, hash, bytes.length))
 	) {
 		return hash;
 	}
-	await storeContent(deps, hash, bytes);
-	rememberUpload(deps.storage, hash);
+	if (await storeContent(deps, hash, bytes, previous)) {
+		rememberUpload(deps.storage, hash);
+	}
 	return hash;
 }
 
@@ -226,7 +232,12 @@ export async function pushSingleFile(
 ): Promise<Manifest> {
 	if (!deps.scope.includes(path))
 		throw new Error("File is outside this device's sync scope.");
-	const hash = await storeObject(deps, knownRemoteHashes(compareResult), bytes);
+	const hash = await storeObject(
+		deps,
+		knownRemoteHashes(compareResult),
+		bytes,
+		entryAt(compareResult.remote?.files ?? {}, path),
+	);
 	const kind: EFileKind = deps.scope.classify(path);
 	const entry: ManifestEntry = {
 		hash,
@@ -327,8 +338,12 @@ async function listStoredHashes(
 ): Promise<Set<string> | null> {
 	if (probes < UPLOAD_LIST_THRESHOLD) return null;
 	try {
-		const keys = await storage.list(REMOTE_OBJECTS_PREFIX);
-		return new Set(keys.map((key) => key.slice(REMOTE_OBJECTS_PREFIX.length)));
+		const listed = await Promise.all(
+			[REMOTE_OBJECTS_PREFIX, REMOTE_RECIPES_PREFIX].map((prefix) =>
+				storage.list(prefix),
+			),
+		);
+		return new Set(listed.flat().map(rootHash));
 	} catch {
 		// Listing is only an optimisation; the per-object probe still gives a correct push.
 		return null;
@@ -337,17 +352,19 @@ async function listStoredHashes(
 
 async function uploadObject(
 	deps: EngineDependencies,
-	entry: { path: string; hash: string },
+	entry: { path: string; hash: string; size: number },
 	probe: boolean,
+	previous: ManifestEntry | undefined,
 ): Promise<void> {
-	if (probe && (await deps.storage.exists(objectKey(entry.hash)))) return;
+	if (probe && (await isStored(deps.storage, entry.hash, entry.size))) return;
 	const plaintext = await readBinary(deps.adapter, entry.path);
 	const verifyHash = await sha256Hex(plaintext);
 	if (verifyHash !== entry.hash) {
 		throw new Error(`Hash mismatch while uploading ${entry.path}`);
 	}
-	await storeContent(deps, entry.hash, plaintext);
-	rememberUpload(deps.storage, entry.hash);
+	if (await storeContent(deps, entry.hash, plaintext, previous)) {
+		rememberUpload(deps.storage, entry.hash);
+	}
 }
 
 function collectUploads(

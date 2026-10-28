@@ -10,7 +10,7 @@ import {
 } from "@/core/constants";
 import { isCleartextRemote } from "@/core/shared";
 
-const DEFAULT_MAX_FILE_BYTES = 100 * 1024 * 1024;
+const DEFAULT_MAX_FILE_BYTES = 25 * 1024 * 1024;
 
 export type HistoryKeep = keyof typeof HISTORY_KEEP_MS;
 
