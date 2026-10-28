@@ -7,9 +7,9 @@
 	--mdsync-tone-remote: var(--color-purple-rgb, 157, 105, 220);
 	--mdsync-tone-shared: var(--color-cyan-rgb, 0, 191, 188);
 	--mdsync-tone-base: var(--mono-rgb-100, 0, 0, 0);
-	--mdsync-tone-added: var(--color-green-rgb, 44, 153, 115);
-	--mdsync-tone-removed: var(--color-red-rgb, 233, 49, 71);
-	--mdsync-tone-modified: var(--color-orange-rgb, 236, 117, 0);
+	--mdsync-tone-added: var(--mdsync-added-rgb);
+	--mdsync-tone-removed: var(--mdsync-deleted-rgb);
+	--mdsync-tone-modified: var(--mdsync-modified-rgb);
 	--mdsync-tone: var(--mdsync-tone-base);
 }
 

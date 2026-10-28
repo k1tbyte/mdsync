@@ -23,7 +23,7 @@
 
 /* A tile with the kind of change: + added, − removed, M both. */
 .mdsync-hunk-popup-glyph {
-	--mdsync-hunk: var(--color-orange, #e9973f);
+	--mdsync-hunk: var(--mdsync-modified);
 	display: inline-flex;
 	flex: 0 0 24px;
 	align-items: center;
@@ -38,11 +38,11 @@
 }
 
 .mdsync-hunk-popup-glyph.is-add {
-	--mdsync-hunk: var(--color-green, #2bb673);
+	--mdsync-hunk: var(--mdsync-added);
 }
 
 .mdsync-hunk-popup-glyph.is-delete {
-	--mdsync-hunk: var(--color-red, #d04a4a);
+	--mdsync-hunk: var(--mdsync-deleted);
 }
 
 .mdsync-hunk-popup-heading {
@@ -123,11 +123,11 @@
 }
 
 .mdsync-hunk-popup-line-removed {
-	background: rgba(var(--color-red-rgb), 0.14);
+	background: rgba(var(--mdsync-deleted-rgb), 0.14);
 }
 
 .mdsync-hunk-popup-line-added {
-	background: rgba(var(--color-green-rgb), 0.13);
+	background: rgba(var(--mdsync-added-rgb), 0.13);
 }
 
 .mdsync-hunk-popup-prefix {
@@ -138,11 +138,11 @@
 }
 
 .mdsync-hunk-popup-line-removed .mdsync-hunk-popup-prefix {
-	color: var(--color-red, #d04a4a);
+	color: var(--mdsync-deleted);
 }
 
 .mdsync-hunk-popup-line-added .mdsync-hunk-popup-prefix {
-	color: var(--color-green, #2bb673);
+	color: var(--mdsync-added);
 }
 
 .mdsync-hunk-popup-text {

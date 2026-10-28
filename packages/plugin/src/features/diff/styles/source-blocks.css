@@ -111,11 +111,11 @@ body.is-phone
 }
 
 .mdsync-counters .is-added {
-	color: var(--color-green);
+	color: var(--mdsync-added);
 }
 
 .mdsync-counters .is-removed {
-	color: var(--color-red);
+	color: var(--mdsync-deleted);
 }
 
 .mdsync-source-lines.is-empty {
