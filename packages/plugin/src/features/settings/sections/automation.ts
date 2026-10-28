@@ -190,6 +190,16 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 	},
 	{
 		kind: EFieldKind.Toggle,
+		name: "Show activity in Timeline",
+		desc: "A calendar of pushes per day above the Timeline; select a day to jump to it.",
+		when: (s) => s.fileHistoryEnabled,
+		sub: true,
+		get: (s) => s.fileHistoryActivity,
+		set: (v) => ({ fileHistoryActivity: v }),
+		after: (plugin) => plugin.refreshSourceControlView(),
+	},
+	{
+		kind: EFieldKind.Toggle,
 		name: "Auto-refresh history after push",
 		desc: "Reload the open file-history view automatically when a push completes. Disable to refresh only via the ⟳ button.",
 		when: (s) => s.fileHistoryEnabled,

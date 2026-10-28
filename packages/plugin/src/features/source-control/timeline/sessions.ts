@@ -19,7 +19,7 @@ export interface Session {
 	pinned: boolean;
 	pushes: number;
 	/** From the oldest version's parent to the newest version; null when a version has no record. */
-	readonly changes: SnapshotChanges | null;
+	changes: SnapshotChanges | null;
 }
 
 /**
@@ -58,7 +58,6 @@ function continues(
 function sessionOf(versions: SnapshotSummary[]): Session {
 	const newest = versions[0] as SnapshotSummary;
 	const oldest = versions[versions.length - 1] as SnapshotSummary;
-	let changes: SnapshotChanges | null | undefined;
 	return {
 		versions,
 		at: newest.at,
@@ -66,11 +65,7 @@ function sessionOf(versions: SnapshotSummary[]): Session {
 		res: newest.res,
 		pinned: newest.pinned,
 		pushes: versions.reduce((sum, version) => sum + version.pushes, 0),
-		// Composed on first read: only cards on screen ask.
-		get changes() {
-			if (changes === undefined) changes = composed(versions);
-			return changes;
-		},
+		changes: composed(versions),
 	};
 }
 

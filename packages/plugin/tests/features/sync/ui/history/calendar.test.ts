@@ -62,7 +62,7 @@ describe("buildCalendar", () => {
 		]);
 	});
 
-	it("keeps a day at the coarsest version covering it, counts past the oldest", () => {
+	it("keeps a day at the coarsest version covering it, counts from the first push to the oldest", () => {
 		const calendar = buildCalendar(
 			activity([local(9, 20), 4]),
 			[
@@ -79,7 +79,7 @@ describe("buildCalendar", () => {
 			week.days.map((day) => day.res),
 		);
 		expect(res).toEqual([
-			"counts",
+			null,
 			"counts",
 			"1d",
 			null,
@@ -95,7 +95,7 @@ describe("buildCalendar", () => {
 
 	it("carries the newer week's resolution over a week no version covers", () => {
 		const calendar = buildCalendar(
-			{},
+			activity([local(9, 7), 1], [local(9, 28), 1]),
 			[dated(local(9, 28), "1h"), dated(local(9, 7), "1d")],
 			4,
 			NOW,
@@ -112,11 +112,27 @@ describe("buildCalendar", () => {
 		]);
 	});
 
-	it("keeps only counts without a version", () => {
+	it("keeps only counts without a version, and nothing before the first push", () => {
 		const calendar = buildCalendar(activity([local(9, 27), 2]), [], 1, NOW);
-		expect(calendar.weeks[0]?.days.every((day) => day.res === "counts")).toBe(
-			true,
+		expect(calendar.weeks[0]?.days.map((day) => day.res)).toEqual([
+			null,
+			"counts",
+			"counts",
+		]);
+	});
+
+	it("leaves weeks before the first push without a band", () => {
+		const calendar = buildCalendar(
+			activity([local(9, 27), 2]),
+			[dated(local(9, 28), "push")],
+			3,
+			NOW,
 		);
+		expect(calendar.weeks.map((week) => week.res)).toEqual([
+			null,
+			null,
+			"push",
+		]);
 	});
 
 	it("starts a month label on the week its first Monday falls in", () => {

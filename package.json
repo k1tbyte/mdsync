@@ -30,6 +30,7 @@
 		"e2e:people": "pnpm build && jiti tests/e2e/people.ts",
 		"e2e:live-drawing": "pnpm build && jiti tests/e2e/live-drawing.ts",
 		"e2e:note-switch": "pnpm build && jiti tests/e2e/note-switch.ts",
+		"e2e:history": "pnpm build && jiti tests/e2e/history.ts",
 		"prepare": "husky"
 	},
 	"devDependencies": {

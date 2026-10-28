@@ -21,7 +21,7 @@ export interface CalendarDay {
 	pushes: number;
 	/** 0 for none, 4 for the busiest. */
 	level: number;
-	/** The coarsest a version covering it is kept at, `counts` past the oldest one; null when none covers it. */
+	/** The coarsest a version covering it is kept at, `counts` between the first push and the oldest version; else null. */
 	res: Resolution | null;
 }
 
@@ -30,7 +30,7 @@ export interface CalendarWeek {
 	days: CalendarDay[];
 	/** Short month name on the week a month starts in. */
 	month: string | null;
-	/** Its newest kept day's, else the newer week's: a week without a version keeps what surrounds it. */
+	/** Its newest kept day's, else the newer week's: a week without a version, after the first push, keeps what surrounds it. */
 	res: Resolution | null;
 }
 
@@ -48,15 +48,19 @@ export function buildCalendar(
 	now: number = Date.now(),
 ): ActivityCalendar {
 	const perDay = new Map<number, number>();
+	let origin = Number.POSITIVE_INFINITY;
 	for (const [hour, [pushes]] of Object.entries(activity)) {
 		const day = startOfDay(Number(hour) * HOUR_MS);
 		perDay.set(day, (perDay.get(day) ?? 0) + pushes);
+		origin = Math.min(origin, day);
 	}
 	const walked = versions.filter((version) => version.res !== null);
 	const cut = walked.reduce(
 		(oldest, version) => Math.min(oldest, version.firstAt),
 		Number.POSITIVE_INFINITY,
 	);
+	// Before the first known push nothing was kept or dropped; activity covers every walked push.
+	const known = { from: origin, cut };
 	const monday = new Date(startOfWeek(now));
 	// Built from the date, never by adding hours: a DST switch can skip a midnight.
 	const dayStart = (offset: number): number =>
@@ -78,7 +82,7 @@ export function buildCalendar(
 				start,
 				pushes: count,
 				level: levelOf(count),
-				res: dayRes(start, dayStart(week * 7 + index + 1), walked, cut),
+				res: dayRes(start, dayStart(week * 7 + index + 1), walked, known),
 			});
 		}
 		const opens = new Date(days[0]?.start ?? 0);
@@ -97,7 +101,8 @@ export function buildCalendar(
 	}
 	for (let index = weeks.length - 2; index >= 0; index--) {
 		const week = weeks[index] as CalendarWeek;
-		week.res ??= weeks[index + 1]?.res ?? null;
+		const last = week.days[week.days.length - 1]?.start ?? 0;
+		if (last >= known.from) week.res ??= weeks[index + 1]?.res ?? null;
 	}
 	return { weeks, pushes, since: dayStart(0) };
 }
@@ -136,12 +141,13 @@ function dayRes(
 	start: number,
 	end: number,
 	walked: readonly Dating[],
-	cut: number,
+	known: { from: number; cut: number },
 ): Resolution | null {
 	const covering = walked
 		.filter((version) => version.firstAt < end && version.at >= start)
 		.map((version) => version.res);
-	return coarsest(covering) ?? (end <= cut ? "counts" : null);
+	const counted = start >= known.from && end <= known.cut;
+	return coarsest(covering) ?? (counted ? "counts" : null);
 }
 
 function coarsest(

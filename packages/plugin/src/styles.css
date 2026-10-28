@@ -9,6 +9,8 @@
 @import "./core/ui/styles/segments.css";
 @import "./core/ui/styles/callout.css";
 
+@import "./features/sync/ui/history/activity-calendar.css";
+
 @import "./features/settings/tabs-and-logs.css";
 
 @import "./features/source-control/styles/shell.css";

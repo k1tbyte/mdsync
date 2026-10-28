@@ -48,7 +48,7 @@ When one falls short, extend it in `core/ui` instead of writing a second.
 
 ## Phone
 
-- Check `Platform.isPhone` in script, `body.is-phone` / `body.is-tablet` in css. Touch targets are at least `--mdsync-touch`; the pass is `core/ui/styles/mobile.css`, other phone rules sit beside their component.
+- Check `Platform.isPhone` in script, `body.is-phone` / `body.is-tablet` in css. Touch targets are at least `--mdsync-touch`; the pass is `core/ui/styles/mobile.css`, other phone rules sit beside their component. The activity calendar (`features/sync/ui/history/activity-calendar.ts`) is the one exception: larger cells on a phone, and a tap shows the day as a notice.
 - A view that renders differently on a phone redraws when the class changes: `redrawOnPhoneChange`.
 - Windows rise as a bottom sheet (`mdsync-drawer`); while a field is typed in, the sheet scrolls whole (`is-typing`), the keyboard leaves little room.
 - A row keeps one fixed height on a phone: the size goes under the name, the menu shows the whole path, a cut path shows its end.

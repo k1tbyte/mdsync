@@ -116,6 +116,13 @@ export {
 } from "./types";
 export { type ChangeAction, changeActionOf } from "./ui/change-action";
 export { encryptionSection } from "./ui/encryption-section";
+export { renderActivityCalendar } from "./ui/history/activity-calendar";
+export {
+	type ActivityCalendar,
+	buildCalendar,
+	type CalendarDay,
+	RESOLUTION_TEXT,
+} from "./ui/history/calendar";
 export {
 	addIgnoreMenuItem,
 	carryVaultIgnores,

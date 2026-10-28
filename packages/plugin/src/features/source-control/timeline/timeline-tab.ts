@@ -1,34 +1,37 @@
-import { setIcon } from "obsidian";
-import { formatBytes } from "@/core/shared";
+import { SearchComponent, setIcon } from "obsidian";
+import { formatDay, pluralize, startOfDay } from "@/core/shared";
 import {
 	appendIconButton,
+	appendLabeledButton,
 	callout,
 	makeActivatable,
 	notifyError,
-	onLongPress,
-	renderPath,
 } from "@/core/ui";
 import type { HistoryDiffTarget } from "@/features/diff";
-import type { SnapshotListResult } from "@/features/sync";
-import { STATUS_CLASSES, STATUS_LETTERS } from "../changes/row-formatter";
-import { groupByAge } from "../history/age-groups";
+import {
+	type ActivityCalendar,
+	buildCalendar,
+	type CalendarDay,
+	RESOLUTION_TEXT,
+	renderActivityCalendar,
+	type SnapshotListResult,
+} from "@/features/sync";
+import { ageTitle, groupByAge } from "../history/age-groups";
 import { HistoryList } from "../history/history-list";
 import { RowPager } from "../history/row-pager";
 import type { SourceControlHost } from "../host";
-import { renderDelta } from "../row-parts";
 import {
 	renderEmptyState,
 	renderHistoryOff,
 	renderLoadError,
 	renderLoading,
 } from "../tab-states";
+import { type CardContext, renderSessionCard } from "./session-card";
+import { buildSessionRows, type SessionRow, touches } from "./session-rows";
 import { TimelineActions } from "./timeline-actions";
-import {
-	buildTimelineRows,
-	type TimelineFileRow,
-	type TimelineRow,
-	timelineDiffTarget,
-} from "./timeline-rows";
+import { type TimelineFileRow, timelineDiffTarget } from "./timeline-rows";
+
+const CALENDAR_WEEKS = 53;
 
 export class TimelineTab {
 	private readonly snapshots = new HistoryList<SnapshotListResult>(() => {
@@ -37,11 +40,16 @@ export class TimelineTab {
 		this.onRerender();
 	});
 	private openGeneration = 0;
-	private readonly expanded = new Set<string>();
+	private readonly open = new Set<string>();
 	private readonly pages = new Map<string, RowPager>();
+	private query = "";
+	private picked: CalendarDay | null = null;
+	private activityOpen = true;
 	private selected: string | null = null;
 	private opening: string | null = null;
 	private list: HTMLElement | null = null;
+	/** Typing redraws only the list, so the filter keeps its focus and an IME its composition. */
+	private redrawSessions: () => void = () => {};
 	private scrollTop = 0;
 	private focusKey: string | null = null;
 	private readonly actions: TimelineActions;
@@ -58,7 +66,7 @@ export class TimelineTab {
 		this.actions = new TimelineActions(
 			plugin,
 			onSnapshotsChanged,
-			(row, file, mode) => void this.openFile(row, file, mode),
+			(owner, file, mode) => void this.openFile(owner, file, mode),
 		);
 	}
 
@@ -92,6 +100,7 @@ export class TimelineTab {
 		this.snapshots.clear();
 		this.openGeneration++;
 		this.list = null;
+		this.redrawSessions = () => {};
 	}
 
 	render(parent: HTMLElement, tools: HTMLElement): void {
@@ -114,17 +123,14 @@ export class TimelineTab {
 		});
 		this.list.toggleClass("is-loading", this.snapshots.value === null);
 		this.renderBody(this.list);
-		if (this.snapshots.value) {
-			this.list.scrollTop = this.scrollTop;
-			if (this.focusKey) {
-				const target = Array.from(
-					this.list.querySelectorAll<HTMLElement>("[data-timeline-focus]"),
-				).find(
-					(el) => el.getAttribute("data-timeline-focus") === this.focusKey,
-				);
-				target?.focus({ preventScroll: true });
-				this.focusKey = null;
-			}
+		if (!this.snapshots.value) return;
+		this.list.scrollTop = this.scrollTop;
+		if (this.focusKey) {
+			const target = Array.from(
+				this.list.querySelectorAll<HTMLElement>("[data-timeline-focus]"),
+			).find((el) => el.getAttribute("data-timeline-focus") === this.focusKey);
+			target?.focus({ preventScroll: true });
+			this.focusKey = null;
 		}
 	}
 
@@ -134,183 +140,239 @@ export class TimelineTab {
 	}
 
 	private renderBody(body: HTMLElement): void {
-		const { value: snapshots, error } = this.snapshots;
+		const { value: result, error } = this.snapshots;
 		if (error) {
 			renderLoadError(body, "Could not load the timeline", error, () =>
 				this.reload(),
 			);
 			return;
 		}
-		if (!snapshots) {
+		if (!result) {
 			renderLoading(body);
 			this.snapshots.load(() => this.plugin.controller.history.listSnapshots());
 			return;
 		}
-		if (snapshots.lagging) {
+		if (result.lagging) {
 			callout(
 				body,
 				"warning",
-				"History has not caught up with the latest push yet, so the newest snapshot is missing.",
+				"History has not caught up with the latest push yet, so the newest version is missing.",
 			);
 		}
-		const rows = buildTimelineRows(snapshots.snapshots, {
+		const rows = buildSessionRows(result.snapshots, {
 			currentDevice: this.plugin.controller.currentDevice(),
 		});
-		if (rows.length === 0 && !snapshots.lagging) {
+		if (rows.length === 0 && !result.lagging) {
 			renderEmptyState(body, {
 				icon: "clock-3",
 				title: "No pushes yet",
 				text: "No pushes recorded yet. The timeline fills up as you push.",
 			});
+			return;
 		}
-		for (const group of groupByAge(rows)) {
-			body.createDiv({ cls: "mdsync-timeline-day", text: group.label });
-			for (const row of group.rows) this.renderRow(body, row);
+		const calendar = this.plugin.settings.fileHistoryActivity
+			? buildCalendar(result.activity, result.snapshots, CALENDAR_WEEKS)
+			: null;
+		// A reload may have thinned the picked day, or moved it off the calendar.
+		const picked = this.picked?.start;
+		this.picked =
+			calendar?.weeks
+				.flatMap((week) => week.days)
+				.find((day) => day.start === picked) ?? null;
+		if (calendar) this.renderActivity(body, calendar);
+		this.renderFilter(body);
+		const sessions = body.createDiv({ cls: "mdsync-timeline-sessions" });
+		this.redrawSessions = () => {
+			sessions.empty();
+			this.renderSessions(sessions, rows, result, calendar);
+		};
+		this.redrawSessions();
+	}
+
+	private renderActivity(body: HTMLElement, calendar: ActivityCalendar): void {
+		const card = body.createDiv({ cls: "mdsync-timeline-activity" });
+		const head = card.createDiv({ cls: "mdsync-timeline-activity-head" });
+		head.setAttr("aria-expanded", String(this.activityOpen));
+		head.setAttr("data-timeline-focus", "activity");
+		makeActivatable(head, "Activity", () => {
+			this.activityOpen = !this.activityOpen;
+			this.onRerender();
+		});
+		setIcon(
+			head.createSpan({ cls: "mdsync-timeline-icon" }),
+			this.activityOpen ? "chevron-down" : "chevron-right",
+		);
+		head.createSpan({
+			cls: "mdsync-timeline-activity-title",
+			text: "Activity",
+		});
+		head.createSpan({
+			cls: "mdsync-timeline-activity-sum",
+			text: `${pluralize(calendar.pushes, "push", "pushes")} since ${formatDay(calendar.since, Date.now(), false)}`,
+		});
+		if (!this.activityOpen) return;
+		renderActivityCalendar(card, calendar, {
+			picked: this.picked?.start ?? null,
+			onPick: (day) => {
+				this.picked = this.picked?.start === day.start ? null : day;
+				this.onRerender();
+			},
+		});
+		// A pick redraws the pane; the focus follows the day.
+		card.querySelectorAll<HTMLElement>("[data-day]").forEach((cell) => {
+			cell.setAttr("data-timeline-focus", `day:${cell.dataset.day}`);
+		});
+	}
+
+	private renderFilter(body: HTMLElement): void {
+		const bar = body.createDiv({ cls: "mdsync-timeline-filter" });
+		const search = new SearchComponent(bar)
+			.setPlaceholder("Filter by path or folder")
+			.setValue(this.query);
+		search.inputEl.setAttr("aria-label", "Filter pushes by path");
+		search.inputEl.setAttr("data-timeline-focus", "filter");
+		search.onChange((value) => {
+			this.query = value;
+			this.redrawSessions();
+		});
+		if (!this.picked) return;
+		const chip = bar.createSpan({ cls: "mdsync-timeline-day-chip" });
+		chip.createSpan({ text: formatDay(this.picked.start) });
+		appendIconButton(chip, "x", "Show every day", () => {
+			this.picked = null;
+			this.onRerender();
+		});
+	}
+
+	private renderSessions(
+		el: HTMLElement,
+		rows: readonly SessionRow[],
+		result: SnapshotListResult,
+		calendar: ActivityCalendar | null,
+	): void {
+		const picked = this.picked;
+		if (picked?.res === "counts" && calendar) {
+			this.renderCountsDay(el, picked, result, calendar);
+			return;
 		}
+		const query = this.query.trim().toLowerCase();
+		const dayEnd = picked && new Date(picked.start);
+		dayEnd?.setDate(dayEnd.getDate() + 1);
+		const shown = rows.filter(
+			(row) =>
+				(!query || row.versions.some((version) => touches(version, query))) &&
+				(!dayEnd || (!row.pinned && row.firstAt < dayEnd.getTime())),
+		);
+		if (shown.length === 0 && query) {
+			renderEmptyState(el, {
+				icon: "search-x",
+				tone: "muted",
+				title: `No pushes touch ${this.query.trim()}`,
+				text: result.truncated
+					? "Nothing under this path changed in the history that can be read."
+					: "Nothing under this path changed in the kept history.",
+				action: { text: "Clear filter", run: () => this.clearQuery() },
+			});
+		}
+		const ctx = this.cardContext(query);
+		for (const group of groupByAge(shown)) {
+			const header = el.createDiv({ cls: "mdsync-timeline-day" });
+			header.createSpan({ text: group.label });
+			if (group.chip)
+				header.createSpan({
+					cls: "mdsync-timeline-res",
+					text: RESOLUTION_TEXT[group.chip],
+				});
+			for (const row of group.rows) renderSessionCard(el, row, ctx);
+		}
+		if (result.truncated)
+			callout(
+				el,
+				"warning",
+				"A push record is missing, so the versions before it are hidden.",
+				"Older history is out of reach",
+			);
+	}
+
+	/** Past the horizon a day kept only its counts; the nearest version is the oldest still walked. */
+	private renderCountsDay(
+		el: HTMLElement,
+		day: CalendarDay,
+		result: SnapshotListResult,
+		calendar: ActivityCalendar,
+	): void {
+		const card = el.createDiv({ cls: "mdsync-timeline-counts" });
+		const title = card.createDiv({ cls: "mdsync-timeline-counts-title" });
+		setIcon(title.createSpan(), "bar-chart-2");
+		title.createSpan({
+			text: `${formatDay(day.start)}: ${pluralize(day.pushes, "push", "pushes")}`,
+		});
+		const nearest = result.snapshots.filter((version) => version.res).pop();
+		card.createDiv({
+			cls: "mdsync-history-row-meta",
+			text: nearest
+				? `Only counts are kept for this day. The nearest version is from ${ageTitle(nearest)}.`
+				: "Only counts are kept for this day.",
+		});
+		const start = nearest && startOfDay(nearest.at);
+		const target = calendar.weeks
+			.flatMap((week) => week.days)
+			.find((candidate) => candidate.start === start);
+		if (!target) return;
+		appendLabeledButton(card, "arrow-right", "Show nearest version", () => {
+			this.picked = target;
+			this.onRerender();
+		});
+	}
+
+	private clearQuery(): void {
+		this.query = "";
+		this.onRerender();
+	}
+
+	private cardContext(query: string): CardContext {
+		return {
+			query,
+			selected: this.selected,
+			opening: this.opening,
+			isOpen: (key) => this.open.has(key),
+			toggle: (key) => {
+				if (!this.open.delete(key)) this.open.add(key);
+				this.onRerender();
+			},
+			pager: (key) => {
+				let pager = this.pages.get(key);
+				if (!pager) {
+					pager = new RowPager();
+					this.pages.set(key, pager);
+				}
+				return pager;
+			},
+			rerender: this.onRerender,
+			sessionMenu: (event, row) => this.actions.showSessionMenu(event, row),
+			versionMenu: (event, row) => this.actions.showVersionMenu(event, row),
+			fileMenu: (event, owner, file) =>
+				this.actions.showFileMenu(event, owner, file),
+			openFile: (owner, file) => void this.openFile(owner, file),
+		};
 	}
 
 	/** Rows gone from the new list take their open state with them. */
 	private prune({ snapshots }: SnapshotListResult): void {
 		const ids = new Set(snapshots.map((row) => row.id));
-		for (const id of this.expanded) if (!ids.has(id)) this.expanded.delete(id);
-		for (const id of this.pages.keys()) if (!ids.has(id)) this.pages.delete(id);
-	}
-
-	private renderRow(body: HTMLElement, row: TimelineRow): void {
-		const expanded = this.expanded.has(row.snapshotId);
-		const card = body.createDiv({ cls: "mdsync-timeline-card" });
-		const head = card.createDiv({ cls: "mdsync-timeline-head" });
-		head.setAttr("data-timeline-focus", row.snapshotId);
-		head.setAttr("aria-expanded", String(expanded));
-		makeActivatable(head, `${row.title} · ${row.tooltip}`, () => {
-			if (expanded) this.expanded.delete(row.snapshotId);
-			else this.expanded.add(row.snapshotId);
-			this.onRerender();
-		});
-		const chevron = head.createSpan({ cls: "mdsync-timeline-icon" });
-		setIcon(chevron, expanded ? "chevron-down" : "chevron-right");
-		const copy = head.createDiv({ cls: "mdsync-timeline-copy" });
-		const title = copy.createDiv({ cls: "mdsync-timeline-title" });
-		title.createSpan({ cls: "mdsync-history-row-title", text: row.title });
-		if (row.isHead)
-			title.createSpan({ cls: "mdsync-pill", text: "Latest push" });
-		if (row.pinned) {
-			const pin = title.createSpan({ cls: "mdsync-history-pin" });
-			setIcon(pin, "pin");
-			pin.setAttr("aria-label", "Pinned snapshot");
-		}
-		this.renderMeta(copy, row);
-		const actions = head.createDiv({ cls: "mdsync-timeline-actions" });
-		const more = appendIconButton(
-			actions,
-			"ellipsis",
-			"Snapshot actions",
-			(event) => {
-				event.stopPropagation();
-				this.actions.showSnapshotMenu(event, row);
-			},
-		);
-		more.setAttr("data-timeline-focus", `${row.snapshotId}:menu`);
-		head.addEventListener("contextmenu", (event) => {
-			event.preventDefault();
-			this.actions.showSnapshotMenu(event, row);
-		});
-		if (!expanded) return;
-		const list = card.createDiv({ cls: "mdsync-timeline-files" });
-		if (!row.files || row.files.length === 0) {
-			list.createDiv({
-				cls: "mdsync-status-line",
-				text: row.files
-					? "No file changes in this push."
-					: "The change record for this push is unavailable.",
-			});
-			return;
-		}
-		let pager = this.pages.get(row.snapshotId);
-		if (!pager) {
-			pager = new RowPager();
-			this.pages.set(row.snapshotId, pager);
-		}
-		for (const file of pager.slice(row.files)) this.renderFile(list, row, file);
-		pager.render(list, row.files.length, this.onRerender);
-	}
-
-	/** Who pushed, a chip per kind of change and the net size. */
-	private renderMeta(parent: HTMLElement, row: TimelineRow): void {
-		const meta = parent.createDiv({
-			cls: "mdsync-history-row-meta mdsync-timeline-meta",
-		});
-		meta.createSpan({ cls: "mdsync-timeline-device", text: row.meta });
-		if (!row.tally) {
-			meta.createSpan({ text: "Change record unavailable" });
-			return;
-		}
-		const chips = meta.createSpan({ cls: "mdsync-timeline-chips" });
-		if (row.counts) chips.setAttr("aria-label", row.counts);
-		for (const [action, count] of row.tally) {
-			chips.createSpan({
-				cls: `mdsync-count-chip ${STATUS_CLASSES[action]}`,
-				text: `${STATUS_LETTERS[action]} ${count}`,
-			});
-		}
-		if (row.netDelta) renderDelta(meta, row.netDelta, "mdsync-timeline-net");
-	}
-
-	private renderFile(
-		parent: HTMLElement,
-		row: TimelineRow,
-		file: TimelineFileRow,
-	): void {
-		const key = JSON.stringify([row.snapshotId, file.path]);
-		const item = parent.createDiv({
-			cls: "mdsync-file-row mdsync-timeline-file",
-		});
-		item.toggleClass("is-deleted", file.action === "delete");
-		item.setAttr("data-timeline-focus", key);
-		item.toggleClass("is-active", this.selected === key);
-		item.toggleClass("is-opening", this.opening === key);
-		if (this.selected === key) item.setAttr("aria-current", "true");
-		if (this.opening === key) item.setAttr("aria-busy", "true");
-		// Before makeActivatable: the hold has to swallow its own trailing click.
-		onLongPress(item, (event) => this.actions.showFileMenu(event, row, file));
-		makeActivatable(item, file.path, () => void this.openFile(row, file));
-		renderPath(item, file.path);
-		// What a change moved; an addition, a deletion or an even change shows its size.
-		if (file.sizeDelta)
-			renderDelta(item, file.sizeDelta, "mdsync-timeline-size");
-		else
-			item.createSpan({
-				cls: "mdsync-timeline-size",
-				text: formatBytes(file.size),
-			});
-		item.createSpan({
-			cls: `mdsync-file-status ${STATUS_CLASSES[file.action]}`,
-			text: STATUS_LETTERS[file.action],
-		});
-		const actions = item.createDiv({ cls: "mdsync-timeline-actions" });
-		const more = appendIconButton(
-			actions,
-			"ellipsis",
-			`Actions for ${file.path}`,
-			(event) => {
-				event.stopPropagation();
-				this.actions.showFileMenu(event, row, file);
-			},
-		);
-		more.setAttr("data-timeline-focus", `${key}:menu`);
-		item.addEventListener("contextmenu", (event) => {
-			event.preventDefault();
-			this.actions.showFileMenu(event, row, file);
-		});
+		// Keys are an id, or an id after a "v:" or "all:" prefix.
+		const live = (key: string) => ids.has(key.slice(key.indexOf(":") + 1));
+		for (const key of this.open) if (!live(key)) this.open.delete(key);
+		for (const key of this.pages.keys()) if (!live(key)) this.pages.delete(key);
 	}
 
 	private async openFile(
-		row: TimelineRow,
+		owner: string,
 		file: TimelineFileRow,
 		mode: "current" | "change" = "current",
 	): Promise<void> {
 		const generation = ++this.openGeneration;
-		this.selected = JSON.stringify([row.snapshotId, file.path]);
+		this.selected = JSON.stringify([owner, file.path]);
 		this.opening = this.selected;
 		this.onRerender();
 		try {
