@@ -21,6 +21,7 @@ import {
 	listSnapshots,
 	resolveSnapshotManifest,
 } from "@/features/sync/history/query";
+import { readHistory } from "@/features/sync/history/remote";
 import { objectKey } from "@/features/sync/remote/manifest";
 import {
 	deepCleanOrphans,
@@ -139,6 +140,21 @@ describe("collectHistoryGarbage", () => {
 			retired: 0,
 			swept: 0,
 		});
+	});
+
+	it("reads the objects it wrote from the cache, with no GET", async () => {
+		const device = new Device(new FakeStorage(), { horizon: null });
+		await pushEvery(device, 7 * MINUTE, 60);
+		vi.setSystemTime(Date.now() + 2 * DAY);
+		await device.push(() => {});
+		const run = await device.gc();
+		expect(run.written).toBeGreaterThan(0);
+
+		const get = vi.spyOn(device.storage, "get");
+		const { view, unreadable } = await readHistory(device.storage, key, "");
+		expect(unreadable).toEqual([]);
+		expect(view.objects.size).toBe(run.written);
+		expect(get).not.toHaveBeenCalled();
 	});
 
 	it("lists packed snapshots at their period, with every push still counted", async () => {

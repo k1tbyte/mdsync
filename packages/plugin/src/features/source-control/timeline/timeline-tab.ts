@@ -15,7 +15,7 @@ import {
 	renderActivityCalendar,
 	type SnapshotListResult,
 } from "@/features/sync";
-import { ageTitle, groupByAge } from "../history/age-groups";
+import { ageTitle, groupByAge, inLastHour } from "../history/age-groups";
 import { HistoryList } from "../history/history-list";
 import { RowPager } from "../history/row-pager";
 import type { SourceControlHost } from "../host";
@@ -40,6 +40,12 @@ export class TimelineTab {
 	private openGeneration = 0;
 	private readonly open = new Set<string>();
 	private readonly pages = new Map<string, RowPager>();
+	/** Rows survive UI-only rerenders, so composed changes keep the identity the file-row cache is keyed by. */
+	private sessionMemo: {
+		snapshots: SnapshotListResult["snapshots"];
+		key: string;
+		rows: SessionRow[];
+	} | null = null;
 	private query = "";
 	private picked: CalendarDay | null = null;
 	private activityOpen = true;
@@ -157,9 +163,7 @@ export class TimelineTab {
 				"History has not caught up with the latest push yet, so the newest version is missing.",
 			);
 		}
-		const rows = buildSessionRows(result.snapshots, {
-			currentDevice: this.plugin.controller.currentDevice(),
-		});
+		const rows = this.sessionRows(result);
 		if (rows.length === 0 && !result.lagging) {
 			renderEmptyState(body, {
 				icon: "clock-3",
@@ -185,6 +189,28 @@ export class TimelineTab {
 			this.renderSessions(sessions, rows, result, calendar);
 		};
 		this.redrawSessions();
+	}
+
+	private sessionRows({ snapshots }: SnapshotListResult): SessionRow[] {
+		const currentDevice = this.plugin.controller.currentDevice();
+		const now = Date.now();
+		// Sessions and titles read the clock: the minute, and each push's own hour mark.
+		const key = JSON.stringify([
+			Math.floor(now / 60_000),
+			snapshots.filter(({ at }) => inLastHour(at, now)).length,
+			currentDevice.id,
+			currentDevice.name,
+		]);
+		if (
+			this.sessionMemo?.snapshots !== snapshots ||
+			this.sessionMemo.key !== key
+		)
+			this.sessionMemo = {
+				snapshots,
+				key,
+				rows: buildSessionRows(snapshots, { currentDevice }),
+			};
+		return this.sessionMemo.rows;
 	}
 
 	private renderActivity(body: HTMLElement, calendar: ActivityCalendar): void {

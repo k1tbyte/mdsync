@@ -11,6 +11,7 @@ import {
 import {
 	pinKey,
 	readPinById,
+	readPinInfos,
 	readPins,
 	writePin,
 } from "@/features/sync/history/pins";
@@ -88,6 +89,83 @@ describe("setSnapshotPinned", () => {
 			setSnapshotPinned({ storage, key, root: "" }, "s1", true),
 		).rejects.toThrow(/can no longer be rebuilt/);
 		expect(await storage.exists(pinKey("s1"))).toBe(false);
+	});
+});
+
+async function pinMany(storage: FakeStorage, count: number): Promise<void> {
+	for (let i = 0; i < count; i++) {
+		await pinSnapshot(storage, key, manifestOf(`p${i}`, null, {}, i + 1));
+	}
+}
+
+describe("readPinInfos", () => {
+	it("downloads no pin again while its etag holds, past the manifest cache", async () => {
+		const storage = new RevalidatingStorage();
+		await pinMany(storage, 6);
+		const get = vi.spyOn(storage, "get");
+
+		const first = await readPinInfos(storage, key, "");
+		expect(get).toHaveBeenCalledTimes(6);
+		get.mockClear();
+		const second = await readPinInfos(storage, key, "");
+		expect(get).not.toHaveBeenCalled();
+		expect(second).toEqual(first);
+		expect(second.pins.map(({ id }) => id)).toEqual([
+			"p5",
+			"p4",
+			"p3",
+			"p2",
+			"p1",
+			"p0",
+		]);
+	});
+
+	it("reads again only the pin whose etag changed", async () => {
+		const storage = new RevalidatingStorage();
+		await pinMany(storage, 6);
+		await readPinInfos(storage, key, "");
+		await pinSnapshot(storage, key, manifestOf("p2", null, {}, 3), "Renamed");
+		const get = vi.spyOn(storage, "get");
+
+		const read = await readPinInfos(storage, key, "");
+		expect(get.mock.calls).toEqual([[pinKey("p2")]]);
+		expect(read.pins.find(({ id }) => id === "p2")?.label).toBe("Renamed");
+	});
+
+	it("drops a pin that is no longer listed", async () => {
+		const storage = new RevalidatingStorage();
+		await pinMany(storage, 6);
+		await readPinInfos(storage, key, "");
+		await storage.delete(pinKey("p3"));
+		const get = vi.spyOn(storage, "get");
+
+		const read = await readPinInfos(storage, key, "");
+		expect(read.pins.map(({ id }) => id)).not.toContain("p3");
+		expect(read.pins).toHaveLength(5);
+		expect(get).not.toHaveBeenCalled();
+	});
+
+	it("reads every pin again without an etag, and keeps naming an unreadable one", async () => {
+		const storage = new FakeStorage();
+		await pinMany(storage, 6);
+		await storage.put(pinKey("bad"), new Uint8Array([1]));
+		const get = vi.spyOn(storage, "get");
+
+		await readPinInfos(storage, key, "");
+		const read = await readPinInfos(storage, key, "");
+		expect(get).toHaveBeenCalledTimes(14);
+		expect(read.pins).toHaveLength(6);
+		expect(read.unreadable).toEqual([pinKey("bad")]);
+	});
+
+	it("is warmed by readPins", async () => {
+		const storage = new RevalidatingStorage();
+		await pinMany(storage, 6);
+		await readPins(storage, key, "", () => null);
+		const get = vi.spyOn(storage, "get");
+
+		await readPinInfos(storage, key, "");
+		expect(get).not.toHaveBeenCalled();
 	});
 });
 

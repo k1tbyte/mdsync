@@ -46,6 +46,8 @@ export function renderHistoryHolds(
 	}
 	load().then(
 		(result) => {
+			// Settings may have redrawn or closed meanwhile.
+			if (!calendar.isConnected) return;
 			calendar.empty();
 			renderActivityCalendar(
 				calendar,

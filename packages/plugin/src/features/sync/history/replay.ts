@@ -11,7 +11,11 @@ export function replayTo(
 	cover: Cover,
 	snapshotId: string,
 ): Manifest | null {
-	if (cover.lagging) return null;
+	if (
+		cover.lagging ||
+		!cover.chain.some(({ record }) => record.id === snapshotId)
+	)
+		return null;
 	const files = { ...head.files };
 	for (const { record } of cover.chain) {
 		if (record.id === snapshotId) {

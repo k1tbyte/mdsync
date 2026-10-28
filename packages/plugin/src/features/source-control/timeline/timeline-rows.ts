@@ -83,7 +83,7 @@ export function summaryOf(changes: SnapshotChanges | null): ChangeSummary {
 		return { counts: null, tally: null, netDelta: null, fileCount: null };
 	const tally = tallyOf(changes);
 	return {
-		counts: countsText(changes),
+		counts: tallyText(tally),
 		tally,
 		netDelta: netBytes(changes) || null,
 		fileCount: tally.reduce((sum, [, count]) => sum + count, 0),
@@ -109,8 +109,9 @@ function buildFileRows(
 	at: number,
 ): TimelineFileRow[] {
 	const rows: TimelineFileRow[] = [];
+	const stamp = formatTimestamp(at);
 	for (const [path, entry] of Object.entries(changes.added)) {
-		const after = versionRef(entry, at, "after push");
+		const after = versionRef(entry, stamp, "after push");
 		rows.push({
 			path,
 			action: "add",
@@ -121,8 +122,8 @@ function buildFileRows(
 		});
 	}
 	for (const [path, change] of Object.entries(changes.modified)) {
-		const before = versionRef(change.from, at, "before push");
-		const after = versionRef(change.to, at, "after push");
+		const before = versionRef(change.from, stamp, "before push");
+		const after = versionRef(change.to, stamp, "after push");
 		rows.push({
 			path,
 			action: "modify",
@@ -140,7 +141,7 @@ function buildFileRows(
 				Object.hasOwn(changes.deletedLast, path) &&
 				changes.deletedLast[path]) ||
 			entry;
-		const before = versionRef(last, at, "before push");
+		const before = versionRef(last, stamp, "before push");
 		rows.push({
 			path,
 			action: "delete",
@@ -165,13 +166,13 @@ function netBytes(changes: SnapshotChanges): number {
 
 function versionRef(
 	entry: ManifestEntry,
-	at: number,
+	stamp: string,
 	suffix: string,
 ): HistoryVersionRef {
 	return {
 		hash: entry.hash,
 		size: entry.size,
-		label: `${formatTimestamp(at)} (${suffix})`,
+		label: `${stamp} (${suffix})`,
 	};
 }
 
@@ -186,10 +187,11 @@ function tallyOf(changes: SnapshotChanges): Array<[ChangeAction, number]> {
 
 /** "+3 new · 2 changed · 1 removed", dropping the parts that are zero. */
 export function countsText(changes: SnapshotChanges | null): string | null {
-	if (!changes) return null;
-	const parts = tallyOf(changes).map(([action, count]) =>
-		COUNT_WORDS[action](count),
-	);
+	return changes ? tallyText(tallyOf(changes)) : null;
+}
+
+function tallyText(tally: ReadonlyArray<[ChangeAction, number]>): string {
+	const parts = tally.map(([action, count]) => COUNT_WORDS[action](count));
 	return parts.length > 0 ? parts.join(" · ") : "no file changes";
 }
 

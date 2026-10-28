@@ -42,12 +42,14 @@ export interface PinsRead<T> {
 const PIN_CACHE_SIZE = 4;
 
 // A relabel rewrites the object, and only its etag proves it unchanged: a timestamp may not move within its resolution.
+// Infos are a few strings each, so every listed pin keeps one and a warm Timeline refresh downloads no manifest.
 const pinCache = new WeakMap<
 	ObjectStorage,
 	{
 		key: EncryptionKey;
 		root: string;
 		pins: Map<string, { etag: string; pin: Pin }>;
+		infos: Map<string, { etag: string; info: PinInfo }>;
 	}
 >();
 
@@ -82,23 +84,62 @@ export function deletePin(
 }
 
 /** Every listed pin, reduced by `pick` as it is read so no more than the cache's manifests are held at once. */
-export async function readPins<T>(
+export function readPins<T>(
 	storage: ObjectStorage,
 	key: EncryptionKey,
 	root: string,
 	pick: (pin: Pin) => T,
 ): Promise<PinsRead<T>> {
+	return scanPins(storage, key, root, pick);
+}
+
+/** Every listed pin's info, newest first; a pin whose etag is unchanged costs no GET. */
+export async function readPinInfos(
+	storage: ObjectStorage,
+	key: EncryptionKey,
+	root: string,
+): Promise<{ pins: PinInfo[]; unreadable: string[] }> {
+	const read = await scanPins(
+		storage,
+		key,
+		root,
+		() => null,
+		() => null,
+	);
+	return {
+		pins: read.pins.map(({ info }) => info),
+		unreadable: read.unreadable,
+	};
+}
+
+/** `fromInfo` answers a pin whose cached info is current, so it is not read at all. */
+async function scanPins<T>(
+	storage: ObjectStorage,
+	key: EncryptionKey,
+	root: string,
+	pick: (pin: Pin) => T,
+	fromInfo?: (info: PinInfo) => T,
+): Promise<PinsRead<T>> {
 	let cache = pinCache.get(storage);
 	if (cache?.key !== key || cache.root !== root) {
-		cache = { key, root, pins: new Map() };
+		cache = { key, root, pins: new Map(), infos: new Map() };
 		pinCache.set(storage, cache);
 	}
-	const { pins } = cache;
+	const { pins, infos } = cache;
 	const listed = await listPins(storage);
+	const listedKeys = new Set(listed.map((object) => object.key));
+	for (const storageKey of infos.keys()) {
+		if (!listedKeys.has(storageKey)) infos.delete(storageKey);
+	}
 	const read: PinsRead<T>["pins"] = [];
 	const unreadable: string[] = [];
 	await runWithConcurrency(listed, DEFAULT_CONCURRENCY, async (object) => {
 		const { etag } = object;
+		const known = infos.get(object.key);
+		if (fromInfo && etag !== null && known?.etag === etag) {
+			read.push({ info: known.info, picked: fromInfo(known.info) });
+			return;
+		}
 		const hit = pins.get(object.key);
 		let pin = etag !== null && hit?.etag === etag ? hit.pin : null;
 		if (!pin) {
@@ -111,10 +152,9 @@ export async function readPins<T>(
 		}
 		const { id, label, manifest } = pin;
 		const { createdAt, deviceId, deviceName } = manifest;
-		read.push({
-			info: { id, label, createdAt, deviceId, deviceName },
-			picked: pick(pin),
-		});
+		const info = { id, label, createdAt, deviceId, deviceName };
+		if (etag !== null) infos.set(object.key, { etag, info });
+		read.push({ info, picked: pick(pin) });
 	});
 	read.sort((a, b) => b.info.createdAt - a.info.createdAt);
 	return { pins: read, unreadable };

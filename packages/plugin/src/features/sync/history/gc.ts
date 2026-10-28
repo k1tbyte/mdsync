@@ -82,12 +82,13 @@ async function thinHistory(
 	const retire = new Set(plan.deletes);
 	const written = new Set<string>();
 	const kept: { changes: SnapshotChanges }[] = [];
-	for (const build of plan.builds) {
+	// Every build is written and read back before the first delete: the run rejects only once its workers settle.
+	await runWithConcurrency(plan.builds, DEFAULT_CONCURRENCY, async (build) => {
 		const stored = await writeHistoryObject(storage, key, root, build);
 		written.add(stored.key);
 		kept.push(...stored.object.records);
 		for (const named of stored.object.consumed) retire.add(named);
-	}
+	});
 	// Only what this run listed: a key named but gone was retired by an earlier run.
 	const gone = [...retire].filter(
 		(storageKey) =>

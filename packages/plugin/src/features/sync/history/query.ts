@@ -17,6 +17,7 @@ import {
 	deletePin,
 	type PinInfo,
 	readPinById,
+	readPinInfos,
 	readPins,
 	writePin,
 } from "./pins";
@@ -222,13 +223,8 @@ export async function listSnapshots(
 	const { head, cover, view } = await readTimeline(query);
 	if (!head)
 		return { snapshots: [], lagging: false, truncated: false, activity: {} };
-	const { pins } = await readPins(
-		query.storage,
-		query.key,
-		query.root,
-		() => null,
-	);
-	const pinned = new Map(pins.map(({ info }) => [info.id, info]));
+	const { pins } = await readPinInfos(query.storage, query.key, query.root);
+	const pinned = new Map(pins.map((info) => [info.id, info]));
 	const summary = (
 		meta: Meta,
 		dating: Dating,
@@ -259,7 +255,7 @@ export async function listSnapshots(
 		),
 	);
 	const onChain = new Set(snapshots.map((snapshot) => snapshot.id));
-	for (const { info } of pins) {
+	for (const info of pins) {
 		if (!onChain.has(info.id))
 			snapshots.push(summary(info, undated(info), null, null));
 	}

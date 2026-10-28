@@ -45,7 +45,7 @@ History is one encrypted record per push under `history/`, which GC thins into o
 
 - A pin is one object, `pins/<id>.json.enc` (`features/sync/history/pins.ts`): `{ v: 1, manifest, label?, pinnedAt }` with the snapshot's full manifest, so it outlives the records it was replayed from. Nothing else flags it: a pin is on exactly while its object reads.
 - `setSnapshotPinned` (`features/sync/history/query.ts`) keeps a readable pin's manifest and replays only for a new one; a pin that cannot be read is rewritten, never trusted. Unpinning deletes the object. Both run on the operation queue (`features/sync/runtime/history-service.ts`).
-- A listed pin that does not read (corrupt, or a 1.x bare manifest) is `unreadable` in `readPins`: what it holds is unknown. Decoded pins are cached only by etag: a timestamp may not move on a rewrite.
+- A listed pin that does not read (corrupt, or a 1.x bare manifest) is `unreadable` in `readPins`: what it holds is unknown. Decoded pins are cached only by etag: a timestamp may not move on a rewrite. Manifests of a few stay, the info of every listed pin (`readPinInfos`, the Timeline's), so a warm read of unchanged pins GETs none.
 
 ## GC and deep clean
 
