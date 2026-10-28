@@ -420,6 +420,9 @@ async function checkFileHistory(device: Obsidian, page: Page): Promise<void> {
 			headers: text(".mdsync-history-pane .mdsync-timeline-day"),
 			meta: text(".mdsync-history-row .mdsync-history-row-meta"),
 			footer: text(".mdsync-history-footer").join(""),
+			tooltips: [...document.querySelectorAll(".mdsync-history-row")].map(
+				(row) => row.getAttribute("aria-label") ?? "",
+			),
 		};
 	});
 	console.log(`history: ${JSON.stringify(seen)}`);
@@ -436,6 +439,11 @@ async function checkFileHistory(device: Obsidian, page: Page): Promise<void> {
 	check(
 		"the oldest says it created the file",
 		seen.meta.some((meta) => meta.endsWith("first version")),
+		true,
+	);
+	check(
+		"a tooltip carries the whole meta",
+		seen.tooltips.some((tooltip) => tooltip.endsWith("first version")),
 		true,
 	);
 	check(

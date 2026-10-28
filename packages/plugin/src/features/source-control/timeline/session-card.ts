@@ -106,7 +106,9 @@ function renderHead(
 	const head = parent.createDiv({ cls: "mdsync-timeline-head" });
 	head.setAttr("data-timeline-focus", key);
 	head.setAttr("aria-expanded", String(open));
-	makeActivatable(head, `${row.title} · ${row.tooltip}`, () => ctx.toggle(key));
+	// The meta is cut short in a narrow pane; the tooltip keeps all of it.
+	const label = [row.title, row.tooltip, row.meta].filter(Boolean).join(" · ");
+	makeActivatable(head, label, () => ctx.toggle(key));
 	setIcon(
 		head.createSpan({ cls: "mdsync-timeline-icon" }),
 		open ? "chevron-down" : "chevron-right",

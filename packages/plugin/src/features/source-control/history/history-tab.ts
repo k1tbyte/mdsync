@@ -194,7 +194,10 @@ export class HistoryTab {
 		const item = list.createDiv({ cls: "mdsync-history-row" });
 		item.toggleClass("is-latest", row.isLatest);
 		item.toggleClass("is-active", this.selected === row.snapshotId);
-		makeActivatable(item, `${row.title} · ${row.tooltip}`, () => {
+		const label = [row.title, row.tooltip, row.meta]
+			.filter(Boolean)
+			.join(" · ");
+		makeActivatable(item, label, () => {
 			this.selected = row.snapshotId;
 			// In place: a re-render would lose the list's scroll.
 			item.parentElement?.parentElement
