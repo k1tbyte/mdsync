@@ -559,3 +559,37 @@ Stages, each its own commit:
 Tests: stage 2 on `FakeStorage` pushes (fields, activity, truncated); stage 3 pure (groups across tiers and the
 hour boundary, sessions split by device, gap, resolution and header; calendar levels, local days across DST,
 counts-only cut, bands); stages 4-7 rows-level builders, DOM only where a builder cannot show it.
+
+## 22. Step 9 plan
+
+### 9.3 result (`brain`, 1.4.0, 13 days, 23 pushes, `tools/measure-history`, `pnpm measure:history`)
+22 changed versions, 5.9 MB as 1.x stores them. Whole + gzip 3.1 MB (52%); CDC A / B / C 55 / 56 / 54%. 96% of the
+bytes were plugin bundles in `.obsidian` (`excalidraw/main.js` 4.9 MB, `iconic/main.js`, `styles.css`), rewritten
+whole by an update, where CDC loses a few percent to per-chunk gzip and the recipe. Every changed note was under
+16 KB. The two drawings (14, 22 KB, `compressed-json`) re-encode byte for byte; stored as decoded JSON + gzip they
+seal to 8 KB each instead of 12 and 20 KB. Decided with the user: CDC goes ahead with set A (it only acts above the
+threshold, so a vault without big files pays nothing), and history stops keeping `.obsidian`.
+
+### 9a. History covers vault files, not the configuration folder
+Plugin bundles and settings are not worth a version history, and each plugin update kept its old bundle for the
+whole horizon. Sync of `.obsidian` is unchanged.
+
+| Module (`features/sync/`) | Change |
+|---|---|
+| `history/changes.ts` | `splitTracked(changes, configDir)`: the record keeps paths outside `<configDir>/`; every hash the config side names (`changeEntries`) becomes `released`, so a sibling that lost the guard frees what it uploaded too. No `configDir` (a share): nothing split |
+| `history/model/types.ts` | `PushRecord.released?: string[]`: versions this push stopped naming that history does not keep. Never shown, never reachable by itself |
+| `history/publish.ts` | splits before sealing; `configDir` from the caller (`engine.ts` and `operations/config-reset.ts` pass `deps.scope.configDir`) |
+| `history/gc.ts` | a retired push's `released` joins the freed hashes, so phase 2 sweeps them once settled; HEAD, pins and records still keep anything they name (sweep's reachability is unchanged) |
+| `history/model/records.ts` | a push with no tracked path counts 0 pushes in activity |
+| `runtime/history-service.ts`, `history/restore-vault.ts` | vault restore leaves `<configDir>/` alone, writes and removals both (`inScope` also guards the removal loop): replay keeps HEAD's config and an older pin may hold any |
+| `history/query.ts` | a new pin keeps only tracked paths (`setSnapshotPinned` gets `configDir`); a readable pin is kept as it is |
+| `source-control/timeline/` | a version with no tracked change is not listed unless pinned |
+
+`released` is cleanup metadata, not reachability: HEAD, pins and tracked entries keep what is live, and the sweep
+skips a freed hash any of them names. A packed object never carries it. Records written before 9a keep their config entries until GC retires them (no
+release had them). Tests: split, GC freeing `released` and keeping one HEAD names, activity of an empty push,
+restore leaving config (write and removal), a new pin without config, Timeline hiding an empty version.
+
+### 9b. CDC and the Excalidraw codec
+Planned after 9a, per 9.2, plus: a pull fetches only the chunks the device's local copy of the file does not
+already cut to (chunk the baseline version it has), so download traffic shrinks like upload.

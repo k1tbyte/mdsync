@@ -13,6 +13,7 @@
  *   node tools/obsidian.mjs commands mdsync     list command ids matching a term
  */
 import { spawn } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import { chromium } from "playwright-core";
 
 const PORT = Number(process.env.OBSIDIAN_CDP_PORT ?? 9222);
@@ -20,7 +21,7 @@ const EXE =
 	process.env.OBSIDIAN_EXE ?? "C:\\Program Files\\Obsidian\\Obsidian.exe";
 const APP_URL = "app://obsidian.md";
 
-async function openApp() {
+export async function openApp() {
 	const browser = await chromium.connectOverCDP(`http://127.0.0.1:${PORT}`);
 	for (const context of browser.contexts()) {
 		for (const page of context.pages()) {
@@ -116,7 +117,10 @@ async function run(fn, arg) {
 }
 
 const [action, ...args] = process.argv.slice(2);
-if (action === "launch") {
+const imported = import.meta.url !== pathToFileURL(process.argv[1] ?? "").href;
+if (imported) {
+	// Only openApp is wanted.
+} else if (action === "launch") {
 	launch();
 } else if (actions[action]) {
 	await actions[action](args);
