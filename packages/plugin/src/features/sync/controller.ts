@@ -170,6 +170,7 @@ export class SyncController {
 			runtimeState: this.runtimeState,
 			clearFileDiffs: () => this.fileDiffs.clear(),
 			localRevision: () => this.localRevision,
+			onPublished: (space) => this.maintenance.afterPush(space),
 		});
 		this.autoPushPaths = createAutoPushSelector(
 			() => host.autoDeleteLimit?.() ?? null,
@@ -201,10 +202,13 @@ export class SyncController {
 			refresh: () => this.operations.refreshNow(),
 		});
 		this.maintenance = new MaintenanceService({
-			openSession: () => open(VAULT_SPACE),
+			openSession: open,
 			enqueue: (task) => this.runtimeState.enqueue(task),
+			enqueueQuiet: (task) => this.runtimeState.enqueueQuiet(task),
 			logInfo: (operation, message, details) =>
 				this.host.logInfo(operation, message, details),
+			logWarn: (operation, message, details) =>
+				this.host.logWarn(operation, message, details),
 		});
 	}
 
@@ -246,6 +250,7 @@ export class SyncController {
 
 	dispose(): void {
 		this.saved.dispose();
+		this.maintenance.dispose();
 		this.runtimeState.dispose();
 		this.fileDiffs.clear();
 		clearRemoteTextCache();

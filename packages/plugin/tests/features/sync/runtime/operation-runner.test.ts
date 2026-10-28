@@ -24,12 +24,14 @@ function createTestRunner(session: TestSession) {
 	const host = createTestControllerHost(session);
 	const runtimeState = new SyncControllerRuntimeState();
 	onTestFinished(() => runtimeState.dispose());
+	const onPublished = vi.fn();
 	const runner = new OperationRunner({
 		host,
 		runtimeState,
 		clearFileDiffs: () => {},
+		onPublished,
 	});
-	return { runner, runtimeState, host };
+	return { runner, runtimeState, host, onPublished };
 }
 
 const unchanged = async () => ({
@@ -40,11 +42,12 @@ const unchanged = async () => ({
 describe("OperationRunner.runOperation", () => {
 	it("reports completion only after a push that published", async () => {
 		const [session] = pairedSessions();
-		const { runner, host } = createTestRunner(session);
+		const { runner, host, onPublished } = createTestRunner(session);
 		expect(
 			await runner.runOperation(VAULT_SPACE, ESyncLogOperation.Push, unchanged),
 		).toEqual({ ok: true });
 		expect(host.onPushComplete).not.toHaveBeenCalled();
+		expect(onPublished).not.toHaveBeenCalled();
 
 		const published = async () => ({
 			newRemote: { snapshotId: "next" } as Manifest,
@@ -52,6 +55,7 @@ describe("OperationRunner.runOperation", () => {
 		});
 		await runner.runOperation(VAULT_SPACE, ESyncLogOperation.Push, published);
 		expect(host.onPushComplete).toHaveBeenCalledOnce();
+		expect(onPublished).toHaveBeenCalledWith(VAULT_SPACE);
 	});
 
 	it("refuses an operation whose space left the partition before it ran", async () => {

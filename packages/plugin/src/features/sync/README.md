@@ -16,7 +16,7 @@ File sync of the vault and of each shared folder (a "space") against object stor
 | `automation/` | `features/sync/automation/scheduler.ts` (timer, backoff), `features/sync/automation/auto-push.ts` (bulk-deletion hold) |
 | `identity/` | `features/sync/identity/authors.ts`, `features/sync/identity/device.ts`, `features/sync/identity/device-name.ts` |
 | `runtime/` | what `features/sync/controller.ts` is built from: `features/sync/runtime/operation-runner.ts`, `features/sync/runtime/refresh-queue.ts`, `features/sync/runtime/auto-cycle.ts`, `features/sync/runtime/scan-cycle.ts`, `features/sync/runtime/controller-state.ts`, `features/sync/runtime/file-diff-service.ts`, `features/sync/runtime/history-service.ts`, `features/sync/runtime/maintenance.ts`, `features/sync/runtime/saved-refresh.ts`, `features/sync/runtime/merged-result.ts` |
-| `history/` | change log, queries, replay, vault restore plan, GC |
+| `history/` | push records, queries, replay, pins, vault restore plan, GC and sweep |
 | `ui/` | menu items, modals, the maintenance section |
 
 Top level: `features/sync/engine.ts` (`compare`, `pushPaths`, `publishFileMap`), `features/sync/session-state.ts`, `features/sync/state.ts` (the state file), `features/sync/types.ts`, `features/sync/constants.ts` (remote layout, size limits), `features/sync/live-notes.ts` (the seam to live editing: the file sync never imports `features/live`), `features/sync/index.ts` (facade).
@@ -44,7 +44,7 @@ A push publishes the remote's file map (`result.remote`) plus this push's change
 
 Accepted limit: a backend hiding our own write past the retries (WebDAV behind a cache) leaves a landed push unconfirmed: peers are not pinged, a partial push shows an auto-merged conflict, that snapshot gets no history record.
 
-Uploads: the head vouches for a blob; this device's own unpublished uploads count for 12 h (`UPLOAD_TRUST_MS`, still probed). Anything else may be swept by GC or deep clean between probe and publish. Still open, narrow: GC evicting the record of an own unpublished upload at that moment, another device's reset between the probe and the publish, clock skew over 12 h.
+Uploads: the head vouches for a blob; this device's own unpublished uploads count for 12 h (`UPLOAD_TRUST_MS`, still probed). Anything else may be swept by GC or deep clean between probe and publish. Still open, narrow: another device's reset between the probe and the publish, clock skew over 12 h.
 
 A blob is gzipped when that makes it smaller (`encryptCompressible` in `core/crypto/cipher.ts`, padded like the JSON documents), else sealed as is; every release since 1.0.0 reads both. A large file is judged by its first 64 KB, so media is not compressed whole for nothing.
 
@@ -60,7 +60,7 @@ Accepted limits: garbage that is no prefix reads as an edit; an edit since that 
 
 ## Spaces
 
-A `Space` is the vault or a shared folder with its own storage and key. The partition (`spacesOf`, built by `features/spaces/records.ts`) lists the vault first, then each open record whose root is free. Scopes own a root's subtree minus nested roots. The vault treats share roots like a local ignore: entries there are frozen in its manifest (so a share opened or closed never reads as a deletion), dropped from the next vault push, and swept from storage by history GC after the change record rolls off. A frozen entry the baseline forgot but whose share has no baseline yet is kept in `shareBases`, the merge base of a note that just became a share.
+A `Space` is the vault or a shared folder with its own storage and key. The partition (`spacesOf`, built by `features/spaces/records.ts`) lists the vault first, then each open record whose root is free. Scopes own a root's subtree minus nested roots. The vault treats share roots like a local ignore: entries there are frozen in its manifest (so a share opened or closed never reads as a deletion), dropped from the next vault push, and swept from storage by history GC once no history record names them. A frozen entry the baseline forgot but whose share has no baseline yet is kept in `shareBases`, the merge base of a note that just became a share.
 
 Remote blobs hold paths relative to the space root (`features/sync/remote/space-paths.ts`), so participants mounting at different folders agree; locally everything is vault paths. A move of a share root edits the record; every device moves its folder before the next partition (`features/spaces/share-moves.ts`).
 
@@ -78,9 +78,9 @@ A hunk index means nothing without its two texts. The diff view, the gutter mark
 
 ## History
 
-Every push writes one encrypted record, `history/p/<id>.enc`, before it publishes: the diff from that snapshot's parent (`added`, `modified {from, to}`, `deleted`). Both sides are stored so one version restores without replaying, and a record that never landed shows as a parent/child gap the walk from HEAD stops at (`coverOf`). A failed record write is retried before the next push. Readers list `history/` once and keep what they decoded in memory (`features/sync/history/remote.ts`); every query walks from HEAD (`features/sync/history/query.ts`). Pins are their own objects under `pins/` holding a full manifest, so they outlive the records. GC that thins records into objects per period lives in `features/sync/history/model/` and is not wired yet.
+Every push writes one encrypted record, `history/p/<id>.enc`, before it publishes: the diff from that snapshot's parent (`added`, `modified {from, to}`, `deleted`). Both sides are stored so one version restores without replaying, and a record that never landed shows as a parent/child gap the walk from HEAD stops at (`coverOf`). A failed record write is retried before the next push. Readers list `history/` once and keep what they decoded in memory (`features/sync/history/remote.ts`); every query walks from HEAD (`features/sync/history/query.ts`). Pins are their own objects under `pins/` holding a full manifest, so they outlive the records. GC (`features/sync/history/gc.ts`) runs after a push this device published, at most every 10 minutes per space: it packs aged records into one object per period (every push for the last hour, then per 10 minutes, hour, day and week, then activity counts past the horizon), planned by the pure model in `features/sync/history/model/`, and sweeps the file versions they stopped naming a day later.
 
-Windows: a blob younger than `SETTLED_AFTER_MS` (24 h) is never swept, deep clean deletes nothing written in the last day. Accepted limits: a re-upload landing between the listing and its delete is still lost (Drive has no conditional delete); a push by another device that re-uploaded an old hash is covered only by those windows; a cold read decodes every listed record, and a vault never thinned by GC reads all of its pushes.
+Windows: a blob younger than `SETTLED_AFTER_MS` (24 h) is never swept, GC sweeps what it freed only a day after freeing it, deep clean deletes nothing written in the last day. Accepted limits: a re-upload landing between the listing and its delete is still lost (Drive has no conditional delete); a push by another device that re-uploaded an old hash is covered only by those windows; a cold read decodes every listed record, and a vault never thinned by GC reads all of its pushes; a push stalled between its guard's precheck and its put while another push and its GC complete (the guard race, where that other push's files already leave HEAD) may find its parent merged away, so its history starts at a gap; a push that outlasts the 10-minute GC interval can queue a second, empty run behind the first.
 
 ## Other flows
 

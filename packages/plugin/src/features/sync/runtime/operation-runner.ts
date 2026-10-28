@@ -51,6 +51,8 @@ interface OperationRunnerDeps {
 	runtimeState: SyncControllerRuntimeState;
 	clearFileDiffs: () => void;
 	localRevision?: () => number;
+	/** A push of this device published its manifest. */
+	onPublished?: (space: Space) => void;
 }
 
 export class OperationRunner {
@@ -422,6 +424,7 @@ export class OperationRunner {
 				outcome.newRemote !== result.remote
 			) {
 				this.deps.host.onPushComplete?.(space);
+				this.deps.onPublished?.(space);
 			}
 			return { ok: true };
 		} catch (err) {

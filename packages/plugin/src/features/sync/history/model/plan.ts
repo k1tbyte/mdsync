@@ -73,8 +73,8 @@ function wholeKeys(input: PlanInput): (key: string) => boolean {
 
 /** Versions the replaced records named that the new object no longer does: phase 1's sweep candidates. */
 export function freedHashes(
-	replaced: readonly StoredRecord[],
-	kept: readonly StoredRecord[],
+	replaced: readonly Pick<StoredRecord, "changes">[],
+	kept: readonly Pick<StoredRecord, "changes">[],
 ): Set<string> {
 	const keptHashes = new Set(
 		kept.flatMap((record) => changeEntries(record.changes).map((e) => e.hash)),

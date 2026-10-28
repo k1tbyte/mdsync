@@ -148,9 +148,11 @@ interface HistoryObject {
 type Activity = Record<number, [number, number]>;
 ```
 
-- An object's key carries its resolution, group and a `digest` of its content (`records`, `activity`, `lastId`;
-  SHA-256, first 16 hex; not of `consumed`, and not of records alone: every counts object has none). Two contents of one group never share a key; two devices building the same content write the
-  same key, and a Drive duplicate of it is the same content. No reliance on `putIfAbsent` (B2 rejects
+- An object's key carries its resolution, group and a `digest` of its whole content (`records`, `activity`,
+  `lastId`, `consumed`; SHA-256, first 16 hex), so a key never changes meaning and readers cache it for good.
+  Readers recompute the key and treat a mismatch as unreadable. Two devices building the same content from the
+  same view write the same key, and a Drive duplicate of it is the same content; from different views they
+  write two keys (the "different views" race below). No reliance on `putIfAbsent` (B2 rejects
   `If-None-Match`, Drive has none): plain `put`, then read back and check the digest.
 - Paths inside are space-relative, translated only in `features/sync/remote/space-paths.ts`. Each space has
   its own `history/`.
@@ -465,3 +467,30 @@ Tests: the legacy query, log and GC tests are rewritten on `FakeStorage` with re
 push records land before publish; queries over a packed view (objects written by hand through the model);
 a failed record PUT then a later push heals the gap; space paths round-trip with `deletedLast`; deep clean
 keeps every blob named only by new history and every new-shape pin.
+
+## 18. Step 5 plan: GC
+
+Paths relative to `packages/plugin/src/features/sync/`.
+
+| Module | Holds |
+|---|---|
+| `history/sweep.ts` (new, out of `runtime/maintenance.ts`) | `reachableHashes` (HEAD, every listed record and object, every pin, the legacy log until step 6; anything unreadable fails closed) and `sweepObjects(storage, key, root, { freedOnly })`: settled objects nothing reaches, never a hash in a candidate file younger than a day (an unreadable young file fails closed), only the settled files' hashes with `freedOnly`; bails if HEAD, the pin listing or a new history key moved meanwhile; deletes the settled files after. Deep clean is `sweepObjects()`, phase 2 `sweepObjects({ freedOnly: true })`. `runtime/maintenance.ts` keeps verify and the deep clean wrapper |
+| `history/remote.ts` | `writeHistoryObject(storage, key, root, build)`: space paths, digest of `{ records, activity, lastId, consumed }` (SHA-256, 16 hex) in space paths, key `history/b/<res>-<group>-<digest>.enc`; put, read back, key check; returns the verified object. Decoding recomputes every object's key (mismatch: unreadable). `readHistory` returns the `history/g/` listing from its one call. Candidate files `history/g/<runId>.enc` = `{ v: 1, hashes }` (`writeCandidates`, `readCandidates`) |
+| `history/gc.ts` (new) | `collectHistoryGarbage(storage, key, root, history)`. Phase 1: HEAD, `readHistory` (stops on an unreadable key), `coverOf`, `planGc`; write and verify each build; candidates = hashes of every listed key the run retires minus those the verified builds name (`freedHashes`); write the candidate file, then delete each verified build's `consumed` and `plan.deletes`. Phase 2, only when the same listing holds a settled candidate file: `sweepObjects({ freedOnly: true })`. Returns counts |
+| `runtime/maintenance-service.ts` | `afterPush(space)`: at most every 10 min per space, on the quiet queue (`enqueueQuiet`: no busy state), with that space's session; skipped with history off or the space paused; a failure is a log warning. `dispose()` stops queued runs |
+| `runtime/operation-runner.ts`, `controller.ts` | the won-push branch calls a `historyGc` callback; the controller wires it to `maintenance.afterPush` |
+
+Deviations from section 7: the candidate file is written before any key is retired (a crash between leaves
+candidates whose hashes are still named, so phase 2 keeps them; the other order leaks them); no jitter (one
+device wins each push, so runs do not herd); no manual trigger yet; the digest covers `consumed` (section 5).
+Deep clean holds every hash a run freed within the day, so neither caller of the sweep bypasses the window.
+
+Accepted (review of step 5): a push whose record was written long before its publish is due at once, so on
+the guard race (side finding, section 16) its GC may merge away the parent a stalled concurrent push still
+names; that push's history then starts at a gap. The throttle is checked when GC is queued, so a push longer
+than 10 min can queue a second run behind the first (one extra listing).
+
+Tests: pushes under fake time through `FakeStorage`; every retained snapshot replays to the manifest it
+published, before and after GC; a rerun changes nothing; lost sibling, foreign vault and expired-behind-gap
+deletes; an unreadable object stops phase 1; candidates swept only after 24 h and only when unreachable; a pin
+or record appearing between the phases keeps its blobs.

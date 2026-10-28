@@ -6,7 +6,11 @@ import {
 	type EncryptionKey,
 	encryptJson,
 } from "@/core/crypto/cipher";
-import { pushKey, readHistory } from "@/features/sync/history/remote";
+import {
+	pushKey,
+	readHistory,
+	writeHistoryObject,
+} from "@/features/sync/history/remote";
 
 let key: EncryptionKey;
 beforeAll(async () => {
@@ -66,6 +70,26 @@ describe("readHistory", () => {
 		const { view, unreadable } = await readHistory(storage, key, "");
 		expect(ids(view.pushes)).toEqual(["s1", "s3"]);
 		expect(unreadable.sort()).toEqual([pushKey("s2"), pushKey("s4")]);
+	});
+
+	it("reads an object under a key its content does not name as unreadable", async () => {
+		const storage = await seeded();
+		const { key: written } = await writeHistoryObject(storage, key, "", {
+			vaultId: "v",
+			res: "counts",
+			group: 0,
+			records: [],
+			activity: {},
+			lastId: "s1",
+			consumed: [pushKey("s1")],
+		});
+		const moved = "history/b/counts-0-0000000000000000.enc";
+		storage.map.set(moved, storage.map.get(written) as Uint8Array);
+		storage.modified.set(moved, Date.now());
+
+		const { view, unreadable } = await readHistory(storage, key, "");
+		expect(view.objects.has(written)).toBe(true);
+		expect(unreadable).toEqual([moved]);
 	});
 
 	it("dates an undated record by its parent's listing, a root one by the newest", async () => {

@@ -261,6 +261,8 @@ describe("SyncController.refreshSaved", () => {
 		}));
 		const controller = new SyncController({ ...host, openLocal });
 		await controller.refreshAndAutoSync();
+		// History cleanup queued after the sync's push opens its own session.
+		await controller.between(async () => {});
 		host.openSession.mockClear();
 		session.adapter.putText("note.md", "two");
 
