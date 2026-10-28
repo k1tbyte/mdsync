@@ -39,5 +39,6 @@ Plugin source paths are relative to `packages/plugin/src/`. Run `pnpm test` (all
 ## Real Obsidian
 
 - `tools/obsidian.mjs` (`pnpm obsidian <action>`) drives a running instance over CDP: `launch`, `shot`, `click`, `fill`, `text`, `cmd <command-id>`, `commands`, `eval` (runs in the renderer, where `app.plugins.plugins.mdsync` is reachable). Obsidian must be started with the port open (`launch`); a normally launched instance exposes nothing.
+- `tools/measure-history/` (`pnpm measure:history`) runs `measure.ts` in that instance through `openApp` from `tools/obsidian.mjs`: what each changed version of the unlocked vault costs today, sealed whole and chunked. Read-only, prints sizes only.
 - After copying a new build in, reload with `app.plugins.disablePlugin('mdsync')` then `enablePlugin`: `styles.css` is re-injected only on reload. Both `main.js` and `styles.css` are build outputs; run `pnpm build` first.
 - Test on iOS and Android where feasible; do not assume desktop-only behavior.
