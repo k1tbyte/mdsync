@@ -3,9 +3,10 @@ import { seeded } from "@tests/helpers/seeded";
 import { describe, expect, it } from "vitest";
 import { coverOf, type HistoryView } from "@/features/sync/history/model/cover";
 import { groupStart } from "@/features/sync/history/model/periods";
-import { planGc } from "@/features/sync/history/model/plan";
+import { freedHashes, planGc } from "@/features/sync/history/model/plan";
 import { storedRecord } from "@/features/sync/history/model/records";
 import type { HistoryObject } from "@/features/sync/history/model/types";
+import type { EFileKind } from "@/features/sync/types";
 
 /** The key of the object holding the record of `id`. */
 function holder(sim: HistorySim, id: string): string | undefined {
@@ -114,6 +115,32 @@ describe("history GC plan over a simulated vault", () => {
 		});
 		expect(plan.builds.some((build) => build.group === first)).toBe(false);
 		expect(plan.builds.length).toBeGreaterThan(0);
+	});
+});
+
+describe("freedHashes", () => {
+	const entry = (hash: string) => ({
+		hash,
+		size: 1,
+		mtime: 1,
+		kind: "vault" as EFileKind,
+	});
+	const changes = (hash: string) => ({
+		added: { "a.md": entry(hash) },
+		modified: {},
+		deleted: {},
+	});
+
+	it("frees what a replaced record released, and not what a kept record names", () => {
+		const freed = freedHashes(
+			[{ changes: changes("A"), released: ["R1", "R2"] }],
+			[{ changes: changes("R2") }],
+		);
+		expect([...freed].sort()).toEqual(["A", "R1"]);
+	});
+
+	it("frees only what a record names without a released list", () => {
+		expect([...freedHashes([{ changes: changes("A") }], [])]).toEqual(["A"]);
 	});
 });
 

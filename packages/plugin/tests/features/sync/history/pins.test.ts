@@ -49,6 +49,33 @@ describe("setSnapshotPinned", () => {
 		expect(pin?.label).toBe("Draft");
 	});
 
+	it("leaves the configuration folder out of a new pin, and keeps the vault files", async () => {
+		const storage = new FakeStorage();
+		const withConfig = [
+			manifestOf("c1", null, { "a.md": "A1" }),
+			manifestOf("c2", "c1", {
+				"a.md": "A2",
+				".obsidian/app.json": "J1",
+				".obsidian-other/x": "O1",
+			}),
+			manifestOf("c3", "c2", { "a.md": "A3" }),
+		];
+		await seedChain(storage, key, withConfig);
+
+		await setSnapshotPinned(
+			{ storage, key, root: "", configDir: ".obsidian" },
+			"c2",
+			true,
+		);
+
+		const pin = await readPinById(storage, key, "", "c2");
+		expect(Object.keys(pin?.manifest.files ?? {}).sort()).toEqual([
+			".obsidian-other/x",
+			"a.md",
+		]);
+		expect(pin?.manifest.files["a.md"]).toEqual(withConfig[1]?.files["a.md"]);
+	});
+
 	it("deletes the pin on unpin", async () => {
 		const storage = await seeded();
 		const source = { storage, key, root: "" };

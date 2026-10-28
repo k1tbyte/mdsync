@@ -6,6 +6,7 @@ import { thin } from "./records";
 import type {
 	Activity,
 	HistoryObject,
+	PushRecord,
 	Resolution,
 	StoredRecord,
 } from "./types";
@@ -79,7 +80,8 @@ function wholeKeys(input: PlanInput): (key: string) => boolean {
 
 /** Versions the replaced records named that the new object no longer does: phase 1's sweep candidates. */
 export function freedHashes(
-	replaced: readonly Pick<StoredRecord, "changes">[],
+	replaced: readonly (Pick<StoredRecord, "changes"> &
+		Pick<PushRecord, "released">)[],
 	kept: readonly Pick<StoredRecord, "changes">[],
 ): Set<string> {
 	const keptHashes = new Set(
@@ -87,7 +89,8 @@ export function freedHashes(
 	);
 	const freed = new Set<string>();
 	for (const record of replaced) {
-		for (const { hash } of changeEntries(record.changes)) {
+		const named = changeEntries(record.changes).map(({ hash }) => hash);
+		for (const hash of [...named, ...(record.released ?? [])]) {
 			if (!keptHashes.has(hash)) freed.add(hash);
 		}
 	}

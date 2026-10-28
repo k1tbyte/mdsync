@@ -6,7 +6,12 @@ import type { StorageAdapter } from "@/features/storage";
 import { REMOTE_OBJECTS_PREFIX } from "../constants";
 import { objectKey, publishManifestWithGuard } from "../remote/manifest";
 import type { Manifest } from "../types";
-import { changeEntries, diffManifests } from "./changes";
+import {
+	changeEntries,
+	diffManifests,
+	historyTracks,
+	splitTracked,
+} from "./changes";
 import { pushKey, sealPushRecord } from "./remote";
 import type { HistoryConfig } from "./types";
 
@@ -37,11 +42,15 @@ export async function publishManifestWithHistory(
 	parent: Manifest | null,
 	history: HistoryConfig | undefined,
 	baseline: Manifest | null = null,
+	configDir?: string,
 ): Promise<void> {
 	if (history) {
 		const waiting = unwritten.get(storage.identity()) ?? new Map();
 		unwritten.set(storage.identity(), waiting);
-		const changes = diffManifests(parent, manifest);
+		const { changes, released } = splitTracked(
+			diffManifests(parent, manifest),
+			historyTracks(configDir),
+		);
 		const own: Unwritten = {
 			blob: await sealPushRecord(key, root, {
 				v: 1,
@@ -52,6 +61,7 @@ export async function publishManifestWithHistory(
 				deviceId: manifest.deviceId,
 				deviceName: manifest.deviceName,
 				changes,
+				...(released.length > 0 && { released }),
 			}),
 			key,
 			vaultId: manifest.vaultId,

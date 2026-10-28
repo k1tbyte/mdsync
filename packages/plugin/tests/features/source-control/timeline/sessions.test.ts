@@ -21,7 +21,7 @@ function version(
 		createdAt: at,
 		deviceId: "laptop",
 		pinned: false,
-		files: { added: {}, modified: {}, deleted: {} },
+		files: { added: { "a.md": entry("a") }, modified: {}, deleted: {} },
 		keptUntil: null,
 		restorable: true,
 		isHead: false,
@@ -32,6 +32,8 @@ function version(
 		...overrides,
 	};
 }
+
+const none = { added: {}, modified: {}, deleted: {} };
 
 const sizes = (list: ReturnType<typeof sessionsOf>) =>
 	list.map((session) => session.versions.length);
@@ -123,6 +125,62 @@ describe("sessionsOf", () => {
 			modified: {},
 			deleted: { "b.md": entry("B1") },
 		});
+	});
+
+	it("hides a version that changed no vault file, unless it is pinned", () => {
+		const hidden = version(NOW - 2 * HOUR, { files: none });
+		const pinned = version(NOW - 3 * HOUR, { files: none, pinned: true });
+		const shown = version(NOW - 4 * HOUR);
+
+		const list = sessionsOf([hidden, pinned, shown], NOW);
+
+		expect(
+			list.flatMap((session) => session.versions.map((v) => v.id)),
+		).toEqual([pinned.id, shown.id]);
+	});
+
+	it("hands HEAD to the newest shown version when the head version is hidden", () => {
+		const head = version(NOW - 2 * HOUR, { files: none, isHead: true });
+		const older = version(NOW - 3 * HOUR);
+
+		const list = sessionsOf([head, older], NOW);
+
+		const shown = list.flatMap((session) => session.versions);
+		expect(shown.map((v) => [v.id, v.isHead])).toEqual([[older.id, true]]);
+	});
+
+	it("keeps HEAD where it is when the head version is shown", () => {
+		const head = version(NOW - 2 * HOUR, { isHead: true });
+		const empty = version(NOW - 3 * HOUR, { files: none });
+		const older = version(NOW - 4 * HOUR);
+
+		const list = sessionsOf([head, empty, older], NOW);
+
+		const shown = list.flatMap((session) => session.versions);
+		expect(shown.map((v) => [v.id, v.isHead])).toEqual([
+			[head.id, true],
+			[older.id, false],
+		]);
+	});
+
+	it("never hands HEAD to an off-walk pin, which holds another state", () => {
+		const head = version(NOW - 2 * HOUR, { files: none, isHead: true });
+		const pin = version(NOW - 30 * HOUR, { files: null, pinned: true });
+
+		const list = sessionsOf([head, pin], NOW);
+
+		const shown = list.flatMap((session) => session.versions);
+		expect(shown.map((v) => [v.id, v.isHead])).toEqual([[pin.id, false]]);
+	});
+
+	it("makes no version HEAD when the hidden newest one was not", () => {
+		const empty = version(NOW - 2 * HOUR, { files: none });
+		const older = version(NOW - 3 * HOUR);
+
+		const list = sessionsOf([empty, older], NOW);
+
+		const shown = list.flatMap((session) => session.versions);
+		expect(shown.map((v) => [v.id, v.isHead])).toEqual([[older.id, false]]);
 	});
 
 	it("knows nothing of a session with a version no record explains", () => {

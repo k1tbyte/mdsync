@@ -31,13 +31,30 @@ export function sessionsOf(
 	now: number = Date.now(),
 ): Session[] {
 	const runs: SnapshotSummary[][] = [];
-	for (const version of versions) {
+	for (const version of listed(versions)) {
 		const run = runs[runs.length - 1];
 		const newer = run?.[run.length - 1];
 		if (run && newer && continues(newer, version, now)) run.push(version);
 		else runs.push([version]);
 	}
 	return runs.map(sessionOf);
+}
+
+/** A version that changed only what history leaves out (the configuration folder) is not listed. */
+function listed(versions: readonly SnapshotSummary[]): SnapshotSummary[] {
+	const shown = versions.filter(
+		({ pinned, files }) =>
+			pinned ||
+			!files ||
+			Object.keys({ ...files.added, ...files.modified, ...files.deleted })
+				.length > 0,
+	);
+	// Everything above the newest shown version changed no vault file, so it still holds what HEAD does; an
+	// off-walk pin (no files) is another state.
+	const [newest] = shown;
+	if (newest?.files && newest !== versions[0] && versions[0]?.isHead)
+		shown[0] = { ...newest, isHead: true };
+	return shown;
 }
 
 function continues(

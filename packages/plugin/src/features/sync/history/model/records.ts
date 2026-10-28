@@ -6,6 +6,7 @@ import type { Activity, PushRecord, Resolution, StoredRecord } from "./types";
 
 /** A push as stored once storage has dated it. */
 export function storedRecord(push: PushRecord, at: number): StoredRecord {
+	const paths = pathsChanged(push.changes);
 	return {
 		id: push.id,
 		parentId: push.parentId,
@@ -16,7 +17,8 @@ export function storedRecord(push: PushRecord, at: number): StoredRecord {
 		at,
 		firstAt: at,
 		pushes: 1,
-		activity: { [hourOf(at)]: [1, pathsChanged(push.changes)] },
+		// A push of only the configuration folder is no activity in the vault.
+		activity: paths === 0 && push.released ? {} : { [hourOf(at)]: [1, paths] },
 	};
 }
 

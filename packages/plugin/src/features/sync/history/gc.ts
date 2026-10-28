@@ -119,9 +119,13 @@ async function thinHistory(
 function changesOf(
 	view: HistoryView,
 	keys: readonly string[],
-): { changes: SnapshotChanges }[] {
-	return keys.flatMap((storageKey): { changes: SnapshotChanges }[] => {
-		const push = view.pushes.get(storageKey)?.push;
-		return push ? [push] : (view.objects.get(storageKey)?.object.records ?? []);
-	});
+): { changes: SnapshotChanges; released?: string[] }[] {
+	return keys.flatMap(
+		(storageKey): { changes: SnapshotChanges; released?: string[] }[] => {
+			const push = view.pushes.get(storageKey)?.push;
+			return push
+				? [push]
+				: (view.objects.get(storageKey)?.object.records ?? []);
+		},
+	);
 }

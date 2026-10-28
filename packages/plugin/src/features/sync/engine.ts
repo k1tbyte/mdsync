@@ -16,6 +16,7 @@ import { runWithFileConcurrency } from "./changes/file-concurrency";
 import { entryAt, sortedByPath } from "./changes/records";
 import { skipUnholdableNames } from "./changes/remote-names";
 import { REMOTE_OBJECTS_PREFIX } from "./constants";
+import { untrackedDir } from "./history/changes";
 import { publishManifestWithHistory } from "./history/publish";
 import type { HistoryConfig } from "./history/types";
 import { attribute, publisher } from "./identity/authors";
@@ -281,6 +282,7 @@ export async function publishFileMap(
 		compareResult.remote,
 		deps.history,
 		deps.state.baseline,
+		untrackedDir(deps),
 	);
 	forgetUploads(
 		deps.storage,

@@ -33,6 +33,46 @@ export function diffManifests(
 	return changes;
 }
 
+/** History keeps vault files; the vault's configuration folder only syncs. A share's scope still names it. */
+export function untrackedDir(session: {
+	space: { root: string };
+	scope: { configDir?: string };
+}): string | undefined {
+	return session.space.root === "" ? session.scope.configDir : undefined;
+}
+
+/** No `configDir`: every path. Any casing, as a case-blind disk takes `Config/` for `config/`. */
+export function historyTracks(
+	configDir: string | undefined,
+): (path: string) => boolean {
+	const prefix = configDir === undefined ? null : `${configDir}/`.toLowerCase();
+	return (path) => prefix === null || !path.toLowerCase().startsWith(prefix);
+}
+
+/** The record's side, and every hash the untracked side names: GC frees them when it retires the record. */
+export function splitTracked(
+	changes: SnapshotChanges,
+	tracks: (path: string) => boolean,
+): { changes: SnapshotChanges; released: string[] } {
+	const side = (kept: boolean): SnapshotChanges => {
+		const keep = (path: string) => tracks(path) === kept;
+		return {
+			added: pickPaths(changes.added, keep),
+			modified: pickPaths(changes.modified, keep),
+			deleted: pickPaths(changes.deleted, keep),
+		};
+	};
+	const released = changeEntries(side(false)).map(({ hash }) => hash);
+	return { changes: side(true), released: [...new Set(released)] };
+}
+
+export function pickPaths<T>(
+	map: Record<string, T>,
+	keep: (path: string) => boolean,
+): Record<string, T> {
+	return Object.fromEntries(Object.entries(map).filter(([path]) => keep(path)));
+}
+
 /** Undoes one snapshot's changes in place, mutating the given file map into its parent's. */
 export function undoChanges(
 	files: Record<string, ManifestEntry>,

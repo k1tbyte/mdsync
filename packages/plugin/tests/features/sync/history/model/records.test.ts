@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { hourOf } from "@/features/sync/history/model/periods";
 import { storedRecord, thin } from "@/features/sync/history/model/records";
-import type { StoredRecord } from "@/features/sync/history/model/types";
+import type {
+	PushRecord,
+	StoredRecord,
+} from "@/features/sync/history/model/types";
 import type { EFileKind, ManifestEntry } from "@/features/sync/types";
 
 const MINUTE = 60_000;
@@ -37,6 +40,39 @@ function pushes(
 		),
 	);
 }
+
+describe("storedRecord", () => {
+	const push = (overrides: Partial<PushRecord>): PushRecord => ({
+		v: 1,
+		vaultId: "v",
+		id: "p1",
+		parentId: null,
+		createdAt: BASE,
+		deviceId: "d",
+		changes: { added: {}, modified: {}, deleted: {} },
+		...overrides,
+	});
+
+	it("counts no activity for a push of only the configuration folder", () => {
+		expect(storedRecord(push({ released: ["R1"] }), BASE).activity).toEqual({});
+	});
+
+	it("still counts one push for an empty push that released nothing", () => {
+		expect(storedRecord(push({}), BASE).activity).toEqual({
+			[hourOf(BASE)]: [1, 0],
+		});
+	});
+
+	it("counts a push that changed vault files even when it released versions", () => {
+		const changed = push({
+			changes: { added: { "a.md": entry("A") }, modified: {}, deleted: {} },
+			released: ["R1"],
+		});
+		expect(storedRecord(changed, BASE).activity).toEqual({
+			[hourOf(BASE)]: [1, 1],
+		});
+	});
+});
 
 describe("thin", () => {
 	it("keeps every push at push resolution", () => {

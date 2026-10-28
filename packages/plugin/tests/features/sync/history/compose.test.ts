@@ -4,7 +4,10 @@ import {
 	changeEntries,
 	composeChanges,
 	diffManifests,
+	historyTracks,
+	splitTracked,
 	undoChanges,
+	untrackedDir,
 } from "@/features/sync/history/changes";
 import type { SnapshotChanges } from "@/features/sync/history/types";
 import type { EFileKind, Manifest, ManifestEntry } from "@/features/sync/types";
@@ -94,6 +97,64 @@ describe("composeChanges", () => {
 	it("counts the content before a merged deletion as reachable", () => {
 		const merged = changes({ deleted: { n: a }, deletedLast: { n: b } });
 		expect(changeEntries(merged).map((e) => e.hash)).toEqual(["a", "b"]);
+	});
+});
+
+describe("splitTracked", () => {
+	const tracks = historyTracks(".obsidian");
+
+	it("keeps vault paths and releases every hash the config folder names, once", () => {
+		const split = splitTracked(
+			changes({
+				added: { "n.md": a, ".obsidian/new.json": b },
+				modified: {
+					"m.md": { from: a, to: b },
+					".obsidian/app.json": { from: b, to: c },
+				},
+				deleted: { "d.md": a, ".obsidian/old.json": c },
+			}),
+			tracks,
+		);
+
+		expect(split.changes).toEqual(
+			changes({
+				added: { "n.md": a },
+				modified: { "m.md": { from: a, to: b } },
+				deleted: { "d.md": a },
+			}),
+		);
+		// b is named twice and c twice on the untracked side, and a only by vault paths.
+		expect([...split.released].sort()).toEqual(["b", "c"]);
+	});
+
+	it("releases nothing when no path is left out", () => {
+		const all = changes({ added: { "n.md": a }, deleted: { "d.md": b } });
+		expect(splitTracked(all, tracks)).toEqual({ changes: all, released: [] });
+	});
+});
+
+describe("historyTracks", () => {
+	it("tracks every path without a configuration folder", () => {
+		const tracks = historyTracks(undefined);
+		expect(tracks(".obsidian/app.json")).toBe(true);
+		expect(tracks("n.md")).toBe(true);
+	});
+
+	it("leaves out only what sits under the folder itself", () => {
+		const tracks = historyTracks(".obsidian");
+		expect(tracks(".obsidian/plugins/x/main.js")).toBe(false);
+		expect(tracks(".obsidian-other/x")).toBe(true);
+		expect(tracks("notes/.obsidian/x")).toBe(true);
+	});
+
+	it("leaves out the folder in any casing, as a case-blind disk holds one", () => {
+		expect(historyTracks(".obsidian")(".Obsidian/app.json")).toBe(false);
+	});
+
+	it("leaves out only the vault's folder: a share's scope names it too", () => {
+		const scope = { configDir: ".obsidian" };
+		expect(untrackedDir({ space: { root: "" }, scope })).toBe(".obsidian");
+		expect(untrackedDir({ space: { root: "Shared" }, scope })).toBeUndefined();
 	});
 });
 

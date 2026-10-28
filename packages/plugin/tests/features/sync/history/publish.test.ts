@@ -193,6 +193,61 @@ describe("publishManifestWithHistory", () => {
 		expect(await storage.list("history/")).toEqual([pushKey("s2")]);
 	});
 
+	it("leaves the configuration folder out of the record and releases its versions", async () => {
+		const storage = await stored();
+		const before = manifestOf("c1", null, {
+			"a.md": "A1",
+			".obsidian/plugins/x/main.js": "M1",
+		});
+		const after = manifestOf("c2", "c1", {
+			"a.md": "A2",
+			".obsidian/plugins/x/main.js": "M2",
+		});
+		await publishManifestWithHistory(storage, key, "", before, null, history);
+
+		await publishManifestWithHistory(
+			storage,
+			key,
+			"",
+			after,
+			before,
+			history,
+			null,
+			".obsidian",
+		);
+
+		const { view } = await readHistory(storage, key, "");
+		const push = view.pushes.get(pushKey("c2"))?.push;
+		expect(push?.changes.modified).toEqual({
+			"a.md": { from: before.files["a.md"], to: after.files["a.md"] },
+		});
+		expect([...(push?.released ?? [])].sort()).toEqual(["M1", "M2"]);
+	});
+
+	it("writes no released list when the configuration folder did not change", async () => {
+		const storage = await stored();
+		const config = { ".obsidian/app.json": "J1" };
+		const before = manifestOf("c1", null, { "a.md": "A1", ...config });
+		const after = manifestOf("c2", "c1", { "a.md": "A2", ...config });
+		await publishManifestWithHistory(storage, key, "", before, null, history);
+
+		await publishManifestWithHistory(
+			storage,
+			key,
+			"",
+			after,
+			before,
+			history,
+			null,
+			".obsidian",
+		);
+
+		const { view } = await readHistory(storage, key, "");
+		const push = view.pushes.get(pushKey("c2"))?.push;
+		expect(push).toBeDefined();
+		expect(push && Object.hasOwn(push, "released")).toBe(false);
+	});
+
 	it("writes no record with history off", async () => {
 		const storage = await stored();
 		await publishManifestWithHistory(storage, key, "", s1, null, undefined);

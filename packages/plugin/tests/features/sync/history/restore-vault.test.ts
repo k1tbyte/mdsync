@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { historyTracks } from "@/features/sync/history/changes";
 import { planVaultRestore } from "@/features/sync/history/restore-vault";
 import type {
 	EFileKind,
@@ -115,6 +116,35 @@ describe("planVaultRestore", () => {
 		);
 		expect(plan.write.map((w) => w.path)).toEqual(["notes/a.md"]);
 		expect(plan.ignored).toEqual([".obsidian/app.json"]);
+	});
+
+	it("neither writes nor removes a path history does not track", () => {
+		const plan = planVaultRestore(
+			target({
+				"notes/a.md": entry("A2"),
+				".obsidian/app.json": entry("J2"),
+			}),
+			local({
+				"notes/a.md": entry("A1"),
+				".obsidian/app.json": entry("J1"),
+				".obsidian/local.json": entry("L1"),
+			}),
+			undefined,
+			historyTracks(".obsidian"),
+		);
+		expect(plan.write.map((w) => w.path)).toEqual(["notes/a.md"]);
+		expect(plan.remove).toEqual([]);
+		expect(plan.ignored).toEqual([]);
+	});
+
+	it("does not report an untracked path as out of scope", () => {
+		const plan = planVaultRestore(
+			target({ ".obsidian/app.json": entry("J2") }),
+			local({}),
+			(path) => !path.startsWith(".obsidian/"),
+			historyTracks(".obsidian"),
+		);
+		expect(plan.ignored).toEqual([]);
 	});
 
 	it("does not remove a file that differs from a written one only in case", () => {

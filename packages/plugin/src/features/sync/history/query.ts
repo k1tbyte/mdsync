@@ -4,7 +4,7 @@ import { loadRemoteBytes } from "../changes/content";
 import { entryAt } from "../changes/records";
 import { fetchRemoteManifest } from "../remote/manifest";
 import type { Manifest, ManifestEntry } from "../types";
-import { undoChangesForPath } from "./changes";
+import { historyTracks, pickPaths, undoChangesForPath } from "./changes";
 import { activityOf } from "./model/activity";
 import {
 	type Cover,
@@ -38,6 +38,8 @@ export interface HistoryQuery {
 	root: string;
 	/** See `HistoryConfig.horizon`. */
 	horizon: number | null;
+	/** Left out of history (`historyTracks`). */
+	configDir?: string;
 }
 
 type Source = Pick<HistoryQuery, "storage" | "key" | "root">;
@@ -302,11 +304,11 @@ async function replaySnapshot(
 }
 
 /**
- * Pinning stores the snapshot's whole manifest; a readable pin keeps its manifest and takes the new label.
- * `label` undefined keeps the pin's name, "" clears it.
+ * Pinning stores the snapshot's manifest without the configuration folder; a readable pin keeps its manifest and
+ * takes the new label. `label` undefined keeps the pin's name, "" clears it.
  */
 export async function setSnapshotPinned(
-	source: Source,
+	source: Source & Pick<HistoryQuery, "configDir">,
 	snapshotId: string,
 	pinned: boolean,
 	label?: string,
@@ -317,8 +319,13 @@ export async function setSnapshotPinned(
 		return;
 	}
 	const existing = await readPinById(storage, key, root, snapshotId);
+	const replayed = existing ? null : await replaySnapshot(source, snapshotId);
 	const manifest =
-		existing?.manifest ?? (await replaySnapshot(source, snapshotId));
+		existing?.manifest ??
+		(replayed && {
+			...replayed,
+			files: pickPaths(replayed.files, historyTracks(source.configDir)),
+		});
 	if (!manifest) {
 		throw new Error(
 			"That snapshot can no longer be rebuilt from history, so it cannot be pinned.",
