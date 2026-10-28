@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { formatTimestamp } from "@/core/shared";
 import { clockTime } from "@/features/source-control/history/age-groups";
 import {
 	buildTimelineRows,
 	countsText,
 	describeRestorePlan,
 	samplePaths,
+	summaryOf,
 	type TimelineFileRow,
 	timelineDiffTarget,
 } from "@/features/source-control/timeline/timeline-rows";
@@ -14,6 +16,11 @@ import type {
 	SnapshotSummary,
 } from "@/features/sync/history/types";
 import type { EFileKind, ManifestEntry } from "@/features/sync/types";
+
+vi.mock("@/core/shared", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/core/shared")>();
+	return { ...actual, formatTimestamp: vi.fn(actual.formatTimestamp) };
+});
 
 const NOW = 1_700_000_000_000;
 const DAY = 86_400_000;
@@ -469,7 +476,67 @@ describe("samplePaths", () => {
 	});
 });
 
+describe("summaryOf", () => {
+	it("words the counts as countsText does, from the tally it returns", () => {
+		const record = changes({
+			added: { a: entry("A1", 4) },
+			deleted: { b: entry("B1", 1), c: entry("C1", 1) },
+		});
+		expect(summaryOf(record)).toMatchObject({
+			counts: "+1 new · 2 removed",
+			tally: [
+				["add", 1],
+				["delete", 2],
+			],
+			fileCount: 3,
+		});
+		expect(summaryOf(record).counts).toBe(countsText(record));
+		expect(summaryOf(changes()).counts).toBe(countsText(changes()));
+		expect(summaryOf(null).counts).toBeNull();
+	});
+});
+
 describe("buildTimelineRows file rows", () => {
+	it("formats the push time once for all of its files", () => {
+		const at = NOW - DAY;
+		const [row] = buildTimelineRows(
+			[
+				snapshot({
+					at,
+					files: changes({
+						added: { "a.md": entry("A1"), "b.md": entry("B1") },
+						modified: {
+							"c.md": { from: entry("C1"), to: entry("C2") },
+							"d.md": { from: entry("D1"), to: entry("D2") },
+						},
+						deleted: { "e.md": entry("E1") },
+					}),
+				}),
+			],
+			NOW,
+		);
+		const stamp = formatTimestamp(at);
+		vi.mocked(formatTimestamp).mockClear();
+
+		const files = row?.files ?? [];
+
+		expect(formatTimestamp).toHaveBeenCalledTimes(1);
+		expect(files.map((file) => file.before?.label)).toEqual([
+			undefined,
+			undefined,
+			`${stamp} (before push)`,
+			`${stamp} (before push)`,
+			`${stamp} (before push)`,
+		]);
+		expect(files.map((file) => file.after?.label)).toEqual([
+			`${stamp} (after push)`,
+			`${stamp} (after push)`,
+			`${stamp} (after push)`,
+			`${stamp} (after push)`,
+			undefined,
+		]);
+	});
+
 	it("builds them on first read and reuses them across redraws", () => {
 		const summary = snapshot({
 			files: changes({ added: { "a.md": entry("A1") } }),

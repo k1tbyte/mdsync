@@ -41,6 +41,11 @@ interface Target {
 	walked: WalkedRecord[];
 }
 
+interface GroupedObject {
+	key: string;
+	object: HistoryObject;
+}
+
 export function planGc(input: PlanInput): GcPlan {
 	const { view, cover } = input;
 	const present = new Set([...view.pushes.keys(), ...view.objects.keys()]);
@@ -52,9 +57,10 @@ export function planGc(input: PlanInput): GcPlan {
 	for (const key of expired(input)) deletes.add(key);
 
 	const whole = wholeKeys(input);
+	const grouped = objectsByGroup(input);
 	const builds: Build[] = [];
 	for (const target of targets(input)) {
-		const build = buildOf(input, target, whole);
+		const build = buildOf(input, target, whole, grouped);
 		if (build) builds.push(build);
 	}
 	return { builds, deletes: [...deletes] };
@@ -121,22 +127,34 @@ function oldestReached(cover: Cover): number {
 	return oldest ? oldest.firstAt : Number.POSITIVE_INFINITY;
 }
 
-function buildOf(
-	input: PlanInput,
-	target: Target,
-	whole: (key: string) => boolean,
-): Build | null {
-	const { res, group } = target;
-	const rank = RESOLUTIONS.indexOf(res);
-	const walked = new Set(target.walked.map(({ source }) => source));
-	const inputs = new Set(walked);
-	const sameGroup: HistoryObject[] = [];
+/** Live objects of this vault by the group they fall in at each resolution at or coarser than their own. */
+function objectsByGroup(input: PlanInput): Map<string, GroupedObject[]> {
+	const grouped = new Map<string, GroupedObject[]>();
 	for (const [key, { object }] of input.view.objects) {
 		if (input.cover.consumed.has(key) || object.vaultId !== input.vaultId) {
 			continue;
 		}
-		const objectRank = RESOLUTIONS.indexOf(object.res);
-		if (objectRank > rank || groupStart(res, object.group) !== group) continue;
+		for (const res of RESOLUTIONS.slice(RESOLUTIONS.indexOf(object.res))) {
+			const id = `${res} ${groupStart(res, object.group)}`;
+			const bucket = grouped.get(id) ?? [];
+			bucket.push({ key, object });
+			grouped.set(id, bucket);
+		}
+	}
+	return grouped;
+}
+
+function buildOf(
+	input: PlanInput,
+	target: Target,
+	whole: (key: string) => boolean,
+	grouped: ReadonlyMap<string, readonly GroupedObject[]>,
+): Build | null {
+	const { res, group } = target;
+	const walked = new Set(target.walked.map(({ source }) => source));
+	const inputs = new Set(walked);
+	const sameGroup: HistoryObject[] = [];
+	for (const { key, object } of grouped.get(`${res} ${group}`) ?? []) {
 		inputs.add(key);
 		if (object.res === res) sameGroup.push(object);
 	}

@@ -73,8 +73,12 @@ export function ageLabel(
 			day: "numeric",
 		}).formatRange(monday, sunday);
 	}
-	if ((res ?? "push") === "push" && now - at < HOUR_MS) return "Last hour";
+	if ((res ?? "push") === "push" && inLastHour(at, now)) return "Last hour";
 	return formatDayLabel(at, now);
+}
+
+export function inLastHour(at: number, now: number): boolean {
+	return now - at < HOUR_MS;
 }
 
 /** A row's title under its group: the time in a day, the day in a week, the week in a month. */

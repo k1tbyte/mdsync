@@ -21,6 +21,7 @@ import {
 	listSnapshots,
 	resolveSnapshotManifest,
 } from "@/features/sync/history/query";
+import { readHistory } from "@/features/sync/history/remote";
 import { objectKey } from "@/features/sync/remote/manifest";
 import {
 	deepCleanOrphans,
@@ -141,6 +142,21 @@ describe("collectHistoryGarbage", () => {
 		});
 	});
 
+	it("reads the objects it wrote from the cache, with no GET", async () => {
+		const device = new Device(new FakeStorage(), { horizon: null });
+		await pushEvery(device, 7 * MINUTE, 60);
+		vi.setSystemTime(Date.now() + 2 * DAY);
+		await device.push(() => {});
+		const run = await device.gc();
+		expect(run.written).toBeGreaterThan(0);
+
+		const get = vi.spyOn(device.storage, "get");
+		const { view, unreadable } = await readHistory(device.storage, key, "");
+		expect(unreadable).toEqual([]);
+		expect(view.objects.size).toBe(run.written);
+		expect(get).not.toHaveBeenCalled();
+	});
+
 	it("lists packed snapshots at their period, with every push still counted", async () => {
 		const device = new Device(new FakeStorage(), { horizon: null });
 		await pushEvery(device, 7 * MINUTE, 60);
@@ -162,7 +178,7 @@ describe("collectHistoryGarbage", () => {
 		for (const s of snapshots) expect(s.firstAt).toBeLessThanOrEqual(s.at);
 	});
 
-	it("sweeps the versions it freed only a day later, and leaves nothing dangling", async () => {
+	it("sweeps the versions it freed only two days later, and leaves nothing dangling", async () => {
 		const device = new Device(new FakeStorage(), { horizon: null });
 		await pushEvery(device, 7 * MINUTE, 60);
 		vi.setSystemTime(Date.now() + 2 * DAY);
@@ -176,6 +192,9 @@ describe("collectHistoryGarbage", () => {
 		expect(blobs()).toBe(uploaded);
 
 		vi.setSystemTime(Date.now() + DAY + MINUTE);
+		expect((await device.gc()).swept).toBe(0);
+
+		vi.setSystemTime(Date.now() + DAY);
 		expect((await device.gc()).swept).toBeGreaterThan(0);
 		expect(blobs()).toBeLessThan(uploaded);
 		expect(

@@ -11,10 +11,14 @@ import {
 import {
 	pinKey,
 	readPinById,
+	readPinInfos,
 	readPins,
 	writePin,
 } from "@/features/sync/history/pins";
-import { setSnapshotPinned } from "@/features/sync/history/query";
+import {
+	resolveSnapshotManifest,
+	setSnapshotPinned,
+} from "@/features/sync/history/query";
 import { pushKey } from "@/features/sync/history/remote";
 import type { Manifest } from "@/features/sync/types";
 
@@ -89,6 +93,110 @@ describe("setSnapshotPinned", () => {
 		).rejects.toThrow(/can no longer be rebuilt/);
 		expect(await storage.exists(pinKey("s1"))).toBe(false);
 	});
+
+	it("reads the pin once when history cannot rebuild the snapshot", async () => {
+		const storage = await seeded();
+		await storage.delete(pushKey("s2"));
+		const get = vi.spyOn(storage, "get");
+
+		await expect(
+			setSnapshotPinned({ storage, key, root: "" }, "s1", true),
+		).rejects.toThrow(/can no longer be rebuilt/);
+		expect(get.mock.calls.filter(([got]) => got === pinKey("s1"))).toHaveLength(
+			1,
+		);
+	});
+});
+
+describe("resolveSnapshotManifest", () => {
+	it("falls back to the pin once replay cannot reach the snapshot", async () => {
+		const storage = await seeded();
+		const source = { storage, key, root: "" };
+		await setSnapshotPinned(source, "s1", true);
+		await storage.delete(pushKey("s2"));
+
+		expect((await resolveSnapshotManifest(source, "s1"))?.files).toEqual(
+			chain[0]?.files,
+		);
+		expect(await resolveSnapshotManifest(source, "s2")).toBeNull();
+	});
+});
+
+async function pinMany(storage: FakeStorage, count: number): Promise<void> {
+	for (let i = 0; i < count; i++) {
+		await pinSnapshot(storage, key, manifestOf(`p${i}`, null, {}, i + 1));
+	}
+}
+
+describe("readPinInfos", () => {
+	it("downloads no pin again while its etag holds, past the manifest cache", async () => {
+		const storage = new RevalidatingStorage();
+		await pinMany(storage, 6);
+		const get = vi.spyOn(storage, "get");
+
+		const first = await readPinInfos(storage, key, "");
+		expect(get).toHaveBeenCalledTimes(6);
+		get.mockClear();
+		const second = await readPinInfos(storage, key, "");
+		expect(get).not.toHaveBeenCalled();
+		expect(second).toEqual(first);
+		expect(second.pins.map(({ id }) => id)).toEqual([
+			"p5",
+			"p4",
+			"p3",
+			"p2",
+			"p1",
+			"p0",
+		]);
+	});
+
+	it("reads again only the pin whose etag changed", async () => {
+		const storage = new RevalidatingStorage();
+		await pinMany(storage, 6);
+		await readPinInfos(storage, key, "");
+		await pinSnapshot(storage, key, manifestOf("p2", null, {}, 3), "Renamed");
+		const get = vi.spyOn(storage, "get");
+
+		const read = await readPinInfos(storage, key, "");
+		expect(get.mock.calls).toEqual([[pinKey("p2")]]);
+		expect(read.pins.find(({ id }) => id === "p2")?.label).toBe("Renamed");
+	});
+
+	it("drops a pin that is no longer listed", async () => {
+		const storage = new RevalidatingStorage();
+		await pinMany(storage, 6);
+		await readPinInfos(storage, key, "");
+		await storage.delete(pinKey("p3"));
+		const get = vi.spyOn(storage, "get");
+
+		const read = await readPinInfos(storage, key, "");
+		expect(read.pins.map(({ id }) => id)).not.toContain("p3");
+		expect(read.pins).toHaveLength(5);
+		expect(get).not.toHaveBeenCalled();
+	});
+
+	it("reads every pin again without an etag, and keeps naming an unreadable one", async () => {
+		const storage = new FakeStorage();
+		await pinMany(storage, 6);
+		await storage.put(pinKey("bad"), new Uint8Array([1]));
+		const get = vi.spyOn(storage, "get");
+
+		await readPinInfos(storage, key, "");
+		const read = await readPinInfos(storage, key, "");
+		expect(get).toHaveBeenCalledTimes(14);
+		expect(read.pins).toHaveLength(6);
+		expect(read.unreadable).toEqual([pinKey("bad")]);
+	});
+
+	it("is warmed by readPins", async () => {
+		const storage = new RevalidatingStorage();
+		await pinMany(storage, 6);
+		await readPins(storage, key, "", () => null);
+		const get = vi.spyOn(storage, "get");
+
+		await readPinInfos(storage, key, "");
+		expect(get).not.toHaveBeenCalled();
+	});
 });
 
 describe("readPins", () => {
@@ -137,6 +245,68 @@ describe("readPins", () => {
 		await readPins(storage, key, "", () => null);
 		await readPins(storage, key, "", () => null);
 		expect(get).toHaveBeenCalledTimes(2);
+	});
+
+	it("keeps every pin of a small vault, so a second read downloads none", async () => {
+		const storage = new RevalidatingStorage();
+		await pinMany(storage, 6);
+		await readPins(storage, key, "", () => null);
+		const get = vi.spyOn(storage, "get");
+
+		const read = await readPins(storage, key, "", () => null);
+		expect(read.pins).toHaveLength(6);
+		expect(get).not.toHaveBeenCalled();
+	});
+
+	it("drops the manifest of a pin that is no longer listed", async () => {
+		const storage = new RevalidatingStorage();
+		await pinMany(storage, 3);
+		await readPins(storage, key, "", () => null);
+		const list = storage.listDetailed.bind(storage);
+		vi.spyOn(storage, "listDetailed").mockImplementationOnce(async (prefix) =>
+			(await list(prefix)).filter((object) => object.key !== pinKey("p1")),
+		);
+		await readPins(storage, key, "", () => null);
+		const get = vi.spyOn(storage, "get");
+
+		// Listed again with the etag it had: a manifest held meanwhile would answer without a GET.
+		await readPins(storage, key, "", () => null);
+		expect(get.mock.calls).toEqual([[pinKey("p1")]]);
+	});
+
+	describe("past the cache bound", () => {
+		// Two of these are past the 200k file entries the cache holds; one alone is under it.
+		const big = (id: string, createdAt: number, count = 110_000): Manifest =>
+			manifestOf(
+				id,
+				null,
+				Object.fromEntries(
+					Array.from({ length: count }, (_, i) => [`${id}/${i}`, `h${i}`]),
+				),
+				createdAt,
+			);
+
+		it("drops the oldest read first and keeps the rest", async () => {
+			const storage = new RevalidatingStorage();
+			await pinSnapshot(storage, key, big("big1", 1));
+			await readPins(storage, key, "", () => null);
+			await pinSnapshot(storage, key, big("big2", 2));
+			await readPins(storage, key, "", () => null);
+			const get = vi.spyOn(storage, "get");
+
+			await readPins(storage, key, "", () => null);
+			expect(get.mock.calls).toEqual([[pinKey("big1")]]);
+		});
+
+		it("keeps the pin just read even when it alone is past the bound", async () => {
+			const storage = new RevalidatingStorage();
+			await pinSnapshot(storage, key, big("huge", 1, 200_001));
+			await readPins(storage, key, "", () => null);
+			const get = vi.spyOn(storage, "get");
+
+			await readPins(storage, key, "", () => null);
+			expect(get).not.toHaveBeenCalled();
+		});
 	});
 
 	it("stores a share's pin in space paths and reads it back in vault paths", async () => {

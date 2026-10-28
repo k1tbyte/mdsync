@@ -42,6 +42,19 @@ const caches = new WeakMap<
 	{ key: EncryptionKey; root: string; entries: Map<string, Decoded> }
 >();
 
+function cacheOf(
+	storage: ObjectStorage,
+	key: EncryptionKey,
+	root: string,
+): Map<string, Decoded> {
+	let cache = caches.get(storage);
+	if (cache?.key !== key || cache.root !== root) {
+		cache = { key, root, entries: new Map() };
+		caches.set(storage, cache);
+	}
+	return cache.entries;
+}
+
 export function pushKey(id: string): string {
 	return `${PUSHES}${id}.enc`;
 }
@@ -84,11 +97,15 @@ export async function writeHistoryObject(
 	);
 	const blob = await storage.get(storageKey);
 	const read = blob && (await decryptJson<HistoryObject>(key, blob));
-	if (!read || (await objectKeyOf(read)) !== storageKey) {
+	// decodeRaw recomputes the key from the read-back, so a null is one that is not what was written.
+	const decoded = read && (await decodeRaw(root, storageKey, read));
+	if (!read || !decoded) {
 		throw new Error(
 			`History object ${storageKey} did not read back as written.`,
 		);
 	}
+	// Seeded from the read-back only, so the next read of this key costs no GET.
+	cacheOf(storage, key, root).set(storageKey, decoded);
 	return { key: storageKey, object: read };
 }
 
@@ -140,12 +157,7 @@ export async function readHistory(
 	key: EncryptionKey,
 	root: string,
 ): Promise<HistoryRead> {
-	let cache = caches.get(storage);
-	if (cache?.key !== key || cache.root !== root) {
-		cache = { key, root, entries: new Map() };
-		caches.set(storage, cache);
-	}
-	const { entries } = cache;
+	const entries = cacheOf(storage, key, root);
 	let all = await listHistory(storage);
 	let listed = all.filter(isRecordOrObject);
 	let read = await decodeNew(storage, key, root, listed, entries);
@@ -238,7 +250,19 @@ async function decode(
 	storageKey: string,
 	blob: Uint8Array,
 ): Promise<Decoded | null> {
-	const raw = await decryptJson<Record<string, unknown>>(key, blob);
+	return decodeRaw(
+		root,
+		storageKey,
+		await decryptJson<Record<string, unknown>>(key, blob),
+	);
+}
+
+/** Validates a decrypted record or object and moves its paths from space to vault. */
+async function decodeRaw(
+	root: string,
+	storageKey: string,
+	raw: { v?: unknown; vaultId?: unknown },
+): Promise<Decoded | null> {
 	if (raw.v !== 1 || typeof raw.vaultId !== "string") return null;
 	if (storageKey.startsWith(PUSHES)) {
 		const push = raw as unknown as PushRecord;

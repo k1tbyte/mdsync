@@ -38,16 +38,25 @@ export interface PinsRead<T> {
 	unreadable: string[];
 }
 
-/** Manifests are big, so only a few stay. */
-const PIN_CACHE_SIZE = 4;
+/** Manifests are big, so the cache holds this many file entries at most (four 50k-file manifests), oldest read first out. */
+const PIN_CACHE_ENTRIES = 200_000;
+
+interface CachedPin {
+	etag: string;
+	pin: Pin;
+	/** Files in the manifest: what the cache is bounded by. */
+	entries: number;
+}
 
 // A relabel rewrites the object, and only its etag proves it unchanged: a timestamp may not move within its resolution.
+// Infos are a few strings each, so every listed pin keeps one and a warm Timeline refresh downloads no manifest.
 const pinCache = new WeakMap<
 	ObjectStorage,
 	{
 		key: EncryptionKey;
 		root: string;
-		pins: Map<string, { etag: string; pin: Pin }>;
+		pins: Map<string, CachedPin>;
+		infos: Map<string, { etag: string; info: PinInfo }>;
 	}
 >();
 
@@ -82,23 +91,64 @@ export function deletePin(
 }
 
 /** Every listed pin, reduced by `pick` as it is read so no more than the cache's manifests are held at once. */
-export async function readPins<T>(
+export function readPins<T>(
 	storage: ObjectStorage,
 	key: EncryptionKey,
 	root: string,
-	pick: (pin: Pin) => T,
+	pick: (pin: Pin, info: PinInfo) => T,
+): Promise<PinsRead<T>> {
+	return scanPins(storage, key, root, pick);
+}
+
+/** Every listed pin's info, newest first; a pin whose etag is unchanged costs no GET. */
+export async function readPinInfos(
+	storage: ObjectStorage,
+	key: EncryptionKey,
+	root: string,
+): Promise<{ pins: PinInfo[]; unreadable: string[] }> {
+	const read = await scanPins(
+		storage,
+		key,
+		root,
+		() => null,
+		() => null,
+	);
+	return {
+		pins: read.pins.map(({ info }) => info),
+		unreadable: read.unreadable,
+	};
+}
+
+/** `fromInfo` answers a pin whose cached info is current, so it is not read at all. */
+async function scanPins<T>(
+	storage: ObjectStorage,
+	key: EncryptionKey,
+	root: string,
+	pick: (pin: Pin, info: PinInfo) => T,
+	fromInfo?: (info: PinInfo) => T,
 ): Promise<PinsRead<T>> {
 	let cache = pinCache.get(storage);
 	if (cache?.key !== key || cache.root !== root) {
-		cache = { key, root, pins: new Map() };
+		cache = { key, root, pins: new Map(), infos: new Map() };
 		pinCache.set(storage, cache);
 	}
-	const { pins } = cache;
+	const { pins, infos } = cache;
 	const listed = await listPins(storage);
+	const listedKeys = new Set(listed.map((object) => object.key));
+	for (const cached of [pins, infos]) {
+		for (const storageKey of cached.keys()) {
+			if (!listedKeys.has(storageKey)) cached.delete(storageKey);
+		}
+	}
 	const read: PinsRead<T>["pins"] = [];
 	const unreadable: string[] = [];
 	await runWithConcurrency(listed, DEFAULT_CONCURRENCY, async (object) => {
 		const { etag } = object;
+		const known = infos.get(object.key);
+		if (fromInfo && etag !== null && known?.etag === etag) {
+			read.push({ info: known.info, picked: fromInfo(known.info) });
+			return;
+		}
 		const hit = pins.get(object.key);
 		let pin = etag !== null && hit?.etag === etag ? hit.pin : null;
 		if (!pin) {
@@ -107,14 +157,16 @@ export async function readPins<T>(
 				unreadable.push(object.key);
 				return;
 			}
-			if (etag !== null) remember(pins, object.key, { etag, pin });
+			if (etag !== null) {
+				const entries = Object.keys(pin.manifest.files).length;
+				remember(pins, object.key, { etag, pin, entries });
+			}
 		}
 		const { id, label, manifest } = pin;
 		const { createdAt, deviceId, deviceName } = manifest;
-		read.push({
-			info: { id, label, createdAt, deviceId, deviceName },
-			picked: pick(pin),
-		});
+		const info = { id, label, createdAt, deviceId, deviceName };
+		if (etag !== null) infos.set(object.key, { etag, info });
+		read.push({ info, picked: pick(pin, info) });
 	});
 	read.sort((a, b) => b.info.createdAt - a.info.createdAt);
 	return { pins: read, unreadable };
@@ -164,14 +216,18 @@ async function readPin(
 }
 
 function remember(
-	pins: Map<string, { etag: string; pin: Pin }>,
+	pins: Map<string, CachedPin>,
 	storageKey: string,
-	entry: { etag: string; pin: Pin },
+	entry: CachedPin,
 ): void {
 	pins.delete(storageKey);
 	pins.set(storageKey, entry);
-	for (const oldest of pins.keys()) {
-		if (pins.size <= PIN_CACHE_SIZE) break;
+	let held = 0;
+	for (const { entries } of pins.values()) held += entries;
+	// The pin just read is last, so it stays even when it alone is over the bound.
+	for (const [oldest, { entries }] of pins) {
+		if (held <= PIN_CACHE_ENTRIES || pins.size === 1) break;
 		pins.delete(oldest);
+		held -= entries;
 	}
 }

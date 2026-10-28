@@ -17,6 +17,7 @@ import {
 	deletePin,
 	type PinInfo,
 	readPinById,
+	readPinInfos,
 	readPins,
 	writePin,
 } from "./pins";
@@ -180,17 +181,17 @@ async function applyPins(
 	head: Manifest,
 	found: Map<string, DeletedFile>,
 ): Promise<void> {
-	const { pins } = await readPins(
-		source.storage,
-		source.key,
-		source.root,
-		(pin) =>
-			Object.entries(pin.manifest.files).filter(
-				([path]) => !entryAt(head.files, path),
-			),
-	);
-	for (const { info, picked } of pins) {
-		for (const [path, entry] of picked) {
+	// Reduced as each pin is read, so the absent files of every pin are never held at once.
+	const newest = new Map<
+		string,
+		{ info: PinInfo; entry: ManifestEntry; order: number }
+	>();
+	let order = 0;
+	await readPins(source.storage, source.key, source.root, (pin, info) => {
+		for (const [path, entry] of Object.entries(pin.manifest.files)) {
+			order++;
+			if (entryAt(head.files, path)) continue;
+			// `found` holds only the walk's rows here: a pin's own row is added below.
 			const existing = found.get(path);
 			if (existing) {
 				if (existing.entry.hash === entry.hash) {
@@ -199,19 +200,29 @@ async function applyPins(
 				}
 				continue;
 			}
-			found.set(path, {
-				path,
-				entry,
-				snapshotId: info.id,
-				source: "pinned",
-				label: info.label,
-				createdAt: info.createdAt,
-				deviceId: info.deviceId,
-				deviceName: info.deviceName,
-				pinned: true,
-				keptUntil: null,
-			});
+			// Pins finish in any order: the newest wins, a tie going to the one read first.
+			const held = newest.get(path);
+			if (held && held.info.createdAt >= info.createdAt) continue;
+			newest.set(path, { info, entry, order });
 		}
+	});
+	// Rows as one pass over the pins newest first would add them.
+	const rows = [...newest].sort(
+		([, a], [, b]) => b.info.createdAt - a.info.createdAt || a.order - b.order,
+	);
+	for (const [path, { info, entry }] of rows) {
+		found.set(path, {
+			path,
+			entry,
+			snapshotId: info.id,
+			source: "pinned",
+			label: info.label,
+			createdAt: info.createdAt,
+			deviceId: info.deviceId,
+			deviceName: info.deviceName,
+			pinned: true,
+			keptUntil: null,
+		});
 	}
 }
 
@@ -222,13 +233,8 @@ export async function listSnapshots(
 	const { head, cover, view } = await readTimeline(query);
 	if (!head)
 		return { snapshots: [], lagging: false, truncated: false, activity: {} };
-	const { pins } = await readPins(
-		query.storage,
-		query.key,
-		query.root,
-		() => null,
-	);
-	const pinned = new Map(pins.map(({ info }) => [info.id, info]));
+	const { pins } = await readPinInfos(query.storage, query.key, query.root);
+	const pinned = new Map(pins.map((info) => [info.id, info]));
 	const summary = (
 		meta: Meta,
 		dating: Dating,
@@ -259,7 +265,7 @@ export async function listSnapshots(
 		),
 	);
 	const onChain = new Set(snapshots.map((snapshot) => snapshot.id));
-	for (const { info } of pins) {
+	for (const info of pins) {
 		if (!onChain.has(info.id))
 			snapshots.push(summary(info, undated(info), null, null));
 	}
@@ -276,8 +282,7 @@ export async function resolveSnapshotManifest(
 	source: Source,
 	snapshotId: string,
 ): Promise<Manifest | null> {
-	const { head, cover } = await readTimeline(source);
-	const replayed = head ? replayTo(head, cover, snapshotId) : null;
+	const replayed = await replaySnapshot(source, snapshotId);
 	if (replayed) return replayed;
 	const pin = await readPinById(
 		source.storage,
@@ -286,6 +291,14 @@ export async function resolveSnapshotManifest(
 		snapshotId,
 	);
 	return pin?.manifest ?? null;
+}
+
+async function replaySnapshot(
+	source: Source,
+	snapshotId: string,
+): Promise<Manifest | null> {
+	const { head, cover } = await readTimeline(source);
+	return head ? replayTo(head, cover, snapshotId) : null;
 }
 
 /**
@@ -305,7 +318,7 @@ export async function setSnapshotPinned(
 	}
 	const existing = await readPinById(storage, key, root, snapshotId);
 	const manifest =
-		existing?.manifest ?? (await resolveSnapshotManifest(source, snapshotId));
+		existing?.manifest ?? (await replaySnapshot(source, snapshotId));
 	if (!manifest) {
 		throw new Error(
 			"That snapshot can no longer be rebuilt from history, so it cannot be pinned.",
