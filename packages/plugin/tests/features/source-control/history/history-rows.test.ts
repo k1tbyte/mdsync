@@ -17,6 +17,11 @@ function version(overrides: Partial<FileVersion> = {}): FileVersion {
 		createdAt: NOW - DAY,
 		deviceId: "device-abcdef123456",
 		pinned: false,
+		first: false,
+		at: NOW - DAY,
+		firstAt: NOW - DAY,
+		pushes: 1,
+		res: "push",
 		...overrides,
 	};
 }

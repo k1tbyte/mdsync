@@ -5,7 +5,13 @@ import { entryAt } from "../changes/records";
 import { fetchRemoteManifest } from "../remote/manifest";
 import type { Manifest, ManifestEntry } from "../types";
 import { undoChangesForPath } from "./changes";
-import { type Cover, coverOf } from "./model/cover";
+import { activityOf } from "./model/activity";
+import {
+	type Cover,
+	coverOf,
+	type HistoryView,
+	type WalkedRecord,
+} from "./model/cover";
 import { keptUntil } from "./model/periods";
 import {
 	deletePin,
@@ -17,6 +23,7 @@ import {
 import { readHistory } from "./remote";
 import { replayTo } from "./replay";
 import type {
+	Dating,
 	DeletedFile,
 	DeletedFilesResult,
 	FileVersion,
@@ -40,7 +47,7 @@ type Meta = Pick<PinInfo, "id" | "createdAt" | "deviceId" | "deviceName">;
 /** HEAD and the walk back from it: the one read every query starts from. */
 export async function readTimeline(
 	source: Source,
-): Promise<{ head: Manifest | null; cover: Cover }> {
+): Promise<{ head: Manifest | null; cover: Cover; view: HistoryView }> {
 	const { storage, key, root } = source;
 	const [head, history] = await Promise.all([
 		fetchRemoteManifest(storage, key, root),
@@ -54,7 +61,7 @@ export async function readTimeline(
 			vaultId: head.vaultId,
 		},
 	);
-	return { head, cover };
+	return { head, cover, view: history.view };
 }
 
 /** Distinct versions of one path, newest first; pinned ones follow. */
@@ -77,22 +84,26 @@ export async function getFileHistory(
 	// Without HEAD's own record nothing older can be anchored to HEAD's files.
 	const chain = cover.lagging ? [] : cover.chain;
 	if (chain.length === 0 && entry) {
-		versions.push(toVersion(metaOf(head), entry, labels));
+		versions.push(toVersion(metaOf(head), undated(head), entry, labels));
 	}
 	let lastHash: string | null = null;
-	for (const { record } of chain) {
+	for (const walked of chain) {
+		const { record } = walked;
 		visited.add(record.id);
 		if (entry === null) {
 			lastHash = null;
 		} else if (entry.hash !== lastHash) {
-			versions.push(toVersion(record, entry, labels));
+			versions.push(toVersion(record, datingOf(walked), entry, labels));
 			lastHash = entry.hash;
 		}
+		const had = entry;
 		entry = undoChangesForPath(entry, record.changes, path);
+		const newest = versions.at(-1);
+		if (had && !entry && newest) newest.first = true;
 	}
 	for (const { info, picked } of pins.pins) {
 		if (picked && !visited.has(info.id)) {
-			versions.push(toVersion(info, picked, labels));
+			versions.push(toVersion(info, undated(info), picked, labels));
 		}
 	}
 	return versions;
@@ -186,8 +197,9 @@ async function applyPins(
 export async function listSnapshots(
 	query: HistoryQuery,
 ): Promise<SnapshotListResult> {
-	const { head, cover } = await readTimeline(query);
-	if (!head) return { snapshots: [], lagging: false };
+	const { head, cover, view } = await readTimeline(query);
+	if (!head)
+		return { snapshots: [], lagging: false, truncated: false, activity: {} };
 	const { pins } = await readPins(
 		query.storage,
 		query.key,
@@ -197,11 +209,13 @@ export async function listSnapshots(
 	const pinned = new Map(pins.map(({ info }) => [info.id, info]));
 	const summary = (
 		meta: Meta,
+		dating: Dating,
 		files: SnapshotSummary["files"],
 		kept: number | null,
 	): SnapshotSummary => {
 		const pin = pinned.get(meta.id);
 		return {
+			...dating,
 			id: meta.id,
 			createdAt: meta.createdAt,
 			deviceId: meta.deviceId,
@@ -214,14 +228,25 @@ export async function listSnapshots(
 			isHead: meta.id === head.snapshotId,
 		};
 	};
-	const snapshots = cover.chain.map(({ record }) =>
-		summary(record, record.changes, keptUntil(record.at, query.horizon)),
+	const snapshots = cover.chain.map((walked) =>
+		summary(
+			walked.record,
+			datingOf(walked),
+			walked.record.changes,
+			keptUntil(walked.record.at, query.horizon),
+		),
 	);
 	const onChain = new Set(snapshots.map((snapshot) => snapshot.id));
 	for (const { info } of pins) {
-		if (!onChain.has(info.id)) snapshots.push(summary(info, null, null));
+		if (!onChain.has(info.id))
+			snapshots.push(summary(info, undated(info), null, null));
 	}
-	return { snapshots, lagging: cover.lagging };
+	return {
+		snapshots,
+		lagging: cover.lagging,
+		truncated: cover.truncated,
+		activity: activityOf(view, cover, head.vaultId),
+	};
 }
 
 /** Replay first; a pin's stored manifest covers snapshots the walk no longer reaches. */
@@ -293,12 +318,24 @@ function metaOf(manifest: Manifest): Meta {
 	};
 }
 
+function datingOf({ record, res }: WalkedRecord): Dating {
+	const { at, firstAt, pushes } = record;
+	return { at, firstAt, pushes, res };
+}
+
+/** Off the walk only the device's clock dates it. */
+function undated({ createdAt }: Pick<Meta, "createdAt">): Dating {
+	return { at: createdAt, firstAt: createdAt, pushes: 1, res: null };
+}
+
 function toVersion(
 	meta: Meta,
+	dating: Dating,
 	entry: ManifestEntry,
 	labels: ReadonlyMap<string, string | undefined>,
 ): FileVersion {
 	return {
+		...dating,
 		snapshotId: meta.id,
 		hash: entry.hash,
 		size: entry.size,
@@ -309,5 +346,6 @@ function toVersion(
 		deviceName: meta.deviceName,
 		pinned: labels.has(meta.id),
 		label: labels.get(meta.id),
+		first: false,
 	};
 }

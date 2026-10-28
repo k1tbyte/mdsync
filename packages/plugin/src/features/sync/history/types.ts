@@ -1,4 +1,5 @@
 import type { EFileKind, ManifestEntry } from "../types";
+import type { Activity, Resolution } from "./model/types";
 
 export interface HistoryConfig {
 	/** ms past which only activity counts are kept; null keeps every tier forever. */
@@ -20,7 +21,17 @@ export interface SnapshotChanges {
 	deletedLast?: Record<string, ManifestEntry>;
 }
 
-export interface FileVersion {
+/** Where a version sits in retention; a pin the walk no longer reaches is a single push of its own. */
+export interface Dating {
+	/** Storage time of its newest push: retention and the history views date by it. */
+	at: number;
+	firstAt: number;
+	pushes: number;
+	/** The period it is kept at; null off the walk. */
+	res: Resolution | null;
+}
+
+export interface FileVersion extends Dating {
 	snapshotId: string;
 	hash: string;
 	size: number;
@@ -32,6 +43,8 @@ export interface FileVersion {
 	pinned: boolean;
 	/** Name the user gave the pin, if any. */
 	label?: string;
+	/** Nothing older holds the path: this version created it. */
+	first: boolean;
 }
 
 export interface DeletedFile {
@@ -63,7 +76,7 @@ export interface DeletedFilesResult {
 	truncated: boolean;
 }
 
-export interface SnapshotSummary {
+export interface SnapshotSummary extends Dating {
 	id: string;
 	createdAt: number;
 	deviceId: string;
@@ -84,4 +97,8 @@ export interface SnapshotListResult {
 	snapshots: SnapshotSummary[];
 	/** The log does not describe HEAD yet, so the newest push is missing here. */
 	lagging: boolean;
+	/** The walk stopped at a missing record: older versions are unknown. */
+	truncated: boolean;
+	/** Pushes per UTC hour, past the horizon too. */
+	activity: Activity;
 }

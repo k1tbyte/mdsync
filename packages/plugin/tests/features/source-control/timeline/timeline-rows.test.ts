@@ -40,6 +40,10 @@ function snapshot(overrides: Partial<SnapshotSummary> = {}): SnapshotSummary {
 		keptUntil: null,
 		restorable: true,
 		isHead: false,
+		at: NOW - DAY,
+		firstAt: NOW - DAY,
+		pushes: 1,
+		res: "push",
 		...overrides,
 	};
 }

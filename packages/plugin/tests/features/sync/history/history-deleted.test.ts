@@ -455,6 +455,28 @@ describe("listSnapshots", () => {
 		expect(byId.s2?.keptUntil).toBeNull();
 	});
 
+	it("dates each snapshot by storage and counts its pushes per hour", async () => {
+		const storage = await seed([
+			manifest("s1", null, { a: entry("A1") }, 100),
+			manifest("s2", "s1", { a: entry("A2") }, 200),
+		]);
+		stamp(storage, ["s1", "s2"]);
+
+		const result = await snapshots(storage);
+		expect(
+			result.snapshots.map((s) => [s.id, s.at, s.firstAt, s.pushes, s.res]),
+		).toEqual([
+			["s2", NOW + MINUTE, NOW + MINUTE, 1, "push"],
+			["s1", NOW, NOW, 1, "push"],
+		]);
+		const pushes = Object.values(result.activity).reduce(
+			(sum, [count]) => sum + count,
+			0,
+		);
+		expect(pushes).toBe(2);
+		expect(result.truncated).toBe(false);
+	});
+
 	it("lists only what the walk reaches past a gap, and a pin beyond it without its changes", async () => {
 		const chain = [
 			manifest("s1", null, { a: entry("A1") }, 100),
@@ -463,9 +485,11 @@ describe("listSnapshots", () => {
 		];
 		const storage = await seed(chain, ["s2"]);
 
-		expect(
-			(await snapshots(storage)).snapshots.map((s) => [s.id, s.restorable]),
-		).toEqual([["s3", true]]);
+		const walked = await snapshots(storage);
+		expect(walked.truncated).toBe(true);
+		expect(walked.snapshots.map((s) => [s.id, s.restorable])).toEqual([
+			["s3", true],
+		]);
 
 		await pinSnapshot(storage, key, chain[0] as Manifest, "first");
 		const { snapshots: rows } = await snapshots(storage, HORIZON);
@@ -477,6 +501,12 @@ describe("listSnapshots", () => {
 		]);
 		expect(rows[1]?.pinned).toBe(true);
 		expect(rows[1]?.label).toBe("first");
+		// Off the walk only its device's clock dates it.
+		expect([rows[1]?.at, rows[1]?.pushes, rows[1]?.res]).toEqual([
+			100,
+			1,
+			null,
+		]);
 	});
 
 	it("marks nothing restorable by replay while HEAD's record is missing", async () => {

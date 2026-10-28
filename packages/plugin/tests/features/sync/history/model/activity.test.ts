@@ -62,7 +62,7 @@ it("takes a record walked into counted hours as another view of the same pushes"
 		objects: new Map([["b/1", counts(0, record.activity)]]),
 	};
 	const cover = {
-		chain: [{ record, source: "b/week" }],
+		chain: [{ record, source: "b/week", res: "1w" as const }],
 		lagging: false,
 		truncated: false,
 		consumed: new Set<string>(),

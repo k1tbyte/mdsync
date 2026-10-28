@@ -28,6 +28,7 @@ History is one encrypted record per push under `history/`, which GC thins into o
 - Pins outside the walk are diffed against HEAD separately; those rows are `source: "pinned"` and say "last seen", never "deleted": a pin proves the file existed, not when it went. A pin marks a deleted row `pinned` only for the hash it holds.
 - `keptUntil` is the earliest time retention may drop a version: the end of its counts group plus the horizon (`keptUntil` in `features/sync/history/model/periods.ts`), null while pinned or without a horizon.
 - HEAD without its record sets `lagging`, a walk stopped at a missing parent `truncated`; the UI warns instead of showing an empty vault as an empty trash (`features/source-control/trash/trash-tab.ts`, `features/source-control/timeline/timeline-tab.ts`). The Trash tab and `listDeletedFiles` skip paths the scope no longer includes.
+- `listSnapshots` and `getFileHistory` date a version by `at` (`Dating` in `features/sync/history/types.ts`), the storage time of its newest push, and give `res`, the period its key holds; a pin off the walk has only its own clock and `res` null. `listSnapshots` adds `activityOf`, past the horizon too.
 - A snapshot is `restorable` only when replay reaches it from HEAD (`replayTo` in `features/sync/history/replay.ts`) or it is pinned. `replayTo` returns null when lagging or past the walk: a partial replay would invent a state.
 
 ## Restore

@@ -254,6 +254,27 @@ describe("getFileHistory", () => {
 		expect(versions.map((v) => v.createdAt)).toEqual([300, 200]);
 	});
 
+	it("marks the version that created the file, in each of its lifetimes", async () => {
+		const storage = await seed([
+			manifest("s1", null, { "a.md": entry("A1") }, 100),
+			manifest("s2", "s1", { "a.md": entry("A2") }, 200),
+			manifest("s3", "s2", {}, 300),
+			manifest("s4", "s3", { "a.md": entry("A3") }, 400),
+		]);
+
+		const versions = await historyOf(storage, "a.md");
+		expect(versions.map((v) => [v.hash, v.first])).toEqual([
+			["A3", true],
+			["A2", false],
+			["A1", true],
+		]);
+		expect(versions.map((v) => [v.res, v.pushes])).toEqual([
+			["push", 1],
+			["push", 1],
+			["push", 1],
+		]);
+	});
+
 	it("returns nothing for a path the history never saw", async () => {
 		const storage = await seed([manifest("s1", null, { "a.md": entry("A1") })]);
 		expect(await historyOf(storage, "b.md")).toEqual([]);

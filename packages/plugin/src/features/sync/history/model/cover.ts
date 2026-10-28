@@ -1,6 +1,11 @@
 import { RESOLUTIONS } from "./periods";
 import { runsOf, storedRecord } from "./records";
-import type { HistoryObject, PushRecord, StoredRecord } from "./types";
+import type {
+	HistoryObject,
+	PushRecord,
+	Resolution,
+	StoredRecord,
+} from "./types";
 
 /** What storage holds, decoded; `at` is the listing's write time. */
 export interface HistoryView {
@@ -12,6 +17,8 @@ export interface WalkedRecord {
 	record: StoredRecord;
 	/** The key it was read from. */
 	source: string;
+	/** What its key holds: every push, or the period GC packed it to. */
+	res: Resolution;
 }
 
 export interface Cover {
@@ -34,6 +41,7 @@ export interface Head {
 /** The first `length` records of a chain-contiguous run of one key. */
 interface Segment {
 	key: string;
+	res: Resolution;
 	/** Index in {@link RESOLUTIONS}. */
 	rank: number;
 	/** Oldest first. */
@@ -76,7 +84,7 @@ export function coverOf(view: HistoryView, head: Head | null): Cover {
 		const segment = memo.get(at)?.segment;
 		if (!segment) break;
 		for (const record of segment.run.slice(0, segment.length).reverse()) {
-			chain.push({ record, source: segment.key });
+			chain.push({ record, source: segment.key, res: segment.res });
 		}
 		at = segment.parentId;
 	}
@@ -128,23 +136,32 @@ function segmentsOf(
 ): Segment[] {
 	const segments: Segment[] = [];
 	// Every record ends a segment: a sibling may fork from inside a packed run.
-	const add = (key: string, rank: number, run: StoredRecord[]): void => {
+	const add = (key: string, res: Resolution, run: StoredRecord[]): void => {
 		const parentId = run[0]?.parentId ?? null;
+		const rank = RESOLUTIONS.indexOf(res);
 		let pushes = 0;
 		for (const [index, record] of run.entries()) {
 			pushes += record.pushes;
-			segments.push({ key, rank, run, length: index + 1, parentId, pushes });
+			segments.push({
+				key,
+				res,
+				rank,
+				run,
+				length: index + 1,
+				parentId,
+				pushes,
+			});
 		}
 	};
 	for (const [key, { push, at }] of view.pushes) {
 		if (consumed.has(key) || push.vaultId !== vaultId) continue;
-		add(key, 0, [storedRecord(push, at)]);
+		add(key, "push", [storedRecord(push, at)]);
 	}
 	for (const [key, { object }] of view.objects) {
 		if (consumed.has(key) || object.vaultId !== vaultId) continue;
 		// Objects stored by an older walk need not be one run; split rather than trust them.
 		for (const run of runsOf(object.records)) {
-			add(key, RESOLUTIONS.indexOf(object.res), run);
+			add(key, object.res, run);
 		}
 	}
 	return segments;

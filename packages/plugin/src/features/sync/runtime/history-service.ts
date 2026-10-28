@@ -78,7 +78,8 @@ export class HistoryService {
 
 	async listSnapshots(): Promise<SnapshotListResult> {
 		const session = await this.deps.openSession();
-		if (!session) return { snapshots: [], lagging: false };
+		if (!session)
+			return { snapshots: [], lagging: false, truncated: false, activity: {} };
 		return querySnapshots(queryOf(session));
 	}
 

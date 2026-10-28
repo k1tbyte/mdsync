@@ -137,6 +137,27 @@ describe("collectHistoryGarbage", () => {
 		expect(await device.gc()).toEqual({ written: 0, retired: 0, swept: 0 });
 	});
 
+	it("lists packed snapshots at their period, with every push still counted", async () => {
+		const device = new Device(new FakeStorage(), { horizon: null });
+		await pushEvery(device, 7 * MINUTE, 60);
+		vi.setSystemTime(Date.now() + 2 * DAY);
+		await device.push(() => {});
+		await device.gc();
+
+		const { snapshots, activity } = await listSnapshots({
+			storage: device.storage,
+			key,
+			root: "",
+			horizon: null,
+		});
+		expect(snapshots[0]?.res).toBe("push");
+		expect(new Set(snapshots.map((s) => s.res))).toContain("1h");
+		expect(snapshots.reduce((sum, s) => sum + s.pushes, 0)).toBe(61);
+		const counted = Object.values(activity).reduce((sum, [n]) => sum + n, 0);
+		expect(counted).toBe(61);
+		for (const s of snapshots) expect(s.firstAt).toBeLessThanOrEqual(s.at);
+	});
+
 	it("sweeps the versions it freed only a day later, and leaves nothing dangling", async () => {
 		const device = new Device(new FakeStorage(), { horizon: null });
 		await pushEvery(device, 7 * MINUTE, 60);
