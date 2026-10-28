@@ -423,7 +423,7 @@ Steps 3-6 change the remote format, so they release together (the fence).
 | 4 | Write and read: record on push, listing + cover + cache, queries (file history, deleted, timeline, replay), pins in the new shape | no |
 | 5 | GC: phase 1 blocks, phase 2 sweep, schedule; deep clean, verify and reset on the new layout | no |
 | 6 | Fence: `MANIFEST_VERSION` 3 on every publish; 1.x history and pins deleted, not imported (section 19) | with 3-5 |
-| 7 | Settings: **Keep history for**, retire `fileHistoryMaxSnapshots` | with 3-6 |
+| 7 | Settings: **Keep history for**, retire `fileHistoryMaxSnapshots` (section 20) | with 3-6 |
 | 8 | UI: Timeline sessions, tier headers, filter; History grouping; Deleted "kept until"; activity calendar | with 3-7 |
 | 9 | Measurement script (9.3), content owner, CDC (recipes, chunks, upload trust), Excalidraw codec | yes |
 
@@ -518,3 +518,17 @@ leak until a deep clean.
 Tests: `legacy.test.ts` (bare-manifest pins and the log go, new pins and undecryptable ones stay, pins without
 the log go); the service clears with history off, once a session, again after a failure; `buildManifest`
 writes 3 on a v2 parent; deep clean refuses a v2 HEAD.
+
+## 20. Step 7 plan: Keep history for
+
+| Module | Holds |
+|---|---|
+| `core/constants.ts` | `HISTORY_KEEP_MS`: `week` 7 d, `month` 30 d, `quarter` 91 d, `year` 365 d, `forever` null |
+| `core/settings/model.ts` | `fileHistoryKeep: HistoryKeep` (default `quarter`, any other value parses to it); `fileHistoryMaxSnapshots` joins `RETIRED_KEYS`, its bounds and constants go |
+| `features/settings/sections/automation.ts` | **History** toggle (was "File version history"); **Keep history for** dropdown replaces **Versions to keep**, its text says what thins and that the shortest device setting applies |
+| `features/transfer/transfer.ts` | `fileHistoryKeep` travels as `y`; an old link's `j` is ignored (default applies) |
+| `app/session-factory.ts` | `horizon: HISTORY_KEEP_MS[settings.fileHistoryKeep]` replaces the constant |
+
+The horizon stays a device setting, as N was: each device's GC applies its own, so the shortest wins (said in the
+setting and the READMEs). Changelog (at release): 1.x devices must update; old history and pins are removed;
+**Keep history for** replaces **Versions to keep**.

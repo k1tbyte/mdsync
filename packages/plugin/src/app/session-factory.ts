@@ -1,4 +1,5 @@
 import { type App, TFile } from "obsidian";
+import { HISTORY_KEEP_MS } from "@/core/constants";
 import type { EncryptionKey } from "@/core/crypto";
 import type { LogService } from "@/core/logs";
 import { ESyncLogOperation } from "@/core/logs";
@@ -41,9 +42,6 @@ import {
 	type Space,
 	VAULT_SPACE,
 } from "@/features/sync";
-
-/** Three months: the history horizon until **Keep history for** becomes a setting. */
-const HISTORY_HORIZON_MS = 91 * 24 * 60 * 60_000;
 
 export interface SessionFactoryDeps {
 	app: App;
@@ -101,7 +99,7 @@ function sessionOpener(
 			key: opened.key,
 			concurrency: opened.concurrency,
 			history: settings.fileHistoryEnabled
-				? { horizon: HISTORY_HORIZON_MS }
+				? { horizon: HISTORY_KEEP_MS[settings.fileHistoryKeep] }
 				: undefined,
 			live: deps.liveNotes?.(space),
 			author: opened.author,

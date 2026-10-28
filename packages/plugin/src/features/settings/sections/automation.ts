@@ -6,8 +6,6 @@ import {
 	AUTO_SYNC_MIN_MINUTES,
 	BULK_DELETE_LIMIT_MAX,
 	BULK_DELETE_LIMIT_MIN,
-	FILE_HISTORY_MAX_SNAPSHOTS,
-	FILE_HISTORY_MIN_SNAPSHOTS,
 	LIVE_SEND_MS,
 } from "@/core/constants";
 import type { RelayStatus } from "@/core/hub";
@@ -18,6 +16,7 @@ import {
 	type FieldContext,
 	fieldRow,
 	group,
+	type HistoryKeep,
 	isRelayConfigured,
 	type SettingsField,
 	type SettingsHost,
@@ -167,27 +166,27 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 	},
 	{
 		kind: EFieldKind.Toggle,
-		name: "File version history",
+		name: "History",
 		desc: "Keep past versions of files so you can view or restore them. Each push stores what it changed as a small encrypted record; old versions thin out automatically.",
 		get: (s) => s.fileHistoryEnabled,
 		set: (v) => ({ fileHistoryEnabled: v }),
 		rerender: true,
 	},
 	{
-		kind: EFieldKind.Number,
-		name: "Versions to keep",
-		desc: `How many snapshots to retain (${FILE_HISTORY_MIN_SNAPSHOTS}–${FILE_HISTORY_MAX_SNAPSHOTS}). Older versions are garbage-collected.`,
+		kind: EFieldKind.Choice,
+		name: "Keep history for",
+		desc: "Every push stays for an hour, then one version per 10 minutes, hour, day and week; past this only how busy each day was remains. Pinned versions stay. Each device thins the same history, so the shortest choice among them applies.",
 		when: (s) => s.fileHistoryEnabled,
 		sub: true,
-		get: (s) => String(s.fileHistoryMaxSnapshots),
-		parse: (raw) =>
-			clampInt(
-				raw,
-				FILE_HISTORY_MIN_SNAPSHOTS,
-				FILE_HISTORY_MAX_SNAPSHOTS,
-				FILE_HISTORY_MIN_SNAPSHOTS,
-			),
-		set: (v) => ({ fileHistoryMaxSnapshots: v }),
+		options: {
+			week: "1 week",
+			month: "1 month",
+			quarter: "3 months",
+			year: "1 year",
+			forever: "Forever",
+		} satisfies Record<HistoryKeep, string>,
+		get: (s) => s.fileHistoryKeep,
+		set: (v) => ({ fileHistoryKeep: v as HistoryKeep }),
 	},
 	{
 		kind: EFieldKind.Toggle,

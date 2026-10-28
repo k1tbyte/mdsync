@@ -102,7 +102,7 @@ export class TimelineTab {
 			renderHistoryOff(
 				pane,
 				this.plugin.app,
-				"File version history is disabled. Enable it in settings to see the timeline.",
+				"History is off. Turn on History in MDSync settings to see the timeline.",
 			);
 			return;
 		}

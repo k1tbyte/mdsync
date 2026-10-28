@@ -52,7 +52,7 @@ const TRANSFER_FIELDS = {
 		pushSharesRightAway: "s",
 		shareEditsWait: "w",
 		fileHistoryEnabled: "h",
-		fileHistoryMaxSnapshots: "j",
+		fileHistoryKeep: "y",
 		historyAutoRefresh: "r",
 	},
 	l: {

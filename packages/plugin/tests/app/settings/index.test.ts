@@ -5,6 +5,7 @@ import {
 	BULK_DELETE_LIMIT_MAX,
 	LIVE_SEND_MS,
 } from "@/core/constants";
+import type { MdsyncSettings } from "@/core/settings";
 import { defaultS3Config } from "@/features/storage/backends/s3";
 import {
 	EStorageBackend,
@@ -156,7 +157,6 @@ describe("mergeSettings clamps", () => {
 			autoSyncIntervalMinutes: -5,
 			autoPushSettleSeconds: 0,
 			maxFileBytes: 0,
-			fileHistoryMaxSnapshots: 0,
 		});
 
 		expect(merged.autoSyncIntervalMinutes).toBe(
@@ -166,21 +166,16 @@ describe("mergeSettings clamps", () => {
 			DEFAULT_SETTINGS.autoPushSettleSeconds,
 		);
 		expect(merged.maxFileBytes).toBe(DEFAULT_SETTINGS.maxFileBytes);
-		expect(merged.fileHistoryMaxSnapshots).toBe(
-			DEFAULT_SETTINGS.fileHistoryMaxSnapshots,
-		);
 	});
 
 	it("caps a value that is merely greedy", () => {
 		const merged = mergeSettings({
 			autoSyncIntervalMinutes: 999_999,
 			autoPushSettleSeconds: 999,
-			fileHistoryMaxSnapshots: 1e9,
 		});
 
 		expect(merged.autoSyncIntervalMinutes).toBe(24 * 60);
 		expect(merged.autoPushSettleSeconds).toBe(AUTO_PUSH_SETTLE_MAX_SECONDS);
-		expect(merged.fileHistoryMaxSnapshots).toBe(1000);
 	});
 
 	it("ignores a number that is not one", () => {
@@ -193,6 +188,19 @@ describe("mergeSettings clamps", () => {
 		expect(merged.autoSyncIntervalMinutes).toBe(
 			DEFAULT_SETTINGS.autoSyncIntervalMinutes,
 		);
+	});
+
+	it("keeps history 3 months by default and only for a listed choice; drops the old version count", () => {
+		expect(DEFAULT_SETTINGS.fileHistoryKeep).toBe("quarter");
+		expect(mergeSettings({ fileHistoryKeep: "year" }).fileHistoryKeep).toBe(
+			"year",
+		);
+		const merged = mergeSettings({
+			fileHistoryKeep: "toString",
+			fileHistoryMaxSnapshots: 50,
+		} as unknown as Partial<MdsyncSettings>);
+		expect(merged.fileHistoryKeep).toBe("quarter");
+		expect(merged).not.toHaveProperty("fileHistoryMaxSnapshots");
 	});
 
 	it("defaults the bulk delete guard to on with a limit of 5", () => {

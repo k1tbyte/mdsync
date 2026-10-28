@@ -72,7 +72,7 @@ export class TrashTab implements SelectionSource {
 			renderHistoryOff(
 				pane,
 				this.plugin.app,
-				"File version history is disabled, so deleted files are not recoverable. Enable it in settings.",
+				"History is off, so deleted files cannot be recovered. Turn on History in MDSync settings.",
 			);
 			return;
 		}

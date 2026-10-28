@@ -19,9 +19,16 @@ export const BULK_DELETE_LIMIT_MIN = 0;
 
 export const BULK_DELETE_LIMIT_MAX = 1000;
 
-export const FILE_HISTORY_MIN_SNAPSHOTS = 1;
+const DAY_MS = 24 * 60 * 60_000;
 
-export const FILE_HISTORY_MAX_SNAPSHOTS = 1000;
+/** **Keep history for**: past it only activity counts remain; `null` keeps every version tier forever. */
+export const HISTORY_KEEP_MS = {
+	week: 7 * DAY_MS,
+	month: 30 * DAY_MS,
+	quarter: 91 * DAY_MS,
+	year: 365 * DAY_MS,
+	forever: null,
+} as const;
 
 export const SOURCE_CONTROL_VIEW_TYPE = "mdsync-source-control";
 
