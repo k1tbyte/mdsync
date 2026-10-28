@@ -1,7 +1,8 @@
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
-import { decryptBytes, type EncryptionKey, sha256Hex } from "@/core/crypto";
+import type { EncryptionKey } from "@/core/crypto";
 import type { StorageAdapter } from "@/features/storage";
 import { runWithFileConcurrency } from "../changes/file-concurrency";
+import { openContent } from "../content/load";
 import {
 	reachableHashes,
 	type SweepOptions,
@@ -52,8 +53,7 @@ export async function verifyRemote(
 				missing.push(hash);
 			} else if (deep) {
 				try {
-					const plain = await decryptBytes(key, blob);
-					if ((await sha256Hex(plain)) !== hash) corrupt.push(hash);
+					await openContent(key, blob, hash);
 				} catch {
 					corrupt.push(hash);
 				}

@@ -1,10 +1,6 @@
 import type { DataAdapter } from "obsidian";
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
-import {
-	type EncryptionKey,
-	encryptCompressible,
-	sha256Hex,
-} from "@/core/crypto";
+import { type EncryptionKey, sha256Hex } from "@/core/crypto";
 import { sceneOfBytes } from "@/core/drawing";
 import { reportWarning } from "@/core/shared";
 import type { VaultIndex } from "@/core/vault";
@@ -16,6 +12,7 @@ import { runWithFileConcurrency } from "./changes/file-concurrency";
 import { entryAt, sortedByPath } from "./changes/records";
 import { skipUnholdableNames } from "./changes/remote-names";
 import { REMOTE_OBJECTS_PREFIX } from "./constants";
+import { storeContent } from "./content/store";
 import { untrackedDir } from "./history/changes";
 import { publishManifestWithHistory } from "./history/publish";
 import type { HistoryConfig } from "./history/types";
@@ -216,10 +213,7 @@ export async function storeObject(
 	) {
 		return hash;
 	}
-	await deps.storage.put(
-		objectKey(hash),
-		await encryptCompressible(deps.key, bytes),
-	);
+	await storeContent(deps, hash, bytes);
 	rememberUpload(deps.storage, hash);
 	return hash;
 }
@@ -352,8 +346,7 @@ async function uploadObject(
 	if (verifyHash !== entry.hash) {
 		throw new Error(`Hash mismatch while uploading ${entry.path}`);
 	}
-	const blob = await encryptCompressible(deps.key, plaintext);
-	await deps.storage.put(objectKey(entry.hash), blob);
+	await storeContent(deps, entry.hash, plaintext);
 	rememberUpload(deps.storage, entry.hash);
 }
 

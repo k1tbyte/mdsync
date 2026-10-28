@@ -591,5 +591,77 @@ release had them). Tests: split, GC freeing `released` and keeping one HEAD name
 restore leaving config (write and removal), a new pin without config, Timeline hiding an empty version.
 
 ### 9b. CDC and the Excalidraw codec
-Planned after 9a, per 9.2, plus: a pull fetches only the chunks the device's local copy of the file does not
-already cut to (chunk the baseline version it has), so download traffic shrinks like upload.
+Ships in the same release as steps 3-8, so the v3 fence already stops 1.x before it meets a recipe; if it slips past
+that release, `MANIFEST_VERSION` goes to 4 with it. Paths relative to `packages/plugin/src/`.
+
+**Format.** Manifests, records and pins keep naming the file hash. A file under the threshold, and every blob
+written so far, is `objects/<fileHash>`; a chunked file is `recipes/<fileHash>`, so maintenance can list exactly
+the roots that name chunks without reading every blob (reviewed: inspecting envelopes under `objects/` would GET
+every file). A new envelope,
+`BLOB_VERSION_DESCRIBED` (0x03, version bound as AAD like 0x02, gzip-sealed and padded), holds a JSON header, then
+an inline payload: `{ codec?: { name: "excalidraw-lz", width, gap }, chunks?: [id, size][] }`. With `chunks` the
+payload is empty and the stored form is the chunks in order; without, the payload is the stored form. File bytes
+= the codec's decode of the stored form (identity without one); the reader checks SHA-256 against the file hash,
+as today. Chunks are `chunks/<id>`, sealed by `encryptCompressible` (0x01/0x02). Envelopes 0x01/0x02 at
+`objects/` stay plain file bytes, so every blob written so far reads unchanged. A hash maps to two possible keys
+(`rootKeys`): a reader with a size of 256 KB or more tries `recipes/` then `objects/` (a big file uploaded whole
+before 9b), else `objects/` only; a caller holding only a hash (GC candidates, `released`, history versions
+without a size) checks both, and a listing decides which exists.
+
+**Rules.**
+- A file is chunked when the file itself is 256 KB or more (`entry.size`, before any codec), with set A (16/64/256 KB,
+  above 16 MB 256 KB/1 MB/4 MB). So a reader knows which roots can name chunks from the entry alone.
+- Chunk ids are `HMAC(chunkKey, chunk)`. `chunkKey` is HKDF of the raw data key ("mdsync/chunks/ids/v1"), derived
+  where `deriveLiveKeys` is (`sync/remote/keyfile.ts`, `spaces/access.ts`) and carried in the session; the gear
+  seed comes from it too. A share has its own key, so its own ids.
+- Codec `excalidraw-lz` (`core/drawing/codec.ts`, pure): a drawing whose `## Drawing` block is `compressed-json`
+  is stored with the block decoded to JSON, plus the wrap width and gap. Kept only when decoding the stored form
+  reproduces the file byte for byte at write time, else the file is stored as it is.
+
+**Content owner** (`sync/content/`, the one place that knows the format):
+- `loadContent(source, hash, size?, local?)`: root, then chunks (concurrency 4), codec, SHA-256 check. `local`
+  reads the current file at the path being pulled: its chunks (codec applied, same cut) are reused by id, so a
+  pull fetches only chunks the device lacks. `changes/content.ts` `loadRemoteBytes` and deep verify call it; the
+  pull path (`writeIncoming`) passes `local`.
+- Batches: the owner prepares its own reads (`prepareContent(source, entries)`: root keys, then the recipes of big
+  roots, then the chunk keys it will GET), since `prepareReads` replaces earlier hints and callers know only roots.
+  Pull and verify call it per batch. A cold 1 MB file costs about 17 GETs; Drive IDs and broker signatures are
+  primed by those two hints.
+- `storeContent(session, bytes, hash, previous)`: small file as today (one root, existing trust); a codec file as
+  a described root; a big file uploads the chunks no trust covers, then always PUTs its root. `previous` is the
+  compared HEAD's entry at that path, passed by `pushPaths`, `pushSingleFile` and `batchKeepLocalOp`; never taken
+  from `session.state`. Trust for a chunk: named by `previous`'s recipe (read now), or uploaded here within
+  `UPLOAD_TRUST_MS` and probed. A big root is never skipped on its own upload alone (its chunks may be gone).
+- `chunksOf(source, roots)`: the chunk keys a set of `recipes/` keys names. Memoized by key and etag (a root can be
+  rewritten at the same hash: a legacy whole file, or a recipe re-put); a listing without etags re-reads.
+  Unreadable throws.
+
+**Readers and maintenance.**
+- Sweep (`history/sweep.ts`): roots as today over `objects/` and `recipes/` (a reachable hash keeps both keys).
+  Chunks: protected are those named by every `recipes/` root that survives this sweep, reachable or not (young,
+  undated and young-candidate roots stay, so their chunks must too); any unreadable surviving recipe fails closed.
+  Deep clean lists `chunks/` settled and deletes the unprotected; GC phase 2 deletes only chunks named by the big
+  roots it deleted (read before deleting them) and unprotected. Chunks go only after the root deletes succeed: a
+  crash leaks chunks, never leaves a root without them.
+- `stillLands`: a named hash lands when either root key exists, and a `recipes/` root also needs every chunk it
+  names (one `chunks/` listing past the probe limit).
+- Verify: shallow checks chunk existence for big roots (one `chunks/` listing); deep reconstructs through
+  `loadContent`. Reset lists and deletes `chunks/` too; stop sharing already deletes everything.
+- Rules: `recipes/` and `chunks/` join `objects/`, `pins/`, `history/` as the folders maintenance lists.
+- Memory: whole files as today, streaming to the journal stays future work (9.2 promised it; deferred). Budget: one
+  file of 8 MB or more at a time (`runWithFileConcurrency`), peak about twice its size with local reuse (the local
+  file and the rebuilt one); chunks are copied out of the local buffer, which is then dropped.
+
+**Order** (each its own commit, reviewed): 1. described envelope, codec, `loadContent` and `storeContent`
+without chunks, both readers (`loadRemoteBytes`, deep verify) through `loadContent` before any writer emits 0x03
+(small drawings shrink now); 2. readers, GC, verify, reset and `stillLands` understand chunks
+(tested on hand-made recipes, nothing writes one yet); 3. writers chunk, pull reuses local chunks.
+
+Tests: codec round trip on real-shaped drawings and refusal when not reproducible; loadContent over plain,
+described inline, chunked, codec + chunked, a missing or altered chunk (fails, never writes); local reuse fetches
+only new chunks; sweep keeps a chunk two versions share and frees one only a freed root named, fails closed on an
+unreadable root; upload skips HEAD's chunks and re-uploads a chunk whose own-upload probe fails; `stillLands` drops
+a record whose chunk is gone; verify flags a missing chunk; reset clears `chunks/`.
+
+Accepted: every surviving recipe is read once per cold session for the sweep (memo is in memory, by etag); a 1 MB file is ~16 GETs on a
+fresh device; keyed CDC still leaks chunk sizes (9.2).

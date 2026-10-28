@@ -15,6 +15,7 @@ Breaking one of these silently corrupts user data or publishes remote deletions;
 - A pull advances the baseline for `written`, never for the asked paths (an undownloaded conflict would turn into a local edit pushed over the remote); a hunk pull only on a full selection (`isFullSelection`).
 - A batch stopped by an error keeps what landed: pull and auto-merge save the baseline, then throw (`PullResult.failed`), as a cancel stops; moves record each as it lands. On the old baseline a landed file reads as this device's edit, and a change made elsewhere meanwhile is pushed back.
 - A remote read is complete: equal snapshot ids do not make a partial baseline a remote manifest. A 304 serves only the complete cached response of the same storage adapter, key and root (`fetchRemoteManifest`); a stale read is replaced only by a head this session published, never by the baseline (`reconcileRemoteAgainstBaseline`).
+- Every file content read and write goes through `features/sync/content/` (`loadContent`, `storeContent`): the owner of the object format. Bytes it rebuilds (a described blob, a decoded drawing) are checked against the file hash, and a header it does not know makes the content unreadable, never guessed.
 - Upload before publish: a manifest naming objects never uploaded dangles, so a cancelled push publishes nothing (`pushPaths`; uploaded blobs stay).
 
 ## Scope and unreadable

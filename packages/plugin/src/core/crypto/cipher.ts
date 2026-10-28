@@ -7,7 +7,9 @@ import {
 } from "@/core/utils";
 import {
 	BLOB_VERSION,
+	BLOB_VERSION_DESCRIBED,
 	BLOB_VERSION_GZIP,
+	DESCRIBED_HEADER_BYTES,
 	GZIP_LENGTH_BYTES,
 	GZIP_PAD_BYTES,
 	GZIP_SAMPLE_BYTES,
@@ -120,17 +122,28 @@ export async function decryptBytes(
 	key: EncryptionKey,
 	blob: Uint8Array,
 ): Promise<Uint8Array> {
+	const plaintext = await open(key, blob, [BLOB_VERSION, BLOB_VERSION_GZIP]);
+	if (blob[0] !== BLOB_VERSION_GZIP) return plaintext;
+	return inflatePadded(plaintext);
+}
+
+/** The authenticated plaintext of a blob whose version is one of `versions`. */
+async function open(
+	key: EncryptionKey,
+	blob: Uint8Array,
+	versions: readonly number[],
+): Promise<Uint8Array> {
 	if (blob.length < 1 + IV_BYTES + 16) {
 		throw new Error("Encrypted blob is too short");
 	}
-	const version = blob[0];
-	if (version !== BLOB_VERSION && version !== BLOB_VERSION_GZIP) {
+	const version = blob[0] ?? 0;
+	if (!versions.includes(version)) {
 		throw new Error(`Unsupported blob version: ${version}`);
 	}
 	const iv = blob.subarray(1, 1 + IV_BYTES);
 	const ciphertext = blob.subarray(1 + IV_BYTES);
 	const aad = versionAad(version);
-	const plaintext = new Uint8Array(
+	return new Uint8Array(
 		await subtle.decrypt(
 			{
 				name: "AES-GCM",
@@ -141,13 +154,15 @@ export async function decryptBytes(
 			toBufferSource(ciphertext),
 		),
 	);
-	if (version !== BLOB_VERSION_GZIP) return plaintext;
+}
+
+async function inflatePadded(padded: Uint8Array): Promise<Uint8Array> {
 	if (typeof DecompressionStream !== "function") {
 		throw new Error(
 			"This remote is compressed and this device cannot decompress it. Update Obsidian, or sync this vault from another device.",
 		);
 	}
-	return inflateBytes(unpad(plaintext), GZIP);
+	return inflateBytes(unpad(padded), GZIP);
 }
 
 function paddedLength(gzipLength: number): number {
@@ -234,6 +249,61 @@ async function compressible(bytes: Uint8Array): Promise<boolean> {
 	return (
 		sample !== null && sample.length < GZIP_SAMPLE_BYTES * GZIP_SAMPLE_MAX_RATIO
 	);
+}
+
+export function isDescribed(blob: Uint8Array): boolean {
+	return blob[0] === BLOB_VERSION_DESCRIBED;
+}
+
+/**
+ * File content with a JSON `header` describing how `payload` maps to it. Always gzipped (a build without
+ * CompressionStream throws, so the caller stores the plain form), padded like {@link BLOB_VERSION_GZIP}.
+ */
+export async function encryptDescribed(
+	key: EncryptionKey,
+	header: object,
+	payload: Uint8Array,
+): Promise<Uint8Array> {
+	const head = encoder.encode(JSON.stringify(header));
+	const plaintext = new Uint8Array(
+		DESCRIBED_HEADER_BYTES + head.length + payload.length,
+	);
+	new DataView(plaintext.buffer).setUint32(0, head.length, true);
+	plaintext.set(head, DESCRIBED_HEADER_BYTES);
+	plaintext.set(payload, DESCRIBED_HEADER_BYTES + head.length);
+	const gzipped = await deflateBytes(plaintext, GZIP);
+	if (!gzipped) {
+		throw new Error(
+			"This device cannot compress, so it cannot seal a described blob",
+		);
+	}
+	return sealBytes(key, pad(gzipped), BLOB_VERSION_DESCRIBED);
+}
+
+/** The header is unchecked: the caller validates its shape. */
+export async function decryptDescribed(
+	key: EncryptionKey,
+	blob: Uint8Array,
+): Promise<{ header: unknown; payload: Uint8Array }> {
+	const plaintext = await inflatePadded(
+		await open(key, blob, [BLOB_VERSION_DESCRIBED]),
+	);
+	if (plaintext.length < DESCRIBED_HEADER_BYTES) {
+		throw new Error("Described blob is too short");
+	}
+	const length = new DataView(
+		plaintext.buffer,
+		plaintext.byteOffset,
+		plaintext.byteLength,
+	).getUint32(0, true);
+	const end = DESCRIBED_HEADER_BYTES + length;
+	if (end > plaintext.length) throw new Error("Described blob is truncated");
+	return {
+		header: JSON.parse(
+			decoder.decode(plaintext.subarray(DESCRIBED_HEADER_BYTES, end)),
+		),
+		payload: plaintext.subarray(end),
+	};
 }
 
 export async function decryptJson<T>(

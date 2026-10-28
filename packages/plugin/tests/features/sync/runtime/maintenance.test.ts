@@ -1,3 +1,4 @@
+import { bytesOf, compressedDrawing } from "@tests/helpers/drawing-file";
 import { FakeStorage } from "@tests/helpers/fake-storage";
 import {
 	manifestOf,
@@ -10,12 +11,16 @@ import { beforeAll, describe, expect, it } from "vitest";
 import {
 	deriveKey,
 	type EncryptionKey,
+	encryptDescribed,
 	encryptJson,
+	sha256Hex,
 } from "@/core/crypto/cipher";
+import { encodeDrawing } from "@/core/drawing";
 import {
 	REMOTE_OBJECTS_PREFIX,
 	REMOTE_PINS_PREFIX,
 } from "@/features/sync/constants";
+import { storeContent } from "@/features/sync/content/store";
 import { objectKey } from "@/features/sync/remote/manifest";
 import {
 	deepCleanOrphans,
@@ -69,6 +74,79 @@ describe("verifyRemote", () => {
 		await verifyRemote(storage, key, "", false);
 		expect(calls[0]).toBe(`prepare:${objectKey("H1")},${objectKey("H2")}`);
 		expect(calls.filter((c) => c === "get")).toHaveLength(2);
+	});
+});
+
+describe("verifyRemote, deep", () => {
+	async function remoteWith(
+		blobFor: (bytes: Uint8Array) => Promise<Uint8Array>,
+	) {
+		const storage = new FakeStorage();
+		const bytes = bytesOf(compressedDrawing());
+		const hash = await sha256Hex(bytes);
+		await publishManifest(
+			storage,
+			key,
+			manifestOf("s1", null, { "a.excalidraw.md": hash }),
+		);
+		await storage.put(objectKey(hash), await blobFor(bytes));
+		return { storage, hash };
+	}
+
+	it("verifies a described root clean", async () => {
+		const { storage } = await remoteWith(async (bytes) => {
+			const probe = new FakeStorage();
+			await storeContent(
+				{ storage: probe, key },
+				await sha256Hex(bytes),
+				bytes,
+			);
+			const blob = probe.map.get(objectKey(await sha256Hex(bytes)));
+			expect(blob?.[0]).toBe(0x03);
+			return blob as Uint8Array;
+		});
+
+		expect(await verifyRemote(storage, key, "", true)).toEqual({
+			checked: 1,
+			missing: [],
+			corrupt: [],
+		});
+	});
+
+	it("flags a described root whose rebuilt bytes do not hash to its name", async () => {
+		const { storage, hash } = await remoteWith(async (bytes) => {
+			const encoded = encodeDrawing(bytes);
+			if (!encoded) throw new Error("fixture does not encode");
+			return encryptDescribed(
+				key,
+				{ codec: { ...encoded.codec, width: 64 } },
+				encoded.stored,
+			);
+		});
+
+		const result = await verifyRemote(storage, key, "", true);
+		expect(result.corrupt).toEqual([hash]);
+		expect(result.missing).toEqual([]);
+		// Shallow verify only checks that the object exists.
+		expect((await verifyRemote(storage, key, "", false)).corrupt).toEqual([]);
+	});
+
+	it("flags a described root with an unknown codec, and still reports a missing one", async () => {
+		const { storage, hash } = await remoteWith((bytes) =>
+			encryptDescribed(
+				key,
+				{ codec: { name: "future", width: 256, gap: "\n\n" } },
+				bytes,
+			),
+		);
+		expect((await verifyRemote(storage, key, "", true)).corrupt).toEqual([
+			hash,
+		]);
+
+		await storage.delete(objectKey(hash));
+		expect((await verifyRemote(storage, key, "", true)).missing).toEqual([
+			hash,
+		]);
 	});
 });
 

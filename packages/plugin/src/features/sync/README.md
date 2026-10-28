@@ -16,6 +16,7 @@ File sync of the vault and of each shared folder (a "space") against object stor
 | `automation/` | `features/sync/automation/scheduler.ts` (timer, backoff), `features/sync/automation/auto-push.ts` (bulk-deletion hold) |
 | `identity/` | `features/sync/identity/authors.ts`, `features/sync/identity/device.ts`, `features/sync/identity/device-name.ts` |
 | `runtime/` | what `features/sync/controller.ts` is built from: `features/sync/runtime/operation-runner.ts`, `features/sync/runtime/refresh-queue.ts`, `features/sync/runtime/auto-cycle.ts`, `features/sync/runtime/scan-cycle.ts`, `features/sync/runtime/controller-state.ts`, `features/sync/runtime/file-diff-service.ts`, `features/sync/runtime/history-service.ts`, `features/sync/runtime/maintenance.ts`, `features/sync/runtime/saved-refresh.ts`, `features/sync/runtime/merged-result.ts` |
+| `content/` | the one owner of file content on the remote: `features/sync/content/load.ts` (`loadContent`, `openContent`), `features/sync/content/store.ts` (`storeContent`), `features/sync/content/header.ts` |
 | `history/` | push records, queries, replay, pins, vault restore plan, GC and sweep |
 | `ui/` | menu items, modals, the maintenance section |
 
@@ -47,6 +48,8 @@ Accepted limit: a backend hiding our own write past the retries (WebDAV behind a
 Uploads: the head vouches for a blob; this device's own unpublished uploads count for 12 h (`UPLOAD_TRUST_MS`, still probed). Anything else may be swept by GC or deep clean between probe and publish. Still open, narrow: another device's reset between the probe and the publish, clock skew over 12 h.
 
 A blob is gzipped when that makes it smaller (`encryptCompressible` in `core/crypto/cipher.ts`, padded like the JSON documents), else sealed as is; every release since 1.0.0 reads both. A large file is judged by its first 64 KB, so media is not compressed whole for nothing.
+
+Every file content read and write goes through `content/`: `loadContent` (`changes/content.ts` `loadRemoteBytes` calls it; deep verify fetches the blob itself, so an outage still aborts instead of reading as corrupt, and opens it with `openContent`, the same unseal and hash check) and `storeContent` (`pushPaths`, `storeObject`); the upload-trust decisions stay in `engine.ts`. `objects/<hash>` holds either the file (0x01/0x02) or a described blob (0x03): a JSON header, then a payload. A drawing whose `## Drawing` block is `compressed-json` is stored with that block decoded to plain JSON (`core/drawing/codec.ts`), because an LZString stream changes whole on every edit and so neither gzip nor chunking can share bytes between versions; the header carries the base64 wrap width and gap. It is kept only when decoding reproduces the file byte for byte at write time, and a read checks SHA-256 against the file hash again. A header this build does not know (an unknown codec, a `chunks` field) makes the content unreadable, never wrong bytes. A device without CompressionStream stores such a drawing whole.
 
 ## Writes and the journal
 

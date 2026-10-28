@@ -28,9 +28,12 @@ export interface Drawing {
 	end: number;
 }
 
-const BLOCK =
-	/(## Drawing[ \t]*\r?\n)```(compressed-json|json)\r?\n([\s\S]*?)\r?\n```/;
+/** Heading, kind, line break, body, closing line break: the codec rebuilds the block from them byte for byte. */
+export const SCENE_BLOCK =
+	/(## Drawing[ \t]*\r?\n)```(compressed-json|json)(\r?\n)([\s\S]*?)(\r?\n)```/;
 const EMBEDDED = "## Embedded Files";
+/** Front matter sits at the top; a drawing names itself well before this. */
+export const HEAD_BYTES = 1024;
 
 export function isDrawing(text: string): boolean {
 	if (!text.startsWith("---")) return false;
@@ -40,9 +43,9 @@ export function isDrawing(text: string): boolean {
 
 export function readDrawing(text: string): Drawing | null {
 	if (!isDrawing(text)) return null;
-	const match = BLOCK.exec(text);
+	const match = SCENE_BLOCK.exec(text);
 	if (!match) return null;
-	const [whole, heading = "", kind, body = ""] = match;
+	const [whole, heading = "", kind, , body = ""] = match;
 	const json =
 		kind === "json" ? body : decompressFromBase64(body.replace(/\s+/g, ""));
 	try {
