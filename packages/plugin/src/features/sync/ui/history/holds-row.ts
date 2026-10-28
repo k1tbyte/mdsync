@@ -1,9 +1,20 @@
 import type { Setting } from "obsidian";
 import { errorMessage } from "@/core/shared";
 import { alertLine } from "@/core/ui";
+import type { Resolution } from "../../history/model/types";
 import type { SnapshotListResult } from "../../history/types";
 import { renderActivityCalendar } from "./activity-calendar";
 import { buildCalendar, type CalendarDay, ladderOf } from "./calendar";
+
+/** Ticks spread across a card, sparser down the ladder; counts draws its own. */
+const TICKS: Record<Resolution, number> = {
+	push: 16,
+	"10m": 9,
+	"1h": 5,
+	"1d": 3,
+	"1w": 2,
+	counts: 0,
+};
 
 export interface HoldsOptions {
 	load: () => Promise<SnapshotListResult>;
@@ -28,7 +39,8 @@ export function renderHistoryHolds(
 			cls: "mdsync-holds-step",
 			attr: { "data-res": step.res },
 		});
-		card.createDiv({ cls: "mdsync-holds-ticks" });
+		const ticks = card.createDiv({ cls: "mdsync-holds-ticks" });
+		for (let tick = 0; tick < TICKS[step.res]; tick++) ticks.createSpan();
 		card.createDiv({ cls: "mdsync-holds-title", text: step.title });
 		card.createDiv({ cls: "mdsync-holds-span", text: step.span });
 	}

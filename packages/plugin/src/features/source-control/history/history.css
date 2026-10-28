@@ -244,10 +244,11 @@
 .mdsync-deleted-row {
 	display: grid;
 	flex: 0 0 auto;
-	grid-template-columns: 24px minmax(0, 1fr) auto;
+	position: relative;
+	grid-template-columns: 20px minmax(0, 1fr) auto;
 	align-items: start;
-	gap: 6px;
-	padding: var(--size-4-2) 6px var(--size-4-2) var(--size-4-1);
+	gap: var(--size-4-2);
+	padding: var(--size-4-2) 6px var(--size-4-2) var(--size-4-2);
 	border-radius: var(--radius-m);
 }
 
@@ -313,6 +314,26 @@
 @media (hover: hover) {
 	.mdsync-deleted-row:not(:hover, :focus-within) .mdsync-row-actions {
 		display: none;
+	}
+
+	/* Over the name's end in the row's own tint, so showing them reflows nothing. */
+	.mdsync-deleted-row .mdsync-row-actions {
+		--mdsync-tint: var(--background-modifier-hover);
+		position: absolute;
+		top: var(--size-4-1);
+		right: 6px;
+		padding-left: var(--size-4-2);
+		background:
+			linear-gradient(var(--mdsync-tint), var(--mdsync-tint)),
+			var(--mdsync-view-bg);
+	}
+
+	.mdsync-deleted-row.is-selected .mdsync-row-actions {
+		--mdsync-tint: color-mix(
+			in srgb,
+			var(--interactive-accent) 12%,
+			transparent
+		);
 	}
 }
 

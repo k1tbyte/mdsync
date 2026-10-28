@@ -40,31 +40,16 @@
 	color: var(--text-muted);
 }
 
-/* One tick per kept version: sparser down the ladder. */
 .mdsync-holds-ticks {
-	--mdsync-tick: 6px;
+	display: flex;
+	justify-content: space-between;
 	height: 12px;
-	background: repeating-linear-gradient(
-		90deg,
-		var(--interactive-accent) 0 2px,
-		transparent 2px var(--mdsync-tick)
-	);
 }
 
-.mdsync-holds-step[data-res="10m"] .mdsync-holds-ticks {
-	--mdsync-tick: 11px;
-}
-
-.mdsync-holds-step[data-res="1h"] .mdsync-holds-ticks {
-	--mdsync-tick: 18px;
-}
-
-.mdsync-holds-step[data-res="1d"] .mdsync-holds-ticks {
-	--mdsync-tick: 30px;
-}
-
-.mdsync-holds-step[data-res="1w"] .mdsync-holds-ticks {
-	--mdsync-tick: 64px;
+.mdsync-holds-ticks span {
+	width: 2px;
+	border-radius: 1px;
+	background: var(--interactive-accent);
 }
 
 .mdsync-holds-step[data-res="counts"] .mdsync-holds-ticks {

@@ -251,11 +251,6 @@
 	overflow: auto;
 }
 
-/* A session's net size is a summary, not a change of one file: no tone. */
-.mdsync-timeline-net.mdsync-size-delta {
-	color: var(--text-muted);
-}
-
 /* The resolution chip sits after the rule that fills the header. */
 .mdsync-timeline-res {
 	order: 2;
@@ -334,7 +329,30 @@
 
 /* A version inside a session: a lighter card head, its files under it. */
 .mdsync-timeline-version .mdsync-timeline-head {
-	padding: var(--size-2-3) 6px var(--size-2-3) var(--size-2-2);
+	padding: var(--size-2-1) 6px var(--size-2-1) var(--size-2-2);
+}
+
+/* One line: time, chips, size. */
+.mdsync-timeline-version .mdsync-timeline-head .mdsync-timeline-copy {
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+}
+
+.mdsync-timeline-version .mdsync-timeline-meta {
+	flex: 1;
+	min-width: 0;
+}
+
+.mdsync-timeline-version .mdsync-history-row-title {
+	font-size: var(--font-ui-small);
+}
+
+body:not(.is-phone)
+	.mdsync-timeline-version
+	.mdsync-timeline-actions
+	.clickable-icon {
+	padding: var(--size-2-1) var(--size-2-2);
 }
 
 /* A link, not a button: it only unfolds the list. */

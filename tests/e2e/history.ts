@@ -468,6 +468,19 @@ async function checkDeleted(device: Obsidian, page: Page): Promise<void> {
 		true,
 	);
 	await shot(page, "7-deleted");
+	const copyWidth = () =>
+		device.evaluate(
+			() => document.querySelector(".mdsync-deleted-copy")?.clientWidth,
+		);
+	const still = await copyWidth();
+	await page.locator(".mdsync-deleted-row").first().hover();
+	check("hovering a row reflows nothing", await copyWidth(), still);
+	check(
+		"hovering a row shows its actions",
+		await page.locator(".mdsync-deleted-row .mdsync-row-actions").isVisible(),
+		true,
+	);
+	await shot(page, "7-deleted-hover");
 	const input = page.locator(
 		".mdsync-deleted-panel .mdsync-timeline-filter input",
 	);
