@@ -4,6 +4,7 @@ import {
 	type AutoPushSelector,
 	createAutoPushSelector,
 } from "./automation/auto-push";
+import { SlowFiles } from "./automation/slow-files";
 import { clearRemoteTextCache } from "./changes/content";
 import type { EngineDependencies } from "./engine";
 import { ActivityCache, type ActivityStore } from "./history/activity-cache";
@@ -159,6 +160,8 @@ export class SyncController {
 	readonly history: HistoryService;
 	readonly maintenance: MaintenanceService;
 	readonly activity: ActivityCache;
+	/** Driven by the scheduler, read by every automatic push. */
+	readonly slowFiles = new SlowFiles();
 
 	constructor(host: SyncControllerHost) {
 		this.host = host;
@@ -192,6 +195,7 @@ export class SyncController {
 				);
 				host.onDeletionsHeld?.(space, held);
 			},
+			(path) => this.slowFiles.holds(path),
 		);
 		this.refreshes = new RefreshQueue(
 			(run) => this.runtimeState.enqueue(run),

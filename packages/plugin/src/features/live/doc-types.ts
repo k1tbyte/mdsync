@@ -1,4 +1,5 @@
 import type { App, TFile } from "obsidian";
+import { DRAWING_KEY } from "@/core/drawing";
 
 export type LiveDocKind = "text" | "drawing";
 
@@ -28,7 +29,7 @@ export function docKindOf(app: App, file: TFile): LiveDocKind | null {
 	if (file.extension !== LIVE_EXTENSION) return null;
 	const cache = app.metadataCache.getFileCache(file);
 	if (!cache) return null;
-	return cache.frontmatter && "excalidraw-plugin" in cache.frontmatter
+	return cache.frontmatter && DRAWING_KEY in cache.frontmatter
 		? "drawing"
 		: "text";
 }

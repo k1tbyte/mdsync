@@ -7,6 +7,8 @@ import {
 	BULK_DELETE_LIMIT_MIN,
 	HISTORY_KEEP_MS,
 	LIVE_SEND_MS,
+	SLOW_FILE_SETTLE_MAX_SECONDS,
+	SLOW_FILE_SETTLE_MIN_SECONDS,
 } from "@/core/constants";
 import { isCleartextRemote } from "@/core/shared";
 
@@ -47,6 +49,9 @@ export interface CoreSettings {
 	autoPushAfterChange: boolean;
 	autoPushSettleSeconds: number;
 	autoPushChangedFilesOnly: boolean;
+	/** Name endings, comma or space separated: files saved every few seconds, pushed after their own quiet period. */
+	slowFileSuffixes: string;
+	slowFileSettleSeconds: number;
 	/** An automatic push publishing more than `bulkDeleteLimit` deletions holds them all for review. */
 	confirmBulkDeletes: boolean;
 	bulkDeleteLimit: number;
@@ -107,6 +112,8 @@ export const DEFAULT_CORE_SETTINGS: CoreSettings = {
 	autoPushAfterChange: false,
 	autoPushSettleSeconds: 10,
 	autoPushChangedFilesOnly: false,
+	slowFileSuffixes: ".excalidraw.md, .canvas",
+	slowFileSettleSeconds: 60,
 	confirmBulkDeletes: true,
 	bulkDeleteLimit: 5,
 	fileHistoryEnabled: false,
@@ -170,6 +177,10 @@ export const NUMERIC_BOUNDS = {
 	autoPushSettleSeconds: {
 		min: AUTO_PUSH_SETTLE_MIN_SECONDS,
 		max: AUTO_PUSH_SETTLE_MAX_SECONDS,
+	},
+	slowFileSettleSeconds: {
+		min: SLOW_FILE_SETTLE_MIN_SECONDS,
+		max: SLOW_FILE_SETTLE_MAX_SECONDS,
 	},
 	bulkDeleteLimit: {
 		min: BULK_DELETE_LIMIT_MIN,
