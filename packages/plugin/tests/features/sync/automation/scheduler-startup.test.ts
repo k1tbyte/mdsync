@@ -4,6 +4,7 @@ import {
 	registerScheduler,
 	type SchedulerHost,
 } from "@/features/sync/automation/scheduler";
+import { SlowFiles } from "@/features/sync/automation/slow-files";
 import type { SyncController } from "@/features/sync/controller";
 
 interface Harness {
@@ -38,7 +39,11 @@ function harness(state: {
 			},
 		},
 		app: {
-			workspace: { layoutReady: state.layoutReady },
+			workspace: {
+				layoutReady: state.layoutReady,
+				on: () => ({}),
+				getActiveFile: () => null,
+			},
 			metadataCache: {
 				initialized: state.initialized,
 				on: (name: string, fn: () => void) => {
@@ -59,6 +64,7 @@ function harness(state: {
 		},
 		getSnapshot: () => ({ error: null, offline: false, spaceErrors: [] }),
 		subscribe: () => () => undefined,
+		slowFiles: new SlowFiles(),
 	} as unknown as SyncController;
 	registerScheduler(host, controller);
 	return {

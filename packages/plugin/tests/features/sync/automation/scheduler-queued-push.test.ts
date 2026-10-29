@@ -5,10 +5,16 @@ import {
 	registerScheduler,
 	type SchedulerHost,
 } from "@/features/sync/automation/scheduler";
+import {
+	SLOW_FILE_CAP_MS,
+	SlowFiles,
+} from "@/features/sync/automation/slow-files";
 import type { SyncController } from "@/features/sync/controller";
 import { type Space, VAULT_SPACE } from "@/features/sync/remote/space";
 
 const SETTLE_MS = DEFAULT_SETTINGS.autoPushSettleSeconds * 1000;
+const SLOW_MS = DEFAULT_SETTINGS.slowFileSettleSeconds * 1000;
+const DRAWING = "d.excalidraw.md";
 
 interface Harness {
 	host: SchedulerHost;
@@ -18,6 +24,9 @@ interface Harness {
 	sharePushes: () => ReadonlyArray<ReadonlySet<string>>;
 	goOnline: () => void;
 	saved: () => readonly string[];
+	/** Shows `path` in the active view. */
+	open: (path: string | null) => void;
+	slow: SlowFiles;
 }
 
 const SHARES: Record<string, Space> = {
@@ -39,6 +48,8 @@ function harness(options: {
 		string,
 		(file: { path: string }, oldPath?: string) => void
 	>();
+	const workspaceListeners: Array<() => void> = [];
+	let active: string | null = null;
 	const host = {
 		settings: {
 			...DEFAULT_SETTINGS,
@@ -59,10 +70,21 @@ function harness(options: {
 			},
 		},
 		app: {
-			workspace: { layoutReady: true },
+			workspace: {
+				layoutReady: true,
+				getActiveFile: () => (active === null ? null : { path: active }),
+				on: (_event: string, listener: () => void) => {
+					workspaceListeners.push(listener);
+					return {};
+				},
+			},
 			metadataCache: {
 				initialized: true,
 				on: () => ({}),
+				getCache: (path: string) =>
+					path === "Sketch.md"
+						? { frontmatter: { "excalidraw-plugin": "parsed" } }
+						: null,
 			},
 			vault: {
 				on: (
@@ -94,6 +116,7 @@ function harness(options: {
 		autoPushShares: async (paths: ReadonlySet<string>) => {
 			sharePushes.push(paths);
 		},
+		slowFiles: new SlowFiles(),
 		subscribe: () => () => undefined,
 		connectivityChanged: () => undefined,
 		getSnapshot: () => ({
@@ -119,6 +142,11 @@ function harness(options: {
 			vi.stubGlobal("navigator", { onLine: true });
 			for (const fn of onlineListeners) fn();
 		},
+		open: (path) => {
+			active = path;
+			for (const fn of workspaceListeners) fn();
+		},
+		slow: controller.slowFiles,
 	};
 }
 
@@ -271,5 +299,105 @@ describe("queued push after changes settle", () => {
 		await vi.advanceTimersByTimeAsync(SETTLE_MS);
 		expect(h.refreshes()).toBe(0);
 		expect(h.pushes()).toHaveLength(0);
+	});
+});
+
+describe("slow files", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.stubGlobal("navigator", { onLine: true });
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.unstubAllGlobals();
+	});
+
+	const pushed = (h: Harness): string[][] =>
+		h.pushes().map((paths) => [...(paths ?? [])]);
+
+	/** Saves `path` every 5 s for `ms`, as Excalidraw does while someone draws. */
+	async function drawFor(h: Harness, path: string, ms: number): Promise<void> {
+		for (let at = 0; at < ms; at += 5_000) {
+			h.emit("modify", path);
+			await vi.advanceTimersByTimeAsync(5_000);
+		}
+	}
+
+	it("keeps a drawing's saves from holding back the vault's queue", async () => {
+		const h = harness({ enabled: true, queuedOnly: true });
+		h.open(DRAWING);
+		h.emit("modify", "a.md");
+		await drawFor(h, DRAWING, 30_000);
+		expect(pushed(h)).toEqual([["a.md"]]);
+		expect(h.slow.holds(DRAWING)).toBe(true);
+	});
+
+	it("pushes a drawing after its own quiet period", async () => {
+		const h = harness({ enabled: true, queuedOnly: true });
+		h.open(DRAWING);
+		h.emit("modify", DRAWING);
+		await vi.advanceTimersByTimeAsync(SLOW_MS + SETTLE_MS - 1);
+		expect(h.pushes()).toHaveLength(0);
+		await vi.advanceTimersByTimeAsync(1);
+		expect(pushed(h)).toEqual([[DRAWING]]);
+		expect(h.slow.holds(DRAWING)).toBe(false);
+	});
+
+	it("pushes a drawing once its view is left", async () => {
+		const h = harness({ enabled: true, queuedOnly: true });
+		h.open(DRAWING);
+		h.emit("modify", DRAWING);
+		h.open("a.md");
+		await vi.advanceTimersByTimeAsync(SETTLE_MS);
+		expect(pushed(h)).toEqual([[DRAWING]]);
+	});
+
+	it("pushes nonstop drawing every 10 minutes, then holds it again", async () => {
+		const h = harness({ enabled: true, queuedOnly: true });
+		h.open(DRAWING);
+		await drawFor(h, DRAWING, SLOW_FILE_CAP_MS + SETTLE_MS);
+		expect(pushed(h)).toEqual([[DRAWING]]);
+		expect(h.slow.holds(DRAWING)).toBe(true);
+	});
+
+	it("takes a drawing named as a plain note", async () => {
+		const h = harness({ enabled: true, queuedOnly: true });
+		h.open("Sketch.md");
+		h.emit("modify", "Sketch.md");
+		await vi.advanceTimersByTimeAsync(SETTLE_MS);
+		expect(h.pushes()).toHaveLength(0);
+		expect(h.slow.holds("Sketch.md")).toBe(true);
+	});
+
+	it("queues a slow file as usual when it is not open or not listed", async () => {
+		const h = harness({ enabled: true, queuedOnly: true });
+		h.open("a.md");
+		h.emit("modify", DRAWING);
+		h.host.settings.slowFileSuffixes = ".canvas";
+		h.open("b.excalidraw.md");
+		h.emit("modify", "b.excalidraw.md");
+		await vi.advanceTimersByTimeAsync(SETTLE_MS);
+		expect(pushed(h)).toEqual([[DRAWING, "b.excalidraw.md"]]);
+	});
+
+	it("lets a rename or deletion of a held file go with its own event", async () => {
+		const h = harness({ enabled: true, queuedOnly: true });
+		h.open(DRAWING);
+		h.emit("modify", DRAWING);
+		h.emit("rename", "e.excalidraw.md", DRAWING);
+		expect(h.slow.holds(DRAWING)).toBe(false);
+		await vi.advanceTimersByTimeAsync(SETTLE_MS);
+		expect(pushed(h)).toEqual([["e.excalidraw.md", DRAWING]]);
+	});
+
+	it("drops a due file nothing queues, so a later save holds it again", async () => {
+		const h = harness({ enabled: false, queuedOnly: true });
+		h.open(DRAWING);
+		h.emit("modify", DRAWING);
+		await vi.advanceTimersByTimeAsync(SLOW_MS);
+		expect(h.slow.holds(DRAWING)).toBe(false);
+		h.emit("modify", DRAWING);
+		expect(h.slow.holds(DRAWING)).toBe(true);
 	});
 });

@@ -17,6 +17,7 @@ Paths are relative to `packages/plugin/src/`. Wizard steps and modules: `feature
 - Sync is manual by default (`compare`, `push`, `pull`); autosync and push-after-change are opt-in. Push and pull run a compare preflight and surface conflicts, never choose a side silently.
 - `reset-remote-storage` stays confirmation-gated (`confirmRemoteReset`, `features/sync/ui/reset-modal.ts`). It deletes `manifest.json.enc`, `objects/`, `history/`, the 1.x `history.json.enc` and `pins/` under the prefix (history must not outlive its objects), keeps local files, clears local `baseline` and `vaultId`, and keeps the salt and key file so the passphrase-derived key stays valid.
 - An automatic push (autosync push-after-pull, after changes settle, shares right away) publishing more than `bulkDeleteLimit` deletions (default 5) holds all of them for review with a notice; `confirmBulkDeletes` turns that off. Manual pushes are never held.
+- Slow files (`slowFileSuffixes`; a drawing by its front matter counts as `.excalidraw.md`) saved in the active view stay out of the quiet queue and every automatic push (`SlowFiles` in `features/sync/automation/slow-files.ts`, read by `createAutoPushSelector`) until `slowFileSettleSeconds` of quiet, a leave of the view, or 10 min after the first held save; then they queue as any edit. A save while its push is queued holds it again once that push ends.
 
 ## Settings
 
@@ -32,7 +33,7 @@ Paths are relative to `packages/plugin/src/`. Wizard steps and modules: `feature
 
 ## Device transfer (`features/transfer/`)
 
-- `TRANSFER_FIELDS` in `features/transfer/transfer.ts` is an allowlist: a setting not listed there is not exported. Payload uses short keys, omits default-valued fields, deflates only when that is smaller.
+- `TRANSFER_FIELDS` in `features/transfer/transfer.ts` is an allowlist: a setting not listed there is not exported. Payload uses short keys, omits default-valued fields, deflates only when that is smaller. A retired short key is never reused: older links still carry it.
 - Import needs the same passphrase and explicit consent: the import modal asks for typed `IMPORT` after listing the sections it replaces (`importedSections`); the wizard's `importWith` has the passphrase typed beside the link and its button is the consent, with the step saying what it replaces.
 - An imported section replaces every field in it: one left default on the other device resets here. In the wizard import the passphrase becomes this device's only when the link carried storage; without storage it opens nothing here.
 

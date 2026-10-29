@@ -15,6 +15,10 @@ export const AUTO_PUSH_SETTLE_MIN_SECONDS = 3;
 
 export const AUTO_PUSH_SETTLE_MAX_SECONDS = 60;
 
+export const SLOW_FILE_SETTLE_MIN_SECONDS = 10;
+
+export const SLOW_FILE_SETTLE_MAX_SECONDS = 300;
+
 export const BULK_DELETE_LIMIT_MIN = 0;
 
 export const BULK_DELETE_LIMIT_MAX = 1000;

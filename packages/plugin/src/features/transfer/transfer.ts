@@ -34,6 +34,7 @@ const STORAGE_BACKENDS = new Set<string>(Object.values(EStorageBackend));
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
+// A retired key is never reused: links made before still carry it ("j" was a history limit).
 const TRANSFER_FIELDS = {
 	q: {
 		ignorePatterns: "i",
@@ -47,6 +48,8 @@ const TRANSFER_FIELDS = {
 		autoPushAfterChange: "p",
 		autoPushSettleSeconds: "g",
 		autoPushChangedFilesOnly: "c",
+		slowFileSuffixes: "l",
+		slowFileSettleSeconds: "q",
 		confirmBulkDeletes: "d",
 		bulkDeleteLimit: "b",
 		pushSharesRightAway: "s",

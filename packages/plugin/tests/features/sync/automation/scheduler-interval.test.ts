@@ -6,6 +6,7 @@ import {
 	SCHEDULER_HEARTBEAT_MS,
 	type SchedulerHost,
 } from "@/features/sync/automation/scheduler";
+import { SlowFiles } from "@/features/sync/automation/slow-files";
 import type { SyncController } from "@/features/sync/controller";
 import { VAULT_SPACE } from "@/features/sync/remote/space";
 
@@ -79,7 +80,11 @@ function harness(settings: {
 			},
 		},
 		app: {
-			workspace: { layoutReady: true },
+			workspace: {
+				layoutReady: true,
+				on: () => ({}),
+				getActiveFile: () => null,
+			},
 			metadataCache: {
 				initialized: true,
 				on: () => ({}),
@@ -125,6 +130,7 @@ function harness(settings: {
 			statusListeners.push(listener);
 			return () => undefined;
 		},
+		slowFiles: new SlowFiles(),
 	} as unknown as SyncController;
 	registerScheduler(host, controller);
 	return {

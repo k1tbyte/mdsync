@@ -107,7 +107,11 @@ describe("createAutoPushSelector", () => {
 
 	it("reports a held set once, however many cycles hold it", () => {
 		const report = vi.fn();
-		const select = createAutoPushSelector(() => 1, report);
+		const select = createAutoPushSelector(
+			() => 1,
+			report,
+			() => false,
+		);
 		expect(select(VAULT_SPACE, two)).toEqual([]);
 		select(VAULT_SPACE, two);
 		expect(report).toHaveBeenCalledOnce();
@@ -117,7 +121,11 @@ describe("createAutoPushSelector", () => {
 	it("reports the set again once a full selection held nothing", () => {
 		const report = vi.fn();
 		let limit: number | null = 1;
-		const select = createAutoPushSelector(() => limit, report);
+		const select = createAutoPushSelector(
+			() => limit,
+			report,
+			() => false,
+		);
 		select(VAULT_SPACE, two);
 		select(VAULT_SPACE, two, new Set(["c.md"]));
 		select(VAULT_SPACE, two);
@@ -127,5 +135,14 @@ describe("createAutoPushSelector", () => {
 		limit = 1;
 		select(VAULT_SPACE, two);
 		expect(report).toHaveBeenCalledTimes(2);
+	});
+
+	it("leaves out a slow file still being edited", () => {
+		const select = createAutoPushSelector(
+			() => null,
+			vi.fn(),
+			(path) => path === "a.md",
+		);
+		expect(select(VAULT_SPACE, two)).toEqual(["b.md"]);
 	});
 });

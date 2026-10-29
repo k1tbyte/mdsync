@@ -9,6 +9,8 @@ import {
 	HISTORY_KEEP_MS,
 	HISTORY_KEEP_TEXT,
 	LIVE_SEND_MS,
+	SLOW_FILE_SETTLE_MAX_SECONDS,
+	SLOW_FILE_SETTLE_MIN_SECONDS,
 } from "@/core/constants";
 import type { RelayStatus } from "@/core/hub";
 import { closePluginSettings, RELAY_TEXT } from "@/core/hub";
@@ -160,6 +162,25 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 		sub: true,
 		get: (s) => s.autoPushChangedFilesOnly,
 		set: (v) => ({ autoPushChangedFilesOnly: v }),
+	},
+	{
+		kind: EFieldKind.Text,
+		name: "Slow files",
+		desc: "Files ending with these, separated by commas, save every few seconds while you work on them. An automatic push waits until you stop or leave the file, at most 10 minutes. Excalidraw drawings count as .excalidraw.md whatever their name. Pushing by hand sends them at once.",
+		placeholder: ".excalidraw.md, .canvas",
+		get: (s) => s.slowFileSuffixes,
+		set: (v) => ({ slowFileSuffixes: v }),
+	},
+	{
+		kind: EFieldKind.Slider,
+		name: "Slow files quiet period (seconds)",
+		desc: `How long a slow file must stay unchanged before an automatic push takes it (${SLOW_FILE_SETTLE_MIN_SECONDS}-${SLOW_FILE_SETTLE_MAX_SECONDS}).`,
+		sub: true,
+		min: SLOW_FILE_SETTLE_MIN_SECONDS,
+		max: SLOW_FILE_SETTLE_MAX_SECONDS,
+		step: 5,
+		get: (s) => s.slowFileSettleSeconds,
+		set: (v) => ({ slowFileSettleSeconds: v }),
 	},
 	{
 		kind: EFieldKind.Toggle,

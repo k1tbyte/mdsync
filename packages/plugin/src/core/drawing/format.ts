@@ -35,10 +35,14 @@ const EMBEDDED = "## Embedded Files";
 /** Front matter sits at the top; a drawing names itself well before this. */
 export const HEAD_BYTES = 1024;
 
+/** The front matter key that makes a note a drawing, whatever its name. */
+export const DRAWING_KEY = "excalidraw-plugin";
+const DRAWING_LINE = new RegExp(`^${DRAWING_KEY}:`, "m");
+
 export function isDrawing(text: string): boolean {
 	if (!text.startsWith("---")) return false;
 	const end = text.indexOf("\n---", 3);
-	return /^excalidraw-plugin:/m.test(end < 0 ? text : text.slice(0, end));
+	return DRAWING_LINE.test(end < 0 ? text : text.slice(0, end));
 }
 
 export function readDrawing(text: string): Drawing | null {

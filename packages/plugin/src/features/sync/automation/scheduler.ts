@@ -3,6 +3,7 @@ import type { MdsyncSettings } from "@/core/settings";
 import type { SyncController, SyncStatusSnapshot } from "../controller";
 import { type Space, spaceOf, VAULT_SPACE } from "../remote/space";
 import { canSync } from "../settings";
+import { isSlowFile, type QueueEdit } from "./slow-files";
 
 const AUTO_PULL_STARTUP_DELAY_MS = 3_000;
 
@@ -155,12 +156,18 @@ export function registerScheduler(
 		}
 	});
 	const backingOff = (): boolean => Date.now() < backoffUntil;
+	const slow = controller.slowFiles;
+	host.register(() => slow.clear());
+	const slowQuietMs = (): number => host.settings.slowFileSettleSeconds * 1000;
+	const settle = (paths: ReadonlySet<string>) => (): void =>
+		slow.settled(paths, slowQuietMs(), queueEdit);
 	const queueVaultPush = quietQueue(
 		host,
 		() => host.settings.autoPushSettleSeconds * 1000,
 		backingOff,
 		onOnline,
-		(paths) => void runQueuedPush(host, controller, paths),
+		(paths) =>
+			void runQueuedPush(host, controller, paths).finally(settle(paths)),
 	);
 	// One per share: typing in one must not hold back another's push.
 	const shareQueues = new Map<string, (path: string) => void>();
@@ -173,34 +180,57 @@ export function registerScheduler(
 				backingOff,
 				onOnline,
 				(paths) => {
-					if (host.settings.pushSharesRightAway && canSync(host.settings)) {
-						void controller.autoPushShares(paths);
-					}
+					const push =
+						host.settings.pushSharesRightAway && canSync(host.settings)
+							? controller.autoPushShares(paths)
+							: Promise.resolve();
+					void push.finally(settle(paths));
 				},
 			);
 			shareQueues.set(space, queue);
 		}
 		queue(path);
 	};
+	const route = (path: string, edit: boolean): boolean => {
+		const { id, paused, readOnly } = spaceOf(host.spaces.partition(), path);
+		// Nothing there pushes: queued, it would only refresh.
+		if (paused || readOnly) return false;
+		const rightAway =
+			id !== VAULT_SPACE.id && host.settings.pushSharesRightAway;
+		// A waiting edit keeps its gutter marks until someone pushes it.
+		if (rightAway && !(edit && host.settings.shareEditsWait)) {
+			queueSharePush(id, path);
+			return true;
+		}
+		if (!rightAway && host.settings.autoPushAfterChange) {
+			queueVaultPush(path);
+			return true;
+		}
+		return false;
+	};
+	const queueEdit: QueueEdit = (path) => route(path, true);
+	const activePath = (): string | null =>
+		host.app.workspace.getActiveFile()?.path ?? null;
 	const onVaultEvent =
 		(edit: boolean) =>
 		(file: TAbstractFile, oldPath?: string): void => {
 			controller.noteLocalChange();
 			if (edit) controller.refreshSaved(file.path);
 			for (const path of oldPath ? [file.path, oldPath] : [file.path]) {
-				const { id, paused, readOnly } = spaceOf(host.spaces.partition(), path);
-				// Nothing there pushes: queued, it would only refresh.
-				if (paused || readOnly) continue;
-				const rightAway =
-					id !== VAULT_SPACE.id && host.settings.pushSharesRightAway;
-				// A waiting edit keeps its gutter marks until someone pushes it.
-				if (rightAway && !(edit && host.settings.shareEditsWait)) {
-					queueSharePush(id, path);
-				} else if (!rightAway && host.settings.autoPushAfterChange) {
-					queueVaultPush(path);
+				if (!edit) slow.forget(path);
+				else if (
+					path === activePath() &&
+					isSlowFile(host.app, path, host.settings.slowFileSuffixes)
+				) {
+					slow.saved(path, slowQuietMs(), queueEdit);
+					continue;
 				}
+				route(path, edit);
 			}
 		};
+	const leave = (): void => slow.left(activePath(), queueEdit);
+	host.registerEvent(host.app.workspace.on("active-leaf-change", leave));
+	host.registerEvent(host.app.workspace.on("file-open", leave));
 	host.registerEvent(host.app.vault.on("modify", onVaultEvent(true)));
 	host.registerEvent(host.app.vault.on("create", onVaultEvent(false)));
 	host.registerEvent(host.app.vault.on("delete", onVaultEvent(false)));
