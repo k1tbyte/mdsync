@@ -254,7 +254,8 @@ describe("settings transfer", () => {
 		});
 		expect(imported.ignorePatterns).toBe("*.tmp\n*.swp");
 		expect(imported.ignoreSymlinks).toBe(!DEFAULT_SETTINGS.ignoreSymlinks);
-		expect(imported.maxFileBytes).toBe(DEFAULT_SETTINGS.maxFileBytes + 1024);
+		// Sealed when the default was 100 MB.
+		expect(imported.maxFileBytes).toBe(100 * 1024 * 1024 + 1024);
 		expect(imported.autoSyncEnabled).toBe(!DEFAULT_SETTINGS.autoSyncEnabled);
 		expect(imported.autoSyncIntervalMinutes).toBe(
 			DEFAULT_SETTINGS.autoSyncIntervalMinutes + 5,

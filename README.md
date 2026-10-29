@@ -377,7 +377,7 @@ While the OAuth consent screen is in testing mode, Google expires refresh tokens
 
 What comes next, in this order:
 
-1. **Big files.** Today a file is read and encrypted whole, so anything over **Max file size** (100 MB by default) is skipped. Large files will sync in parts, so videos and big PDFs go through without holding the whole file in memory.
+1. **Big files.** Today a file is read whole into memory, so anything over **Max file size** (25 MB by default) is skipped. Large files will stream in parts, so videos and big PDFs go through without holding the whole file in memory.
 2. **Canvas sync.** Obsidian Canvas boards merge card by card and edit live, as Excalidraw drawings do.
 3. **Relay on your own server.** The relay will run outside Cloudflare too, for when the Workers free tier runs short, and as a home for features that need more than it gives.
 
