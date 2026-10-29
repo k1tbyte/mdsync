@@ -106,7 +106,7 @@ In **Settings → MDSync → Sync** you can turn on:
 
 - **Autosync**: compare, pull and push every few minutes.
 - **Push after changes settle**: push once the vault has been quiet for a set delay. It never pulls, so conflicts and incoming changes wait for you.
-- **Slow files**: drawings and canvases save every few seconds while you work. An automatic push leaves them until you pause, leave the file or 10 minutes pass, so your notes still go out on time. A push by hand sends them at once.
+- **Slow files**: drawings and canvases save every few seconds while you work. A push after changes leaves them until you pause, leave the file or 10 minutes pass, so your notes still go out on time. A push by hand sends them at once.
 - **Push after successful pull**.
 
 ### Conflicts

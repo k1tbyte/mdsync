@@ -63,7 +63,15 @@ export function createAutoPushSelector(
 			reported.set(space.id, key);
 			report(space, held);
 		}
-		return paths.filter((path) => !editing(path));
+		const waiting = new Set(paths.filter(editing));
+		// A push takes both ends of a move, so a held end holds the other.
+		for (const { from, to, side } of diff.moves) {
+			if (side === "local" && (editing(from) || editing(to))) {
+				waiting.add(from);
+				waiting.add(to);
+			}
+		}
+		return paths.filter((path) => !waiting.has(path));
 	};
 }
 

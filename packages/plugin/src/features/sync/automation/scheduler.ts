@@ -191,24 +191,29 @@ export function registerScheduler(
 		}
 		queue(path);
 	};
-	const route = (path: string, edit: boolean): boolean => {
+	/** Where an event of `path` queues; null when nothing there pushes on its own. */
+	const queueOf = (
+		path: string,
+		edit: boolean,
+	): ((path: string) => void) | null => {
 		const { id, paused, readOnly } = spaceOf(host.spaces.partition(), path);
 		// Nothing there pushes: queued, it would only refresh.
-		if (paused || readOnly) return false;
+		if (paused || readOnly) return null;
 		const rightAway =
 			id !== VAULT_SPACE.id && host.settings.pushSharesRightAway;
 		// A waiting edit keeps its gutter marks until someone pushes it.
 		if (rightAway && !(edit && host.settings.shareEditsWait)) {
-			queueSharePush(id, path);
-			return true;
+			return (queued) => queueSharePush(id, queued);
 		}
-		if (!rightAway && host.settings.autoPushAfterChange) {
-			queueVaultPush(path);
-			return true;
-		}
-		return false;
+		return !rightAway && host.settings.autoPushAfterChange
+			? queueVaultPush
+			: null;
 	};
-	const queueEdit: QueueEdit = (path) => route(path, true);
+	const queueEdit: QueueEdit = (path) => {
+		const queue = queueOf(path, true);
+		queue?.(path);
+		return queue !== null;
+	};
 	const activePath = (): string | null =>
 		host.app.workspace.getActiveFile()?.path ?? null;
 	const onVaultEvent =
@@ -218,14 +223,18 @@ export function registerScheduler(
 			if (edit) controller.refreshSaved(file.path);
 			for (const path of oldPath ? [file.path, oldPath] : [file.path]) {
 				if (!edit) slow.forget(path);
-				else if (
+				const queue = queueOf(path, edit);
+				if (!queue) continue;
+				// Held only where its edit queues: nothing else would ever release it to an automatic push.
+				if (
+					edit &&
 					path === activePath() &&
 					isSlowFile(host.app, path, host.settings.slowFileSuffixes)
 				) {
 					slow.saved(path, slowQuietMs(), queueEdit);
-					continue;
+				} else {
+					queue(path);
 				}
-				route(path, edit);
 			}
 		};
 	const leave = (): void => slow.left(activePath(), queueEdit);

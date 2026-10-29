@@ -145,4 +145,17 @@ describe("createAutoPushSelector", () => {
 		);
 		expect(select(VAULT_SPACE, two)).toEqual(["b.md"]);
 	});
+
+	it("leaves out both ends of a move one held end belongs to", () => {
+		const select = createAutoPushSelector(
+			() => null,
+			vi.fn(),
+			(path) => path === "b.canvas",
+		);
+		const moved = diff({
+			localChanges: [deleted("a.canvas"), added("b.canvas"), change("c.md")],
+			moves: [{ from: "a.canvas", to: "b.canvas", side: "local" }],
+		});
+		expect(select(VAULT_SPACE, moved)).toEqual(["c.md"]);
+	});
 });

@@ -391,12 +391,33 @@ describe("slow files", () => {
 		expect(pushed(h)).toEqual([["e.excalidraw.md", DRAWING]]);
 	});
 
-	it("drops a due file nothing queues, so a later save holds it again", async () => {
+	it("holds nothing where an edit would not queue, so a scheduled push still takes it", () => {
 		const h = harness({ enabled: false, queuedOnly: true });
 		h.open(DRAWING);
 		h.emit("modify", DRAWING);
+		expect(h.slow.holds(DRAWING)).toBe(false);
+	});
+
+	it("leaves a new shared drawing to its share's push while its edits wait", async () => {
+		const h = harness({ enabled: true, queuedOnly: true });
+		h.open("Team/new.excalidraw.md");
+		h.emit("create", "Team/new.excalidraw.md");
+		h.emit("modify", "Team/new.excalidraw.md");
+		expect(h.slow.holds("Team/new.excalidraw.md")).toBe(false);
+		await vi.advanceTimersByTimeAsync(2_000);
+		expect(h.sharePushes().map((paths) => [...paths])).toEqual([
+			["Team/new.excalidraw.md"],
+		]);
+	});
+
+	it("drops a held file whose queue was turned off before it was due", async () => {
+		const h = harness({ enabled: true, queuedOnly: true });
+		h.open(DRAWING);
+		h.emit("modify", DRAWING);
+		h.host.settings.autoPushAfterChange = false;
 		await vi.advanceTimersByTimeAsync(SLOW_MS);
 		expect(h.slow.holds(DRAWING)).toBe(false);
+		h.host.settings.autoPushAfterChange = true;
 		h.emit("modify", DRAWING);
 		expect(h.slow.holds(DRAWING)).toBe(true);
 	});

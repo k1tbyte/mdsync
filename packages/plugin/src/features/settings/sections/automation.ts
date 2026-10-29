@@ -166,7 +166,7 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 	{
 		kind: EFieldKind.Text,
 		name: "Slow files",
-		desc: "Files ending with these, separated by commas, save every few seconds while you work on them. An automatic push waits until you stop or leave the file, at most 10 minutes. Excalidraw drawings count as .excalidraw.md whatever their name. Pushing by hand sends them at once.",
+		desc: "Files ending with these, separated by commas, save every few seconds while you work on them. A push after changes waits until you stop or leave the file, at most 10 minutes. Excalidraw drawings count as .excalidraw.md whatever their name. Pushing by hand sends them at once.",
 		placeholder: ".excalidraw.md, .canvas",
 		get: (s) => s.slowFileSuffixes,
 		set: (v) => ({ slowFileSuffixes: v }),
