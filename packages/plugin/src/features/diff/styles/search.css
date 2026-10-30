@@ -8,6 +8,41 @@
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
+.mdsync-diff-view .cm-panels-bottom {
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+/* Go to line is CodeMirror's own dialog: Obsidian's field and button. */
+.mdsync-diff-view .cm-editor .cm-dialog {
+	padding: var(--size-4-1) var(--size-4-8) var(--size-4-1) var(--size-4-2);
+}
+
+.mdsync-diff-view .cm-editor .cm-dialog label {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+}
+
+.mdsync-diff-view .cm-editor .cm-textfield {
+	background-color: var(--background-modifier-form-field);
+	border-color: var(--background-modifier-border);
+	font-size: var(--font-ui-small);
+	margin-inline-start: var(--size-4-1);
+}
+
+.mdsync-diff-view .cm-editor .cm-button {
+	background-image: none;
+	border: none;
+	font-size: var(--font-ui-small);
+}
+
+.mdsync-diff-view .cm-editor .cm-dialog-close {
+	top: 50%;
+	transform: translateY(-50%);
+	right: var(--size-4-2);
+	color: var(--text-muted);
+	box-shadow: none;
+}
+
 /* As Obsidian's own note search: every match highlighted, the current one ringed. Older Obsidian names the highlight `--text-highlight-bg`. */
 .mdsync-diff-view .cm-editor .cm-searchMatch {
 	background-color: var(
