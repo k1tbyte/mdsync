@@ -10,6 +10,7 @@ export interface MergeProgress {
 	current: number;
 	canUndo: boolean;
 	canRedo: boolean;
+	versionsChanged: boolean;
 }
 
 /** The merge's parts of the diff frame; built once per render and moved into each new frame. */
@@ -23,10 +24,20 @@ export class MergeToolbar {
 	private save: HTMLButtonElement | null = null;
 	private unresolved = 0;
 
+	private readonly changed: HTMLElement;
+
 	constructor(nextConflict: () => void) {
 		this.status = appendLabeledButton(this.info, "", "", nextConflict);
 		this.status.addClasses(["mdsync-diff-status", "mdsync-merge-status"]);
 		this.status.setAttr("aria-description", "Goes to the next conflict");
+		this.changed = this.info.createSpan({
+			cls: "mdsync-merge-changed",
+			text: "File changed",
+			attr: {
+				"aria-label":
+					"This file changed since the merge opened, so Save will be refused",
+			},
+		});
 	}
 
 	mount(hosts: PanelHosts): void {
@@ -63,6 +74,7 @@ export class MergeToolbar {
 		if (undo) undo.disabled = !progress.canUndo;
 		if (redo) redo.disabled = !progress.canRedo;
 		this.showPosition?.(current, total);
+		this.changed.hidden = !progress.versionsChanged;
 		this.unresolved = unresolved;
 		this.showSave();
 	}

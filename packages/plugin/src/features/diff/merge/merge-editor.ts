@@ -16,7 +16,6 @@ import {
 	buildMergeSession,
 	countUnresolved,
 	type EMergeSide,
-	isResolved,
 	MERGE_SIDES,
 	type MergeChange,
 } from "@/features/sync";
@@ -28,11 +27,7 @@ import {
 	type LineWrappingOptions,
 } from "../line-wrapping-control";
 import { Divider } from "../lines/divider";
-import {
-	sideSpan,
-	spanBounds,
-	updatePaneViewportWidth,
-} from "../lines/geometry";
+import { sideSpan, updatePaneViewportWidth } from "../lines/geometry";
 import {
 	NO_ANCHORS,
 	PaneScrollSync,
@@ -50,8 +45,14 @@ import {
 	showSideChanges,
 	sideDecorations,
 } from "./merge-decorations";
+import { keepMergeDraft, type MergeDraft, startMerge } from "./merge-drafts";
 import { type SideMarks, sideMarks } from "./merge-marks";
-import { initialMergeChanges, mergeChangesField } from "./merge-state";
+import { MergeNavigation } from "./merge-navigation";
+import {
+	changeAt,
+	initialMergeChanges,
+	mergeChangesField,
+} from "./merge-state";
 import { MergeToolbar } from "./merge-toolbar";
 
 export class MergeEditorPanel {
@@ -66,18 +67,32 @@ export class MergeEditorPanel {
 	private dividers: Partial<Record<EMergeSide, Divider>> = {};
 	private scrollSync: PaneScrollSync | null = null;
 	private toolbar: MergeToolbar | null = null;
-	/** The selected change, or -1. */
-	private current = -1;
 	private layoutFrame: number | null = null;
 	private layoutMode: LayoutMode | null = null;
 	private wrapping: LineWrappingControl | null = null;
 	private active = false;
+	/** Opened from a draft: its edits count before any undo step exists. */
+	private restored = false;
+	/** A compare since opening saw other versions: Save will be refused. */
+	private versionsChanged = false;
 
 	private readonly dividerActions = mergeActions(() => ({
 		view: this.resultView,
 		sides: this.sides,
 		base: this.base,
 	}));
+
+	private readonly nav = new MergeNavigation({
+		result: () => this.resultView,
+		changes: () => this.currentChanges(),
+		paneSync: () => (this.layoutMode?.combined ? null : this.scrollSync),
+		onSelect: (index) => {
+			for (const side of MERGE_SIDES) {
+				this.dividers[side]?.select(index < 0 ? null : index);
+			}
+			this.updateStatus();
+		},
+	});
 
 	get isEditing(): boolean {
 		return this.active;
@@ -86,12 +101,52 @@ export class MergeEditorPanel {
 	/** Undoing every step back counts as none: nothing would be lost. */
 	get hasEdits(): boolean {
 		return (
-			this.active && !!this.resultView && undoDepth(this.resultView.state) > 0
+			this.active &&
+			!!this.resultView &&
+			(this.restored || undoDepth(this.resultView.state) > 0)
 		);
 	}
 
 	reset(): void {
 		this.active = false;
+		this.restored = false;
+	}
+
+	/** Obsidian cannot cancel a tab close: the edits wait for the next Merge of the same versions. */
+	keepDraft(path: string): void {
+		const view = this.resultView;
+		if (!this.hasEdits || !view || !this.expected) return;
+		keepMergeDraft(path, {
+			text: view.state.doc.toString(),
+			changes: view.state.field(mergeChangesField),
+			expected: this.expected,
+		});
+	}
+
+	/** Says it as soon as a compare finds the conflict at other versions, not only when Save fails. */
+	checkVersions(current: MergeDraft["expected"] | undefined): void {
+		const { expected } = this;
+		if (!this.active || !current || !expected) return;
+		const changed =
+			current.localHash !== expected.localHash ||
+			current.remoteHash !== expected.remoteHash;
+		if (changed === this.versionsChanged) return;
+		this.versionsChanged = changed;
+		this.updateStatus();
+		if (!changed) return;
+		notifyInfo(
+			"This file changed since its merge opened, so Save will be refused. Copy what you need from Result, then cancel and merge again.",
+		);
+	}
+
+	/** Settles the change at the cursor, else the selected one, with these sides in order. */
+	take(sides: readonly EMergeSide[]): void {
+		const view = this.resultView;
+		if (!view) return;
+		const at = changeAt(view.state, view.state.selection.main.head);
+		const index = at >= 0 ? at : this.nav.current;
+		if (index >= 0) this.dividerActions.settle(index, sides);
+		else notifyInfo("Put the cursor in a change first.");
 	}
 
 	/** `stillOn` says the view still shows `path` once the three versions arrive. */
@@ -105,15 +160,16 @@ export class MergeEditorPanel {
 			const texts = await plugin.controller.fileDiffs.getConflictThreeWay(path);
 			// Another file opened meanwhile, or a merge began: this one would replace it unasked.
 			if (!stillOn() || this.active) return;
-			if (!texts) {
-				notifyError(
-					"Cannot three-way merge this file (binary or no common ancestor). Use Keep local / Accept remote.",
-				);
+			if (typeof texts === "string") {
+				notifyError(`Cannot merge this file: ${texts}`);
 				return;
 			}
 			const session = buildMergeSession(texts.base, texts.local, texts.remote);
-			this.text = session.text;
-			this.changes = session.changes;
+			const start = startMerge(path, texts.expected, session);
+			this.text = start.text;
+			this.changes = start.changes;
+			this.restored = start.restored;
+			this.versionsChanged = false;
 			this.base = session.baseLines;
 			this.sides = {
 				local: session.localLines,
@@ -123,9 +179,7 @@ export class MergeEditorPanel {
 			this.expected = texts.expected;
 			this.active = true;
 			onEntered();
-			if (!session.changes.some((change) => change.conflict)) {
-				notifyInfo("No overlapping changes - auto-merged. Review and save.");
-			}
+			if (start.notice) notifyInfo(start.notice);
 		} catch (err) {
 			notifyError("Merge failed", err);
 		}
@@ -151,7 +205,7 @@ export class MergeEditorPanel {
 	}
 
 	private renderToolbar(root: HTMLElement): void {
-		const toolbar = new MergeToolbar(() => this.jumpToConflict());
+		const toolbar = new MergeToolbar(() => this.nextConflict());
 		this.toolbar = toolbar;
 		this.layoutMode = new LayoutMode(
 			root,
@@ -168,7 +222,7 @@ export class MergeEditorPanel {
 			() => this.resultView && undo(this.resultView),
 			() => this.resultView && redo(this.resultView),
 		);
-		toolbar.navigation((delta) => this.jump(delta));
+		toolbar.navigation((delta) => this.nav.jump(delta));
 	}
 
 	private renderDesktop(root: HTMLElement): void {
@@ -204,7 +258,7 @@ export class MergeEditorPanel {
 		const result = this.makeResultEditor(resultHost, marks, resultLabel);
 		const remote = this.makeSideEditor(remoteHost, "remote", marks);
 		this.sideViews = { local, remote };
-		const select = (key: number | null) => this.select(key ?? -1);
+		const select = (key: number | null) => this.nav.select(key ?? -1);
 		this.dividers = {
 			local: new Divider(leftEl, local, result, "left", select),
 			remote: new Divider(rightEl, remote, result, "right", select),
@@ -243,7 +297,7 @@ export class MergeEditorPanel {
 				doc: this.sides[side].join("\n"),
 				extensions: [
 					EditorState.readOnly.of(true),
-					changeNavigation((delta) => this.jump(delta)),
+					changeNavigation((delta) => this.nav.jump(delta)),
 					lineNumbers(),
 					this.wrapping?.extension() ?? [],
 					sideDecorations(side, marks),
@@ -279,7 +333,7 @@ export class MergeEditorPanel {
 					history(),
 					// Labelled by the pane head: an aria-label shows Obsidian's tooltip over the whole editor.
 					EditorView.contentAttributes.of({ "aria-labelledby": labelId }),
-					changeNavigation((delta) => this.jump(delta)),
+					changeNavigation((delta) => this.nav.jump(delta)),
 					keymap.of(historyKeymap),
 					lineNumbers(),
 					this.wrapping?.extension() ?? [],
@@ -343,65 +397,15 @@ export class MergeEditorPanel {
 		this.toolbar?.update({
 			unresolved: countUnresolved(changes),
 			total: changes.length,
-			current: this.current,
+			current: this.nav.current,
 			canUndo: undoDepth(view.state) > 0,
 			canRedo: redoDepth(view.state) > 0,
+			versionsChanged: this.versionsChanged,
 		});
 	}
 
-	/** Raises the change on both strips and shows its position. */
-	private select(index: number): void {
-		this.current = index;
-		for (const side of MERGE_SIDES) {
-			this.dividers[side]?.select(index < 0 ? null : index);
-		}
-		this.updateStatus();
-	}
-
-	private jump(delta: number): void {
-		const total = this.currentChanges().length;
-		if (total === 0) return;
-		let next = (this.current + delta + total) % total;
-		if (this.current < 0) next = delta > 0 ? 0 : total - 1;
-		this.reveal(next);
-	}
-
-	/** The next unresolved change after the selected one, wrapping round. */
-	private jumpToConflict(): void {
-		const changes = this.currentChanges();
-		const total = changes.length;
-		for (let step = 1; step <= total; step++) {
-			const index = (Math.max(this.current, -1) + step) % total;
-			const change = changes[index];
-			if (change && !isResolved(change)) {
-				this.reveal(index);
-				return;
-			}
-		}
-	}
-
-	private reveal(index: number): void {
-		const view = this.resultView;
-		const target = this.currentChanges()[index];
-		if (!view || !target) return;
-		// The strips show its buttons, so the keyboard reaches them with Tab.
-		this.select(index);
-		const combined = this.layoutMode?.combined ?? false;
-		view.dispatch({
-			selection: { anchor: target.result.from },
-			effects:
-				this.scrollSync && !combined
-					? []
-					: EditorView.scrollIntoView(target.result.from, { y: "center" }),
-		});
-		if (!combined && this.scrollSync) {
-			const top = spanBounds(
-				view,
-				snapToLines(view.state.doc, target.result),
-			).top;
-			this.scrollSync.revealIn(view, top);
-		}
-		view.focus();
+	nextConflict(): void {
+		this.nav.nextConflict();
 	}
 
 	async save(
@@ -451,6 +455,6 @@ export class MergeEditorPanel {
 		this.toolbar?.controls.remove();
 		this.toolbar = null;
 		this.wrapping = null;
-		this.current = -1;
+		this.nav.current = -1;
 	}
 }

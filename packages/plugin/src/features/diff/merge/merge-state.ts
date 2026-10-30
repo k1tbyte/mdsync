@@ -1,6 +1,7 @@
 import { invertedEffects } from "@codemirror/commands";
 import {
 	type ChangeDesc,
+	type EditorState,
 	Facet,
 	StateEffect,
 	StateField,
@@ -16,6 +17,7 @@ import {
 	patchTaken,
 	type StatusPatch,
 	sameStatus,
+	snapToLines,
 	type TakenPatch,
 } from "./edit-plan";
 
@@ -91,6 +93,19 @@ export const mergeChangesField = StateField.define<readonly MergeChange[]>({
 		});
 	},
 });
+
+/** The change whose lines hold `pos`, or -1. */
+export function changeAt(state: EditorState, pos: number): number {
+	const { doc } = state;
+	return state.field(mergeChangesField).findIndex((change) => {
+		const { from, to } = snapToLines(doc, change.result);
+		// A last line with no line break after it ends at the doc end, still inside.
+		const lastLine = to === doc.length && doc.lineAt(pos).from < pos;
+		return (
+			pos === from || (pos > from && (pos < to || (pos === to && lastLine)))
+		);
+	});
+}
 
 /** Records the pre-transaction change state so undo restores spans and statuses. */
 export const rememberChangeState = invertedEffects.of((tr) => {

@@ -142,6 +142,8 @@ async function settleConflict(
 	}
 	// No common ancestor: nothing to merge against, and no reason to stat.
 	if (!conflict.baselineHash) return undefined;
+	// A line merge of plugin code or JSON can be valid by lines and broken as a file; those go to the merge screen.
+	if (!/\.md$/i.test(conflict.path)) return undefined;
 	// Rules out binary/oversized files by path and manifest size without downloading them.
 	const mergeable = await isTextMergeCandidate(
 		deps,

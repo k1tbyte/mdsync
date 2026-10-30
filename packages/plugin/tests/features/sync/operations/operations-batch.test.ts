@@ -456,12 +456,12 @@ describe("batch operations", () => {
 describe("saving a merge resolution", () => {
 	const SHARED = "one\ntwo\nthree\nfour\nfive\nsix\n";
 
-	async function conflicted() {
-		const [a, b] = await syncedPair({ "note.md": SHARED });
-		b.adapter.putText("note.md", SHARED.replace("one", "ONE"));
+	async function conflicted(path = "note.md") {
+		const [a, b] = await syncedPair({ [path]: SHARED });
+		b.adapter.putText(path, SHARED.replace("one", "ONE"));
 		const bResult = await b.compare();
-		await pushPathsOp(b.deps(), bResult, ["note.md"], b.context());
-		a.adapter.putText("note.md", SHARED.replace("six", "SIX"));
+		await pushPathsOp(b.deps(), bResult, [path], b.context());
+		a.adapter.putText(path, SHARED.replace("six", "SIX"));
 		const result = await a.compare();
 		const [conflict] = result.diff.conflicts;
 		if (!conflict) throw new Error("expected a conflict");
@@ -520,6 +520,22 @@ describe("saving a merge resolution", () => {
 			),
 		).rejects.toThrow(/changed since the merge was opened/);
 		expect(a.text("note.md")).toBe("typed meanwhile\n");
+	});
+
+	it("refuses a JSON result that does not parse, writing and publishing nothing", async () => {
+		const { a, result, expected } = await conflicted("data.json");
+
+		await expect(
+			saveMergedOp(
+				a.deps(),
+				result,
+				{ path: "data.json", content: '{"a": 1,}', expected },
+				a.context(),
+			),
+		).rejects.toThrow(/not valid JSON/);
+		expect(a.text("data.json")).toBe(SHARED.replace("six", "SIX"));
+		const after = await a.compare();
+		expect(after.diff.conflicts.map((c) => c.path)).toEqual(["data.json"]);
 	});
 
 	it("refuses when the conflict is gone", async () => {

@@ -29,6 +29,12 @@ body.is-phone .mdsync-diff-header button.mdsync-merge-status {
 	min-height: 32px;
 }
 
+.mdsync-merge-changed {
+	margin-inline-start: var(--size-4-2);
+	color: var(--text-warning);
+	font-size: var(--font-ui-small);
+}
+
 .mdsync-merge-status .mdsync-labeled-btn-icon {
 	width: 6px;
 	height: 6px;
