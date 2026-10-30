@@ -372,12 +372,12 @@ describe("timelineDiffTarget", () => {
 		sizeDelta: 100,
 	};
 
-	it("current mode returns version with previewIfMissing", () => {
-		const target = timelineDiffTarget(fileRow, "current");
-		expect(target.hash).toBe("NEW");
-		expect(target.size).toBe(200);
-		expect(target.previewIfMissing).toBe(true);
-		expect(target.change).toBeUndefined();
+	it("current mode returns the version alone", () => {
+		expect(timelineDiffTarget(fileRow, "current")).toEqual({
+			hash: "NEW",
+			label: "after push",
+			size: 200,
+		});
 	});
 
 	it("change mode returns version with before/after change", () => {
@@ -385,12 +385,10 @@ describe("timelineDiffTarget", () => {
 		expect(target.hash).toBe("NEW");
 		expect(target.change?.before?.hash).toBe("OLD");
 		expect(target.change?.after?.hash).toBe("NEW");
-		expect(target.previewIfMissing).toBeUndefined();
 	});
 
 	it("defaults to current mode", () => {
-		const target = timelineDiffTarget(fileRow);
-		expect(target.previewIfMissing).toBe(true);
+		expect(timelineDiffTarget(fileRow).change).toBeUndefined();
 	});
 
 	it("targets do not lose sizes", () => {

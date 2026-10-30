@@ -27,6 +27,7 @@ import {
 	type LineWrappingOptions,
 } from "../line-wrapping-control";
 import { Divider } from "../lines/divider";
+import { followWindow } from "../lines/follow-window";
 import { sideSpan, updatePaneViewportWidth } from "../lines/geometry";
 import { PanelSearch } from "../lines/pane-search";
 import {
@@ -310,6 +311,7 @@ export class MergeEditorPanel {
 					EditorState.readOnly.of(true),
 					changeNavigation((delta) => this.nav.jump(delta)),
 					lineNumbers(),
+					followWindow(parent),
 					this.paneSearch.extension(side),
 					this.wrapping?.extension() ?? [],
 					sideDecorations(side, marks),
@@ -348,6 +350,7 @@ export class MergeEditorPanel {
 					changeNavigation((delta) => this.nav.jump(delta)),
 					keymap.of(historyKeymap),
 					lineNumbers(),
+					followWindow(parent),
 					this.paneSearch.extension("result"),
 					this.wrapping?.extension() ?? [],
 					EditorView.updateListener.of((update) => {

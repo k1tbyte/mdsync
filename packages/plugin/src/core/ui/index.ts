@@ -33,6 +33,7 @@ export {
 	reportError,
 	runWithNotice,
 } from "./notices";
+export { observeResize } from "./observe-resize";
 export { openInEditor, revealInFileExplorer } from "./obsidian-helpers";
 export { openNote } from "./open-note";
 export { redrawOnPhoneChange } from "./phone-change";

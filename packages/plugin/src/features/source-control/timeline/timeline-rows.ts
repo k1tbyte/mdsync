@@ -205,20 +205,10 @@ export function timelineDiffTarget(
 	file: TimelineFileRow,
 	mode: "current" | "change" = "current",
 ): HistoryDiffTarget {
-	if (mode === "change") {
-		return {
-			hash: file.version.hash,
-			label: file.version.label,
-			size: file.version.size,
-			change: { before: file.before, after: file.after },
-		};
-	}
-	return {
-		hash: file.version.hash,
-		label: file.version.label,
-		size: file.version.size,
-		previewIfMissing: true,
-	};
+	const { hash, label, size } = file.version;
+	return mode === "change"
+		? { hash, label, size, change: { before: file.before, after: file.after } }
+		: { hash, label, size };
 }
 
 /** Lines for the confirmation, ordered so the destructive count is not buried. */

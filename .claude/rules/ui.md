@@ -22,6 +22,7 @@ Paths are relative to `packages/plugin/src/`. Stylesheet order, tokens and row m
 | one choice of a few | `renderSegments` (native radios, locks while saving) |
 | inline state, warning | `callout`, `alertLine`, `copyable`, `renderPath`, `slideWhenCut` / `measureSlide` (cut paths slide) |
 | redraw keeping focus | `renderKeepingFocus`, `focusKey`, `onEnter`, `onLongPress` |
+| an element's size | `observeResize`: the observer of the element's own window (settings and popouts are windows of their own), rebuilt when Obsidian moves the tab. Never `new ResizeObserver` |
 | wizard-only parts | `choiceCard`, `actionRow`, `busyLine`, `renderTokenForm` (`features/setup/`) |
 
 When one falls short, extend it in `core/ui` instead of writing a second.

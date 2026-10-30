@@ -10,6 +10,7 @@ import {
 } from "../line-wrapping-control";
 import { ChangeOverlay } from "../lines/change-overlay";
 import { Divider, type DividerItem } from "../lines/divider";
+import { followWindow } from "../lines/follow-window";
 import { foldedBands } from "../lines/gap-widgets";
 import {
 	sideSpan,
@@ -273,6 +274,7 @@ export class ComparePanel {
 						},
 					}),
 					lineNumbers(),
+					followWindow(parent),
 					this.search.extension(side),
 					EditorView.domEventHandlers({
 						// A click on a change's lines selects it, as one on its connector does.

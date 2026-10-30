@@ -23,7 +23,6 @@ export interface DiffViewState {
 	againstLabel?: string;
 	againstSize?: number;
 	historyChange?: HistoryChange;
-	historyPreviewIfMissing?: boolean;
 	/** Open directly in merge; never stored. */
 	merge?: boolean;
 }
@@ -32,7 +31,6 @@ export interface HistoryDiffTarget extends HistoryVersionRef {
 	/** Right side. Without it the version is diffed against the file on disk. */
 	against?: { hash: string; label: string; size?: number };
 	change?: HistoryChange;
-	previewIfMissing?: boolean;
 }
 
 /** `merge` goes straight into the conflict's merge, as the diff's Merge… does. */
@@ -53,7 +51,6 @@ export async function openDiffView(
 		againstLabel: history?.against?.label,
 		againstSize: history?.against?.size,
 		historyChange: history?.change,
-		historyPreviewIfMissing: history?.previewIfMissing,
 		merge: merge || undefined,
 	};
 	await leaf.setViewState({
@@ -72,7 +69,6 @@ export interface DiffTarget {
 	historySize: number | undefined;
 	against: HistoryVersionRef | null;
 	historyChange: HistoryChange | null;
-	historyPreviewIfMissing: boolean;
 }
 
 /** A state without a path keeps `path`; every other field it leaves out resets. */
@@ -93,7 +89,6 @@ export function readTarget(
 				}
 			: null,
 		historyChange: state.historyChange ?? null,
-		historyPreviewIfMissing: state.historyPreviewIfMissing ?? false,
 	};
 }
 
@@ -112,7 +107,6 @@ export function targetState(target: DiffTarget): DiffViewState {
 		againstLabel: against?.label,
 		againstSize: against?.size,
 		historyChange: target.historyChange ?? undefined,
-		historyPreviewIfMissing: target.historyPreviewIfMissing || undefined,
 	};
 }
 
@@ -123,31 +117,12 @@ export function sameTarget(a: DiffTarget, b: DiffTarget): boolean {
 		a.historyHash === b.historyHash &&
 		a.against?.hash === b.against?.hash &&
 		(a.historyHash === null || a.historyLabel === b.historyLabel) &&
-		!changesDiffer(a.historyChange, b.historyChange) &&
-		a.historyPreviewIfMissing === b.historyPreviewIfMissing
+		!changesDiffer(a.historyChange, b.historyChange)
 	);
 }
 
-export type HistoryMode = "change" | "preview" | "diff";
-
-export interface HistoryModeInput
-	extends Pick<
-		DiffTarget,
-		"historyHash" | "historyChange" | "historyPreviewIfMissing" | "against"
-	> {
-	localExists: boolean;
-}
-
-export function selectHistoryMode(input: HistoryModeInput): HistoryMode {
-	if (!input.historyHash) return "diff";
-	if (input.historyChange) return "change";
-	if (input.against) return "diff";
-	if (input.historyPreviewIfMissing && !input.localExists) return "preview";
-	return "diff";
-}
-
 export interface HistoryRequestInput
-	extends Omit<DiffTarget, "path" | "historyHash" | "historyPreviewIfMissing"> {
+	extends Omit<DiffTarget, "path" | "historyHash"> {
 	path: string;
 	historyHash: string;
 	forceText: boolean;

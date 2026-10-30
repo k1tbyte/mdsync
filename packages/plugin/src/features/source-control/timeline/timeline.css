@@ -231,26 +231,6 @@
 	height: var(--mdsync-icon);
 }
 
-.mdsync-diff-preview-header {
-	padding: var(--size-4-2);
-	color: var(--text-muted);
-	font-size: var(--font-ui-smaller);
-}
-
-.mdsync-diff-preview-body {
-	flex: 1;
-	min-height: 0;
-	overflow: hidden;
-}
-
-.mdsync-diff-preview-body .cm-editor {
-	height: 100%;
-}
-
-.mdsync-diff-preview-body .cm-scroller {
-	overflow: auto;
-}
-
 /* The resolution chip sits after the rule that fills the header. */
 .mdsync-timeline-res {
 	order: 2;

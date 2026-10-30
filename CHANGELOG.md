@@ -43,6 +43,12 @@ The newest section must match `version` in `manifest.json`. Headings are `## [x.
 
 - **Keep both versions** no longer creates a copy that would never sync, such as a plugin code file while only plugin settings sync.
 - On a phone, the back arrow in a diff keeps the sidebar open.
+- A deleted file opened from the Timeline shows the same diff as in **Deleted**, not a plain text view.
+- The activity calendar in settings opens scrolled to today.
+- A diff or source control tab moved to its own window follows that window's size: the diff turns Inline when narrow, long lists fill as the pane grows.
+- A diff or merge moved to its own window keeps line numbers beside the text.
+- Stepping through changes rings the change at once, without a flash at the top, and Inline rings a removed line's card.
+- In merge, the connectors of a conflict where both sides added lines reach its whole card instead of a thin tail hidden behind **Take**.
 
 ## [1.4.1] - 2026-10-27
 

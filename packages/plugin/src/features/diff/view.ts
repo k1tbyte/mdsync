@@ -13,7 +13,6 @@ import { EDiffDirection, type FileDiffModel } from "@/features/sync";
 import { watchDiffChrome } from "./action-bar";
 import { renderBinaryDiff } from "./compare/binary-view";
 import { type ComparePanel, renderTextDiff } from "./compare/compare-panel";
-import { PreviewPanel } from "./compare/preview-panel";
 import {
 	getAdjacentPath,
 	getNextConflictPath,
@@ -27,7 +26,6 @@ import {
 	fileTarget,
 	readTarget,
 	sameTarget,
-	selectHistoryMode,
 	targetState,
 } from "./history-state";
 import type { DiffHost } from "./host";
@@ -50,7 +48,6 @@ export class DiffView extends ItemView {
 	private model: FileDiffModel | null = null;
 	private readonly mergePanel = new MergeEditorPanel();
 	private comparePanel: ComparePanel | null = null;
-	private previewPanel: PreviewPanel | null = null;
 	private forceText = false;
 	private lineWrapping = true;
 	private pinChosen = true;
@@ -362,13 +359,8 @@ export class DiffView extends ItemView {
 		const body = this.bodyEl;
 		if (!body) return;
 		const model = this.model;
-		const preview =
-			model &&
-			selectHistoryMode({ ...this.target, localExists: model.rightPresent }) ===
-				"preview";
 		if (
 			model &&
-			!preview &&
 			!model.isBinary &&
 			!this.mergePanel.isEditing &&
 			this.comparePanel &&
@@ -396,11 +388,6 @@ export class DiffView extends ItemView {
 					this.lineWrapping = enabled;
 				},
 			});
-			return;
-		}
-		if (preview) {
-			this.previewPanel = new PreviewPanel();
-			this.previewPanel.render(body, model.leftText, this.target.historyLabel);
 			return;
 		}
 		this.comparePanel = renderTextDiff(body, model, {
@@ -492,7 +479,5 @@ export class DiffView extends ItemView {
 		this.mergePanel.destroy();
 		this.comparePanel?.destroy();
 		this.comparePanel = null;
-		this.previewPanel?.destroy();
-		this.previewPanel = null;
 	}
 }

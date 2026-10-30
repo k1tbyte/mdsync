@@ -1,3 +1,5 @@
+import { observeResize } from "@/core/ui";
+
 /**
  * Windows a long list against a scroll container that is not the list itself: the whole pane scrolls.
  * Fixed-pitch absolute rows give the list its full height from the first frame, so the scrollbar never jumps.
@@ -89,8 +91,7 @@ export function mountVirtualList(
 	};
 
 	scroller.addEventListener("scroll", schedule, { passive: true });
-	const resize = new ResizeObserver(schedule);
-	resize.observe(scroller);
+	const stopResize = observeResize(scroller, schedule);
 	container.style.height = `${count * pitch}px`;
 	update();
 
@@ -112,7 +113,7 @@ export function mountVirtualList(
 		destroy(): void {
 			if (frame) window.cancelAnimationFrame(frame);
 			scroller.removeEventListener("scroll", schedule);
-			resize.disconnect();
+			stopResize();
 			container.removeClass("is-virtual");
 			container.style.removeProperty("height");
 			container.style.removeProperty("--mdsync-row-height");

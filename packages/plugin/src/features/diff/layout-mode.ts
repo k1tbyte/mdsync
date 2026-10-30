@@ -1,12 +1,12 @@
 import { randomId } from "@/core/crypto";
-import { renderSegments, type Segments } from "@/core/ui";
+import { observeResize, renderSegments, type Segments } from "@/core/ui";
 
 const COMBINED_BELOW_PX = 900;
 
 /** Automatic below a width, or forced from a toolbar button while there is room for both layouts. */
 export class LayoutMode {
 	private readonly control: Segments;
-	private readonly observer: ResizeObserver;
+	private readonly stopResize: () => void;
 	private forceCombined = false;
 	private current = false;
 
@@ -29,8 +29,7 @@ export class LayoutMode {
 			},
 		);
 		this.control.el.addClasses(["is-compact", "mdsync-layout-btn"]);
-		this.observer = new ResizeObserver(() => this.refresh());
-		this.observer.observe(root);
+		this.stopResize = observeResize(root, () => this.refresh());
 	}
 
 	get combined(): boolean {
@@ -49,6 +48,6 @@ export class LayoutMode {
 	}
 
 	destroy(): void {
-		this.observer.disconnect();
+		this.stopResize();
 	}
 }

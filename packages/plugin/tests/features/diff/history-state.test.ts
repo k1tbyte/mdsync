@@ -4,11 +4,9 @@ import {
 	changesDiffer,
 	fileTarget,
 	type HistoryChange,
-	type HistoryModeInput,
 	hunkHintText,
 	readTarget,
 	sameTarget,
-	selectHistoryMode,
 	targetState,
 } from "@/features/diff/history-state";
 import { HUNK_TEXT_MAX_BYTES } from "@/features/sync/constants";
@@ -16,79 +14,6 @@ import {
 	EDiffDirection,
 	type FileDiffModel,
 } from "@/features/sync/hunks/projection";
-
-function modeInput(
-	overrides: Partial<HistoryModeInput> = {},
-): HistoryModeInput {
-	return {
-		historyHash: "abc123",
-		historyChange: null,
-		historyPreviewIfMissing: false,
-		against: null,
-		localExists: true,
-		...overrides,
-	};
-}
-
-describe("selectHistoryMode", () => {
-	it("returns diff when no historyHash", () => {
-		expect(selectHistoryMode(modeInput({ historyHash: null }))).toBe("diff");
-	});
-
-	it("returns change when historyChange is set", () => {
-		const change: HistoryChange = {
-			before: { hash: "a", label: "Before" },
-			after: { hash: "b", label: "After" },
-		};
-		expect(selectHistoryMode(modeInput({ historyChange: change }))).toBe(
-			"change",
-		);
-	});
-
-	it("returns diff when against is set (even with previewIfMissing)", () => {
-		expect(
-			selectHistoryMode(
-				modeInput({
-					against: { hash: "x", label: "Other" },
-					historyPreviewIfMissing: true,
-					localExists: false,
-				}),
-			),
-		).toBe("diff");
-	});
-
-	it("returns preview when previewIfMissing and local missing", () => {
-		expect(
-			selectHistoryMode(
-				modeInput({ historyPreviewIfMissing: true, localExists: false }),
-			),
-		).toBe("preview");
-	});
-
-	it("returns diff when previewIfMissing but local exists", () => {
-		expect(
-			selectHistoryMode(
-				modeInput({ historyPreviewIfMissing: true, localExists: true }),
-			),
-		).toBe("diff");
-	});
-
-	it("change takes priority over previewIfMissing", () => {
-		const change: HistoryChange = {
-			before: null,
-			after: { hash: "b", label: "After" },
-		};
-		expect(
-			selectHistoryMode(
-				modeInput({
-					historyChange: change,
-					historyPreviewIfMissing: true,
-					localExists: false,
-				}),
-			),
-		).toBe("change");
-	});
-});
 
 describe("buildHistoryRequest", () => {
 	it("builds change request with absent before (added file)", () => {

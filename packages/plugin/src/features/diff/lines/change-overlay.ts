@@ -15,7 +15,9 @@ export class ChangeOverlay {
 	private readonly layer: HTMLElement;
 	private readonly buttons = new Map<number, HTMLElement>();
 	private buttonHeight = 0;
-	private ring: { segment: CompareSegment; el: HTMLElement } | null = null;
+	/** Its element comes with its first place: unplaced, it shows as a line at the top. */
+	private ring: { segment: CompareSegment; el: HTMLElement | null } | null =
+		null;
 
 	constructor(
 		private readonly host: HTMLElement,
@@ -28,16 +30,11 @@ export class ChangeOverlay {
 
 	/** Rings a change until its fade ends; the next layout places it. */
 	flash(segment: CompareSegment): void {
-		this.ring?.el.remove();
+		this.ring?.el?.remove();
 		this.ring = null;
 		// A hidden pane never runs the fade, so its ring would wait there for the next layout switch.
 		if (this.host.clientHeight === 0) return;
-		const el = this.layer.createDiv({ cls: "mdsync-change-ring" });
-		el.addEventListener("animationend", () => {
-			el.remove();
-			if (this.ring?.el === el) this.ring = null;
-		});
-		this.ring = { segment, el };
+		this.ring = { segment, el: null };
 	}
 
 	layout(
@@ -79,17 +76,27 @@ export class ChangeOverlay {
 	}
 
 	private placeRing(segments: readonly CompareSegment[], shift: number): void {
-		if (!this.ring) return;
-		const { segment, el } = this.ring;
+		const ring = this.ring;
+		if (!ring) return;
 		// A refresh rebuilds the segments; the ring must not move onto whatever took its index.
-		if (segments[segment.key] !== segment) {
-			el.remove();
+		if (segments[ring.segment.key] !== ring.segment) {
+			ring.el?.remove();
 			this.ring = null;
 			return;
 		}
-		const { top, bottom } = this.place(segment, shift);
-		el.style.transform = `translateY(${Math.round(top)}px)`;
-		el.style.height = `${Math.round(bottom - top)}px`;
+		ring.el ??= this.ringElement();
+		const { top, bottom } = this.place(ring.segment, shift);
+		ring.el.style.transform = `translateY(${Math.round(top)}px)`;
+		ring.el.style.height = `${Math.round(bottom - top)}px`;
+	}
+
+	private ringElement(): HTMLElement {
+		const el = this.layer.createDiv({ cls: "mdsync-change-ring" });
+		el.addEventListener("animationend", () => {
+			el.remove();
+			if (this.ring?.el === el) this.ring = null;
+		});
+		return el;
 	}
 
 	private place(segment: CompareSegment, shift: number): Bounds {

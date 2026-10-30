@@ -1,4 +1,5 @@
 import { Notice, Platform } from "obsidian";
+import { observeResize } from "@/core/ui";
 import {
 	type ActivityCalendar,
 	bandsOf,
@@ -71,15 +72,15 @@ export function renderActivityCalendar(
 		if (cell) pick(cell);
 	});
 	if (onPick) makeRoving(grid, cells, ringed ?? cells[cells.length - 1], pick);
-	// Until it overflows: settings lay it out wide, then narrow it as the page opens.
-	const anchor = new ResizeObserver(() => {
-		if (!scroller.isConnected) return anchor.disconnect();
+	// Every resize until the person scrolls: settings narrow it as the page opens, a scrollbar or the window later.
+	const stopAnchor = observeResize(scroller, () => {
+		if (!scroller.isConnected) return stopAnchor();
 		scroller.scrollLeft = ringed
 			? ringed.offsetLeft - scroller.clientWidth / 2
 			: scroller.scrollWidth;
-		if (scroller.scrollWidth > scroller.clientWidth) anchor.disconnect();
 	});
-	anchor.observe(scroller);
+	for (const type of ["pointerdown", "wheel", "keydown"])
+		scroller.addEventListener(type, stopAnchor, { once: true, passive: true });
 }
 
 /** Left out when no week's resolution is known. */
