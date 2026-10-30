@@ -1,17 +1,34 @@
-import type { SettingDefinitionGroup } from "obsidian";
-import type { SettingsSyncCategories } from "@/core/settings";
+import type { Setting, SettingDefinitionGroup } from "obsidian";
 import {
 	EFieldKind,
+	EPluginLevel,
 	type FieldContext,
 	fieldRow,
 	group,
 	introRow,
+	type MdsyncSettings,
 	type SettingsRow,
+	type SettingsSyncCategories,
+	SUB_SETTING_CLASS,
 } from "@/core/settings";
-import { notifyError, notifyInfo, openConfirmModal } from "@/core/ui";
+import {
+	notifyError,
+	notifyInfo,
+	openConfirmModal,
+	renderSegments,
+} from "@/core/ui";
 import type { SyncHost } from "../host";
 import type { Manifest } from "../types";
-import { createScopePolicy, type ScopePolicy } from "./scope";
+import {
+	listPlugins,
+	PLUGIN_LEVEL_OPTIONS,
+	PluginLevelsModal,
+} from "./plugin-levels-modal";
+import {
+	createScopePolicy,
+	defaultPluginLevel,
+	type ScopePolicy,
+} from "./scope";
 
 interface SettingsSyncRow {
 	key: keyof SettingsSyncCategories;
@@ -33,8 +50,8 @@ const SETTINGS_SYNC_ROWS: ReadonlyArray<SettingsSyncRow> = [
 	},
 	{
 		key: "pluginConfigs",
-		name: "Plugins and their settings",
-		desc: "Plugin files and settings (MDSync and device-local plugins excluded).",
+		name: "Plugins",
+		desc: "Settings: each plugin's data.json. Code: also the plugin itself, so it installs and updates everywhere. All: also the rest of its folder, such as caches. MDSync and device-local plugins never sync.",
 	},
 	{
 		key: "snippets",
@@ -85,41 +102,153 @@ export function configurationScopeSection(
 				);
 			},
 		},
-		...SETTINGS_SYNC_ROWS.map((row): SettingsRow => {
-			const field = fieldRow(ctx, {
-				kind: EFieldKind.Toggle,
-				name: row.name,
-				desc: row.desc,
-				get: (s) => s.settingsSync[row.key],
-				set: (v) => ({
-					settingsSync: { ...plugin.settings.settingsSync, [row.key]: v },
-				}),
-				refreshScope: true,
-			});
-			return {
-				...field,
-				render: (setting) => {
-					field.render(setting);
-					const counts = countRemoteCategories(
-						plugin.controller.getSnapshot().result?.remote,
-						createScopePolicy({
-							settingsSync: plugin.settings.settingsSync,
-							configDir: plugin.app.vault.configDir,
-						}),
-					);
-					const count = counts.get(row.key);
-					if (!count) return;
-					setting.addButton((button) =>
-						button
-							.setButtonText("Clear on remote")
-							.setTooltip(`${count} remote item(s)`)
-							.setDestructive()
-							.onClick(() => void clearCategory(ctx, row)),
-					);
-				},
-			};
-		}),
+		...SETTINGS_SYNC_ROWS.flatMap((row) =>
+			row.key === "pluginConfigs"
+				? [pluginsRow(ctx, row), perPluginRow(ctx)]
+				: [categoryRow(ctx, row)],
+		),
 	]);
+}
+
+function categoryRow(
+	ctx: FieldContext<SyncHost>,
+	row: SettingsSyncRow,
+): SettingsRow {
+	const { plugin } = ctx;
+	const field = fieldRow(ctx, {
+		kind: EFieldKind.Toggle,
+		name: row.name,
+		desc: row.desc,
+		get: (s) => s.settingsSync[row.key],
+		set: (v) => ({
+			settingsSync: { ...plugin.settings.settingsSync, [row.key]: v },
+		}),
+		refreshScope: true,
+	});
+	return {
+		...field,
+		render: (setting) => {
+			field.render(setting);
+			addClearButton(ctx, row, setting);
+		},
+	};
+}
+
+/** Off turns the category off and keeps the level for when it is back on. */
+function pluginsRow(
+	ctx: FieldContext<SyncHost>,
+	row: SettingsSyncRow,
+): SettingsRow {
+	const { plugin } = ctx;
+	return {
+		name: row.name,
+		desc: row.desc,
+		render: (setting) => {
+			setting.setClass("mdsync-stacked-setting");
+			renderSegments(
+				setting.controlEl,
+				"plugin-level",
+				PLUGIN_LEVEL_OPTIONS,
+				() =>
+					defaultPluginLevel(
+						plugin.settings.settingsSync,
+						plugin.settings.pluginLevel,
+					),
+				async (level) => {
+					const { settingsSync, pluginLevel, pluginLevels } = plugin.settings;
+					await saveScope(ctx, {
+						settingsSync: {
+							...settingsSync,
+							pluginConfigs: level !== EPluginLevel.Off,
+						},
+						pluginLevel: level === EPluginLevel.Off ? pluginLevel : level,
+						// One equal to the new default would stay pinned there unseen.
+						pluginLevels: Object.fromEntries(
+							Object.entries(pluginLevels).filter(([, own]) => own !== level),
+						),
+					});
+					ctx.rerender();
+				},
+			).el.addClasses(["is-compact", "mdsync-plugin-level"]);
+			addClearButton(ctx, row, setting);
+		},
+	};
+}
+
+function perPluginRow(ctx: FieldContext<SyncHost>): SettingsRow {
+	const { plugin } = ctx;
+	return {
+		name: "Per plugin",
+		desc: "Give single plugins a level of their own.",
+		render: (setting) => {
+			setting.settingEl.addClass(SUB_SETTING_CLASS);
+			const own = Object.keys(plugin.settings.pluginLevels).length;
+			if (own > 0) {
+				setting.setDesc(`${own} plugin(s) have a level of their own.`);
+			}
+			setting.addButton((button) =>
+				button.setButtonText("Choose").onClick(() => void choosePerPlugin(ctx)),
+			);
+		},
+	};
+}
+
+async function choosePerPlugin(ctx: FieldContext<SyncHost>): Promise<void> {
+	const { plugin } = ctx;
+	const { adapter, configDir } = plugin.app.vault;
+	const remote = plugin.controller.getSnapshot().result?.remote ?? null;
+	const plugins = await listPlugins(
+		adapter,
+		createScopePolicy({
+			settingsSync: plugin.settings.settingsSync,
+			configDir,
+		}),
+		configDir,
+		remote,
+	);
+	// Read after the listing: the default may have changed meanwhile.
+	const { settingsSync, pluginLevel } = plugin.settings;
+	new PluginLevelsModal(plugin.app, {
+		plugins,
+		remoteKnown: remote !== null,
+		defaultLevel: defaultPluginLevel(settingsSync, pluginLevel),
+		levels: () => plugin.settings.pluginLevels,
+		save: (pluginLevels) => saveScope(ctx, { pluginLevels }),
+		onClose: () => ctx.rerender(),
+	}).open();
+}
+
+async function saveScope(
+	ctx: FieldContext<SyncHost>,
+	patch: Partial<MdsyncSettings>,
+): Promise<void> {
+	Object.assign(ctx.plugin.settings, patch);
+	await ctx.plugin.saveSettings();
+	ctx.plugin.scheduleScopeRefresh("Sync scope settings changed.");
+}
+
+function addClearButton(
+	ctx: FieldContext<SyncHost>,
+	row: SettingsSyncRow,
+	setting: Setting,
+): void {
+	const { plugin } = ctx;
+	const counts = countRemoteCategories(
+		plugin.controller.getSnapshot().result?.remote,
+		createScopePolicy({
+			settingsSync: plugin.settings.settingsSync,
+			configDir: plugin.app.vault.configDir,
+		}),
+	);
+	const count = counts.get(row.key);
+	if (!count) return;
+	setting.addButton((button) =>
+		button
+			.setButtonText("Clear on remote")
+			.setTooltip(`${count} remote item(s)`)
+			.setDestructive()
+			.onClick(() => void clearCategory(ctx, row)),
+	);
 }
 
 async function clearCategory(

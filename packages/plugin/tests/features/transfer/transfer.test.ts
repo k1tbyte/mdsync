@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "@/app/settings";
-import { sealLink } from "@/core/crypto/sealed-link";
-import type { MdsyncSettings } from "@/core/settings/model";
+import { openLink, sealLink } from "@/core/crypto/sealed-link";
+import { EPluginLevel, type MdsyncSettings } from "@/core/settings/model";
 import { defaultS3Config } from "@/features/storage/backends/s3";
 import { defaultWebDAVConfig } from "@/features/storage/backends/webdav";
 import { EStorageBackend } from "@/features/storage/config";
@@ -160,6 +160,8 @@ describe("settings transfer", () => {
 			},
 			ignorePatterns: "*.tmp\n*.swp",
 			ignoreSymlinks: !DEFAULT_SETTINGS.ignoreSymlinks,
+			pluginLevel: EPluginLevel.Data,
+			pluginLevels: { x: EPluginLevel.Off, y: EPluginLevel.Code },
 			maxFileBytes: DEFAULT_SETTINGS.maxFileBytes + 1024,
 			autoSyncEnabled: !DEFAULT_SETTINGS.autoSyncEnabled,
 			autoSyncIntervalMinutes: DEFAULT_SETTINGS.autoSyncIntervalMinutes + 5,
@@ -197,6 +199,8 @@ describe("settings transfer", () => {
 		expect(imported.settingsSync).toEqual(settings.settingsSync);
 		expect(imported.ignorePatterns).toBe(settings.ignorePatterns);
 		expect(imported.ignoreSymlinks).toBe(settings.ignoreSymlinks);
+		expect(imported.pluginLevel).toBe(EPluginLevel.Data);
+		expect(imported.pluginLevels).toEqual(settings.pluginLevels);
 		expect(imported.maxFileBytes).toBe(settings.maxFileBytes);
 		expect(imported.autoSyncEnabled).toBe(settings.autoSyncEnabled);
 		expect(imported.autoSyncIntervalMinutes).toBe(
@@ -217,6 +221,53 @@ describe("settings transfer", () => {
 		expect(imported.showOpenNote).toBe(false);
 		expect(imported.relayUrl).toBe(settings.relayUrl);
 		expect(imported.relaySecret).toBe(settings.relaySecret);
+	});
+
+	it("leaves the plugin levels out of the link while they are the defaults", async () => {
+		const defaults = buildSettings({
+			pluginLevel: EPluginLevel.Settings,
+			pluginLevels: {},
+		});
+		expect(await sectionOf(defaults)).toEqual({});
+
+		const changed = buildSettings({
+			pluginLevel: EPluginLevel.Code,
+			pluginLevels: { x: EPluginLevel.Off },
+		});
+		expect(await sectionOf(changed)).toEqual({
+			p: EPluginLevel.Code,
+			o: { x: EPluginLevel.Off },
+		});
+		expect(
+			await sectionOf(buildSettings({ pluginLevel: EPluginLevel.Data })),
+		).toEqual({
+			p: EPluginLevel.Data,
+		});
+	});
+
+	it("resets the plugin levels an old link does not carry", async () => {
+		const url = await createSettingsTransferUrl(buildSettings({}), PASSPHRASE);
+		const imported = await readSettingsTransfer(url, PASSPHRASE);
+		const merged = mergeTransferredSettings(
+			buildSettings({
+				pluginLevel: EPluginLevel.Data,
+				pluginLevels: { x: EPluginLevel.Off },
+			}),
+			imported,
+		);
+
+		expect(merged.pluginLevel).toBe(EPluginLevel.Settings);
+		expect(merged.pluginLevels).toEqual({});
+	});
+
+	it("rejects a plugin level that is not a number", async () => {
+		const token = await sealLink(
+			new TextEncoder().encode(JSON.stringify({ q: { p: "data" } })),
+			PASSPHRASE,
+		);
+		await expect(readSettingsTransfer(token, PASSPHRASE)).rejects.toThrow(
+			/Invalid MDSync settings transfer payload/,
+		);
 	});
 
 	it("clamps a crafted token that carries an out-of-range number", async () => {
@@ -399,6 +450,23 @@ describe("settings transfer", () => {
 		expect(exportPackage.qrEligible).toBe(false);
 	});
 });
+
+/** The scope section as it travels in the link. */
+async function sectionOf(
+	settings: MdsyncSettings,
+): Promise<Record<string, unknown>> {
+	const url = await createSettingsTransferUrl(settings, PASSPHRASE, {
+		storageMode: ESettingsTransferStorageMode.None,
+		includeSyncScope: true,
+		includeAutomation: false,
+		includeRealtime: false,
+	});
+	const token = new URL(url).searchParams.get("d") as string;
+	const payload = JSON.parse(
+		new TextDecoder().decode(await openLink(token, PASSPHRASE)),
+	);
+	return payload.q;
+}
 
 function buildSettings(overrides: Partial<MdsyncSettings>): MdsyncSettings {
 	return {

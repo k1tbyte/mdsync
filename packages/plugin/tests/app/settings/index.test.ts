@@ -5,7 +5,7 @@ import {
 	BULK_DELETE_LIMIT_MAX,
 	LIVE_SEND_MS,
 } from "@/core/constants";
-import type { MdsyncSettings } from "@/core/settings";
+import { EPluginLevel, type MdsyncSettings } from "@/core/settings";
 import { defaultS3Config } from "@/features/storage/backends/s3";
 import {
 	EStorageBackend,
@@ -148,6 +148,65 @@ describe("mergeSettings", () => {
 			},
 		});
 		expect(merged.storageConfigs[EStorageBackend.S3]?.concurrency).toBe(4);
+	});
+});
+
+describe("mergeSettings plugin levels", () => {
+	it("syncs each plugin's settings by default", () => {
+		expect(mergeSettings(null).pluginLevel).toBe(EPluginLevel.Settings);
+		expect(mergeSettings(null).pluginLevels).toEqual({});
+	});
+
+	it("keeps a listed default level", () => {
+		for (const pluginLevel of [
+			EPluginLevel.Settings,
+			EPluginLevel.Code,
+			EPluginLevel.Data,
+		]) {
+			expect(mergeSettings({ pluginLevel }).pluginLevel).toBe(pluginLevel);
+		}
+	});
+
+	it("falls back to Settings on a default level that is Off or not a level", () => {
+		for (const pluginLevel of [EPluginLevel.Off, 4, -1, "2", null, {}]) {
+			const merged = mergeSettings({
+				pluginLevel: pluginLevel as unknown as EPluginLevel,
+			});
+			expect(merged.pluginLevel).toBe(EPluginLevel.Settings);
+		}
+	});
+
+	it("keeps the levels 0 to 3 of a plugin and drops any other value", () => {
+		const merged = mergeSettings({
+			pluginLevels: {
+				off: 0,
+				settings: 1,
+				code: 2,
+				data: 3,
+				four: 4,
+				negative: -1,
+				fraction: 1.5,
+				text: "2",
+				none: null,
+				nested: {},
+			} as unknown as Record<string, EPluginLevel>,
+		});
+
+		expect(merged.pluginLevels).toEqual({
+			off: EPluginLevel.Off,
+			settings: EPluginLevel.Settings,
+			code: EPluginLevel.Code,
+			data: EPluginLevel.Data,
+		});
+	});
+
+	it("takes no levels from a stored value that is not a map", () => {
+		for (const pluginLevels of ["data", 3, null, true]) {
+			const merged = mergeSettings({
+				pluginLevels: pluginLevels as unknown as Record<string, EPluginLevel>,
+			});
+			expect(merged.pluginLevels).toEqual({});
+		}
 	});
 });
 

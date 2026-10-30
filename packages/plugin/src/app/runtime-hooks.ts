@@ -32,6 +32,10 @@ export function createRuntimeHooks(plugin: Plugin & PluginHost): RuntimeHooks {
 			notifyInfo(
 				`Obsidian has not loaded ${count} files that are on disk. MDSync syncs them; restart Obsidian to see them.`,
 			),
+		onPluginsPulled: () =>
+			notifyInfo(
+				"Plugins changed on another device. Restart Obsidian to load them.",
+			),
 		onDeletionsHeld: (space, paths) =>
 			notifyAction(
 				`Auto-push held back ${paths.length} deleted files${space.root ? ` in "${space.root}"` : ""}. Review them before they sync.`,

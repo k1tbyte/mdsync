@@ -417,6 +417,14 @@ export class OperationRunner {
 				);
 				if (theirs.length > 0) this.deps.host.onTheirsPulled?.(space, theirs);
 			}
+			if (
+				operation === ESyncLogOperation.Pull &&
+				[...outcome.touchedPaths].some((path) =>
+					session.scope.loadsOnStartup(path),
+				)
+			) {
+				this.deps.host.onPluginsPulled?.();
+			}
 			if (outcome.cancelled) {
 				this.deps.runtimeState.setStaleReason(
 					outcome.touchedPaths.size === 0

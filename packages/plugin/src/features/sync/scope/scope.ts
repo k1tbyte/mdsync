@@ -1,5 +1,5 @@
 import { PLUGIN_ID } from "@/core/constants";
-import type { SettingsSyncCategories } from "@/core/settings";
+import { EPluginLevel, type SettingsSyncCategories } from "@/core/settings";
 import {
 	hasDotSegment,
 	normalizePath,
@@ -27,6 +27,16 @@ const CONFIG_SNIPPETS_DIR = "snippets/";
 const CONFIG_THEMES_DIR = "themes/";
 
 const CONFIG_PLUGINS_DIR = "plugins/";
+
+/** Where `Plugin.saveData` writes a plugin's settings. */
+const PLUGIN_DATA_FILE = "data.json";
+
+/** What Obsidian's installer writes; the rest of a plugin folder is the plugin's own data. */
+const PLUGIN_CODE_FILES: ReadonlyArray<string> = [
+	"manifest.json",
+	"main.js",
+	"styles.css",
+];
 
 const CONFIG_FILE_DENYLIST: ReadonlyArray<string> = [
 	"workspace.json",
@@ -57,10 +67,20 @@ export interface ScopePolicy {
 	classify(path: string): EFileKind;
 	isIgnoredByPattern(path: string): boolean;
 	getCategory(path: string): keyof SettingsSyncCategories | null;
+	/** Obsidian's settings or a plugin's `data.json`: JSON written by `JSON.stringify`, so a conflict merges by key. */
+	isSettingsJson(path: string): boolean;
+	/** Plugin code or the enabled list: Obsidian reads them only when it starts. */
+	loadsOnStartup(path: string): boolean;
+	/** The synced plugin a path lies in; null outside plugins, for MDSync and device-local ones. */
+	pluginIdOf(path: string): string | null;
 }
 
 export interface ScopeOptions {
 	settingsSync: SettingsSyncCategories;
+	/** Every plugin's level while `pluginConfigs` is on; Settings by default. */
+	pluginLevel?: EPluginLevel;
+	/** Plugins whose level differs from the default; they apply with `pluginConfigs` off too. */
+	pluginLevels?: Readonly<Record<string, EPluginLevel>>;
 	configDir: string;
 	/** The space's own rules, read inside its root. */
 	sharedIgnore?: IgnoreMatcher;
@@ -72,10 +92,19 @@ export interface ScopeOptions {
 	otherRoots?: readonly string[];
 }
 
+/** The level of a plugin without one of its own. */
+export function defaultPluginLevel(
+	settingsSync: SettingsSyncCategories,
+	pluginLevel: EPluginLevel = EPluginLevel.Settings,
+): EPluginLevel {
+	return settingsSync.pluginConfigs ? pluginLevel : EPluginLevel.Off;
+}
+
 export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 	const configDir = stripTrailingSlash(options.configDir);
 	const configPrefix = `${configDir}/`;
-	const ownPluginPrefix = `${configDir}/plugins/${PLUGIN_ID}/`;
+	// No trailing slash: the folder entry itself must stay out too.
+	const ownPluginDir = `${configDir}/plugins/${PLUGIN_ID}`;
 
 	const coreFiles = CONFIG_CORE_FILES.map((f) => `${configDir}/${f}`);
 	const hotkeysFile = `${configDir}/${CONFIG_HOTKEYS_FILE}`;
@@ -90,11 +119,18 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 	const deniedConfigDirs = CONFIG_SUBDIR_DENYLIST.map(
 		(d) => `${configDir}/${d}`,
 	);
-	const deviceLocalPluginPrefixes = DEVICE_LOCAL_PLUGIN_IDS.map(
-		(id) => `${pluginsDir}${id}/`,
+	const deviceLocalPluginDirs = DEVICE_LOCAL_PLUGIN_IDS.map(
+		(id) => `${pluginsDir}${id}`,
 	);
 
 	const sync = { ...options.settingsSync };
+	const defaultLevel = defaultPluginLevel(sync, options.pluginLevel);
+	const pluginLevels = new Map(Object.entries(options.pluginLevels ?? {}));
+	const levelOf = (id: string): EPluginLevel =>
+		pluginLevels.get(id) ?? defaultLevel;
+	const anyPluginSynced =
+		defaultLevel > EPluginLevel.Off ||
+		[...pluginLevels.values()].some((level) => level > EPluginLevel.Off);
 	const sharedIgnoreMatcher = options.sharedIgnore;
 	const localIgnoreMatcher = options.localIgnore;
 	const symlinks = options.symlinks;
@@ -124,7 +160,7 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 			if (otherRoots.some((other) => isUnder(dir, other))) return false;
 			if (isInVaultDenylist(dirPath)) return false;
 			if (symlinks?.isLink(dir)) return false;
-			if (dirPath.startsWith(ownPluginPrefix)) return false;
+			if (isUnder(dir, ownPluginDir)) return false;
 			if (
 				isIgnoredDir(sharedIgnoreMatcher, dirPath) ||
 				isIgnoredDir(localIgnoreMatcher, dirPath)
@@ -152,7 +188,7 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 			const path = normalizePath(rawPath);
 			if (!path || !owns(path)) return false;
 			if (isInVaultDenylist(path)) return false;
-			if (path.startsWith(ownPluginPrefix)) return false;
+			if (isUnder(path, ownPluginDir)) return false;
 			if (path.startsWith(configPrefix)) return false;
 			if (hasDotSegment(path)) return false;
 			if (isIgnoreFile(path)) return false;
@@ -160,6 +196,34 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 		},
 		getCategory(rawPath) {
 			return configCategory(normalizePath(rawPath));
+		},
+		isSettingsJson(rawPath) {
+			const path = normalizePath(rawPath);
+			const category = configCategory(path);
+			if (category === "pluginConfigs") {
+				return (
+					path === `${pluginsDir}${pluginPath(path).id}/${PLUGIN_DATA_FILE}`
+				);
+			}
+			return (
+				category === "coreSettings" ||
+				category === "hotkeys" ||
+				category === "pluginList"
+			);
+		},
+		loadsOnStartup(rawPath) {
+			const path = normalizePath(rawPath);
+			if (path === communityPluginsFile) return true;
+			return (
+				configCategory(path) === "pluginConfigs" &&
+				pluginPath(path).needs === EPluginLevel.Code
+			);
+		},
+		pluginIdOf(rawPath) {
+			const path = normalizePath(rawPath);
+			return configCategory(path) === "pluginConfigs"
+				? pluginPath(path).id
+				: null;
 		},
 	};
 
@@ -178,7 +242,7 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 			return false;
 		}
 		if (isInVaultDenylist(path)) return false;
-		if (path.startsWith(ownPluginPrefix)) return false;
+		if (isUnder(path, ownPluginDir)) return false;
 		// Device-local like ignore patterns: excluded from diff so links are not read as deletions.
 		if (symlinks?.isLink(path)) return false;
 
@@ -204,13 +268,32 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 		return Boolean(localIgnoreMatcher?.ignores(path));
 	}
 
+	/** A plugin part above its plugin's level stays frozen like a disabled category; the category stays whole for resets. */
 	function isConfigAllowed(path: string): boolean {
 		const category = configCategory(path);
+		if (category === "pluginConfigs") {
+			const { id, needs } = pluginPath(path);
+			return levelOf(id) >= needs;
+		}
 		return category !== null && sync[category];
 	}
 
+	/** For a `pluginConfigs` path: its plugin and the level that syncs it. */
+	function pluginPath(path: string): { id: string; needs: EPluginLevel } {
+		const [id = "", file, ...rest] = path.slice(pluginsDir.length).split("/");
+		// Directly in `plugins/` is a stray file: folders go through `canDescend`.
+		if (file === undefined || rest.length > 0) {
+			return { id, needs: EPluginLevel.Data };
+		}
+		if (file === PLUGIN_DATA_FILE) return { id, needs: EPluginLevel.Settings };
+		if (PLUGIN_CODE_FILES.includes(file)) {
+			return { id, needs: EPluginLevel.Code };
+		}
+		return { id, needs: EPluginLevel.Data };
+	}
+
 	function configCategory(path: string): keyof SettingsSyncCategories | null {
-		if (!path.startsWith(configPrefix) || path.startsWith(ownPluginPrefix))
+		if (!path.startsWith(configPrefix) || isUnder(path, ownPluginDir))
 			return null;
 		if (hasDotSegment(stripConfigPrefix(path, configPrefix))) return null;
 		if (
@@ -223,7 +306,7 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 		if (path === communityPluginsFile) return "pluginList";
 		if (
 			path.startsWith(pluginsDir) &&
-			!deviceLocalPluginPrefixes.some((p) => path.startsWith(p))
+			!deviceLocalPluginDirs.some((d) => isUnder(path, d))
 		)
 			return "pluginConfigs";
 		if (path.startsWith(snippetsDir)) return "snippets";
@@ -232,16 +315,23 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 	}
 
 	function hasConfigDescendants(): boolean {
-		return Object.values(sync).some((enabled) => enabled);
+		return Object.values(sync).some((enabled) => enabled) || anyPluginSynced;
 	}
 
 	function canDescendConfigDir(dirPath: string): boolean {
 		if (deniedConfigDirs.some((d) => dirPath === d || dirPath.startsWith(d)))
 			return false;
 		if (dirPath.startsWith(pluginsDir)) {
-			if (!sync.pluginConfigs) return false;
-			return !deviceLocalPluginPrefixes.some(
-				(p) => dirPath === p || dirPath.startsWith(p),
+			if (deviceLocalPluginDirs.some((d) => isUnder(dirPath, d))) return false;
+			const [id, ...below] = dirPath
+				.slice(pluginsDir.length)
+				.split("/")
+				.filter(Boolean);
+			if (id === undefined) return anyPluginSynced;
+			// `<id>/` holds the settings file; anything deeper is the plugin's data.
+			return (
+				levelOf(id) >=
+				(below.length > 0 ? EPluginLevel.Data : EPluginLevel.Settings)
 			);
 		}
 		if (dirPath.startsWith(snippetsDir)) return sync.snippets;

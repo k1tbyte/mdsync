@@ -109,6 +109,8 @@ export interface SyncControllerHost {
 	onSpaceGone?(space: Space): void;
 	/** A disk walk found files Obsidian's index lacks: synced, shown after a restart. */
 	onUnindexed?(count: number): void;
+	/** A pull wrote what Obsidian reads only when it starts (`ScopePolicy.loadsOnStartup`). */
+	onPluginsPulled?(): void;
 	/** How many deletions one automatic push may publish; null for any number. */
 	autoDeleteLimit?(): number | null;
 	/** An automatic push left these deletions for the person: more than `autoDeleteLimit`. */

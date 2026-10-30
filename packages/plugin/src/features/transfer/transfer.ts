@@ -34,12 +34,14 @@ const STORAGE_BACKENDS = new Set<string>(Object.values(EStorageBackend));
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-// A retired key is never reused: links made before still carry it ("j" was a history limit).
+// A retired key is never reused: links made before still carry it ("j" was a history limit, "a" plugin code).
 const TRANSFER_FIELDS = {
 	q: {
 		ignorePatterns: "i",
 		ignoreSymlinks: "k",
 		maxFileBytes: "m",
+		pluginLevel: "p",
+		pluginLevels: "o",
 	},
 	a: {
 		autoSyncEnabled: "x",
@@ -274,7 +276,7 @@ function createSectionPayload(
 	)) {
 		const value = settings[settingsKey as TransferFieldKey];
 		const fallback = DEFAULT_CORE_SETTINGS[settingsKey as TransferFieldKey];
-		if (value === fallback) continue;
+		if (JSON.stringify(value) === JSON.stringify(fallback)) continue;
 		out[transferKey] = typeof fallback === "boolean" ? Number(value) : value;
 	}
 	return out;

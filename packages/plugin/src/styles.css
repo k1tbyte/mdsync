@@ -11,6 +11,7 @@
 
 @import "./features/sync/ui/history/activity-calendar.css";
 @import "./features/sync/ui/history/holds-row.css";
+@import "./features/sync/scope/plugin-levels.css";
 
 @import "./features/settings/tabs-and-logs.css";
 

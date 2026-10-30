@@ -70,6 +70,7 @@ export function exclusionsSection(
 			desc: `Added to the shared rules; does not edit ${IGNORE_FILE_NAME}. One gitignore-style pattern per line.`,
 			render: (patterns) => {
 				patterns.setClass("mdsync-ignore-patterns");
+				patterns.setClass("mdsync-stacked-setting");
 				patterns.nameEl.id = "mdsync-local-ignore-label";
 				patterns.descEl.id = "mdsync-local-ignore-description";
 				patterns.addTextArea((text) => {

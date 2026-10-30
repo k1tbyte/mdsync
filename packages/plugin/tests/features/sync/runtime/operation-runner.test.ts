@@ -1,8 +1,10 @@
+import { Device } from "@tests/helpers/config-device";
 import { createTestControllerHost } from "@tests/helpers/controller";
 import type { TestSession } from "@tests/helpers/session";
 import { pairedSessions, useEncryptionKey } from "@tests/helpers/session";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { ESyncLogOperation } from "@/core/logs/store";
+import { EPluginLevel } from "@/core/settings/model";
 import { OFFLINE_MESSAGE } from "@/core/shared/offline";
 import { StorageHttpError } from "@/core/shared/transport-errors";
 import {
@@ -254,6 +256,68 @@ describe("OperationRunner.runOperation", () => {
 		expect(runtimeState.getSnapshot().error).toBeNull();
 	});
 });
+describe("OperationRunner plugins pulled", () => {
+	const pulled =
+		(...paths: string[]) =>
+		async () => ({
+			newRemote: null,
+			touchedPaths: new Set(paths),
+		});
+
+	async function pluginsPulledBy(
+		operation: ESyncLogOperation,
+		paths: string[],
+		level: EPluginLevel = EPluginLevel.Code,
+	) {
+		const device = new Device("device-a");
+		device.settingsSync = { ...device.settingsSync, pluginConfigs: true };
+		device.pluginLevel = level;
+		const { runner, host } = createTestRunner(device);
+		const onPluginsPulled = vi.fn();
+		Object.assign(host, { onPluginsPulled });
+		await runner.runOperation(VAULT_SPACE, operation, pulled(...paths));
+		return onPluginsPulled;
+	}
+
+	it("tells when a pull brings plugin code or the enabled list, even on a first sync", async () => {
+		for (const path of [
+			".obsidian/plugins/x/main.js",
+			".obsidian/plugins/x/manifest.json",
+			".obsidian/community-plugins.json",
+		]) {
+			const onPluginsPulled = await pluginsPulledBy(ESyncLogOperation.Pull, [
+				"note.md",
+				path,
+			]);
+			expect(onPluginsPulled).toHaveBeenCalledOnce();
+		}
+	});
+
+	it("stays quiet for a pull of notes or plugin settings alone", async () => {
+		for (const paths of [
+			["note.md", "folder/other.md"],
+			[".obsidian/plugins/x/data.json"],
+			// Data level takes it in, but Obsidian never reads it at startup.
+			[".obsidian/plugins/x/cache.json"],
+			[".obsidian/plugins/mdsync/main.js"],
+		]) {
+			const onPluginsPulled = await pluginsPulledBy(
+				ESyncLogOperation.Pull,
+				paths,
+				EPluginLevel.Data,
+			);
+			expect(onPluginsPulled).not.toHaveBeenCalled();
+		}
+	});
+
+	it("stays quiet for a push, which only reads this device's own code", async () => {
+		const onPluginsPulled = await pluginsPulledBy(ESyncLogOperation.Push, [
+			".obsidian/plugins/x/main.js",
+		]);
+		expect(onPluginsPulled).not.toHaveBeenCalled();
+	});
+});
+
 describe("OperationRunner.refreshNow", () => {
 	it("adopts converged files without adopting the remote's empty folders", async () => {
 		const [a, b] = pairedSessions();

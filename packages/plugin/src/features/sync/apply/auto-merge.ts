@@ -18,7 +18,7 @@ import {
 	mergeWrittenIntoCache,
 } from "../remote/baseline";
 import type { Conflict, Manifest, ManifestEntry, SessionState } from "../types";
-import { tryAutoMergeConflict } from "./conflict-merge";
+import { autoMergerFor, tryAutoMergeConflict } from "./conflict-merge";
 
 export async function autoMergeOp(
 	deps: EngineDependencies,
@@ -142,8 +142,8 @@ async function settleConflict(
 	}
 	// No common ancestor: nothing to merge against, and no reason to stat.
 	if (!conflict.baselineHash) return undefined;
-	// A line merge of plugin code or JSON can be valid by lines and broken as a file; those go to the merge screen.
-	if (!/\.md$/i.test(conflict.path)) return undefined;
+	const merge = autoMergerFor(deps.scope, conflict.path);
+	if (!merge) return undefined;
 	// Rules out binary/oversized files by path and manifest size without downloading them.
 	const mergeable = await isTextMergeCandidate(
 		deps,
@@ -152,7 +152,7 @@ async function settleConflict(
 		deps.state.baseline,
 	);
 	if (!mergeable) return undefined;
-	const text = await tryAutoMergeConflict(deps, conflict);
+	const text = await tryAutoMergeConflict(deps, conflict, merge);
 	if (text === null) return undefined;
 	const landed = remote && (() => grewFrom(deps, conflict.path, remote));
 	const bytes = textToBytes(text);

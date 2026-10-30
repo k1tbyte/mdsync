@@ -25,6 +25,10 @@ export interface SettingsSyncCategories {
 	themes: boolean;
 }
 
+/** How much of a plugin's folder syncs; each level adds to the one before. */
+export const EPluginLevel = { Off: 0, Settings: 1, Code: 2, Data: 3 } as const;
+export type EPluginLevel = (typeof EPluginLevel)[keyof typeof EPluginLevel];
+
 export const DEFAULT_SETTINGS_SYNC: SettingsSyncCategories = {
 	coreSettings: false,
 	hotkeys: false,
@@ -37,6 +41,10 @@ export const DEFAULT_SETTINGS_SYNC: SettingsSyncCategories = {
 /** What core parses. A field typed by a feature joins `MdsyncSettings` by module augmentation where that feature parses it. */
 export interface CoreSettings {
 	settingsSync: SettingsSyncCategories;
+	/** Every plugin's level while `pluginConfigs` is on; never Off. */
+	pluginLevel: EPluginLevel;
+	/** Plugins whose level differs from the default, Off included: they apply with `pluginConfigs` off too. */
+	pluginLevels: Record<string, EPluginLevel>;
 	ignorePatterns: string;
 	/** Skip symlinks and directory links pointing outside the vault. */
 	ignoreSymlinks: boolean;
@@ -103,6 +111,8 @@ export interface MdsyncSettings extends CoreSettings {}
 
 export const DEFAULT_CORE_SETTINGS: CoreSettings = {
 	settingsSync: DEFAULT_SETTINGS_SYNC,
+	pluginLevel: EPluginLevel.Settings,
+	pluginLevels: {},
 	ignorePatterns: "",
 	ignoreSymlinks: true,
 	maxFileBytes: DEFAULT_MAX_FILE_BYTES,
@@ -215,6 +225,19 @@ function stringValues(value: unknown): Record<string, string> {
 	);
 }
 
+function isPluginLevel(value: unknown): value is EPluginLevel {
+	return Object.values<unknown>(EPluginLevel).includes(value);
+}
+
+function pluginLevelValues(value: unknown): Record<string, EPluginLevel> {
+	if (typeof value !== "object" || value === null) return {};
+	return Object.fromEntries(
+		Object.entries(value).filter((entry): entry is [string, EPluginLevel] =>
+			isPluginLevel(entry[1]),
+		),
+	);
+}
+
 /** Keeps unknown stored keys: the slices parse theirs over this. */
 export function mergeCoreSettings(
 	stored: Partial<CoreSettings> | null | undefined,
@@ -239,6 +262,12 @@ export function mergeCoreSettings(
 				| Partial<SettingsSyncCategories>
 				| undefined) ?? {}),
 		},
+		pluginLevel:
+			isPluginLevel(stored?.pluginLevel) &&
+			stored.pluginLevel !== EPluginLevel.Off
+				? stored.pluginLevel
+				: DEFAULT_CORE_SETTINGS.pluginLevel,
+		pluginLevels: pluginLevelValues(stored?.pluginLevels),
 		pausedSpaces: Array.isArray(stored?.pausedSpaces)
 			? stored.pausedSpaces.filter((id) => typeof id === "string")
 			: [],

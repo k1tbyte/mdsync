@@ -49,6 +49,7 @@ export interface BootstrapPluginRuntimeOptions {
 	onStorageRefused?: (space: Space) => void;
 	onSpaceGone?: (space: Space) => void;
 	onUnindexed?: (count: number) => void;
+	onPluginsPulled?: () => void;
 	onDeletionsHeld?: (space: Space, paths: readonly string[]) => void;
 	onTheirsPulled?: (space: Space, paths: readonly string[]) => void;
 	onNoStorage: () => void;
@@ -157,6 +158,7 @@ export async function bootstrapPluginRuntime(
 		onStorageRefused: options.onStorageRefused,
 		onSpaceGone: options.onSpaceGone,
 		onUnindexed: options.onUnindexed,
+		onPluginsPulled: options.onPluginsPulled,
 		autoDeleteLimit: () =>
 			settings.confirmBulkDeletes ? settings.bulkDeleteLimit : null,
 		onDeletionsHeld: options.onDeletionsHeld,

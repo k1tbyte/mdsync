@@ -194,6 +194,17 @@ export const keepBothConflictOp: Operation<string> = async (
 			`"${path}" was deleted remotely: there is no version to keep beside it.`,
 		);
 	}
+	const copyPath = await freeConflictCopyPath(
+		deps.adapter,
+		path,
+		result.remote?.deviceName,
+	);
+	// Plugin settings without code, or an ignore rule, can leave the copy's name out: it would never publish.
+	if (!deps.scope.includes(copyPath)) {
+		throw new Error(
+			`Cannot keep both versions of "${path}": a copy beside it would not sync. Use Keep local, Accept remote or Merge.`,
+		);
+	}
 	const bytes = await loadRemoteBytes(
 		{ storage: deps.storage, key: deps.key },
 		conflict.remoteHash,
@@ -203,11 +214,6 @@ export const keepBothConflictOp: Operation<string> = async (
 			`Cannot keep the remote version of "${path}": its object is missing`,
 		);
 	}
-	const copyPath = await freeConflictCopyPath(
-		deps.adapter,
-		path,
-		result.remote?.deviceName,
-	);
 	await writeLocalFile(deps, copyPath, bytes);
 	await ctx.logInfo(
 		ESyncLogOperation.Push,

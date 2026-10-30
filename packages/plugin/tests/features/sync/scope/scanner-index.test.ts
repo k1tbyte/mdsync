@@ -189,7 +189,7 @@ describe("scanVault with a vault index", () => {
 			[`${CONFIG}/app.json`]: "{}",
 			[`${CONFIG}/hotkeys.json`]: "{}",
 			[`${CONFIG}/snippets/s.css`]: "body{}",
-			[`${CONFIG}/plugins/other/main.js`]: "code",
+			[`${CONFIG}/plugins/other/data.json`]: "{}",
 		});
 
 		const { snapshot } = await scanVault(
@@ -201,7 +201,7 @@ describe("scanVault with a vault index", () => {
 
 		expect(Object.keys(snapshot.files).sort()).toEqual([
 			`${CONFIG}/hotkeys.json`,
-			`${CONFIG}/plugins/other/main.js`,
+			`${CONFIG}/plugins/other/data.json`,
 			`${CONFIG}/snippets/s.css`,
 			"a.md",
 		]);

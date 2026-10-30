@@ -62,17 +62,18 @@
 	color: var(--text-error);
 }
 
-.mdsync-settings .mdsync-ignore-patterns {
+/* The control under its description, across the row. */
+.mdsync-settings .mdsync-stacked-setting {
 	flex-direction: column;
 	align-items: stretch;
 	gap: var(--size-4-2);
 }
 
-.mdsync-ignore-patterns .setting-item-info {
+.mdsync-stacked-setting .setting-item-info {
 	margin-inline-end: 0;
 }
 
-.mdsync-ignore-patterns .setting-item-control {
+.mdsync-stacked-setting .setting-item-control {
 	width: 100%;
 }
 

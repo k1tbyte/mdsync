@@ -113,7 +113,7 @@ In **Settings → MDSync → Sync** you can turn on:
 
 A conflict is a file changed both here and on the remote. For each one you can **Keep local**, **Accept remote**, **Keep both versions** (the remote copy lands next to yours as `todo (conflict from Phone 2026-07-05).md`) or **Merge…**.
 
-**Merge…** opens a three-way editor: your version, the result and the remote version side by side. Changes that do not overlap are merged up front, and you review and save. Autosync merges such conflicts in notes (`.md`) on its own and leaves the rest to you, JSON and plugin files included: a merge by lines can break them. In a JSON file written by Obsidian or a plugin, keys that only moved show no change, and a result that is not valid JSON is not saved. Unsaved merge edits come back when you close the tab and open **Merge…** again, as long as neither version changed.
+**Merge…** opens a three-way editor: your version, the result and the remote version side by side. Changes that do not overlap are merged up front, and you review and save. Autosync merges such conflicts in notes (`.md`) on its own, and in Obsidian's and plugins' settings when each device changed different settings. It leaves the rest to you, plugin code and other JSON included: a merge by lines can break them. In a JSON file written by Obsidian or a plugin, keys that only moved show no change, and a result that is not valid JSON is not saved. Unsaved merge edits come back when you close the tab and open **Merge…** again, as long as neither version changed.
 
 From the keyboard, **Take local in merge**, **Take remote in merge**, **Take both in merge, local first**, **Go to next merge conflict** and **Save merge result** act on the change at the cursor; give them hotkeys in **Settings → Hotkeys**.
 
@@ -154,7 +154,7 @@ Ignoring never deletes anything: a matching file stops syncing, and copies on th
 
 ### Obsidian settings sync
 
-Under **Obsidian configuration scope** you choose what else to sync: core settings, hotkeys, the list of enabled plugins, plugins with their settings, CSS snippets and themes. Every category is off by default and chosen per device. Turning one off deletes nothing. **Clear on remote** removes a category from the remote without touching local files. MDSync's own plugin folder never syncs.
+Under **Obsidian configuration scope** you choose what else to sync: core settings, hotkeys, the list of enabled plugins, plugins, CSS snippets and themes. Every category is off by default and chosen per device. **Plugins** syncs each plugin's settings by default; choose **Code** to sync the plugins themselves (install and update everywhere) or **All** for the rest of their folders too, such as caches. **Per plugin** sets a level for single plugins on this device, and one set that way syncs even while **Plugins** is off. After a sync brings plugin code or the enabled list from another device, restart Obsidian to load it. Turning one off deletes nothing. **Clear on remote** removes a category from the remote without touching local files. MDSync's own plugin folder never syncs.
 
 ## History
 

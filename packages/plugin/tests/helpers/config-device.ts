@@ -1,4 +1,7 @@
-import type { SettingsSyncCategories } from "@/core/settings/model";
+import {
+	EPluginLevel,
+	type SettingsSyncCategories,
+} from "@/core/settings/model";
 import { SyncController } from "@/features/sync/controller";
 import { pullPathsOp } from "@/features/sync/operations/pull";
 import { pushPathsOp } from "@/features/sync/operations/push";
@@ -32,11 +35,16 @@ export const enabled = Object.fromEntries(
 
 export class Device extends TestSession {
 	settingsSync = { ...disabled };
+	/** Whole plugin folders, so `enabled` means everything. */
+	pluginLevel: EPluginLevel = EPluginLevel.Data;
+	pluginLevels: Record<string, EPluginLevel> = {};
 	override deps() {
 		return {
 			...super.deps(),
 			scope: createScopePolicy({
 				settingsSync: this.settingsSync,
+				pluginLevel: this.pluginLevel,
+				pluginLevels: this.pluginLevels,
 				configDir: ".obsidian",
 			}),
 		};
