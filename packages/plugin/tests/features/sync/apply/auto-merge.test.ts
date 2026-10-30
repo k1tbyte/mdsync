@@ -1,3 +1,5 @@
+import { Device, disabled } from "@tests/helpers/config-device";
+import { RevalidatingStorage } from "@tests/helpers/revalidating-storage";
 import type { TestSession } from "@tests/helpers/session";
 import { pairedSessions, useEncryptionKey } from "@tests/helpers/session";
 import { describe, expect, it, vi } from "vitest";
@@ -253,6 +255,68 @@ describe("autoMergeOp", () => {
 		const outcome = await autoMergeOp(a.deps(), result, a.context());
 		expect(outcome.touchedPaths.size).toBe(0);
 		expect(a.text("new.md")).toBe("from a\n");
+	});
+});
+
+describe("autoMergeOp on settings JSON", () => {
+	const plugin = ".obsidian/plugins/sample";
+	const json = (value: unknown) => JSON.stringify(value, null, 2);
+
+	/** Both devices hold `base` at `path`, then b pushes `remote` and a writes `local` unpushed. */
+	async function diverged(
+		path: string,
+		base: string,
+		local: string,
+		remote: string,
+	) {
+		const storage = new RevalidatingStorage();
+		const [a, b] = [new Device("a", storage), new Device("b", storage)];
+		for (const device of [a, b]) {
+			device.settingsSync = { ...disabled, pluginConfigs: true };
+		}
+		a.adapter.putText(path, base);
+		await a.push();
+		await b.pull();
+		b.adapter.putText(path, remote);
+		await b.push();
+		a.adapter.putText(path, local);
+		return { a, b };
+	}
+
+	it("merges a plugin's settings by key, and both devices converge", async () => {
+		const path = `${plugin}/data.json`;
+		const { a, b } = await diverged(
+			path,
+			json({ theme: "light", size: 12 }),
+			json({ theme: "dark", size: 12 }),
+			json({ theme: "light", size: 14 }),
+		);
+		const result = await a.compare();
+		expect(result.diff.conflicts.map((c) => c.path)).toEqual([path]);
+
+		const outcome = await autoMergeOp(a.deps(), result, a.context());
+
+		expect(outcome.touchedPaths).toEqual(new Set([path]));
+		expect(a.text(path)).toBe(json({ theme: "dark", size: 14 }));
+		await a.push();
+		await b.pull();
+		expect(b.text(path)).toBe(a.text(path));
+		const after = await a.compare();
+		expect(after.diff.localChanges).toHaveLength(0);
+		expect(after.diff.conflicts).toHaveLength(0);
+	});
+
+	it("leaves plugin code for the merge screen even when lines do not overlap", async () => {
+		const path = `${plugin}/main.js`;
+		const local = BASE.replace("one", "ONE");
+		const { a } = await diverged(path, BASE, local, BASE.replace("six", "SIX"));
+		const result = await a.compare();
+		expect(result.diff.conflicts.map((c) => c.path)).toEqual([path]);
+
+		const outcome = await autoMergeOp(a.deps(), result, a.context());
+
+		expect(outcome.touchedPaths.size).toBe(0);
+		expect(a.text(path)).toBe(local);
 	});
 });
 

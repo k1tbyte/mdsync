@@ -60,6 +60,8 @@ export interface ScopePolicy {
 	classify(path: string): EFileKind;
 	isIgnoredByPattern(path: string): boolean;
 	getCategory(path: string): keyof SettingsSyncCategories | null;
+	/** Obsidian's settings or a plugin's `data.json`: JSON written by `JSON.stringify`, so a conflict merges by key. */
+	isSettingsJson(path: string): boolean;
 }
 
 export interface ScopeOptions {
@@ -166,6 +168,16 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 		},
 		getCategory(rawPath) {
 			return configCategory(normalizePath(rawPath));
+		},
+		isSettingsJson(rawPath) {
+			const path = normalizePath(rawPath);
+			const category = configCategory(path);
+			if (category === "pluginConfigs") return isPluginData(path);
+			return (
+				category === "coreSettings" ||
+				category === "hotkeys" ||
+				category === "pluginList"
+			);
 		},
 	};
 

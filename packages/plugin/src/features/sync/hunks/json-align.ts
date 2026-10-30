@@ -1,4 +1,4 @@
-type Json = unknown;
+export type Json = unknown;
 
 /**
  * Base and remote rewritten in local's key order and indent, so a merge shows only real changes. Only for JSON
@@ -26,7 +26,8 @@ interface Canonical {
 	tail: string;
 }
 
-function canonical(text: string): Canonical | null {
+/** The text's value, indent and ending, or null unless it is exactly what `JSON.stringify` writes for it. */
+export function canonical(text: string): Canonical | null {
 	let value: Json;
 	try {
 		value = JSON.parse(text);
@@ -41,7 +42,7 @@ function canonical(text: string): Canonical | null {
 }
 
 /** Template's keys first in its order, then the rest in their own. */
-function ordered(value: Json, template: Json): Json {
+export function ordered(value: Json, template: Json): Json {
 	if (Array.isArray(value)) {
 		return value.map((item, i) =>
 			ordered(item, Array.isArray(template) ? template[i] : undefined),
@@ -63,6 +64,6 @@ function ordered(value: Json, template: Json): Json {
 	return out;
 }
 
-function isRecord(value: Json): value is Record<string, Json> {
+export function isRecord(value: Json): value is Record<string, Json> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

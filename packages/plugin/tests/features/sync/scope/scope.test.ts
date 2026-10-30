@@ -110,3 +110,32 @@ describe("ScopePolicy plugin code", () => {
 		}
 	});
 });
+
+describe("ScopePolicy isSettingsJson", () => {
+	const scope = createScopePolicy({
+		settingsSync: DEFAULT_SETTINGS_SYNC,
+		pluginCode: true,
+		configDir: ".obsidian",
+	});
+
+	it("names Obsidian's settings and plugins' data.json, never code or notes", () => {
+		for (const path of [
+			".obsidian/app.json",
+			".obsidian/hotkeys.json",
+			".obsidian/community-plugins.json",
+			".obsidian/plugins/dataview/data.json",
+		]) {
+			expect(scope.isSettingsJson(path)).toBe(true);
+		}
+		for (const path of [
+			".obsidian/plugins/dataview/manifest.json",
+			".obsidian/plugins/dataview/sub/data.json",
+			".obsidian/themes/Minimal/manifest.json",
+			".obsidian/workspace.json",
+			"data.json",
+			"note.md",
+		]) {
+			expect(scope.isSettingsJson(path)).toBe(false);
+		}
+	});
+});

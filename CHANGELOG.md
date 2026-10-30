@@ -3,6 +3,45 @@
 This file is the source of truth for release notes: the section of a version becomes the notes of its GitHub release.
 The newest section must match `version` in `manifest.json`. Headings are `## [x.y.z] - YYYY-MM-DD`, then `### Important`, `### Features`, `### Improvements` and `### Fixes` as needed. Write for users, in plain sentences, not commit titles.
 
+## Unreleased
+
+### Important
+
+- **Update MDSync on every device.** Once a device with this version pushes, devices still on an older version stop syncing with that storage until they are updated.
+- **File history starts over.** History from earlier versions is not carried over: after the first push, its versions and pinned versions are deleted.
+- **Plugin code no longer syncs by default.** Only each plugin's settings (`data.json`) sync, existing setups included, and nothing is deleted. Install and update plugins on each device yourself, or turn on **Plugin code** in **Settings → MDSync → Sync** to sync whole plugin folders as before.
+
+### Features
+
+- **New file history.** Every push is kept for an hour, then one version per 10 minutes, hour, day and week. Past that, only how busy each day was remains. Pinned versions stay. **Keep history for** in **Settings → MDSync → Sync** replaces **Versions to keep**; with several devices, the shortest choice among them applies.
+- **Timeline** groups pushes into sessions, with an activity calendar and a filter by path and day. **History** lists a file's versions by age, dated by their push. **Deleted** has a path filter and says until when each file is kept.
+- **What history holds** in **Settings → MDSync → Sync** shows pushes per day across your devices; select a day to open it in Timeline. An **Activity** card on the settings page shows the same at a glance.
+- **Big files sync in parts.** Only the parts that changed are uploaded, and a pull downloads only the parts the copy on disk lacks.
+- **Slow files.** Drawings and canvases save every few seconds while you work on them, so an automatic push waits until you stop or leave the file, at most 10 minutes. Set the list and its quiet period under **Slow files** in **Settings → MDSync → Sync**. Pushing by hand sends them at once.
+- **Search in compare and merge.** Each pane has a search icon in its header, and Ctrl/Cmd+F opens and closes search in the pane you are in. Find works with match case, whole word and regular expressions, folded lines included, and Result also replaces. Ctrl/Cmd+Alt+G goes to a line.
+- **Merge from the keyboard.** **Take local in merge**, **Take remote in merge**, **Take both in merge, local first**, **Go to next merge conflict** and **Save merge result** act on the change at the cursor; give them hotkeys in **Settings → Hotkeys**.
+- **Settings merge by key.** When two devices change different settings of Obsidian or of a plugin, autosync merges the settings file instead of leaving a conflict.
+
+### Improvements
+
+- Autosync merges conflicts on its own only in notes (`.md`) and in settings files. Everything else, plugin code and other JSON included, waits for you: a merge by lines can break such files.
+- In a JSON file written by Obsidian or a plugin, keys that only moved show no change in merge, and a merged result that is not valid JSON is not saved.
+- Unsaved merge edits come back when you close the tab and open **Merge…** again, as long as neither version changed.
+- **Merge…** says why it is unavailable, refuses a file changed since the compare, and the merge bar says when the file changed while you merge.
+- The tab menu of compare and merge copies the file's path or the whole text of either side.
+- Change cards show how many lines each change adds and removes.
+- Leaving a file with picked but unapplied changes asks first.
+- A restored version stays out of automatic pushes until you edit, push or pull it.
+- Changes to the configuration folder are kept out of file history and Timeline.
+- Files are compressed in storage when that makes them smaller. Excalidraw drawings saved compressed are stored unpacked, so they compress better and sync in parts, and they come back exactly as saved.
+- History, Timeline and Deleted load faster, and old versions are cleaned up in the background after pushes.
+- The default **Max file size** is now 25 MB.
+
+### Fixes
+
+- **Keep both versions** no longer creates a copy that would never sync, such as a plugin code file while only plugin settings sync.
+- On a phone, the back arrow in a diff keeps the sidebar open.
+
 ## [1.4.1] - 2026-10-27
 
 ### Improvements
