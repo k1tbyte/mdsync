@@ -3,8 +3,16 @@ import { pinSnapshot, seedChain } from "@tests/helpers/history";
 import { beforeAll, describe, expect, it } from "vitest";
 import { deriveKey, type EncryptionKey } from "@/core/crypto/cipher";
 import { diffManifests, undoChanges } from "@/features/sync/history/changes";
+import {
+	mergeRecords,
+	storedRecord,
+} from "@/features/sync/history/model/records";
 import { getFileHistory, readTimeline } from "@/features/sync/history/query";
-import { pushKey } from "@/features/sync/history/remote";
+import {
+	pushKey,
+	readHistory,
+	writeHistoryObject,
+} from "@/features/sync/history/remote";
 import { replayTo } from "@/features/sync/history/replay";
 import type { EFileKind, Manifest, ManifestEntry } from "@/features/sync/types";
 
@@ -290,6 +298,51 @@ describe("getFileHistory", () => {
 			["push", 1],
 			["push", 1],
 		]);
+	});
+
+	it("lists the content a merged period held right before it deleted the file", async () => {
+		const storage = await seed([
+			manifest("s1", null, { "a.md": entry("A1") }, 100),
+			manifest("s2", "s1", { "a.md": entry("A2") }, 200),
+			manifest("s3", "s2", {}, 300),
+		]);
+		const { view } = await readHistory(storage, key, "");
+		const merged = mergeRecords(
+			["s2", "s3"].map((id) => {
+				const read = view.pushes.get(pushKey(id));
+				if (!read) throw new Error(`No record ${id}`);
+				return storedRecord(read.push, read.at);
+			}),
+		);
+		await writeHistoryObject(storage, key, "", {
+			vaultId: "v",
+			res: "1h",
+			group: 0,
+			records: [merged],
+			consumed: [pushKey("s2"), pushKey("s3")],
+		});
+		for (const id of ["s2", "s3"]) await storage.delete(pushKey(id));
+
+		const versions = await historyOf(storage, "a.md");
+		expect(versions.map((v) => [v.hash, v.snapshotId, v.replayable])).toEqual([
+			["A2", "s3", false],
+			["A1", "s1", true],
+		]);
+	});
+
+	it("returns nothing for a path in the configuration folder", async () => {
+		const storage = await seed([
+			manifest("s1", null, {
+				".obsidian/app.json": entry("J1"),
+				"a.md": entry("A1"),
+			}),
+		]);
+		const query = { storage, key, root: "", configDir: ".obsidian" };
+
+		expect(
+			await getFileHistory({ ...query, path: ".obsidian/app.json" }),
+		).toEqual([]);
+		expect(await getFileHistory({ ...query, path: "a.md" })).toHaveLength(1);
 	});
 
 	it("returns nothing for a path the history never saw", async () => {

@@ -110,7 +110,7 @@ describe("createAutoPushSelector", () => {
 		const select = createAutoPushSelector(
 			() => 1,
 			report,
-			() => false,
+			() => () => false,
 		);
 		expect(select(VAULT_SPACE, two)).toEqual([]);
 		select(VAULT_SPACE, two);
@@ -124,7 +124,7 @@ describe("createAutoPushSelector", () => {
 		const select = createAutoPushSelector(
 			() => limit,
 			report,
-			() => false,
+			() => () => false,
 		);
 		select(VAULT_SPACE, two);
 		select(VAULT_SPACE, two, new Set(["c.md"]));
@@ -141,7 +141,7 @@ describe("createAutoPushSelector", () => {
 		const select = createAutoPushSelector(
 			() => null,
 			vi.fn(),
-			(path) => path === "a.md",
+			() => (path) => path === "a.md",
 		);
 		expect(select(VAULT_SPACE, two)).toEqual(["b.md"]);
 	});
@@ -150,7 +150,7 @@ describe("createAutoPushSelector", () => {
 		const select = createAutoPushSelector(
 			() => null,
 			vi.fn(),
-			(path) => path === "b.canvas",
+			() => (path) => path === "b.canvas",
 		);
 		const moved = diff({
 			localChanges: [deleted("a.canvas"), added("b.canvas"), change("c.md")],

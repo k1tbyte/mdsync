@@ -25,6 +25,7 @@ import {
 import { createSessionOpeners } from "./session-factory";
 
 const ACTIVITY_KEY = "mdsync-activity";
+const RESTORED_KEY = "mdsync-restored";
 
 export interface PluginRuntime {
 	controller: SyncController;
@@ -140,6 +141,10 @@ export async function bootstrapPluginRuntime(
 		activityStore: {
 			load: () => app.loadLocalStorage(ACTIVITY_KEY) as unknown,
 			save: (value) => app.saveLocalStorage(ACTIVITY_KEY, value),
+		},
+		restoredStore: {
+			load: () => app.loadLocalStorage(RESTORED_KEY) as unknown,
+			save: (value) => app.saveLocalStorage(RESTORED_KEY, value),
 		},
 		persistState: (state) => statePersister.persist(state),
 		getState: () => statePersister.state,

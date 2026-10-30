@@ -39,6 +39,7 @@ function serviceFor(session: TestSession): HistoryService {
 		enqueue: (task) => task(),
 		refresh: async () => undefined,
 		remember: () => undefined,
+		restored: () => undefined,
 	});
 }
 

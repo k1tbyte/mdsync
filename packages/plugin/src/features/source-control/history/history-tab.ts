@@ -7,13 +7,11 @@ import {
 	appendLabeledButton,
 	attempt,
 	makeActivatable,
-	notifyError,
-	notifyInfo,
 } from "@/core/ui";
 import type { HistoryDiffTarget } from "@/features/diff";
-import { confirmRestore } from "@/features/diff";
 import { countsBefore, type FileVersion } from "@/features/sync";
 import type { SourceControlHost } from "../host";
+import { confirmAndRestoreFile } from "../restore-file";
 import { renderAgeHeader, renderSize } from "../row-parts";
 import {
 	renderEmptyState,
@@ -138,15 +136,16 @@ export class HistoryTab {
 			});
 			return;
 		}
-		const rows = buildHistoryRows(versions, {
-			currentDevice: this.plugin.controller.currentDevice(),
-		});
 		// Pinned lead, as groupByAge orders them, so a page break never splits the pinned group.
 		const ordered = [
-			...rows.filter((row) => row.pinned),
-			...rows.filter((row) => !row.pinned),
+			...versions.flatMap((v, index) => (v.pinId !== null ? [index] : [])),
+			...versions.flatMap((v, index) => (v.pinId === null ? [index] : [])),
 		];
-		for (const group of groupByAge(this.pager.slice(ordered))) {
+		const rows = buildHistoryRows(versions, {
+			currentDevice: this.plugin.controller.currentDevice(),
+			only: this.pager.slice(ordered),
+		});
+		for (const group of groupByAge(rows)) {
 			renderAgeHeader(body, group);
 			const list = body.createDiv({ cls: "mdsync-history-rows" });
 			for (const row of group.rows) this.renderRow(list, path, row);
@@ -272,7 +271,7 @@ export class HistoryTab {
 		addSnapshotPinItems(
 			menu,
 			this.plugin,
-			{ ...row, snapshotId: row.pinId ?? row.snapshotId },
+			{ ...row, snapshotId: row.pinId ?? row.snapshotId, path },
 			this.onSnapshotsChanged,
 			row.replayable,
 		);
@@ -304,20 +303,16 @@ export class HistoryTab {
 		path: string,
 		row: HistoryRow,
 	): Promise<void> {
-		const confirmed = await confirmRestore({
-			plugin: this.plugin,
-			path,
-			target: path,
-			// The title is a clock time under its day; the dialog has no day.
-			version: { ...row.version, label: row.label || row.version.label },
-		});
-		if (!confirmed) return;
-		try {
-			await this.plugin.controller.history.restoreFileVersion(path, row.hash);
+		await confirmAndRestoreFile(
+			this.plugin,
+			{
+				path,
+				target: path,
+				// The title is a clock time under its day; the dialog has no day.
+				version: { ...row.version, label: row.label || row.version.label },
+			},
 			// The list describes the remote, which a local restore does not touch.
-			notifyInfo("Restored. Review and push the change when ready.");
-		} catch (err) {
-			notifyError("Restore failed", err);
-		}
+			"Restored. Review and push the change when ready.",
+		);
 	}
 }

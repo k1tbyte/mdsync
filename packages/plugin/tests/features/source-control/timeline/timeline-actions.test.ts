@@ -58,6 +58,7 @@ describe("Timeline file restoration", () => {
 			expect(restoreFileVersion).toHaveBeenCalledExactlyOnceWith(
 				file.path,
 				file.version.hash,
+				file.path,
 			);
 		},
 	);

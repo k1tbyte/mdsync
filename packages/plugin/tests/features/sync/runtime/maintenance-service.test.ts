@@ -21,11 +21,13 @@ function service(
 	const logInfo = vi.fn(() => Promise.resolve());
 	const remember = vi.fn();
 	const queued: Promise<unknown>[] = [];
+	// Settings can switch the storage under a running service.
+	const target = { storage };
 	const maintenance = new MaintenanceService({
 		openSession: async (space) =>
 			({
 				space,
-				storage,
+				storage: target.storage,
 				key: {},
 				history: history ?? undefined,
 			}) as unknown as EngineDependencies,
@@ -40,7 +42,7 @@ function service(
 		remember,
 	});
 	const settled = () => Promise.all(queued).then(() => undefined);
-	return { maintenance, logWarn, logInfo, remember, settled };
+	return { maintenance, logWarn, logInfo, remember, settled, target };
 }
 
 beforeEach(() => {
@@ -119,6 +121,22 @@ describe("MaintenanceService.afterPush", () => {
 			vi.setSystemTime(Date.now() + 10 * 60_000);
 		}
 		expect(list).toHaveBeenCalledTimes(2);
+	});
+
+	it("clears 1.x history again on another storage", async () => {
+		const { maintenance, settled, target } = service(
+			null,
+			new FakeStorage("a"),
+		);
+		maintenance.afterPush(VAULT_SPACE);
+		await settled();
+		const other = new FakeStorage("b");
+		await other.put(REMOTE_HISTORY_LOG_KEY, new Uint8Array([1]));
+		target.storage = other;
+		vi.setSystemTime(Date.now() + 10 * 60_000);
+		maintenance.afterPush(VAULT_SPACE);
+		await settled();
+		expect(await other.exists(REMOTE_HISTORY_LOG_KEY)).toBe(false);
 	});
 
 	it("logs a failure instead of throwing it at the push", async () => {

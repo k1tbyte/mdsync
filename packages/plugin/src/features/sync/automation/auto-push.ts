@@ -44,13 +44,13 @@ export type AutoPushSelector = (
 ) => string[];
 
 /**
- * Held deletions go to `report` once per set, not on every cycle that holds the same ones. `editing`: a slow
- * file still being edited, left for a later push.
+ * Held deletions go to `report` once per set, not on every cycle that holds the same ones. `waiting` names
+ * what a later push takes: a slow file still being edited, a restored one not pushed by hand yet.
  */
 export function createAutoPushSelector(
 	deleteLimit: () => number | null,
 	report: (space: Space, held: readonly string[]) => void,
-	editing: (path: string) => boolean,
+	waiting: (space: Space, diff: DiffResult) => (path: string) => boolean,
 ): AutoPushSelector {
 	const reported = new Map<string, string>();
 	return (space, diff, only) => {
@@ -63,15 +63,16 @@ export function createAutoPushSelector(
 			reported.set(space.id, key);
 			report(space, held);
 		}
-		const waiting = new Set(paths.filter(editing));
+		const waits = waiting(space, diff);
+		const later = new Set(paths.filter(waits));
 		// A push takes both ends of a move, so a held end holds the other.
 		for (const { from, to, side } of diff.moves) {
-			if (side === "local" && (editing(from) || editing(to))) {
-				waiting.add(from);
-				waiting.add(to);
+			if (side === "local" && (waits(from) || waits(to))) {
+				later.add(from);
+				later.add(to);
 			}
 		}
-		return paths.filter((path) => !waiting.has(path));
+		return paths.filter((path) => !later.has(path));
 	};
 }
 

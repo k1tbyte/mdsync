@@ -9,7 +9,7 @@ import {
 	REMOTE_PINS_PREFIX,
 	REMOTE_RECIPES_PREFIX,
 } from "../constants";
-import { chunksNamed } from "../content/closure";
+import { chunksNamed, forgetUnlistedRecipes } from "../content/closure";
 import { rootHash } from "../content/keys";
 import { fetchRemoteManifest } from "../remote/manifest";
 import { listDated, SETTLED_AFTER_MS } from "../remote/uploads";
@@ -31,7 +31,7 @@ export interface ReachableSet {
 	head: Manifest | null;
 	/** Pin keys listed when the set was read. */
 	pinned: string;
-	/** History keys listed when the set was read. */
+	/** History keys listed when the set was read, candidate files included. */
 	history: ReadonlySet<string>;
 	candidates: readonly ListedObject[];
 	/** False when a history record or pin could not be read, so the live set is unknown. */
@@ -135,6 +135,7 @@ export async function sweepObjects(
 		listDated(storage, REMOTE_RECIPES_PREFIX),
 		listDated(storage, REMOTE_CHUNKS_PREFIX),
 	]);
+	forgetUnlistedRecipes(storage, recipes);
 
 	const held = await readCandidates(storage, key, young);
 	if (held.unreadable.length > 0) {
@@ -236,10 +237,12 @@ function deleteFiles(
 	);
 }
 
+/** Candidate files too: one written meanwhile names versions a run just stopped naming. */
 function historyKeys(read: HistoryRead): string[] {
 	return [
 		...read.view.pushes.keys(),
 		...read.view.objects.keys(),
 		...read.unreadable,
+		...read.candidates.map(({ key }) => key),
 	];
 }

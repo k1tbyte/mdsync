@@ -64,7 +64,7 @@ export function renderSessionCard(
 			cls: "mdsync-timeline-caption",
 			text: (row.res && PERIOD_CAPTION[row.res]) ?? "",
 		});
-		for (const version of versions) renderVersion(body, version, ctx);
+		renderVersions(body, row.key, versions, ctx);
 		return;
 	}
 	renderFiles(body, row.key, row.files, ctx);
@@ -81,7 +81,19 @@ export function renderSessionCard(
 	);
 	more.addClass("mdsync-timeline-more");
 	more.setAttr("data-timeline-focus", allKey);
-	if (all) for (const version of versions) renderVersion(body, version, ctx);
+	if (all) renderVersions(body, row.key, versions, ctx);
+}
+
+function renderVersions(
+	parent: HTMLElement,
+	owner: string,
+	versions: readonly TimelineRow[],
+	ctx: CardContext,
+): void {
+	const pager = ctx.pager(`versions:${owner}`);
+	for (const version of pager.slice(versions))
+		renderVersion(parent, version, ctx);
+	pager.render(parent, versions.length, ctx.rerender);
 }
 
 function renderVersion(

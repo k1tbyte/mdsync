@@ -24,6 +24,7 @@ export {
 } from "./config";
 export { CONCURRENCY_FIELD } from "./field-spec";
 export type { StorageHost } from "./host";
+export { listEntries } from "./listing";
 export {
 	type RecordKind,
 	readRecords,

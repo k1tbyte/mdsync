@@ -91,6 +91,7 @@ async function loadPreview(
 	return options.plugin.controller.history.getHistoryDiff({
 		// Diff against the target, not the original path: that is what gets replaced.
 		path: options.target,
+		source: options.path,
 		// Current on the left, so "+" is what the restore brings back.
 		left: { current: true },
 		right: { version: options.version },

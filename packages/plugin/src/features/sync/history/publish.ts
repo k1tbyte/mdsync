@@ -1,5 +1,5 @@
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
-import type { EncryptionKey } from "@/core/crypto";
+import { decryptBytes, type EncryptionKey } from "@/core/crypto";
 import { reportWarning } from "@/core/shared";
 import { runWithConcurrency } from "@/core/utils";
 import type { StorageAdapter } from "@/features/storage";
@@ -19,7 +19,6 @@ import type { HistoryConfig } from "./types";
 /** A sealed record whose write failed, with what decides whether it may still land. */
 interface Unwritten {
 	blob: Uint8Array;
-	key: EncryptionKey;
 	vaultId: string;
 	hashes: string[];
 }
@@ -64,12 +63,11 @@ export async function publishManifestWithHistory(
 				changes,
 				...(released.length > 0 && { released }),
 			}),
-			key,
 			vaultId: manifest.vaultId,
 			hashes: [...new Set(changeEntries(changes).map(({ hash }) => hash))],
 		};
 		waiting.set(pushKey(manifest.snapshotId), own);
-		await writeWaiting(storage, waiting, own);
+		await writeWaiting(storage, key, waiting, own);
 	}
 	// A failed publish keeps its record waiting: the manifest may have landed, and a sibling costs only GC.
 	await publishManifestWithGuard(
@@ -85,12 +83,13 @@ export async function publishManifestWithHistory(
 /** Oldest first; stops at the first failure, as the rest would likely fail the same way. */
 async function writeWaiting(
 	storage: StorageAdapter,
+	key: EncryptionKey,
 	waiting: Map<string, Unwritten>,
 	own: Unwritten,
 ): Promise<void> {
 	for (const [storageKey, record] of waiting) {
 		try {
-			if (record === own || (await stillLands(storage, record, own))) {
+			if (record === own || (await stillLands(storage, record, own, key))) {
 				await storage.put(storageKey, record.blob, "application/octet-stream");
 			}
 			waiting.delete(storageKey);
@@ -104,13 +103,25 @@ async function writeWaiting(
 	}
 }
 
-/** A held-back record lands only in its own vault and while every blob it names survived a sweep or a reset. */
+/**
+ * A held-back record lands only under the same data key and vault, and while every blob it names survived a
+ * sweep or a reset. Asked of its ciphertext: a re-unlock or a rotation builds a new key object of the same key.
+ */
 async function stillLands(
 	storage: StorageAdapter,
 	record: Unwritten,
 	own: Unwritten,
+	key: EncryptionKey,
 ): Promise<boolean> {
-	if (record.key !== own.key || record.vaultId !== own.vaultId) return false;
+	if (record.vaultId !== own.vaultId) return false;
+	if (
+		!(await decryptBytes(key, record.blob).then(
+			() => true,
+			() => false,
+		))
+	) {
+		return false;
+	}
 	// A root guards its chunks: a sweep deletes them only after it, a reset after every root.
 	if (record.hashes.length > PROBE_LIMIT) {
 		const listed = await Promise.all(

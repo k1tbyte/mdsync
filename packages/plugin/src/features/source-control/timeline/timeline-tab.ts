@@ -46,6 +46,12 @@ export class TimelineTab {
 		key: string;
 		rows: SessionRow[];
 	} | null = null;
+	/** The calendar scans every snapshot per day, so UI-only rerenders reuse it until the result or the day changes. */
+	private calendarMemo: {
+		result: SnapshotListResult;
+		today: number;
+		calendar: ActivityCalendar;
+	} | null = null;
 	private query = "";
 	private sessionPager = new RowPager();
 	/** What the session pager counts pages of: another result, filter or day starts it over. */
@@ -182,7 +188,7 @@ export class TimelineTab {
 			return;
 		}
 		// Built while hidden too: a day picked in settings filters by it.
-		const calendar = buildCalendar(result.activity, result.snapshots);
+		const calendar = this.calendarOf(result);
 		// A reload may have thinned the picked day, or moved it off the calendar.
 		const picked = this.picked?.start;
 		this.picked =
@@ -198,6 +204,20 @@ export class TimelineTab {
 			this.renderSessions(sessions, rows, result, calendar);
 		};
 		this.redrawSessions();
+	}
+
+	private calendarOf(result: SnapshotListResult): ActivityCalendar {
+		const today = startOfDay(Date.now());
+		if (
+			this.calendarMemo?.result !== result ||
+			this.calendarMemo.today !== today
+		)
+			this.calendarMemo = {
+				result,
+				today,
+				calendar: buildCalendar(result.activity, result.snapshots),
+			};
+		return this.calendarMemo.calendar;
 	}
 
 	private sessionRows({ snapshots }: SnapshotListResult): SessionRow[] {
@@ -290,12 +310,14 @@ export class TimelineTab {
 			this.renderCountsDay(el, picked, result, calendar);
 			return;
 		}
-		const dayEnd = picked && new Date(picked.start);
-		dayEnd?.setDate(dayEnd.getDate() + 1);
+		const day = picked && new Date(picked.start);
+		// From the date, never by adding a day to the start: a DST switch can skip the midnight.
+		const dayEnd =
+			day && new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
 		const shown = rows.filter(
 			(row) =>
 				(!query || row.versions.some((version) => touches(version, query))) &&
-				(!dayEnd || (!row.pinned && row.firstAt < dayEnd.getTime())),
+				(!dayEnd || row.firstAt < dayEnd.getTime()),
 		);
 		if (shown.length === 0 && query) {
 			renderEmptyState(el, {
@@ -424,7 +446,7 @@ export class TimelineTab {
 	/** Rows gone from the new list take their open state with them. */
 	private prune({ snapshots }: SnapshotListResult): void {
 		const ids = new Set(snapshots.map((row) => row.id));
-		// Keys are an id, or an id after a "v:" or "all:" prefix.
+		// Keys are an id, or an id after a "v:", "all:" or "versions:" prefix.
 		const live = (key: string) => ids.has(key.slice(key.indexOf(":") + 1));
 		for (const key of this.open) if (!live(key)) this.open.delete(key);
 		for (const key of this.pages.keys()) if (!live(key)) this.pages.delete(key);

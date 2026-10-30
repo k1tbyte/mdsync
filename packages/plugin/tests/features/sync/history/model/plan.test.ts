@@ -86,6 +86,71 @@ describe("history GC plan over a simulated vault", () => {
 		expect(sim.pushes.size).toBe(0);
 	});
 
+	it.each([
+		["forever", null, 15 * DAY],
+		["past the horizon", 7 * DAY, 50 * DAY],
+	])(
+		"keeps a packed object whose records a late parent record moved to another group (%s)",
+		(_, horizon, retryAfter) => {
+			const start = Date.UTC(2026, 0, 5, 8);
+			const sim = new HistorySim(8, horizon, start);
+			sim.push(sim.now);
+			sim.push(sim.after(DAY));
+			// Its record write failed: the device retries it at its next push.
+			const held = sim.pushes.get("p/s2");
+			sim.pushes.delete("p/s2");
+			for (let i = 0; i < 3; i++) sim.push(sim.after(DAY));
+			sim.gc(sim.after(2 * DAY));
+			expect(holder(sim, "s4")).toBeDefined();
+			sim.after(start + retryAfter - sim.now);
+			if (held) sim.pushes.set("p/s2", { ...held, at: sim.now });
+			sim.push(sim.after(MINUTE));
+			sim.gc(sim.after(MINUTE));
+			expectSound(sim);
+		},
+	);
+
+	it("builds no counts that would replace only earlier counts while a packed source stays", () => {
+		const start = Date.UTC(2026, 0, 5, 8);
+		const sim = new HistorySim(9, 7 * DAY, start);
+		for (let i = 0; i < 4; i++) sim.push(i === 0 ? sim.now : sim.after(DAY));
+		const held = sim.pushes.get("p/s2");
+		// One object holding two runs: s1, then s3 and s4 past the missing s2.
+		const records = ["s1", "s3", "s4"].map((id) => {
+			const read = sim.pushes.get(`p/${id}`);
+			if (!read) throw new Error(`No record ${id}`);
+			sim.pushes.delete(`p/${id}`);
+			return storedRecord(read.push, read.at);
+		});
+		sim.pushes.delete("p/s2");
+		sim.objects.set("b/1d-runs", {
+			object: {
+				v: 1,
+				vaultId: "vault",
+				res: "1d",
+				group: groupStart("1d", start),
+				records,
+				consumed: [],
+			},
+			at: sim.now,
+		});
+		sim.after(start + 50 * DAY - sim.now);
+		if (held) sim.pushes.set("p/s2", { ...held, at: sim.now });
+		sim.push(sim.after(MINUTE));
+		sim.gc(sim.after(MINUTE));
+		expectSound(sim);
+
+		const plan = planGc({
+			view: sim.view(),
+			cover: sim.cover(),
+			vaultId: "vault",
+			now: sim.after(10 * MINUTE),
+			horizon: 7 * DAY,
+			settledBefore: sim.now - DAY,
+		});
+		expect(plan.builds.filter((build) => build.res === "counts")).toEqual([]);
+	});
+
 	it("deletes a push that lost the guard once it is settled, and not before", () => {
 		const sim = new HistorySim(4, 14 * DAY);
 		sim.push(sim.after(MINUTE));

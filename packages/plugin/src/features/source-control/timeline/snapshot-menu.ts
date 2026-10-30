@@ -6,6 +6,8 @@ interface SnapshotPin {
 	snapshotId: string;
 	pinned: boolean;
 	label: string;
+	/** A file of the snapshot's space, from its History; the vault's without one. */
+	path?: string;
 }
 
 export function addSnapshotPinItems(
@@ -21,6 +23,7 @@ export function addSnapshotPinItems(
 				snapshot.snapshotId,
 				pinned,
 				label,
+				snapshot.path,
 			);
 			onChanged();
 			notifyInfo(pinned ? "Version pinned." : "Version unpinned.");

@@ -13,6 +13,14 @@ import type { Manifest } from "@/features/sync/types";
 
 useEncryptionKey();
 
+const hashOf = (text: string) => sha256Hex(new TextEncoder().encode(text));
+
+async function headFiles(session: ReturnType<typeof pairedSessions>[0]) {
+	const bytes = session.storage.map.get(REMOTE_MANIFEST_KEY);
+	if (!bytes) throw new Error("Missing head");
+	return (await decryptJson<Manifest>(session.deps().key, bytes)).files;
+}
+
 function headReads(get: { mock: { calls: [string][] } }): number {
 	return get.mock.calls.filter(([key]) => key === REMOTE_MANIFEST_KEY).length;
 }
@@ -196,6 +204,46 @@ describe("serialized automatic refresh cycle", () => {
 			["F/a.md", "F/b.md"],
 		);
 		expect(controller.getSnapshot().pendingLocal).toBe(2);
+		controller.dispose();
+	});
+
+	it("keeps a restored file out of automatic pushes until it is edited", async () => {
+		const [a] = pairedSessions();
+		a.adapter.putText("a.md", "one");
+		const controller = new SyncController(createTestControllerHost(a));
+		await controller.refreshAndAutoSync();
+		a.adapter.putText("a.md", "two");
+		await controller.refreshAndAutoSync();
+
+		await controller.history.restoreFileVersion("a.md", await hashOf("one"));
+		a.adapter.putText("b.md", "new");
+		await controller.refreshAndAutoSync();
+		expect((await headFiles(a))["a.md"]?.hash).toBe(await hashOf("two"));
+		expect((await headFiles(a))["b.md"]?.hash).toBe(await hashOf("new"));
+		expect(controller.getSnapshot().pendingLocal).toBe(1);
+
+		a.adapter.putText("a.md", "three");
+		await controller.refreshAndAutoSync();
+		expect((await headFiles(a))["a.md"]?.hash).toBe(await hashOf("three"));
+		controller.dispose();
+	});
+
+	it("ends a restore's hold at a push by hand, with automatic pushes off meanwhile", async () => {
+		const [a] = pairedSessions();
+		a.adapter.putText("a.md", "one");
+		const controller = new SyncController(createTestControllerHost(a));
+		await controller.refreshAndAutoSync();
+		a.adapter.putText("a.md", "two");
+		await controller.pushPaths(["a.md"]);
+		await controller.history.restoreFileVersion("a.md", await hashOf("one"));
+		await controller.pushPaths(["a.md"]);
+		a.adapter.putText("a.md", "two");
+		await controller.pushPaths(["a.md"]);
+
+		a.adapter.putText("a.md", "one");
+		await controller.refreshAndAutoSync();
+
+		expect((await headFiles(a))["a.md"]?.hash).toBe(await hashOf("one"));
 		controller.dispose();
 	});
 });

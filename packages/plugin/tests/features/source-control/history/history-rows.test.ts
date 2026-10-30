@@ -86,6 +86,19 @@ describe("buildHistoryRows", () => {
 		expect(rows[1]?.previous).toBeUndefined();
 	});
 
+	it("builds only the asked positions, each still against its next older version", () => {
+		const versions = [
+			version({ snapshotId: "s3", hash: "H3", size: 3072, createdAt: NOW }),
+			version({ snapshotId: "s2", hash: "H2", size: 2048 }),
+			version({ snapshotId: "s1", hash: "H1", size: 1024 }),
+		];
+		const rows = buildHistoryRows(versions, { now: NOW, only: [2, 1] });
+		expect(rows.map((row) => row.snapshotId)).toEqual(["s1", "s2"]);
+		expect(rows[1]).toMatchObject({ sizeDelta: 1024, isLatest: false });
+		expect(rows[1]?.previous?.hash).toBe("H1");
+		expect(rows[0]?.previous).toBeUndefined();
+	});
+
 	it("prefers a pin's name over the timestamp, but keeps both apart", () => {
 		const [row] = buildHistoryRows(
 			[version({ pinId: "p1", label: "  before the rewrite  " })],

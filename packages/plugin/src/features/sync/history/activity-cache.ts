@@ -1,10 +1,5 @@
+import type { LocalStore } from "../types";
 import type { Activity } from "./model/types";
-
-/** Device-local and never synced: Obsidian's local storage for this vault. */
-export interface ActivityStore {
-	load(): unknown;
-	save(value: unknown): void;
-}
 
 export interface CachedActivity {
 	activity: Activity;
@@ -19,7 +14,7 @@ interface Entry extends CachedActivity {
 
 /** The vault's activity as last read from history, so the settings overview draws it without the network. */
 export class ActivityCache {
-	constructor(private readonly store: ActivityStore) {}
+	constructor(private readonly store: LocalStore) {}
 
 	/** Null for another storage target: it holds another vault. */
 	recall(storage: string): CachedActivity | null {

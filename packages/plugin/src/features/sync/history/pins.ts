@@ -2,7 +2,7 @@ import { DEFAULT_CONCURRENCY } from "@/core/constants";
 import { decryptJson, type EncryptionKey, encryptJson } from "@/core/crypto";
 import { reportWarning } from "@/core/shared";
 import { runWithConcurrency } from "@/core/utils";
-import type { ListedObject, ObjectStorage } from "@/features/storage";
+import { listEntries, type ObjectStorage } from "@/features/storage";
 import { REMOTE_PINS_PREFIX } from "../constants";
 import { manifestToSpace, manifestToVault } from "../remote/space-paths";
 import type { Manifest } from "../types";
@@ -133,7 +133,7 @@ async function scanPins<T>(
 		pinCache.set(storage, cache);
 	}
 	const { pins, infos } = cache;
-	const listed = await listPins(storage);
+	const listed = await listEntries(storage, REMOTE_PINS_PREFIX);
 	const listedKeys = new Set(listed.map((object) => object.key));
 	for (const cached of [pins, infos]) {
 		for (const storageKey of cached.keys()) {
@@ -150,9 +150,12 @@ async function scanPins<T>(
 			return;
 		}
 		const hit = pins.get(object.key);
-		let pin = etag !== null && hit?.etag === etag ? hit.pin : null;
+		let pin: Pin | null | undefined =
+			etag !== null && hit?.etag === etag ? hit.pin : null;
 		if (!pin) {
 			pin = await readPin(storage, key, root, object.key);
+			// Unpinned since the listing: it holds nothing now.
+			if (pin === undefined) return;
 			if (!pin) {
 				unreadable.push(object.key);
 				return;
@@ -179,26 +182,18 @@ export async function readPinById(
 	root: string,
 	snapshotId: string,
 ): Promise<Pin | null> {
-	return readPin(storage, key, root, pinKey(snapshotId));
+	return (await readPin(storage, key, root, pinKey(snapshotId))) ?? null;
 }
 
-async function listPins(storage: ObjectStorage): Promise<ListedObject[]> {
-	if (storage.listDetailed) return storage.listDetailed(REMOTE_PINS_PREFIX);
-	return (await storage.list(REMOTE_PINS_PREFIX)).map((key) => ({
-		key,
-		etag: null,
-		modified: null,
-	}));
-}
-
+/** Undefined when absent, null when unreadable. */
 async function readPin(
 	storage: ObjectStorage,
 	key: EncryptionKey,
 	root: string,
 	storageKey: string,
-): Promise<Pin | null> {
+): Promise<Pin | null | undefined> {
 	const blob = await storage.get(storageKey);
-	if (!blob) return null;
+	if (!blob) return undefined;
 	const id = storageKey.slice(REMOTE_PINS_PREFIX.length, -".json.enc".length);
 	try {
 		const stored = await decryptJson<StoredPin>(key, blob);

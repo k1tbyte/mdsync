@@ -246,6 +246,20 @@ describe("readPins", () => {
 		expect(read.unreadable.sort()).toEqual([pinKey("bad"), pinKey("legacy")]);
 	});
 
+	it("skips a pin unpinned between its listing and its read", async () => {
+		const storage = new FakeStorage();
+		await pinSnapshot(storage, key, manifestOf("kept", null, {}, 1));
+		await pinSnapshot(storage, key, manifestOf("gone", null, {}, 2));
+		const get = storage.get.bind(storage);
+		vi.spyOn(storage, "get").mockImplementation(async (storageKey) =>
+			storageKey === pinKey("gone") ? null : get(storageKey),
+		);
+
+		const read = await readPins(storage, key, "", () => null);
+		expect(read.pins.map(({ info }) => info.id)).toEqual(["kept"]);
+		expect(read.unreadable).toEqual([]);
+	});
+
 	it("downloads a pin once, and again after it is rewritten", async () => {
 		const storage = new RevalidatingStorage();
 		const pinned = manifestOf("p", null, { a: "A" });

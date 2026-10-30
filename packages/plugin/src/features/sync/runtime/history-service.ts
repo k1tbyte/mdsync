@@ -1,7 +1,7 @@
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
 import { sha256Hex } from "@/core/crypto";
 import { runWithConcurrency, withEolOf } from "@/core/utils";
-import { diskRefuses, trashPath } from "@/core/vault";
+import { trashPath, unchangedSince } from "@/core/vault";
 import {
 	bytesToText,
 	isLikelyText,
@@ -11,6 +11,8 @@ import {
 	writeRemoteObject,
 } from "../changes/content";
 import { runWithFileConcurrency } from "../changes/file-concurrency";
+import { entryAt } from "../changes/records";
+import { skipUnholdableNames } from "../changes/remote-names";
 import type { EngineDependencies } from "../engine";
 import { historyTracks, untrackedDir } from "../history/changes";
 import type { Activity } from "../history/model/types";
@@ -44,7 +46,9 @@ import {
 	type FileDiffModel,
 	type HistoryDiffRequest,
 } from "../hunks/projection";
+import { coldSince } from "../live-notes";
 import { ownedFiles } from "../remote/foreign";
+import type { Space } from "../remote/space";
 import { scanVault } from "../scope/scanner";
 import type { LocalSnapshot, Manifest } from "../types";
 
@@ -58,6 +62,8 @@ interface HistoryServiceDeps {
 	refresh: () => Promise<void>;
 	/** Keeps the vault's activity for the settings overview. */
 	remember: (storage: string, activity: Activity, since: number) => void;
+	/** What a restore left in a space (null: removed), kept out of automatic pushes; before its refresh. */
+	restored: (space: Space, left: ReadonlyMap<string, string | null>) => void;
 }
 
 /** Reads and restores past file versions from the snapshot history. */
@@ -93,10 +99,8 @@ export class HistoryService {
 	/** What a restore would change, computed against a fresh scan of the vault. */
 	async previewVaultRestore(snapshotId: string): Promise<VaultRestorePlan> {
 		const session = await this.requireSession();
-		return this.planRestore(
-			session,
-			await this.requireSnapshot(session, snapshotId),
-		);
+		const target = await this.requireSnapshot(session, snapshotId);
+		return planRestore(session, target, await scanLocal(session));
 	}
 
 	/**
@@ -110,8 +114,32 @@ export class HistoryService {
 		return this.deps.enqueue(async () => {
 			const session = await this.requireSession();
 			const target = await this.requireSnapshot(session, snapshotId);
-			const plan = await this.planRestore(session, target);
+			const local = await scanLocal(session);
+			const plan = planRestore(session, target, local);
 			if (!sameRestorePlan(plan, confirmed)) return { plan, applied: false };
+			// An edit saved while the restore downloads keeps its file, as in a pull.
+			const seen = (path: string) => entryAt(local.files, path);
+			// On a case-blind disk a recased file answers for the target's spelling.
+			const spelled = new Map(
+				Object.keys(local.files).map((path) => [path.toLowerCase(), path]),
+			);
+			const recased = (path: string) => spelled.get(path.toLowerCase());
+			const ready = (path: string) => {
+				const exact = coldSince(session, path, seen(path));
+				const alias = recased(path);
+				const other = alias && coldSince(session, path, seen(alias));
+				return async () => (await exact()) || (!!other && (await other()));
+			};
+			// Held before the first write: a restore cut short must not reach an automatic push either.
+			this.deps.restored(
+				session.space,
+				new Map(
+					plan.write.flatMap(({ path, entry: { hash } }) => [
+						[path, hash],
+						[recased(path) ?? path, hash],
+					]),
+				),
+			);
 			const claims = await session.journal?.claim(
 				session.space,
 				new Map(
@@ -123,40 +151,32 @@ export class HistoryService {
 					plan.write,
 					session.concurrency ?? DEFAULT_CONCURRENCY,
 					(item) => item.entry.size,
-					async (item) => {
-						await writeRemoteObject(
-							session,
-							item.path,
-							item.entry.hash,
+					async ({ path, entry }) => {
+						await writeRemoteObject(session, path, entry.hash, {
 							claims,
-						);
+							ready: ready(path),
+						});
 					},
 				);
 			} finally {
 				if (claims) await session.journal?.settle(claims);
 			}
+			this.deps.restored(
+				session.space,
+				new Map(plan.remove.map((path) => [path, null])),
+			);
 			await runWithConcurrency(
 				plan.remove,
 				session.concurrency ?? DEFAULT_CONCURRENCY,
 				async (path) => {
-					await trashPath(session.adapter, path);
+					if (await unchangedSince(session.adapter, path, seen(path))) {
+						await trashPath(session.adapter, path);
+					}
 				},
 			);
 			await this.deps.refresh();
 			return { plan, applied: true };
 		});
-	}
-
-	private async planRestore(
-		session: EngineDependencies,
-		target: Manifest,
-	): Promise<VaultRestorePlan> {
-		return planVaultRestore(
-			target,
-			await scanLocal(session),
-			(path) => session.scope.includes(path) && !diskRefuses(path),
-			historyTracks(untrackedDir(session)),
-		);
 	}
 
 	private async requireSnapshot(
@@ -172,29 +192,39 @@ export class HistoryService {
 		return { ...target, files: ownedFiles(target.files, session.scope) };
 	}
 
-	/** Queued with pushes: the pin is replayed from the history they write. */
+	/**
+	 * Queued with pushes: the pin is replayed from the history they write. `path` names a file of the space
+	 * whose snapshot it is (a shared folder's History); the vault's without one.
+	 */
 	setSnapshotPinned(
 		snapshotId: string,
 		pinned: boolean,
 		label?: string,
+		path?: string,
 	): Promise<void> {
 		return this.deps.enqueue(async () => {
-			const session = await this.requireSession();
+			const session = await this.requireSession(path);
 			await storeSetSnapshotPinned(queryOf(session), snapshotId, pinned, label);
 		});
 	}
 
+	/** The version is read in the space of `source`: the vault adapter serves the current side of any path. */
 	async getHistoryDiff(
 		request: HistoryDiffRequest,
 	): Promise<FileDiffModel | null> {
-		const session = await this.deps.openSession(request.path);
+		const session = await this.deps.openSession(request.source ?? request.path);
 		if (!session) return null;
 		return buildHistoryDiff(session, request);
 	}
 
-	async restoreFileVersion(path: string, hash: string): Promise<void> {
+	/** `from` is the path the version was stored under, when it lands at another (a restore-to). */
+	async restoreFileVersion(
+		path: string,
+		hash: string,
+		from = path,
+	): Promise<void> {
 		await this.deps.enqueue(async () => {
-			await this.writeVersion(path, hash);
+			await this.writeVersion(path, hash, from);
 			await this.deps.refresh();
 		});
 	}
@@ -217,11 +247,17 @@ export class HistoryService {
 		});
 	}
 
-	/** The session is the path's own: a batch may span spaces. */
-	private async writeVersion(path: string, hash: string): Promise<void> {
-		const session = await this.requireSession(path);
-		const bytes = await loadVersionBytes(session.storage, session.key, hash);
-		await writeLocalFile(session, path, bytes);
+	/** Read in the space that stored it, written in the one that owns `path`: a batch may span spaces. */
+	private async writeVersion(
+		path: string,
+		hash: string,
+		from = path,
+	): Promise<void> {
+		const source = await this.requireSession(from);
+		const bytes = await loadVersionBytes(source.storage, source.key, hash);
+		const target = from === path ? source : await this.requireSession(path);
+		this.deps.restored(target.space, new Map([[path, hash]]));
+		await writeLocalFile(target, path, bytes);
 	}
 
 	async restoreHistoryHunks(
@@ -265,7 +301,12 @@ export class HistoryService {
 				currentText,
 				applyHunks(versionText, hunks, complementSelection(hunks, selected)),
 			);
-			await writeLocalFile(session, path, textToBytes(merged));
+			const bytes = textToBytes(merged);
+			this.deps.restored(
+				session.space,
+				new Map([[path, await sha256Hex(bytes)]]),
+			);
+			await writeLocalFile(session, path, bytes);
 			await this.deps.refresh();
 		});
 	}
@@ -285,6 +326,20 @@ function queryOf(session: EngineDependencies): HistoryQuery {
 		horizon: session.history?.horizon ?? null,
 		configDir: untrackedDir(session),
 	};
+}
+
+/** A name this disk cannot hold (reserved, or one spelling of a case clash) is skipped, as a pull skips it. */
+function planRestore(
+	session: EngineDependencies,
+	target: Manifest,
+	local: LocalSnapshot,
+): VaultRestorePlan {
+	return planVaultRestore(
+		target,
+		skipUnholdableNames(local, target, session.state.baseline, session.scope),
+		(path) => session.scope.includes(path),
+		historyTracks(untrackedDir(session)),
+	);
 }
 
 /** The local half of a compare: a restore plan needs only the disk, not the remote manifest download. */

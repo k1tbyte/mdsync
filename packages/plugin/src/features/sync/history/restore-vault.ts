@@ -12,7 +12,7 @@ export interface VaultRestorePlan {
 	/** Vault files the target snapshot does not have. */
 	remove: string[];
 	unchanged: number;
-	/** Paths the sync scope excludes: left untouched in either direction, so history never overrides an ignore rule. */
+	/** Paths the sync scope excludes or the scan skipped: left untouched in either direction, so history never overrides an ignore rule. */
 	ignored: string[];
 }
 
@@ -27,7 +27,11 @@ export function planVaultRestore(
 	/** Paths history keeps: the rest is neither written, removed nor counted. */
 	tracks: (path: string) => boolean = () => true,
 ): VaultRestorePlan {
-	const ignored = new Set(local.ignoredPaths);
+	// A skipped path (unreadable, or a name this disk cannot hold) is unknown here: left alone like an ignored one.
+	const ignored = new Set([
+		...local.ignoredPaths,
+		...local.skipped.map(({ path }) => path),
+	]);
 	const plan: VaultRestorePlan = {
 		write: [],
 		remove: [],

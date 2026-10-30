@@ -39,6 +39,8 @@ export interface HistoryRow {
 export interface HistoryRowOptions {
 	now?: number;
 	currentDevice?: { id: string; name: string } | null;
+	/** Positions in `versions` to build, in this order; each still compares with its next older version. */
+	only?: readonly number[];
 }
 
 export function buildHistoryRows(
@@ -46,7 +48,9 @@ export function buildHistoryRows(
 	options: HistoryRowOptions = {},
 ): HistoryRow[] {
 	const now = options.now ?? Date.now();
-	return versions.map((version, index) => {
+	const positions = options.only ?? versions.map((_, index) => index);
+	return positions.map((index) => {
+		const version = versions[index] as FileVersion;
 		const older = versions[index + 1];
 		const relative = formatRelativeTime(version.createdAt, now);
 		const label = version.label?.trim() ?? "";

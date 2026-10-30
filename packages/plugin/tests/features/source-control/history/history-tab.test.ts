@@ -9,26 +9,8 @@ import type { EFileKind } from "@/features/sync/types";
 
 vi.mock("obsidian", async (importOriginal) => ({
 	...(await importOriginal<object>()),
-	ButtonComponent: class {
-		readonly buttonEl: HTMLButtonElement;
-		disabled = false;
-		constructor(parent: HTMLElement) {
-			this.buttonEl = parent.createEl("button") as HTMLButtonElement;
-		}
-		setButtonText(text: string) {
-			this.buttonEl.textContent = text;
-			return this;
-		}
-		setDisabled(disabled: boolean) {
-			this.disabled = disabled;
-			this.buttonEl.disabled = disabled;
-			return this;
-		}
-		onClick(fn: () => void) {
-			this.buttonEl.addEventListener("click", fn);
-			return this;
-		}
-	},
+	ButtonComponent: (await import("@tests/helpers/button-component"))
+		.DomButtonComponent,
 }));
 
 installElementMethods();

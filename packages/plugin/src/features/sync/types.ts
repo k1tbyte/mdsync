@@ -67,6 +67,12 @@ export interface StorageState {
 	shareBases?: Record<string, ManifestEntry>;
 }
 
+/** Device-local and never synced: one key of Obsidian's local storage for this vault. */
+export interface LocalStore {
+	load(): unknown;
+	save(value: unknown): void;
+}
+
 /** Persisted to state.json; the hash cache is storage-agnostic. */
 export interface LocalState {
 	deviceId: string;
