@@ -5,7 +5,11 @@ import {
 	StateField,
 	type Text,
 } from "@codemirror/state";
-import { Decoration, type DecorationSet } from "@codemirror/view";
+import {
+	Decoration,
+	type DecorationSet,
+	type EditorView,
+} from "@codemirror/view";
 import type { LineRange } from "@/features/sync";
 import {
 	type EMergeSide,
@@ -22,6 +26,17 @@ import type { MergeActions } from "./merge-actions";
 import { settleActions } from "./merge-controls";
 import type { SideMarks } from "./merge-marks";
 import { mergeChangesField } from "./merge-state";
+
+/** Search reads every line: each run folded between cards opens. */
+export function openAllMergeGaps(view: EditorView): void {
+	const opened = view.state.field(openedGapsField);
+	const effects: StateEffect<number>[] = [];
+	const count = view.state.field(mergeChangesField).length;
+	for (let index = 0; index <= count; index++) {
+		if (!opened.has(index)) effects.push(toggleMergeGap.of(index));
+	}
+	if (effects.length > 0) view.dispatch({ effects });
+}
 
 export interface CombinedMergeConfig {
 	actions: MergeActions;

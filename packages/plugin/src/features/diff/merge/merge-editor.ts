@@ -28,6 +28,7 @@ import {
 } from "../line-wrapping-control";
 import { Divider } from "../lines/divider";
 import { sideSpan, updatePaneViewportWidth } from "../lines/geometry";
+import { appendSearchButton, paneSearch } from "../lines/pane-search";
 import {
 	NO_ANCHORS,
 	PaneScrollSync,
@@ -37,7 +38,7 @@ import {
 import { changeNavigation } from "../rail";
 import { snapToLines } from "./edit-plan";
 import { mergeActions } from "./merge-actions";
-import { toggleMergeGap } from "./merge-cards";
+import { openAllMergeGaps, toggleMergeGap } from "./merge-cards";
 import { dividerItems } from "./merge-controls";
 import {
 	mergeResultState,
@@ -223,6 +224,15 @@ export class MergeEditorPanel {
 			() => this.resultView && redo(this.resultView),
 		);
 		toolbar.navigation((delta) => this.nav.jump(delta));
+		appendSearchButton(
+			toolbar.controls,
+			() => [
+				this.sideViews.local ?? null,
+				this.resultView,
+				this.sideViews.remote ?? null,
+			],
+			() => this.resultView,
+		);
 	}
 
 	private renderDesktop(root: HTMLElement): void {
@@ -299,6 +309,7 @@ export class MergeEditorPanel {
 					EditorState.readOnly.of(true),
 					changeNavigation((delta) => this.nav.jump(delta)),
 					lineNumbers(),
+					paneSearch(() => undefined),
 					this.wrapping?.extension() ?? [],
 					sideDecorations(side, marks),
 					EditorView.updateListener.of((update) => {
@@ -336,6 +347,9 @@ export class MergeEditorPanel {
 					changeNavigation((delta) => this.nav.jump(delta)),
 					keymap.of(historyKeymap),
 					lineNumbers(),
+					paneSearch(() => {
+						if (this.resultView) openAllMergeGaps(this.resultView);
+					}),
 					this.wrapping?.extension() ?? [],
 					EditorView.updateListener.of((update) => {
 						const modelChanged =

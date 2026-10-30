@@ -1,7 +1,12 @@
-import { ItemView, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
+import {
+	ItemView,
+	type Menu,
+	type ViewStateResult,
+	type WorkspaceLeaf,
+} from "obsidian";
 import { DIFF_VIEW_TYPE } from "@/core/constants";
 import { userMessage } from "@/core/shared";
-import { notifyError, openConfirmModal, redrawOnPhoneChange } from "@/core/ui";
+import { notifyError, redrawOnPhoneChange } from "@/core/ui";
 import type { CompareResult, EMergeSide } from "@/features/sync";
 import {
 	EDiffDirection,
@@ -29,6 +34,8 @@ import {
 import type { DiffHost } from "./host";
 import { MergeEditorPanel } from "./merge/merge-editor";
 import { DiffOperations } from "./operations";
+import { addCopyItems } from "./ui/copy-menu";
+import { confirmLeave } from "./ui/leave-guard";
 
 /** A merge open in a diff view, as commands reach it. */
 export interface ActiveMerge {
@@ -93,6 +100,11 @@ export class DiffView extends ItemView {
 		return "git-compare";
 	}
 
+	onPaneMenu(menu: Menu, source: string): void {
+		super.onPaneMenu(menu, source);
+		if (this.path) addCopyItems(menu, this.path, this.model);
+	}
+
 	getState(): Record<string, unknown> {
 		// History fields belong here so a restored workspace preserves version diffs.
 		return {
@@ -120,7 +132,7 @@ export class DiffView extends ItemView {
 			changesDiffer(state.historyChange ?? null, this.historyChange) ||
 			(state.historyPreviewIfMissing ?? false) !== this.historyPreviewIfMissing;
 		if (changed) {
-			if (!(await this.leaveMerge())) return;
+			if (!(await this.mayLeave())) return;
 			this.path = state.path ?? this.path;
 			this.historyHash = state.historyHash ?? null;
 			this.historyLabel = state.historyLabel ?? "Version";
@@ -350,7 +362,7 @@ export class DiffView extends ItemView {
 			{
 				saveResolution: () => this.saveMerge(path),
 				cancelResolution: () =>
-					void this.leaveMerge().then((leave) => {
+					void this.mayLeave().then((leave) => {
 						if (!leave) return;
 						this.mergePanel.reset();
 						this.renderShell();
@@ -369,7 +381,7 @@ export class DiffView extends ItemView {
 				goPrevFile: () => void this.navigateFile(-1),
 				goNextFile: () => void this.navigateFile(1),
 				goBack: () =>
-					void this.leaveMerge().then((leave) => {
+					void this.mayLeave().then((leave) => {
 						if (!leave) return;
 						// Discarded here, so closing the tab keeps no draft of it.
 						this.mergePanel.reset();
@@ -480,7 +492,7 @@ export class DiffView extends ItemView {
 			this.path,
 			delta,
 		);
-		if (!target || !(await this.leaveMerge())) return;
+		if (!target || !(await this.mayLeave())) return;
 		this.showFile(target);
 		await this.refreshModel();
 	}
@@ -502,16 +514,10 @@ export class DiffView extends ItemView {
 		);
 	}
 
-	/** False when the user keeps an unsaved merge on screen. */
-	private async leaveMerge(): Promise<boolean> {
-		if (!this.mergePanel.hasEdits) return true;
-		return openConfirmModal({
-			app: this.app,
-			title: "Discard this merge?",
-			body: ["The merged result is not saved. Leaving drops your edits to it."],
-			confirmLabel: "Discard",
-			cancelLabel: "Keep merging",
-			confirmClass: "mod-warning",
+	private mayLeave(): Promise<boolean> {
+		return confirmLeave(this.app, {
+			mergeEdits: this.mergePanel.hasEdits,
+			picked: this.comparePanel?.choices.size ?? 0,
 		});
 	}
 

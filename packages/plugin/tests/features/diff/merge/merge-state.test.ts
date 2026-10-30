@@ -1,8 +1,14 @@
 import { history, isolateHistory, redo, undo } from "@codemirror/commands";
-import { EditorState, Transaction } from "@codemirror/state";
+import {
+	EditorState,
+	Transaction,
+	type TransactionSpec,
+} from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
 import { assert, describe, expect, it } from "vitest";
 import { applyPlan, revertPlan } from "@/features/diff/merge/edit-plan";
 import {
+	openAllMergeGaps,
 	openedGapsField,
 	toggleMergeGap,
 } from "@/features/diff/merge/merge-cards";
@@ -462,5 +468,24 @@ describe("changeAt at the end of the file", () => {
 		const state = open("a\nb\nc\nd\ne\n", "a\nB\nc\nd\ne\n", "a\nb\nc\nd\nE\n");
 
 		expect(changeAt(state, state.doc.length)).toBe(-1);
+	});
+});
+
+describe("openAllMergeGaps", () => {
+	it("opens every folded run and leaves open ones open", () => {
+		let state = open("a\nb\nc\nd\ne\n", "a\nB\nc\nd\ne\n", "a\nb\nc\nd\nE\n");
+		state = state.update({ effects: toggleMergeGap.of(1) }).state;
+		const view = {
+			get state() {
+				return state;
+			},
+			dispatch: (spec: TransactionSpec) => {
+				state = state.update(spec).state;
+			},
+		} as unknown as EditorView;
+
+		openAllMergeGaps(view);
+
+		expect([...state.field(openedGapsField)].sort()).toEqual([0, 1, 2]);
 	});
 });

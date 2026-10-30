@@ -91,7 +91,7 @@ Set up the first device alone and let its first sync finish. That sync creates t
 
 The panel has four tabs: **Changes**, **History**, **Timeline** and **Deleted**.
 
-**Changes** lists local changes, remote changes and conflicts, with a path filter. Open any file for a side-by-side diff (combined on narrow screens or on request). In a text file you can revert a single local change or accept a single remote one, then apply your choices. Binary files show the size change instead, with **Show differences anyway** where the file can be read as text.
+**Changes** lists local changes, remote changes and conflicts, with a path filter. Open any file for a side-by-side diff (combined on narrow screens or on request). In a text file you can revert a single local change or accept a single remote one, then apply your choices; leaving the file before you apply them asks first. **Search** (or Ctrl/Cmd+F in a pane) finds text in the diff and in a merge, folded lines included; Ctrl/Cmd+Alt+G goes to a line. The tab's menu copies the file's path or the whole text of either side. Binary files show the size change instead, with **Show differences anyway** where the file can be read as text.
 
 <details open>
 <summary>Demo</summary>

@@ -16,6 +16,7 @@ import {
 	spanBounds,
 	updatePaneViewportWidth,
 } from "../lines/geometry";
+import { appendSearchButton, paneSearch } from "../lines/pane-search";
 import {
 	NO_ANCHORS,
 	PaneScrollSync,
@@ -67,7 +68,7 @@ export function renderTextDiff(
  * carries all picks out.
  */
 export class ComparePanel {
-	private readonly choices = new HunkChoices();
+	readonly choices = new HunkChoices();
 	/** Keys of the segments folded to one row in both panes. */
 	private readonly folded = new Set<number>();
 	/** Unchanged runs opened in both panes, by index. */
@@ -270,6 +271,7 @@ export class ComparePanel {
 						},
 					}),
 					lineNumbers(),
+					paneSearch(() => this.unfoldAll()),
 					EditorView.domEventHandlers({
 						// A click on a change's lines selects it, as one on its connector does.
 						click: (event, view) => {
@@ -397,6 +399,20 @@ export class ComparePanel {
 			});
 		}
 		this.controls.navigation((delta) => this.jump(delta));
+		appendSearchButton(
+			toolbar,
+			() => [this.leftView, this.rightView],
+			() => this.rightView,
+		);
+	}
+
+	/** Search reads every line: folded runs and changes open. */
+	private unfoldAll(): void {
+		this.folded.clear();
+		for (let index = 0; index <= this.segments.length; index++) {
+			this.opened.add(index);
+		}
+		this.redrawSegments();
 	}
 
 	private updateToolbar(): void {
