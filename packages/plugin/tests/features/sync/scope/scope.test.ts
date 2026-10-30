@@ -64,3 +64,49 @@ describe("ScopePolicy getCategory", () => {
 		expect(scope.getCategory("folder/note.md")).toBeNull();
 	});
 });
+
+describe("ScopePolicy plugin code", () => {
+	const scopeOf = (pluginCode?: boolean) =>
+		createScopePolicy({
+			settingsSync: { ...DEFAULT_SETTINGS_SYNC, pluginConfigs: true },
+			pluginCode,
+			configDir: ".obsidian",
+		});
+	const plugin = ".obsidian/plugins/dataview";
+
+	it("takes only each plugin's data.json by default", () => {
+		const scope = scopeOf();
+		expect(scope.includes(`${plugin}/data.json`)).toBe(true);
+		for (const path of [
+			`${plugin}/main.js`,
+			`${plugin}/manifest.json`,
+			`${plugin}/sub/data.json`,
+			".obsidian/plugins/data.json",
+		]) {
+			expect(scope.includes(path)).toBe(false);
+		}
+		expect(scope.canDescend(".obsidian/plugins")).toBe(true);
+		expect(scope.canDescend(plugin)).toBe(true);
+		expect(scope.canDescend(`${plugin}/sub`)).toBe(false);
+	});
+
+	it("keeps code in its category, so a reset still clears the folder whole", () => {
+		expect(scopeOf().getCategory(`${plugin}/main.js`)).toBe("pluginConfigs");
+	});
+
+	it("takes plugin folders whole when asked", () => {
+		const scope = scopeOf(true);
+		expect(scope.includes(`${plugin}/main.js`)).toBe(true);
+		expect(scope.includes(`${plugin}/sub/data.json`)).toBe(true);
+		expect(scope.canDescend(`${plugin}/sub`)).toBe(true);
+	});
+
+	it("keeps MDSync and device-local plugins out in either mode", () => {
+		for (const scope of [scopeOf(), scopeOf(true)]) {
+			expect(scope.includes(".obsidian/plugins/obsidian-git/data.json")).toBe(
+				false,
+			);
+			expect(scope.includes(".obsidian/plugins/mdsync/data.json")).toBe(false);
+		}
+	});
+});

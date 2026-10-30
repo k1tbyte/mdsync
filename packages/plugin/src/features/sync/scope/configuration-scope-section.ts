@@ -33,8 +33,8 @@ const SETTINGS_SYNC_ROWS: ReadonlyArray<SettingsSyncRow> = [
 	},
 	{
 		key: "pluginConfigs",
-		name: "Plugins and their settings",
-		desc: "Plugin files and settings (MDSync and device-local plugins excluded).",
+		name: "Plugins",
+		desc: "Each plugin's settings (data.json), and its code with Plugin code on. MDSync and device-local plugins excluded.",
 	},
 	{
 		key: "snippets",
@@ -85,41 +85,65 @@ export function configurationScopeSection(
 				);
 			},
 		},
-		...SETTINGS_SYNC_ROWS.map((row): SettingsRow => {
-			const field = fieldRow(ctx, {
-				kind: EFieldKind.Toggle,
-				name: row.name,
-				desc: row.desc,
-				get: (s) => s.settingsSync[row.key],
-				set: (v) => ({
-					settingsSync: { ...plugin.settings.settingsSync, [row.key]: v },
-				}),
-				refreshScope: true,
-			});
-			return {
-				...field,
-				render: (setting) => {
-					field.render(setting);
-					const counts = countRemoteCategories(
-						plugin.controller.getSnapshot().result?.remote,
-						createScopePolicy({
-							settingsSync: plugin.settings.settingsSync,
-							configDir: plugin.app.vault.configDir,
-						}),
-					);
-					const count = counts.get(row.key);
-					if (!count) return;
-					setting.addButton((button) =>
-						button
-							.setButtonText("Clear on remote")
-							.setTooltip(`${count} remote item(s)`)
-							.setDestructive()
-							.onClick(() => void clearCategory(ctx, row)),
-					);
-				},
-			};
-		}),
+		...SETTINGS_SYNC_ROWS.flatMap((row) =>
+			row.key === "pluginConfigs"
+				? [categoryRow(ctx, row), pluginCodeRow(ctx)]
+				: [categoryRow(ctx, row)],
+		),
 	]);
+}
+
+function categoryRow(
+	ctx: FieldContext<SyncHost>,
+	row: SettingsSyncRow,
+): SettingsRow {
+	const { plugin } = ctx;
+	const field = fieldRow(ctx, {
+		kind: EFieldKind.Toggle,
+		name: row.name,
+		desc: row.desc,
+		get: (s) => s.settingsSync[row.key],
+		set: (v) => ({
+			settingsSync: { ...plugin.settings.settingsSync, [row.key]: v },
+		}),
+		refreshScope: true,
+		rerender: row.key === "pluginConfigs",
+	});
+	return {
+		...field,
+		render: (setting) => {
+			field.render(setting);
+			const counts = countRemoteCategories(
+				plugin.controller.getSnapshot().result?.remote,
+				createScopePolicy({
+					settingsSync: plugin.settings.settingsSync,
+					configDir: plugin.app.vault.configDir,
+				}),
+			);
+			const count = counts.get(row.key);
+			if (!count) return;
+			setting.addButton((button) =>
+				button
+					.setButtonText("Clear on remote")
+					.setTooltip(`${count} remote item(s)`)
+					.setDestructive()
+					.onClick(() => void clearCategory(ctx, row)),
+			);
+		},
+	};
+}
+
+function pluginCodeRow(ctx: FieldContext<SyncHost>): SettingsRow {
+	return fieldRow(ctx, {
+		kind: EFieldKind.Toggle,
+		name: "Plugin code",
+		desc: "Also sync each plugin's code, so plugins install and update on every device. Off: install and update plugins on each device yourself; only their settings sync.",
+		when: (s) => s.settingsSync.pluginConfigs,
+		sub: true,
+		get: (s) => s.syncPluginCode,
+		set: (v) => ({ syncPluginCode: v }),
+		refreshScope: true,
+	});
 }
 
 async function clearCategory(

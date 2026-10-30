@@ -32,11 +32,14 @@ export const enabled = Object.fromEntries(
 
 export class Device extends TestSession {
 	settingsSync = { ...disabled };
+	/** Whole plugin folders, so `enabled` means everything. */
+	pluginCode = true;
 	override deps() {
 		return {
 			...super.deps(),
 			scope: createScopePolicy({
 				settingsSync: this.settingsSync,
+				pluginCode: this.pluginCode,
 				configDir: ".obsidian",
 			}),
 		};

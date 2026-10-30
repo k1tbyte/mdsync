@@ -40,6 +40,7 @@ const TRANSFER_FIELDS = {
 		ignorePatterns: "i",
 		ignoreSymlinks: "k",
 		maxFileBytes: "m",
+		syncPluginCode: "a",
 	},
 	a: {
 		autoSyncEnabled: "x",

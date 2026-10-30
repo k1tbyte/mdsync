@@ -28,6 +28,9 @@ const CONFIG_THEMES_DIR = "themes/";
 
 const CONFIG_PLUGINS_DIR = "plugins/";
 
+/** Where `Plugin.saveData` writes a plugin's settings. */
+const PLUGIN_DATA_FILE = "data.json";
+
 const CONFIG_FILE_DENYLIST: ReadonlyArray<string> = [
 	"workspace.json",
 	"workspace-mobile.json",
@@ -61,6 +64,8 @@ export interface ScopePolicy {
 
 export interface ScopeOptions {
 	settingsSync: SettingsSyncCategories;
+	/** Plugin folders whole; otherwise `pluginConfigs` takes only each plugin's `data.json`. */
+	pluginCode?: boolean;
 	configDir: string;
 	/** The space's own rules, read inside its root. */
 	sharedIgnore?: IgnoreMatcher;
@@ -95,6 +100,7 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 	);
 
 	const sync = { ...options.settingsSync };
+	const pluginCode = options.pluginCode ?? false;
 	const sharedIgnoreMatcher = options.sharedIgnore;
 	const localIgnoreMatcher = options.localIgnore;
 	const symlinks = options.symlinks;
@@ -204,9 +210,16 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 		return Boolean(localIgnoreMatcher?.ignores(path));
 	}
 
+	/** Plugin code left out stays frozen like a disabled category; the category itself stays whole for resets. */
 	function isConfigAllowed(path: string): boolean {
 		const category = configCategory(path);
-		return category !== null && sync[category];
+		if (category === null || !sync[category]) return false;
+		return category !== "pluginConfigs" || pluginCode || isPluginData(path);
+	}
+
+	function isPluginData(path: string): boolean {
+		const [id, file, ...rest] = path.slice(pluginsDir.length).split("/");
+		return Boolean(id) && file === PLUGIN_DATA_FILE && rest.length === 0;
 	}
 
 	function configCategory(path: string): keyof SettingsSyncCategories | null {
@@ -240,8 +253,15 @@ export function createScopePolicy(options: ScopeOptions): ScopePolicy {
 			return false;
 		if (dirPath.startsWith(pluginsDir)) {
 			if (!sync.pluginConfigs) return false;
-			return !deviceLocalPluginPrefixes.some(
-				(p) => dirPath === p || dirPath.startsWith(p),
+			if (
+				deviceLocalPluginPrefixes.some(
+					(p) => dirPath === p || dirPath.startsWith(p),
+				)
+			)
+				return false;
+			// Settings only: `plugins/` and each `plugins/<id>/`, never deeper.
+			return (
+				pluginCode || dirPath.slice(pluginsDir.length).split("/").length <= 2
 			);
 		}
 		if (dirPath.startsWith(snippetsDir)) return sync.snippets;

@@ -160,6 +160,7 @@ describe("settings transfer", () => {
 			},
 			ignorePatterns: "*.tmp\n*.swp",
 			ignoreSymlinks: !DEFAULT_SETTINGS.ignoreSymlinks,
+			syncPluginCode: true,
 			maxFileBytes: DEFAULT_SETTINGS.maxFileBytes + 1024,
 			autoSyncEnabled: !DEFAULT_SETTINGS.autoSyncEnabled,
 			autoSyncIntervalMinutes: DEFAULT_SETTINGS.autoSyncIntervalMinutes + 5,
@@ -197,6 +198,7 @@ describe("settings transfer", () => {
 		expect(imported.settingsSync).toEqual(settings.settingsSync);
 		expect(imported.ignorePatterns).toBe(settings.ignorePatterns);
 		expect(imported.ignoreSymlinks).toBe(settings.ignoreSymlinks);
+		expect(imported.syncPluginCode).toBe(true);
 		expect(imported.maxFileBytes).toBe(settings.maxFileBytes);
 		expect(imported.autoSyncEnabled).toBe(settings.autoSyncEnabled);
 		expect(imported.autoSyncIntervalMinutes).toBe(

@@ -37,6 +37,8 @@ export const DEFAULT_SETTINGS_SYNC: SettingsSyncCategories = {
 /** What core parses. A field typed by a feature joins `MdsyncSettings` by module augmentation where that feature parses it. */
 export interface CoreSettings {
 	settingsSync: SettingsSyncCategories;
+	/** With `pluginConfigs`: plugin folders whole. Off, only each plugin's data.json syncs. */
+	syncPluginCode: boolean;
 	ignorePatterns: string;
 	/** Skip symlinks and directory links pointing outside the vault. */
 	ignoreSymlinks: boolean;
@@ -103,6 +105,7 @@ export interface MdsyncSettings extends CoreSettings {}
 
 export const DEFAULT_CORE_SETTINGS: CoreSettings = {
 	settingsSync: DEFAULT_SETTINGS_SYNC,
+	syncPluginCode: false,
 	ignorePatterns: "",
 	ignoreSymlinks: true,
 	maxFileBytes: DEFAULT_MAX_FILE_BYTES,

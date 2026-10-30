@@ -154,7 +154,7 @@ Ignoring never deletes anything: a matching file stops syncing, and copies on th
 
 ### Obsidian settings sync
 
-Under **Obsidian configuration scope** you choose what else to sync: core settings, hotkeys, the list of enabled plugins, plugins with their settings, CSS snippets and themes. Every category is off by default and chosen per device. Turning one off deletes nothing. **Clear on remote** removes a category from the remote without touching local files. MDSync's own plugin folder never syncs.
+Under **Obsidian configuration scope** you choose what else to sync: core settings, hotkeys, the list of enabled plugins, plugins, CSS snippets and themes. Every category is off by default and chosen per device. **Plugins** syncs each plugin's settings; turn on **Plugin code** under it to sync the plugins themselves, otherwise install and update them on each device yourself. Turning one off deletes nothing. **Clear on remote** removes a category from the remote without touching local files. MDSync's own plugin folder never syncs.
 
 ## History
 

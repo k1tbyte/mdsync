@@ -155,6 +155,7 @@ async function sessionFiles(
 		adapter,
 		scope: createScopePolicy({
 			settingsSync: settings.settingsSync,
+			pluginCode: settings.syncPluginCode,
 			configDir: app.vault.configDir,
 			sharedIgnore,
 			localIgnore,

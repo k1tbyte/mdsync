@@ -95,6 +95,7 @@ Windows: a blob younger than `SETTLED_AFTER_MS` (24 h) is never swept, GC sweeps
 - Maintenance (`features/sync/runtime/maintenance.ts`): verify checks every reachable object exists, a recipe's chunks against one listing of `chunks/` (`deep` also rebuilds and hashes it); deep clean removes unreachable settled roots and the settled chunks no remaining recipe names.
 - Saved-file refresh (`features/sync/runtime/saved-refresh.ts`): display only, patches the last compare after an editor save; nothing persists, the next refresh reconciles.
 - Credentials: `features/sync/remote/keyfile.ts` wraps one constant data key under the passphrase (rotation re-wraps only); `features/sync/remote/passphrase-manager.ts` caches keys per epoch.
+- Plugin settings without code (`syncPluginCode` off, the default): each plugin's `data.json` syncs, its code stays where each device put it. Accepted limits: a plugin missing here gets a folder holding only its `data.json` until it is installed by hand; two devices on different plugin versions trade one settings file; a plugin removed on a device with code on takes its settings off every device, while devices with code off keep the plugin and start from its defaults; **Keep both** on a `data.json` is refused, since a copy beside it is out of scope (`keepBothConflictOp` refuses any copy the scope would not publish); **Clear on remote** of plugins still clears their code too, and devices with code on upload it again.
 
 ## Tests
 
