@@ -8,11 +8,7 @@ import { DIFF_VIEW_TYPE } from "@/core/constants";
 import { userMessage } from "@/core/shared";
 import { notifyError, redrawOnPhoneChange } from "@/core/ui";
 import type { CompareResult, EMergeSide } from "@/features/sync";
-import {
-	EDiffDirection,
-	type FileDiffModel,
-	type HistoryVersionRef,
-} from "@/features/sync";
+import { EDiffDirection, type FileDiffModel } from "@/features/sync";
 import { watchDiffChrome } from "./action-bar";
 import { renderBinaryDiff } from "./compare/binary-view";
 import { type ComparePanel, renderTextDiff } from "./compare/compare-panel";
@@ -25,11 +21,13 @@ import {
 import { refitDiffTitle, renderDiffFrame } from "./header";
 import {
 	buildHistoryRequest,
-	changesDiffer,
 	compareActionable,
 	type DiffViewState,
-	type HistoryChange,
+	fileTarget,
+	readTarget,
+	sameTarget,
 	selectHistoryMode,
+	targetState,
 } from "./history-state";
 import type { DiffHost } from "./host";
 import { MergeEditorPanel } from "./merge/merge-editor";
@@ -47,13 +45,7 @@ export interface ActiveMerge {
 export class DiffView extends ItemView {
 	private readonly plugin: DiffHost;
 	private readonly operations: DiffOperations;
-	private path: string | null = null;
-	private historyHash: string | null = null;
-	private historyLabel = "Version";
-	private historySize: number | undefined;
-	private against: HistoryVersionRef | null = null;
-	private historyChange: HistoryChange | null = null;
-	private historyPreviewIfMissing = false;
+	private target = fileTarget(null);
 	private model: FileDiffModel | null = null;
 	private readonly mergePanel = new MergeEditorPanel();
 	private comparePanel: ComparePanel | null = null;
@@ -76,12 +68,7 @@ export class DiffView extends ItemView {
 		super(leaf);
 		this.plugin = plugin;
 		this.operations = new DiffOperations(plugin, {
-			state: () => ({
-				path: this.path,
-				historyHash: this.historyHash,
-				historyChange: this.historyChange,
-				model: this.model,
-			}),
+			state: () => ({ ...this.target, model: this.model }),
 			refresh: () => this.refreshModel(),
 			advance: (path) => this.advanceAfterResolve(path),
 		});
@@ -92,8 +79,9 @@ export class DiffView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		if (!this.path) return "MDSync diff";
-		return this.historyHash ? `History: ${this.path}` : `Diff: ${this.path}`;
+		const { path, historyHash } = this.target;
+		if (!path) return "MDSync diff";
+		return historyHash ? `History: ${path}` : `Diff: ${path}`;
 	}
 
 	getIcon(): string {
@@ -102,50 +90,20 @@ export class DiffView extends ItemView {
 
 	onPaneMenu(menu: Menu, source: string): void {
 		super.onPaneMenu(menu, source);
-		if (this.path) addCopyItems(menu, this.path, this.model);
+		const { path } = this.target;
+		if (path) addCopyItems(menu, path, this.model);
 	}
 
 	getState(): Record<string, unknown> {
-		// History fields belong here so a restored workspace preserves version diffs.
-		return {
-			path: this.path,
-			historyHash: this.historyHash ?? undefined,
-			historyLabel: this.historyHash ? this.historyLabel : undefined,
-			historySize: this.historySize,
-			againstHash: this.against?.hash,
-			againstLabel: this.against?.label,
-			againstSize: this.against?.size,
-			historyChange: this.historyChange ?? undefined,
-			historyPreviewIfMissing: this.historyPreviewIfMissing || undefined,
-		};
+		return { ...targetState(this.target) };
 	}
 
 	async setState(state: DiffViewState, result: ViewStateResult): Promise<void> {
-		this.mergeRequested = state.merge ? (state.path ?? this.path) : null;
-		const changed =
-			(state.path && state.path !== this.path) ||
-			(state.historyHash ?? null) !== this.historyHash ||
-			(state.againstHash ?? null) !== (this.against?.hash ?? null) ||
-			// A pin rename changes the label alone, and the header reads it.
-			(state.historyHash !== undefined &&
-				(state.historyLabel ?? "Version") !== this.historyLabel) ||
-			changesDiffer(state.historyChange ?? null, this.historyChange) ||
-			(state.historyPreviewIfMissing ?? false) !== this.historyPreviewIfMissing;
-		if (changed) {
+		const next = readTarget(state, this.target.path);
+		this.mergeRequested = state.merge ? next.path : null;
+		if (!sameTarget(next, this.target)) {
 			if (!(await this.mayLeave())) return;
-			this.path = state.path ?? this.path;
-			this.historyHash = state.historyHash ?? null;
-			this.historyLabel = state.historyLabel ?? "Version";
-			this.historySize = state.historySize;
-			this.against = state.againstHash
-				? {
-						hash: state.againstHash,
-						label: state.againstLabel ?? "Other version",
-						size: state.againstSize,
-					}
-				: null;
-			this.historyChange = state.historyChange ?? null;
-			this.historyPreviewIfMissing = state.historyPreviewIfMissing ?? false;
+			this.target = next;
 			this.model = null;
 			this.mergePanel.reset();
 			this.forceText = false;
@@ -160,7 +118,8 @@ export class DiffView extends ItemView {
 	/** Once the requested path's model is in: a load still queued behind another finishes later. */
 	private async enterRequestedMerge(): Promise<void> {
 		const model = this.model;
-		if (!this.path || this.mergeRequested !== this.path || !model) return;
+		const { path } = this.target;
+		if (!path || this.mergeRequested !== path || !model) return;
 		this.mergeRequested = null;
 		if (
 			model.direction !== EDiffDirection.Conflict ||
@@ -169,11 +128,8 @@ export class DiffView extends ItemView {
 		) {
 			return;
 		}
-		await this.mergePanel.enter(
-			this.plugin,
-			this.path,
-			this.stillShowing(),
-			() => this.renderShell(),
+		await this.mergePanel.enter(this.plugin, path, this.stillShowing(), () =>
+			this.renderShell(),
 		);
 	}
 
@@ -206,14 +162,13 @@ export class DiffView extends ItemView {
 			this.seenBusy = busy;
 			if (result === this.seenResult && !settled) return;
 			this.seenResult = result;
-			if (result && this.path && this.mergePanel.isEditing) {
-				const status = this.plugin.controller.fileDiffs.getStatusForPath(
-					this.path,
-				);
+			const { path, against, historyChange } = this.target;
+			if (result && path && this.mergePanel.isEditing) {
+				const status = this.plugin.controller.fileDiffs.getStatusForPath(path);
 				this.mergePanel.checkVersions(status?.conflict);
 			}
 			// Stored versions are immutable: a compare cannot change them.
-			if (this.against || this.historyChange) return;
+			if (against || historyChange) return;
 			this.stale = true;
 			this.onResize();
 		});
@@ -225,7 +180,7 @@ export class DiffView extends ItemView {
 	/** Obsidian resizes a tab when it is shown again: the reload a hidden tab skipped. */
 	onResize(): void {
 		refitDiffTitle(this.containerEl);
-		if (!this.stale || !this.path || this.mergePanel.isEditing) return;
+		if (!this.stale || !this.target.path || this.mergePanel.isEditing) return;
 		if (!this.containerEl.isShown()) return;
 		this.stale = false;
 		void this.refreshModel();
@@ -240,7 +195,7 @@ export class DiffView extends ItemView {
 		this.chrome?.disconnect();
 		this.chrome = null;
 		this.refreshPending = false;
-		if (this.path) this.mergePanel.keepDraft(this.path);
+		if (this.target.path) this.mergePanel.keepDraft(this.target.path);
 		this.destroyViews();
 		this.contentEl.empty();
 		this.bodyEl = null;
@@ -249,7 +204,9 @@ export class DiffView extends ItemView {
 	}
 
 	private async refreshModel(): Promise<void> {
-		if (!this.path) return;
+		const target = this.target;
+		const { path, historyHash } = target;
+		if (!path) return;
 		if (this.rendering) {
 			this.refreshPending = true;
 			return;
@@ -258,18 +215,15 @@ export class DiffView extends ItemView {
 		const gen = this.loadGeneration;
 		try {
 			if (!this.model) this.renderLoading();
-			if (this.historyHash) {
-				const request = buildHistoryRequest({
-					path: this.path,
-					historyHash: this.historyHash,
-					historyLabel: this.historyLabel,
-					historySize: this.historySize,
-					historyChange: this.historyChange,
-					against: this.against,
-					forceText: this.forceText,
-				});
-				const model =
-					await this.plugin.controller.history.getHistoryDiff(request);
+			if (historyHash) {
+				const model = await this.plugin.controller.history.getHistoryDiff(
+					buildHistoryRequest({
+						...target,
+						path,
+						historyHash,
+						forceText: this.forceText,
+					}),
+				);
 				if (gen !== this.loadGeneration) return;
 				this.model = model;
 				if (!this.model) {
@@ -280,8 +234,8 @@ export class DiffView extends ItemView {
 				return;
 			}
 			const model = this.forceText
-				? await this.plugin.controller.fileDiffs.getForcedFileDiff(this.path)
-				: await this.plugin.controller.fileDiffs.getFileDiff(this.path);
+				? await this.plugin.controller.fileDiffs.getForcedFileDiff(path)
+				: await this.plugin.controller.fileDiffs.getFileDiff(path);
 			if (gen !== this.loadGeneration) return;
 			this.model = model;
 
@@ -344,7 +298,8 @@ export class DiffView extends ItemView {
 		const header = this.headerEl;
 		const actionBar = this.actionBarEl;
 		if (!header || !actionBar) return;
-		const path = this.path ?? "";
+		const { against, historyChange, historyLabel } = this.target;
+		const path = this.target.path ?? "";
 		renderDiffFrame(
 			header,
 			actionBar,
@@ -355,9 +310,9 @@ export class DiffView extends ItemView {
 				),
 				model: this.model,
 				isEditing: this.mergePanel.isEditing,
-				against: this.against,
-				historyChange: this.historyChange,
-				historyLabel: this.historyLabel,
+				against,
+				historyChange,
+				historyLabel,
 			},
 			{
 				saveResolution: () => this.saveMerge(path),
@@ -398,13 +353,8 @@ export class DiffView extends ItemView {
 		const model = this.model;
 		const preview =
 			model &&
-			selectHistoryMode({
-				historyHash: this.historyHash,
-				historyChange: this.historyChange,
-				historyPreviewIfMissing: this.historyPreviewIfMissing,
-				against: this.against,
-				localExists: model.rightPresent,
-			}) === "preview";
+			selectHistoryMode({ ...this.target, localExists: model.rightPresent }) ===
+				"preview";
 		if (
 			model &&
 			!preview &&
@@ -439,7 +389,7 @@ export class DiffView extends ItemView {
 		}
 		if (preview) {
 			this.previewPanel = new PreviewPanel();
-			this.previewPanel.render(body, model.leftText, this.historyLabel);
+			this.previewPanel.render(body, model.leftText, this.target.historyLabel);
 			return;
 		}
 		this.comparePanel = renderTextDiff(body, model, {
@@ -458,11 +408,7 @@ export class DiffView extends ItemView {
 	}
 
 	private compareActionable(model: FileDiffModel): boolean {
-		return compareActionable({
-			model,
-			against: this.against,
-			historyChange: this.historyChange,
-		});
+		return compareActionable({ ...this.target, model });
 	}
 
 	private async advanceAfterResolve(resolvedPath: string): Promise<void> {
@@ -489,7 +435,7 @@ export class DiffView extends ItemView {
 		// Re-read at click time: the list captured at render goes stale once anything syncs.
 		const target = getAdjacentPath(
 			getOrderedPaths(this.plugin.controller.getSnapshot().result?.diff),
-			this.path,
+			this.target.path,
 			delta,
 		);
 		if (!target || !(await this.mayLeave())) return;
@@ -499,7 +445,7 @@ export class DiffView extends ItemView {
 
 	/** What merge commands act on; null unless this view is merging. */
 	get merge(): ActiveMerge | null {
-		const path = this.path;
+		const { path } = this.target;
 		if (!this.mergePanel.isEditing || !path) return null;
 		return {
 			take: (sides) => this.mergePanel.take(sides),
@@ -522,13 +468,7 @@ export class DiffView extends ItemView {
 	}
 
 	private showFile(path: string): void {
-		this.path = path;
-		this.historyHash = null;
-		this.historyLabel = "Version";
-		this.historySize = undefined;
-		this.against = null;
-		this.historyChange = null;
-		this.historyPreviewIfMissing = false;
+		this.target = fileTarget(path);
 		this.model = null;
 		this.forceText = false;
 		this.loadGeneration++;

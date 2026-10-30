@@ -8,7 +8,7 @@ import {
 	type HunkChoices,
 } from "../choices";
 import type { PanelHosts } from "../header";
-import { renderCounters } from "../lines/source-widget";
+import { type LineCounters, renderCounters } from "../lines/source-widget";
 import { renderChangeNav } from "../rail";
 
 const CONTEXT: Record<EDiffDirection, string> = {
@@ -25,6 +25,14 @@ const HINT: Record<EDiffDirection, string> = {
 	history: "Select a change to restore it. Nothing changes until you apply.",
 };
 
+export interface CompareControlsOptions {
+	direction: EDiffDirection;
+	actionable: boolean;
+	choices: HunkChoices;
+	discard(): void;
+	apply(): void;
+}
+
 /** Detached panel-owned content survives shell re-renders. */
 export class CompareControls {
 	readonly info = createSpan({ cls: "mdsync-compare-info" });
@@ -34,10 +42,18 @@ export class CompareControls {
 		null;
 	private pin: HTMLButtonElement | null = null;
 
+	constructor(private readonly options: CompareControlsOptions) {}
+
 	mount(hosts: PanelHosts): void {
 		hosts.info.appendChild(this.info);
 		hosts.controls.appendChild(this.controls);
 		hosts.pending.appendChild(this.pending);
+	}
+
+	remove(): void {
+		this.info.remove();
+		this.controls.remove();
+		this.pending.remove();
 	}
 
 	/** Keeps the buttons of chosen changes on the strip; off leaves only the selected change's. */
@@ -69,20 +85,15 @@ export class CompareControls {
 		this.showPosition = renderChangeNav(this.controls, jump);
 	}
 
-	update(
-		counts: {
-			added: number;
-			removed: number;
-			changes: number;
-			current: number;
-		},
-		direction: EDiffDirection,
-		actionable: boolean,
-		choices: HunkChoices,
-		discard: () => void,
-		apply: () => void,
-	): void {
-		const { added, removed, changes, current } = counts;
+	update(segments: readonly LineCounters[], current: number): void {
+		const { direction, actionable, choices } = this.options;
+		let added = 0;
+		let removed = 0;
+		for (const segment of segments) {
+			added += segment.added;
+			removed += segment.removed;
+		}
+		const changes = segments.length;
 		const changeText = `${changes} ${changes === 1 ? "change" : "changes"}`;
 		this.info.empty();
 		renderCounters(this.info, { added, removed });
@@ -113,12 +124,12 @@ export class CompareControls {
 		});
 		new ButtonComponent(buttons)
 			.setButtonText("Discard choices")
-			.onClick(discard);
+			.onClick(() => this.options.discard());
 		new ButtonComponent(buttons)
 			.setButtonText(
 				`Apply ${choices.size} ${choices.size === 1 ? "change" : "changes"}`,
 			)
 			.setCta()
-			.onClick(apply);
+			.onClick(() => this.options.apply());
 	}
 }

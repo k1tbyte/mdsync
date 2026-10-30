@@ -14,6 +14,13 @@ export function changeNavigation(jump: (delta: number) => void) {
 	);
 }
 
+/** The change `delta` away, wrapping round; from none selected (-1), forward is the first and back the last. */
+export function stepIndex(current: number, delta: number, total: number) {
+	if (total === 0) return -1;
+	if (current < 0) return delta > 0 ? 0 : total - 1;
+	return (current + delta + total) % total;
+}
+
 /** Arrows with the position between them, in one box so a narrow bar can drop it whole. */
 export function renderChangeNav(
 	parent: HTMLElement,

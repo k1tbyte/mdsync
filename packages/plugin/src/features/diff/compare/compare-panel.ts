@@ -24,7 +24,7 @@ import {
 	spanAnchors,
 } from "../lines/scroll-sync";
 import { setCombinedMode } from "../merge/merge-decorations";
-import { changeNavigation, type RailAction } from "../rail";
+import { changeNavigation, type RailAction, stepIndex } from "../rail";
 import { CompareControls } from "./compare-controls";
 import {
 	buildSegments,
@@ -192,9 +192,7 @@ export class ComparePanel {
 		this.leftView = null;
 		this.rightView = null;
 		this.rootEl = null;
-		this.controls?.info.remove();
-		this.controls?.controls.remove();
-		this.controls?.pending.remove();
+		this.controls?.remove();
 		this.controls = null;
 		this.current = -1;
 		this.choices.clear();
@@ -379,7 +377,14 @@ export class ComparePanel {
 	}
 
 	private renderToolbar(root: HTMLElement): void {
-		this.controls = new CompareControls();
+		this.controls = new CompareControls({
+			...this.options,
+			choices: this.choices,
+			discard: () => this.discardChoices(),
+			apply: () => {
+				if (this.choices.size > 0) this.options.onApply(this.choices);
+			},
+		});
 		const toolbar = this.controls.controls;
 		this.layoutMode = new LayoutMode(root, toolbar, (combined, changed) => {
 			if (changed) {
@@ -416,22 +421,7 @@ export class ComparePanel {
 	}
 
 	private updateToolbar(): void {
-		let added = 0;
-		let removed = 0;
-		for (const segment of this.segments) {
-			added += segment.added;
-			removed += segment.removed;
-		}
-		this.controls?.update(
-			{ added, removed, changes: this.segments.length, current: this.current },
-			this.options.direction,
-			this.options.actionable,
-			this.choices,
-			() => this.discardChoices(),
-			() => {
-				if (this.choices.size > 0) this.options.onApply(this.choices);
-			},
-		);
+		this.controls?.update(this.segments, this.current);
 	}
 
 	private discardChoices(): void {
@@ -463,7 +453,8 @@ export class ComparePanel {
 	}
 
 	private jump(delta: number): void {
-		const segment = this.segments[this.nextIndex(delta)];
+		this.current = stepIndex(this.current, delta, this.segments.length);
+		const segment = this.segments[this.current];
 		if (!segment) return;
 		this.divider?.select(segment.key);
 		this.updateToolbar();
@@ -487,18 +478,6 @@ export class ComparePanel {
 			selection: { anchor: at },
 			effects: EditorView.scrollIntoView(at, { y: "center" }),
 		});
-	}
-
-	private nextIndex(delta: number): number {
-		const count = this.segments.length;
-		if (count === 0) return -1;
-		this.current =
-			this.current < 0
-				? delta > 0
-					? 0
-					: count - 1
-				: (this.current + delta + count) % count;
-		return this.current;
 	}
 
 	private scheduleLayout(): void {

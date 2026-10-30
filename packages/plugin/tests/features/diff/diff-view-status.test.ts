@@ -3,6 +3,7 @@
 import { installElementMethods } from "@tests/helpers/element-methods";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { PluginHost } from "@/app/host";
+import { type DiffTarget, fileTarget } from "@/features/diff/history-state";
 import { DiffView } from "@/features/diff/view";
 import type { CompareResult } from "@/features/sync/engine";
 
@@ -23,7 +24,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 type Snapshot = { result: CompareResult | null; busy: boolean };
 type Listener = (snapshot: Snapshot) => void;
 
-async function open(fields: Record<string, unknown> = {}) {
+async function open(fields: Partial<DiffTarget> = {}) {
 	let listener: Listener = () => undefined;
 	const getFileDiff = vi.fn(async () => null);
 	const getHistoryDiff = vi.fn(async () => null);
@@ -46,8 +47,7 @@ async function open(fields: Record<string, unknown> = {}) {
 	Object.assign(view, {
 		contentEl: document.createElement("div"),
 		containerEl: { isShown: () => shown.value },
-		path: "a.md",
-		...fields,
+		target: { ...fileTarget("a.md"), ...fields },
 	});
 	await view.onOpen();
 	await settle();

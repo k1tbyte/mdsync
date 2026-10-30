@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
 	buildHistoryRequest,
 	changesDiffer,
+	fileTarget,
 	type HistoryChange,
 	type HistoryModeInput,
 	hunkHintText,
+	readTarget,
+	sameTarget,
 	selectHistoryMode,
+	targetState,
 } from "@/features/diff/history-state";
 import { HUNK_TEXT_MAX_BYTES } from "@/features/sync/constants";
 import {
@@ -156,6 +160,43 @@ describe("buildHistoryRequest", () => {
 			forceText: false,
 		});
 		expect(req.right).toEqual({ version: against });
+	});
+});
+
+describe("diff targets", () => {
+	const version = readTarget(
+		{ path: "a.md", historyHash: "h1", historyLabel: "Pin", historySize: 5 },
+		null,
+	);
+
+	it("keeps the current path for a state without one, and resets the rest", () => {
+		expect(readTarget({ historyHash: "h1" }, "a.md")).toMatchObject({
+			path: "a.md",
+			historyLabel: "Version",
+			against: null,
+		});
+	});
+
+	it("round-trips through the stored state", () => {
+		const against = readTarget(
+			{ ...targetState(version), againstHash: "h2", againstLabel: "B" },
+			null,
+		);
+		expect(readTarget(targetState(against), null)).toEqual(against);
+	});
+
+	it("reloads for another version or a renamed pin, not for a size", () => {
+		expect(sameTarget(version, { ...version, historySize: 9 })).toBe(true);
+		expect(sameTarget(version, { ...version, historyLabel: "Renamed" })).toBe(
+			false,
+		);
+		expect(sameTarget(version, { ...version, historyHash: "h2" })).toBe(false);
+		expect(sameTarget(version, fileTarget("a.md"))).toBe(false);
+	});
+
+	it("ignores a label on the file itself", () => {
+		const file = fileTarget("a.md");
+		expect(sameTarget(file, { ...file, historyLabel: "Other" })).toBe(true);
 	});
 });
 
