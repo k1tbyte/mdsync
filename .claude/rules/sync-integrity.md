@@ -26,6 +26,7 @@ Breaking one of these silently corrupts user data or publishes remote deletions;
 - Configuration resets are not file deletions: generations are scoped by `<configDir>/<category>`; a newer one makes every device forget that category's baseline files and folders (`reconcileBaselineResetGenerations`) and keep its local files. Ordinary publishes retain generations; every manifest carries `MANIFEST_VERSION` (3), so a client from before resets refuses one (`features/sync/operations/config-reset.ts`).
 - A name this disk refuses is skipped, never written (`diskRefuses`): one failed write would stop every pull. Such remote files go to `snapshot.skipped` (`features/sync/changes/remote-names.ts`), such folders are not claimed on disk, a restore leaves them out.
 - A drawing is its scene: the scanner fingerprints an Excalidraw file into `scene` (`core/drawing/scene.ts`) and the diff takes equal scenes for equal content (`sameContent`), or every save pushes. Conflicts merge by element (`mergeDrawings` in `core/drawing/merge.ts`, called from `features/sync/apply/conflict-merge.ts`), never by lines: that yields a scene that no longer opens. Notes above the data changed on both sides stay a conflict.
+- Auto-merge takes only `.md` (`settleConflict` in `features/sync/apply/auto-merge.ts`): a line merge of JSON or plugin code can be clean by lines and broken as a file, silently mixing two plugin versions. Every other conflict waits for a person.
 
 ## Publishing
 

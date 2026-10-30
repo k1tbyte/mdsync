@@ -113,7 +113,7 @@ In **Settings → MDSync → Sync** you can turn on:
 
 A conflict is a file changed both here and on the remote. For each one you can **Keep local**, **Accept remote**, **Keep both versions** (the remote copy lands next to yours as `todo (conflict from Phone 2026-07-05).md`) or **Merge…**.
 
-**Merge…** opens a three-way editor: your version, the result and the remote version side by side. Changes that do not overlap are merged up front, and you review and save. Autosync merges such conflicts on its own and leaves the rest to you.
+**Merge…** opens a three-way editor: your version, the result and the remote version side by side. Changes that do not overlap are merged up front, and you review and save. Autosync merges such conflicts in notes (`.md`) on its own and leaves the rest to you, JSON and plugin files included: a merge by lines can break them.
 
 <details open>
 <summary>Demo</summary>

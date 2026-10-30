@@ -50,6 +50,7 @@ import {
 	showSideChanges,
 	sideDecorations,
 } from "./merge-decorations";
+import { keepMergeDraft, takeMergeDraft } from "./merge-drafts";
 import { type SideMarks, sideMarks } from "./merge-marks";
 import { initialMergeChanges, mergeChangesField } from "./merge-state";
 import { MergeToolbar } from "./merge-toolbar";
@@ -72,6 +73,8 @@ export class MergeEditorPanel {
 	private layoutMode: LayoutMode | null = null;
 	private wrapping: LineWrappingControl | null = null;
 	private active = false;
+	/** Opened from a draft: its edits count before any undo step exists. */
+	private restored = false;
 
 	private readonly dividerActions = mergeActions(() => ({
 		view: this.resultView,
@@ -86,12 +89,26 @@ export class MergeEditorPanel {
 	/** Undoing every step back counts as none: nothing would be lost. */
 	get hasEdits(): boolean {
 		return (
-			this.active && !!this.resultView && undoDepth(this.resultView.state) > 0
+			this.active &&
+			!!this.resultView &&
+			(this.restored || undoDepth(this.resultView.state) > 0)
 		);
 	}
 
 	reset(): void {
 		this.active = false;
+		this.restored = false;
+	}
+
+	/** Obsidian cannot cancel a tab close: the edits wait for the next Merge of the same versions. */
+	keepDraft(path: string): void {
+		const view = this.resultView;
+		if (!this.hasEdits || !view || !this.expected) return;
+		keepMergeDraft(path, {
+			text: view.state.doc.toString(),
+			changes: view.state.field(mergeChangesField),
+			expected: this.expected,
+		});
 	}
 
 	/** `stillOn` says the view still shows `path` once the three versions arrive. */
@@ -105,15 +122,16 @@ export class MergeEditorPanel {
 			const texts = await plugin.controller.fileDiffs.getConflictThreeWay(path);
 			// Another file opened meanwhile, or a merge began: this one would replace it unasked.
 			if (!stillOn() || this.active) return;
-			if (!texts) {
-				notifyError(
-					"Cannot three-way merge this file (binary or no common ancestor). Use Keep local / Accept remote.",
-				);
+			if (typeof texts === "string") {
+				notifyError(`Cannot merge this file: ${texts}`);
 				return;
 			}
 			const session = buildMergeSession(texts.base, texts.local, texts.remote);
-			this.text = session.text;
-			this.changes = session.changes;
+			const draft = takeMergeDraft(path, texts.expected);
+			const resumed = draft === "stale" ? null : draft;
+			this.text = resumed?.text ?? session.text;
+			this.changes = resumed?.changes ?? session.changes;
+			this.restored = !!resumed;
 			this.base = session.baseLines;
 			this.sides = {
 				local: session.localLines,
@@ -123,7 +141,13 @@ export class MergeEditorPanel {
 			this.expected = texts.expected;
 			this.active = true;
 			onEntered();
-			if (!session.changes.some((change) => change.conflict)) {
+			if (resumed) {
+				notifyInfo("Restored your unsaved merge.");
+			} else if (draft === "stale") {
+				notifyInfo(
+					"This file changed since you left its merge, so your unsaved edits were dropped.",
+				);
+			} else if (!session.changes.some((change) => change.conflict)) {
 				notifyInfo("No overlapping changes - auto-merged. Review and save.");
 			}
 		} catch (err) {

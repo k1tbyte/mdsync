@@ -1,9 +1,14 @@
+import { sha256Hex } from "@/core/crypto";
+import { formatBytes } from "@/core/shared";
 import { isTextMergeCandidate } from "../apply/auto-merge";
 import {
+	hasKnownBinaryExtension,
 	loadBaselineText,
 	loadLocalText,
 	loadRemoteText,
+	textToBytes,
 } from "../changes/content";
+import { HUNK_TEXT_MAX_BYTES } from "../constants";
 import type { CompareResult, EngineDependencies } from "../engine";
 import { DiffCache, type DiffCacheInput } from "../hunks/diff-cache";
 import type { FileDiffModel } from "../hunks/projection";
@@ -74,33 +79,49 @@ export class FileDiffService {
 		return paths;
 	}
 
-	async getConflictThreeWay(path: string): Promise<{
-		base: string;
-		local: string;
-		remote: string;
-		expected: { localHash: string; remoteHash: string };
-	} | null> {
+	/** The three versions to merge, or why there are none, worded to end "Cannot merge this file: ". */
+	async getConflictThreeWay(path: string): Promise<
+		| {
+				base: string;
+				local: string;
+				remote: string;
+				expected: { localHash: string; remoteHash: string };
+		  }
+		| string
+	> {
 		const result = this.deps.getResult();
-		if (!result) return null;
-		const conflict = this.pathIndex()?.conflict.get(path);
-		if (!conflict?.baselineHash) return null;
-		const session = await this.deps.openSession(path);
-		if (!session) return null;
-		// Pre-flight size/extension so binary or oversized conflicts return null before downloading.
+		const conflict = result && this.pathIndex()?.conflict.get(path);
+		const session = conflict && (await this.deps.openSession(path));
+		if (!result || !conflict || !session) return "refresh and try again.";
+		const whole = "Use Keep local, Accept remote or Keep both.";
+		if (!conflict.baselineHash) {
+			return `its two versions share no earlier one. ${whole}`;
+		}
+		// Pre-flight size/extension so binary or oversized conflicts stop before downloading.
 		const mergeable = await isTextMergeCandidate(
 			session,
 			path,
 			result.remote,
 			session.state.baseline,
 		);
-		if (!mergeable) return null;
+		if (!mergeable) {
+			return hasKnownBinaryExtension(path)
+				? `it is binary. ${whole}`
+				: `it is over ${formatBytes(HUNK_TEXT_MAX_BYTES)}. ${whole}`;
+		}
 		const fetch = { storage: session.storage, key: session.key };
 		const [base, local, remote] = await Promise.all([
 			loadRemoteText(fetch, conflict.baselineHash),
 			loadLocalText(session.adapter, path),
 			loadRemoteText(fetch, conflict.remoteHash),
 		]);
-		if (base === null || local === null || remote === null) return null;
+		if (base === null || local === null || remote === null) {
+			return `a version of it is not plain text or could not be downloaded. ${whole}`;
+		}
+		// Save checks the compare's hashes: a disk edit since would fail only there, or restore a draft over it.
+		if ((await sha256Hex(textToBytes(local))) !== conflict.localHash) {
+			return "it changed since the last compare. Refresh and try again.";
+		}
 		return {
 			base,
 			local,

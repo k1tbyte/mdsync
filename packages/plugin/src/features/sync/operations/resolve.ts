@@ -1,6 +1,7 @@
 import { DEFAULT_CONCURRENCY } from "@/core/constants";
 import { sceneOfBytes } from "@/core/drawing";
 import { ESyncLogOperation } from "@/core/logs";
+import { asError } from "@/core/shared";
 import { trashPath, unchangedSince } from "@/core/vault";
 import { freeConflictCopyPath } from "../apply/conflict-copy";
 import {
@@ -235,6 +236,16 @@ export const saveMergedOp: Operation<MergedSaveArgs> = async (
 		throw new Error(
 			"This file changed since the merge was opened, so saving it would overwrite that change. Reopen the merge.",
 		);
+	}
+	// Published at once: broken JSON would reach every device's plugin or canvas.
+	if (/\.(json|canvas)$/.test(path)) {
+		try {
+			JSON.parse(content);
+		} catch (err) {
+			throw new Error(
+				`The merged result is not valid JSON, so it was not saved: ${asError(err).message}`,
+			);
+		}
 	}
 	await writeLocalFile(deps, path, textToBytes(content));
 	return batchKeepLocalOp(deps, result, new Set([path]), ctx);

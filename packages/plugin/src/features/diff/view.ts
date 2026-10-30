@@ -215,6 +215,7 @@ export class DiffView extends ItemView {
 		this.chrome?.disconnect();
 		this.chrome = null;
 		this.refreshPending = false;
+		if (this.path) this.mergePanel.keepDraft(this.path);
 		this.destroyViews();
 		this.contentEl.empty();
 		this.bodyEl = null;
@@ -359,7 +360,10 @@ export class DiffView extends ItemView {
 				goNextFile: () => void this.navigateFile(1),
 				goBack: () =>
 					void this.leaveMerge().then((leave) => {
-						if (leave) void this.returnToSourceControl();
+						if (!leave) return;
+						// Discarded here, so closing the tab keeps no draft of it.
+						this.mergePanel.reset();
+						void this.returnToSourceControl();
 					}),
 			},
 			this.mergePanel.isEditing ? this.mergePanel : this.comparePanel,

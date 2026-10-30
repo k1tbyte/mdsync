@@ -19,20 +19,21 @@ async function diverged(
 	localText: string,
 	remoteText: string,
 	base = BASE,
+	path = "note.md",
 ): Promise<[TestSession, TestSession]> {
 	const [a, b] = pairedSessions();
-	a.adapter.putText("note.md", base);
+	a.adapter.putText(path, base);
 	const first = await a.compare();
-	await pushPathsOp(a.deps(), first, ["note.md"], a.context());
+	await pushPathsOp(a.deps(), first, [path], a.context());
 
-	b.adapter.putText("note.md", base);
+	b.adapter.putText(path, base);
 	await b.adoptRemote();
 
-	b.adapter.putText("note.md", remoteText);
+	b.adapter.putText(path, remoteText);
 	const bResult = await b.compare();
-	await pushPathsOp(b.deps(), bResult, ["note.md"], b.context());
+	await pushPathsOp(b.deps(), bResult, [path], b.context());
 
-	a.adapter.putText("note.md", localText);
+	a.adapter.putText(path, localText);
 	return [a, b];
 }
 
@@ -85,6 +86,40 @@ describe("autoMergeOp", () => {
 		const after = await a.compare();
 		expect(after.diff.localChanges).toHaveLength(0);
 		expect(a.text("note.md")).toBe(merged);
+	});
+
+	it.each(["data.json", "board.canvas", "script.js"])(
+		"leaves a %s conflict for the merge screen even when lines do not overlap",
+		async (path) => {
+			const localText = BASE.replace("one", "ONE");
+			const [a] = await diverged(
+				localText,
+				BASE.replace("six", "SIX"),
+				BASE,
+				path,
+			);
+			const result = await a.compare();
+			expect(result.diff.conflicts.map((c) => c.path)).toEqual([path]);
+
+			const outcome = await autoMergeOp(a.deps(), result, a.context());
+
+			expect(outcome.touchedPaths.size).toBe(0);
+			expect(a.text(path)).toBe(localText);
+		},
+	);
+
+	it("merges a note whatever the case of its extension", async () => {
+		const [a] = await diverged(
+			BASE.replace("one", "ONE"),
+			BASE.replace("six", "SIX"),
+			BASE,
+			"NOTE.MD",
+		);
+		const result = await a.compare();
+
+		const outcome = await autoMergeOp(a.deps(), result, a.context());
+
+		expect(outcome.touchedPaths).toEqual(new Set(["NOTE.MD"]));
 	});
 
 	it("records the mtime it wrote so the next scan does not re-hash", async () => {
