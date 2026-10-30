@@ -46,7 +46,13 @@ export class PluginSettingTab extends Stub {
 }
 export class Setting extends Stub {}
 export class ButtonComponent extends Stub {}
-export class ItemView extends Stub {}
+export class Scope {
+	register(): void {}
+}
+export class ItemView extends Stub {
+	app = {};
+	scope: Scope | null = null;
+}
 export class FileView extends ItemView {}
 export class MarkdownView extends FileView {}
 export class Menu extends Stub {}

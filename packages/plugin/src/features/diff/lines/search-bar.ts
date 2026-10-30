@@ -1,5 +1,4 @@
 import {
-	closeSearchPanel,
 	findNext,
 	findPrevious,
 	getSearchQuery,
@@ -28,7 +27,7 @@ const FLAGS: readonly { flag: Flag; icon: string; label: string }[] = [
 	{ flag: "regexp", icon: "regex", label: "Use regular expression" },
 ];
 
-/** CodeMirror's search in Obsidian's look: its query, matching and commands, our bar. Replace only where the pane is editable. */
+/** CodeMirror's search in Obsidian's look: its query, matching and commands, our bar. Replace only where the pane is editable; closed by its toggle, Mod+F or Escape. */
 export class SearchBar implements Panel {
 	readonly dom = createDiv({ cls: "mdsync-search-bar" });
 	readonly top = true;
@@ -49,7 +48,9 @@ export class SearchBar implements Panel {
 		// `openSearchPanel` focuses and selects the field marked so.
 		this.find.inputEl.setAttr("main-field", "true");
 		this.find.inputEl.setAttr("aria-label", "Find");
-		this.count = row.createSpan({ cls: "mdsync-search-count" });
+		// Inside the field, before Obsidian's clear button.
+		this.count = createSpan({ cls: "mdsync-search-count" });
+		this.find.inputEl.after(this.count);
 		// One block, so a narrow pane wraps every button together.
 		const tools = row.createDiv({ cls: "mdsync-search-tools" });
 		appendIconButton(tools, "arrow-up", "Previous match", () =>
@@ -63,7 +64,6 @@ export class SearchBar implements Panel {
 			),
 		}));
 		if (!view.state.readOnly) this.replace = this.renderReplace(tools);
-		appendIconButton(tools, "x", "Close search", () => closeSearchPanel(view));
 		this.dom.addEventListener("keydown", (event) => this.onKey(event));
 		this.show();
 	}
@@ -157,11 +157,11 @@ export class SearchBar implements Panel {
 		this.count.toggleClass("is-empty", missing);
 	}
 
-	/** The count's text, and whether nothing matches. */
+	/** The count's text, and whether nothing matches; an invalid pattern matches nothing. */
 	private matches(): [string, boolean] {
 		const { query } = this;
 		if (!query.search) return ["", false];
-		if (!query.valid) return ["Invalid pattern", true];
+		if (!query.valid) return ["0", true];
 		const { from, to } = this.view.state.selection.main;
 		const cursor = query.getCursor(this.view.state);
 		let total = 0;
@@ -171,9 +171,8 @@ export class SearchBar implements Panel {
 			if (next.value.from === from && next.value.to === to) current = total;
 			if (total === COUNT_MAX) break;
 		}
-		if (total === 0) return ["No results", true];
-		const more = total === COUNT_MAX ? "+" : "";
-		if (current > 0) return [`${current} / ${total}${more}`, false];
-		return [`${total}${more} ${total === 1 ? "result" : "results"}`, false];
+		if (total === 0) return ["0", true];
+		const all = `${total}${total === COUNT_MAX ? "+" : ""}`;
+		return [current > 0 ? `${current}/${all}` : all, false];
 	}
 }

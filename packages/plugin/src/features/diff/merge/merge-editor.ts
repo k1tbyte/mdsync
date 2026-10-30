@@ -28,7 +28,7 @@ import {
 } from "../line-wrapping-control";
 import { Divider } from "../lines/divider";
 import { sideSpan, updatePaneViewportWidth } from "../lines/geometry";
-import { appendSearchButton, paneSearch } from "../lines/pane-search";
+import { PanelSearch } from "../lines/pane-search";
 import {
 	NO_ANCHORS,
 	PaneScrollSync,
@@ -71,6 +71,8 @@ export class MergeEditorPanel {
 	private layoutFrame: number | null = null;
 	private layoutMode: LayoutMode | null = null;
 	private wrapping: LineWrappingControl | null = null;
+	/** New per render: its toggles are the heads and toolbar drawn with it. */
+	private paneSearch = mergeSearch();
 	private active = false;
 	/** Opened from a draft: its edits count before any undo step exists. */
 	private restored = false;
@@ -94,6 +96,10 @@ export class MergeEditorPanel {
 			this.updateStatus();
 		},
 	});
+
+	get search(): PanelSearch<MergePane> {
+		return this.paneSearch;
+	}
 
 	get isEditing(): boolean {
 		return this.active;
@@ -188,6 +194,7 @@ export class MergeEditorPanel {
 
 	render(parent: HTMLElement, options: LineWrappingOptions): void {
 		this.destroy();
+		this.paneSearch = mergeSearch();
 		this.wrapping = new LineWrappingControl(
 			options,
 			() => [...Object.values(this.sideViews), this.resultView],
@@ -215,6 +222,7 @@ export class MergeEditorPanel {
 				if (changed) {
 					this.resultView?.dispatch({ effects: setCombinedMode.of(combined) });
 				}
+				this.paneSearch.setInline(combined);
 				this.scheduleLayout();
 			},
 		);
@@ -224,44 +232,37 @@ export class MergeEditorPanel {
 			() => this.resultView && redo(this.resultView),
 		);
 		toolbar.navigation((delta) => this.nav.jump(delta));
-		appendSearchButton(
-			toolbar.controls,
-			() => [
-				this.sideViews.local ?? null,
-				this.resultView,
-				this.sideViews.remote ?? null,
-			],
-			() => this.resultView,
-		);
+		this.paneSearch.appendInlineToggle(toolbar.controls);
 	}
 
 	private renderDesktop(root: HTMLElement): void {
 		const heads = root.createDiv({ cls: "mdsync-merge-pane-heads" });
 		const body = root.createDiv({ cls: "mdsync-merge-body" });
-		const pane = (cls: string, name: string, note: string, id?: string) => {
-			const head = heads.createDiv({ cls: `mdsync-merge-pane-head ${cls}` });
+		const pane = (key: MergePane, name: string, note: string, id?: string) => {
+			const head = heads.createDiv({ cls: `mdsync-merge-pane-head is-${key}` });
 			if (id) head.id = id;
 			const mark = head.createSpan({ cls: "mdsync-merge-pane-mark" });
-			if (cls === "is-result") setIcon(mark, "pencil");
+			if (key === "result") setIcon(mark, "pencil");
 			head.createSpan({ cls: "mdsync-merge-pane-name", text: name });
 			head.createSpan({ cls: "mdsync-merge-pane-note", text: note });
-			return body.createDiv({ cls: `mdsync-merge-editor-host ${cls}` });
+			this.paneSearch.appendToggle(head, key);
+			return body.createDiv({ cls: `mdsync-merge-editor-host is-${key}` });
 		};
 		const strip = (cls: string) => {
 			heads.createDiv({ cls: "mdsync-merge-divider-head" });
 			return body.createDiv({ cls: `mdsync-merge-divider ${cls}` });
 		};
 		const resultLabel = randomId();
-		const localHost = pane("is-local", "Local", "this device");
+		const localHost = pane("local", "Local", "this device");
 		const leftEl = strip("is-local");
 		const resultHost = pane(
-			"is-result",
+			"result",
 			"Result",
 			"you can type here",
 			resultLabel,
 		);
 		const rightEl = strip("is-remote");
-		const remoteHost = pane("is-remote", "Remote", "incoming");
+		const remoteHost = pane("remote", "Remote", "incoming");
 
 		const marks = sideMarks(this.base, this.sides);
 		const local = this.makeSideEditor(localHost, "local", marks);
@@ -309,7 +310,7 @@ export class MergeEditorPanel {
 					EditorState.readOnly.of(true),
 					changeNavigation((delta) => this.nav.jump(delta)),
 					lineNumbers(),
-					paneSearch(() => undefined),
+					this.paneSearch.extension(side),
 					this.wrapping?.extension() ?? [],
 					sideDecorations(side, marks),
 					EditorView.updateListener.of((update) => {
@@ -347,9 +348,7 @@ export class MergeEditorPanel {
 					changeNavigation((delta) => this.nav.jump(delta)),
 					keymap.of(historyKeymap),
 					lineNumbers(),
-					paneSearch(() => {
-						if (this.resultView) openAllMergeGaps(this.resultView);
-					}),
+					this.paneSearch.extension("result"),
 					this.wrapping?.extension() ?? [],
 					EditorView.updateListener.of((update) => {
 						const modelChanged =
@@ -471,4 +470,13 @@ export class MergeEditorPanel {
 		this.wrapping = null;
 		this.nav.current = -1;
 	}
+}
+
+type MergePane = EMergeSide | "result";
+
+function mergeSearch(): PanelSearch<MergePane> {
+	return new PanelSearch<MergePane>("result", (pane, view) => {
+		// Only Result folds unchanged runs into gaps.
+		if (pane === "result") openAllMergeGaps(view);
+	});
 }

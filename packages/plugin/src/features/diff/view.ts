@@ -1,6 +1,7 @@
 import {
 	ItemView,
 	type Menu,
+	Scope,
 	type ViewStateResult,
 	type WorkspaceLeaf,
 } from "obsidian";
@@ -71,6 +72,16 @@ export class DiffView extends ItemView {
 			state: () => ({ ...this.target, model: this.model }),
 			refresh: () => this.refreshModel(),
 			advance: (path) => this.advanceAfterResolve(path),
+		});
+		// Obsidian's own Mod+F (search in a note) runs before the panes' CodeMirror keys.
+		// Uppercase matches the key's position, so any keyboard layout.
+		this.scope = new Scope(this.app.scope);
+		this.scope.register(["Mod"], "F", () => {
+			const panel = this.mergePanel.isEditing
+				? this.mergePanel
+				: this.comparePanel;
+			panel?.search.toggleFocused();
+			return false;
 		});
 	}
 

@@ -16,7 +16,7 @@ import {
 	spanBounds,
 	updatePaneViewportWidth,
 } from "../lines/geometry";
-import { appendSearchButton, paneSearch } from "../lines/pane-search";
+import { PanelSearch } from "../lines/pane-search";
 import {
 	NO_ANCHORS,
 	PaneScrollSync,
@@ -69,6 +69,9 @@ export function renderTextDiff(
  */
 export class ComparePanel {
 	readonly choices = new HunkChoices();
+	readonly search = new PanelSearch<CompareSide>("right", () =>
+		this.unfoldAll(),
+	);
 	/** Keys of the segments folded to one row in both panes. */
 	private readonly folded = new Set<number>();
 	/** Unchanged runs opened in both panes, by index. */
@@ -224,10 +227,11 @@ export class ComparePanel {
 		side: CompareSide,
 		first: boolean,
 	): EditorView {
-		heads.createDiv({
+		const head = heads.createDiv({
 			cls: `mdsync-compare-head is-${side}`,
 			text: side === "left" ? model.leftLabel : model.rightLabel,
 		});
+		this.search.appendToggle(head, side);
 		const host = body.createDiv({
 			cls: `mdsync-compare-host is-${side}${first ? " is-first" : ""}`,
 		});
@@ -269,7 +273,7 @@ export class ComparePanel {
 						},
 					}),
 					lineNumbers(),
-					paneSearch(() => this.unfoldAll()),
+					this.search.extension(side),
 					EditorView.domEventHandlers({
 						// A click on a change's lines selects it, as one on its connector does.
 						click: (event, view) => {
@@ -393,6 +397,7 @@ export class ComparePanel {
 				}
 			}
 			this.controls?.showPin(!combined);
+			this.search.setInline(combined);
 			this.scheduleLayout();
 		});
 		this.wrapping.mount(toolbar);
@@ -404,11 +409,7 @@ export class ComparePanel {
 			});
 		}
 		this.controls.navigation((delta) => this.jump(delta));
-		appendSearchButton(
-			toolbar,
-			() => [this.leftView, this.rightView],
-			() => this.rightView,
-		);
+		this.search.appendInlineToggle(toolbar);
 	}
 
 	/** Search reads every line: folded runs and changes open. */

@@ -9,7 +9,7 @@ import { EditorView } from "@codemirror/view";
 import { installElementMethods } from "@tests/helpers/element-methods";
 import { installElementFactories } from "@tests/helpers/obsidian-dom";
 import { beforeAll, describe, expect, it } from "vitest";
-import { paneSearch } from "@/features/diff/lines/pane-search";
+import { PanelSearch } from "@/features/diff/lines/pane-search";
 
 beforeAll(() => {
 	installElementFactories();
@@ -20,7 +20,10 @@ function openBar(doc: string, editable = false, select?: [number, number]) {
 	const view = new EditorView({
 		state: EditorState.create({
 			doc,
-			extensions: [paneSearch(() => {}), EditorState.readOnly.of(!editable)],
+			extensions: [
+				new PanelSearch("pane", () => {}).extension("pane"),
+				EditorState.readOnly.of(!editable),
+			],
 		}),
 		parent: document.body,
 	});
@@ -57,19 +60,22 @@ describe("SearchBar", () => {
 		const bar = openBar("Apple and apple\napple pie");
 		bar.type("Find", "apple");
 		expect(getSearchQuery(bar.view.state).search).toBe("apple");
-		expect(bar.count()).toBe("3 results");
+		expect(bar.count()).toBe("3");
 
 		bar.press("Enter");
-		expect(bar.count()).toBe("1 / 3");
+		expect(bar.count()).toBe("1/3");
 		bar.press("Enter", true);
-		expect(bar.count()).toBe("3 / 3");
+		expect(bar.count()).toBe("3/3");
 
 		bar.button("Match case")?.click();
 		expect(getSearchQuery(bar.view.state).caseSensitive).toBe(true);
 		expect(bar.button("Match case")?.classList.contains("is-active")).toBe(
 			true,
 		);
-		expect(bar.count()).toBe("2 / 2");
+		expect(bar.count()).toBe("2/2");
+
+		bar.type("Find", "pear");
+		expect(bar.count()).toBe("0");
 		bar.view.destroy();
 	});
 
@@ -102,11 +108,12 @@ describe("SearchBar", () => {
 	it("leaves Enter on a button to the button", () => {
 		const bar = openBar("cat cat");
 		bar.type("Find", "cat");
-		const close = bar.button("Close search");
-		close?.dispatchEvent(
-			new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
-		);
-		expect(bar.count()).toBe("2 results");
+		bar
+			.button("Match case")
+			?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		expect(bar.count()).toBe("2");
 		bar.view.destroy();
 	});
 

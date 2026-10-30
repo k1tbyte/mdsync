@@ -4,8 +4,22 @@
 	color: var(--text-normal);
 }
 
-.mdsync-diff-view .cm-panels-top {
-	border-bottom: 1px solid var(--background-modifier-border);
+/* Find floats over the text, as in VS Code: opening it moves no line. CodeMirror pins `top: 0` inline. */
+.mdsync-diff-view .cm-editor .cm-panels-top {
+	position: absolute;
+	left: auto;
+	right: var(--size-4-4);
+	width: min(30em, calc(100% - var(--size-4-8)));
+	margin-top: var(--size-4-1);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background-color: var(--background-secondary);
+	box-shadow: var(--shadow-s);
+}
+
+.mdsync-compare-head .mdsync-search-toggle,
+.mdsync-merge-pane-head .mdsync-search-toggle {
+	margin-inline-start: auto;
 }
 
 .mdsync-diff-view .cm-panels-bottom {
@@ -92,12 +106,21 @@
 	margin: 0;
 }
 
+/* The count sits in the field, left of Obsidian's clear button (28px, 2px from the edge); the text stops short of both. */
+.mdsync-search-field .search-input-container input {
+	padding-inline-end: calc(30px + 7ch);
+}
+
 .mdsync-search-count {
+	position: absolute;
+	top: 50%;
+	right: 30px;
+	transform: translateY(-50%);
+	pointer-events: none;
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
-	padding-inline: var(--size-4-1);
 }
 
 .mdsync-search-count.is-empty {
