@@ -50,6 +50,32 @@ export class ItemView extends Stub {}
 export class FileView extends ItemView {}
 export class MarkdownView extends FileView {}
 export class Menu extends Stub {}
+
+/** Obsidian's text inputs for DOM tests: an input and its fluent setters. */
+class TextInput {
+	readonly inputEl: HTMLInputElement;
+	constructor(containerEl: HTMLElement) {
+		this.inputEl = containerEl.ownerDocument.createElement("input");
+		containerEl.appendChild(this.inputEl);
+	}
+	getValue(): string {
+		return this.inputEl.value;
+	}
+	setValue(value: string): this {
+		this.inputEl.value = value;
+		return this;
+	}
+	setPlaceholder(placeholder: string): this {
+		this.inputEl.placeholder = placeholder;
+		return this;
+	}
+	onChange(callback: (value: string) => unknown): this {
+		this.inputEl.addEventListener("input", () => callback(this.inputEl.value));
+		return this;
+	}
+}
+export class TextComponent extends TextInput {}
+export class SearchComponent extends TextInput {}
 export class TFile extends Stub {}
 export class TFolder extends Stub {}
 export class TAbstractFile extends Stub {}

@@ -8,11 +8,12 @@ import {
 import type { Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { appendIconButton } from "@/core/ui";
+import { SearchBar } from "./search-bar";
 
 /** Find and go to line in a pane; `onOpen` opens what folding hides, or a match could land inside a fold. */
 export function paneSearch(onOpen: () => void): Extension {
 	return [
-		search({ top: true }),
+		search({ createPanel: (view) => new SearchBar(view) }),
 		keymap.of([
 			// Go to line opens no search panel.
 			{

@@ -1,0 +1,70 @@
+/* CodeMirror paints its panels and matches light unless the editor is marked dark. */
+.mdsync-diff-view .cm-panels {
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.mdsync-diff-view .cm-panels-top {
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* As Obsidian's own note search: every match highlighted, the current one ringed. Older Obsidian names the highlight `--text-highlight-bg`. */
+.mdsync-diff-view .cm-editor .cm-searchMatch {
+	background-color: var(
+		--highlight-background,
+		var(--text-highlight-bg, rgba(255, 208, 0, 0.4))
+	);
+	border-radius: 2px;
+}
+
+.mdsync-diff-view .cm-editor .cm-searchMatch-selected {
+	box-shadow: 0 0 0 2px var(--text-accent);
+}
+
+.mdsync-search-bar {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-1);
+	padding: var(--size-4-1) var(--size-4-2);
+}
+
+/* A narrow pane wraps the buttons under the field rather than clipping them. */
+.mdsync-search-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--size-2-1);
+}
+
+.mdsync-search-row[hidden] {
+	display: none;
+}
+
+.mdsync-search-field {
+	flex: 1 1 8em;
+	min-width: 6em;
+}
+
+.mdsync-search-tools {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
+}
+
+.mdsync-search-field .search-input-container,
+.mdsync-search-field input {
+	width: 100%;
+	margin: 0;
+}
+
+.mdsync-search-count {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	padding-inline: var(--size-4-1);
+}
+
+.mdsync-search-count.is-empty {
+	color: var(--text-error);
+}
