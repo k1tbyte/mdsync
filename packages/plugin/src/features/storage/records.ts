@@ -8,7 +8,8 @@ import { decryptJson, type EncryptionKey, encryptJson } from "@/core/crypto";
 import { reportWarning } from "@/core/shared";
 import { runWithConcurrency } from "@/core/utils";
 
-import type { ListedObject, ObjectStorage } from "./types";
+import { listEntries } from "./listing";
+import type { ObjectStorage } from "./types";
 
 /** One kind of record: `<prefix><id>.json.enc`, sealed with the vault key. */
 export interface RecordKind<T extends { id: string }> {
@@ -37,7 +38,7 @@ export async function readRecords<T extends { id: string }>(
 	kind: RecordKind<T>,
 ): Promise<{ records: T[]; unreadable: Set<string> }> {
 	const cache = cacheFor(storage, key, kind);
-	const listed = (await listRecords(storage, kind.prefix)).filter(
+	const listed = (await listEntries(storage, kind.prefix)).filter(
 		({ key: name }) => name.endsWith(RECORD_SUFFIX),
 	);
 	const names = new Set(listed.map(({ key: name }) => name));
@@ -113,18 +114,6 @@ function cacheFor<T extends { id: string }>(
 	const records: RecordCache = new Map();
 	kinds.set(kind.prefix, { key, records });
 	return records;
-}
-
-async function listRecords(
-	storage: ObjectStorage,
-	prefix: string,
-): Promise<ListedObject[]> {
-	if (storage.listDetailed) return storage.listDetailed(prefix);
-	return (await storage.list(prefix)).map((name) => ({
-		key: name,
-		etag: null,
-		modified: null,
-	}));
 }
 
 /** A backend that cannot name the version it served leaves the listing's word as the only one. */

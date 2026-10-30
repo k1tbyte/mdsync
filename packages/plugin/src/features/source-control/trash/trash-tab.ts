@@ -17,7 +17,7 @@ import {
 	openPromptModal,
 	renderPath,
 } from "@/core/ui";
-import { confirmBulkRestore, confirmRestore } from "@/features/diff";
+import { confirmBulkRestore } from "@/features/diff";
 import type { DeletedFilesResult } from "@/features/sync";
 import {
 	SelectionBar,
@@ -27,6 +27,7 @@ import {
 import { HistoryList } from "../history/history-list";
 import { RowPager } from "../history/row-pager";
 import type { SourceControlHost } from "../host";
+import { confirmAndRestoreFile } from "../restore-file";
 import {
 	renderEmptyState,
 	renderHistoryOff,
@@ -386,21 +387,17 @@ export class TrashTab implements SelectionSource {
 	private async restore(row: TrashRow, target: string): Promise<void> {
 		if (!this.targetIsWritable(target)) return;
 		// The diff modal is the confirmation: it names the target and shows the change.
-		const confirmed = await confirmRestore({
-			plugin: this.plugin,
-			path: row.path,
-			target,
-			version: { hash: row.hash, label: row.age, size: row.size },
-		});
-		if (!confirmed) return;
-		try {
-			await this.plugin.controller.history.restoreFileVersion(target, row.hash);
+		await confirmAndRestoreFile(
+			this.plugin,
+			{
+				path: row.path,
+				target,
+				version: { hash: row.hash, label: row.age, size: row.size },
+			},
+			`Restored ${target}. Review and push the change when ready.`,
 			// The row stays, marked: the remote still has the file deleted until this is pushed.
-			notifyInfo(`Restored ${target}. Review and push the change when ready.`);
-			this.onRerender();
-		} catch (err) {
-			notifyError("Restore failed", err);
-		}
+			this.onRerender,
+		);
 	}
 
 	/** A folder at the target cannot take file bytes, so stop before the preview. */

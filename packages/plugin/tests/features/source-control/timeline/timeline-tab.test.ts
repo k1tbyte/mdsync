@@ -8,6 +8,7 @@ import type { SessionRow } from "@/features/source-control/timeline/session-rows
 import { TimelineTab } from "@/features/source-control/timeline/timeline-tab";
 import type { SnapshotListResult, SnapshotSummary } from "@/features/sync";
 import type { EFileKind, ManifestEntry } from "@/features/sync/types";
+import { buildCalendar } from "@/features/sync/ui/history/calendar";
 
 const search = vi.hoisted(() => ({ change: (_value: string) => {} }));
 
@@ -26,27 +27,18 @@ vi.mock("obsidian", async (importOriginal) => ({
 			return this;
 		}
 	},
-	ButtonComponent: class {
-		readonly buttonEl: HTMLButtonElement;
-		disabled = false;
-		constructor(parent: HTMLElement) {
-			this.buttonEl = parent.createEl("button") as HTMLButtonElement;
-		}
-		setButtonText(text: string) {
-			this.buttonEl.textContent = text;
-			return this;
-		}
-		setDisabled(disabled: boolean) {
-			this.disabled = disabled;
-			this.buttonEl.disabled = disabled;
-			return this;
-		}
-		onClick(fn: () => void) {
-			this.buttonEl.addEventListener("click", fn);
-			return this;
-		}
-	},
+	ButtonComponent: (await import("@tests/helpers/button-component"))
+		.DomButtonComponent,
 }));
+vi.mock("@/features/sync/ui/history/calendar", async (importOriginal) => {
+	const actual = await importOriginal<object>();
+	return {
+		...actual,
+		buildCalendar: vi.fn(
+			(actual as { buildCalendar: typeof buildCalendar }).buildCalendar,
+		),
+	};
+});
 vi.mock("@/features/source-control/timeline/session-card", () => ({
 	renderSessionCard: vi.fn(),
 }));
@@ -59,6 +51,7 @@ Element.prototype.scrollIntoView = scrollIntoView;
 const NOW = new Date(2026, 9, 28, 18, 0).getTime();
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
 const ME = { id: "laptop", name: "Laptop" };
 
 function entry(hash: string): ManifestEntry {
@@ -265,6 +258,100 @@ describe("TimelineTab session rows", () => {
 		draw();
 
 		expect(lastDrawn().rows[0]).not.toBe(first);
+	});
+});
+
+describe("TimelineTab calendar", () => {
+	beforeEach(() => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(NOW);
+		vi.mocked(buildCalendar).mockClear();
+	});
+	afterEach(() => vi.useRealTimers());
+
+	it("builds the calendar once per result and day, not on every redraw", async () => {
+		const { tab, draw } = harness([loaded(), loaded()]);
+		draw();
+		await settled();
+		draw();
+		draw();
+		expect(buildCalendar).toHaveBeenCalledTimes(1);
+
+		vi.setSystemTime(NOW + DAY);
+		draw();
+		expect(buildCalendar).toHaveBeenCalledTimes(2);
+
+		tab.clear();
+		draw();
+		await settled();
+		expect(buildCalendar).toHaveBeenCalledTimes(3);
+	});
+});
+
+describe("TimelineTab picked day", () => {
+	const zone = process.env.TZ;
+	beforeEach(() => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(NOW);
+		vi.mocked(renderSessionCard).mockClear();
+	});
+	afterEach(() => {
+		vi.useRealTimers();
+		if (zone === undefined) delete process.env.TZ;
+		else process.env.TZ = zone;
+	});
+
+	async function pick(result: SnapshotListResult, day: number) {
+		const { tab, draw } = harness([result]);
+		tab.showDay(day);
+		draw();
+		await settled();
+		return lastDrawn().rows.map((row) => row.key);
+	}
+
+	it("lists a pinned version of the picked day, pinned first, and none of a later day", async () => {
+		const day = new Date(2026, 9, 25).getTime();
+		const at = (hour: number) => new Date(2026, 9, 25, hour).getTime();
+		const pin = (id: string, when: number) => ({
+			...version(id, when, `${id}.md`),
+			pinned: true,
+		});
+		const keys = await pick(
+			{
+				snapshots: [
+					pin("later-pin", NOW),
+					version("later", NOW - HOUR, "x.md"),
+					version("today", at(14), "a.md"),
+					pin("today-pin", at(9)),
+				],
+				lagging: false,
+				truncated: false,
+				activity: {},
+			},
+			day,
+		);
+
+		expect(keys).toEqual(["today-pin", "today"]);
+	});
+
+	it("ends the day at the next local midnight when midnight is skipped", async () => {
+		// Chile skips 2026-09-06 00:00, so that day starts at 01:00 and ends at the 7th's own midnight.
+		process.env.TZ = "America/Santiago";
+		vi.setSystemTime(new Date(2026, 8, 9, 12));
+		const keys = await pick(
+			{
+				snapshots: [
+					version("monday", new Date(2026, 8, 7, 0, 30).getTime(), "b.md"),
+					version("sunday", new Date(2026, 8, 6, 12).getTime(), "a.md"),
+				],
+				lagging: false,
+				truncated: false,
+				activity: {},
+			},
+			new Date(2026, 8, 6).getTime(),
+		);
+
+		expect(keys).toEqual(["sunday"]);
 	});
 });
 

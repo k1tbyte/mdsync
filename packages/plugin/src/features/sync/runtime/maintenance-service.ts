@@ -52,13 +52,14 @@ export class MaintenanceService {
 				if (this.disposed) return;
 				const session = await this.deps.openSession(space);
 				if (!session) return;
-				// Once a session, history on or off: a 1.x pin blocks every sweep.
-				if (!this.legacyCleared.has(space.id)) {
+				// Once a session per storage, history on or off: a 1.x pin blocks every sweep.
+				const target = `${session.storage.identity()}\n${space.id}`;
+				if (!this.legacyCleared.has(target)) {
 					const removed = await clearLegacyHistory(
 						session.storage,
 						session.key,
 					);
-					this.legacyCleared.add(space.id);
+					this.legacyCleared.add(target);
 					if (removed > 0) {
 						await this.deps.logInfo(
 							ESyncLogOperation.Push,

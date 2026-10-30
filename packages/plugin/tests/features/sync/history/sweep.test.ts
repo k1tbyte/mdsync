@@ -85,6 +85,25 @@ describe("sweepObjects freedOnly", () => {
 	});
 });
 
+describe("sweepObjects recheck", () => {
+	it("deletes nothing when another run writes a candidate file while it lists", async () => {
+		const storage = await seeded();
+		storage.age(SETTLED_AFTER_MS + MINUTE);
+		const list = storage.listDetailed.bind(storage);
+		vi.spyOn(storage, "listDetailed").mockImplementation(async (prefix) => {
+			// A GC elsewhere freed Z after this sweep read history: its file is the only trace.
+			if (prefix.startsWith("objects/"))
+				await writeCandidates(storage, key, ["Z"]);
+			return list(prefix);
+		});
+
+		await expect(sweepObjects(storage, key, "")).rejects.toThrow(
+			/wrote file history/,
+		);
+		expect(storage.map.has(objectKey("Z"))).toBe(true);
+	});
+});
+
 describe("sweepObjects, chunked files", () => {
 	const part = new Uint8Array([7]);
 

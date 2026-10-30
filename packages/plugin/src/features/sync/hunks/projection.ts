@@ -289,6 +289,8 @@ export type HistoryDiffSide =
 
 export interface HistoryDiffRequest {
 	path: string;
+	/** Whose space holds the version, when it lands elsewhere (a restore-to); `path` by default. */
+	source?: string;
 	/** Removed lines come from here. */
 	left: HistoryDiffSide;
 	/** Added lines come from here. */

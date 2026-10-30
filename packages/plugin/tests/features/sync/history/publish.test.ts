@@ -196,6 +196,21 @@ describe("publishManifestWithHistory", () => {
 		expect(await storage.list("history/")).toEqual([pushKey("w1")]);
 	});
 
+	it("lands a delayed record after the key is unlocked again", async () => {
+		const storage = await stored();
+		vi.spyOn(console, "warn").mockImplementation(() => {});
+		failPutOnce(storage, pushKey("s1"));
+		await publishManifestWithHistory(storage, key, "", s1, null, history);
+		vi.mocked(storage.put).mockRestore();
+
+		const unlocked = await deriveKey("pw", new Uint8Array(16));
+		await publishManifestWithHistory(storage, unlocked, "", s2, s1, history);
+		expect(await storage.list("history/")).toEqual([
+			pushKey("s1"),
+			pushKey("s2"),
+		]);
+	});
+
 	it("withholds a delayed record after the remote is reset", async () => {
 		const storage = await stored();
 		vi.spyOn(console, "warn").mockImplementation(() => {});

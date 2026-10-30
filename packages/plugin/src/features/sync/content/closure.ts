@@ -20,6 +20,17 @@ interface Read {
 	chunks: string[];
 }
 
+/** Forgets recipes `listed` (every recipe) no longer holds: a sweep deletes them, a session would keep them. */
+export function forgetUnlistedRecipes(
+	storage: ObjectStorage,
+	listed: readonly ListedObject[],
+): void {
+	const known = memo.get(storage);
+	if (!known) return;
+	const keys = new Set(listed.map(({ key }) => key));
+	for (const at of known.keys()) if (!keys.has(at)) known.delete(at);
+}
+
 /** The chunks `recipes` name; one gone since its listing names nothing. */
 export async function chunksNamed(
 	storage: ObjectStorage,

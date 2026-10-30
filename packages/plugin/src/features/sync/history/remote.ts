@@ -7,7 +7,11 @@ import {
 	sha256Hex,
 } from "@/core/crypto";
 import { runWithConcurrency } from "@/core/utils";
-import type { ListedObject, ObjectStorage } from "@/features/storage";
+import {
+	type ListedObject,
+	listEntries,
+	type ObjectStorage,
+} from "@/features/storage";
 import { REMOTE_HISTORY_PREFIX } from "../constants";
 import { changesToSpace, changesToVault } from "../remote/space-paths";
 import type { HistoryView } from "./model/cover";
@@ -158,12 +162,12 @@ export async function readHistory(
 	root: string,
 ): Promise<HistoryRead> {
 	const entries = cacheOf(storage, key, root);
-	let all = await listHistory(storage);
+	let all = await listEntries(storage, REMOTE_HISTORY_PREFIX);
 	let listed = all.filter(isRecordOrObject);
 	let read = await decodeNew(storage, key, root, listed, entries);
 	// Retired by a GC after our listing: what replaced it is listed now.
 	if (read.gone > 0) {
-		all = await listHistory(storage);
+		all = await listEntries(storage, REMOTE_HISTORY_PREFIX);
 		listed = all.filter(isRecordOrObject);
 		read = await decodeNew(storage, key, root, listed, entries);
 	}
@@ -206,15 +210,6 @@ export async function readHistory(
 
 function isRecordOrObject({ key }: ListedObject): boolean {
 	return key.startsWith(PUSHES) || key.startsWith(OBJECTS);
-}
-
-async function listHistory(storage: ObjectStorage): Promise<ListedObject[]> {
-	if (storage.listDetailed) return storage.listDetailed(REMOTE_HISTORY_PREFIX);
-	return (await storage.list(REMOTE_HISTORY_PREFIX)).map((key) => ({
-		key,
-		etag: null,
-		modified: null,
-	}));
 }
 
 async function decodeNew(

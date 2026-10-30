@@ -57,25 +57,22 @@ export function planGc(input: PlanInput): GcPlan {
 	for (const key of foreign(input)) deletes.add(key);
 	for (const key of expired(input)) deletes.add(key);
 
-	const whole = wholeKeys(input);
+	const taken = countBySource(input.cover.chain);
 	const grouped = objectsByGroup(input);
 	const builds: Build[] = [];
 	for (const target of targets(input)) {
-		const build = buildOf(input, target, whole, grouped);
+		const build = buildOf(input, target, taken, grouped);
 		if (build) builds.push(build);
 	}
 	return { builds, deletes: [...deletes] };
 }
 
-/** Keys every record of which is on the walk. */
-function wholeKeys(input: PlanInput): (key: string) => boolean {
-	const taken = new Map<string, number>();
-	for (const { source } of input.cover.chain) {
-		taken.set(source, (taken.get(source) ?? 0) + 1);
+function countBySource(walked: readonly WalkedRecord[]): Map<string, number> {
+	const counts = new Map<string, number>();
+	for (const { source } of walked) {
+		counts.set(source, (counts.get(source) ?? 0) + 1);
 	}
-	return (key) =>
-		(taken.get(key) ?? 0) ===
-		(input.view.objects.get(key)?.object.records.length ?? 1);
+	return counts;
 }
 
 /** Versions the replaced records named that the new object no longer does: phase 1's sweep candidates. */
@@ -150,25 +147,42 @@ function objectsByGroup(input: PlanInput): Map<string, GroupedObject[]> {
 function buildOf(
 	input: PlanInput,
 	target: Target,
-	whole: (key: string) => boolean,
+	taken: ReadonlyMap<string, number>,
 	grouped: ReadonlyMap<string, readonly GroupedObject[]>,
 ): Build | null {
 	const { res, group } = target;
-	const walked = new Set(target.walked.map(({ source }) => source));
+	const own = countBySource(target.walked);
+	const walked = new Set(own.keys());
 	const inputs = new Set(walked);
 	const sameGroup: HistoryObject[] = [];
 	for (const { key, object } of grouped.get(`${res} ${group}`) ?? []) {
 		inputs.add(key);
 		if (object.res === res) sameGroup.push(object);
 	}
-	// Within the horizon what the walk did not take whole may hold a sibling or lie behind a gap: it stays.
-	const replaced = res === "counts" ? [...inputs] : [...inputs].filter(whole);
+	// An input goes only with every walked record of it: a late parent re-dates records into other groups.
+	// Within the horizon it must be whole too, as an off-walk part may hold a sibling or lie behind a gap.
+	const replaced = [...inputs].filter(
+		(key) =>
+			(own.get(key) ?? 0) ===
+			(res === "counts"
+				? (taken.get(key) ?? 0)
+				: (input.view.objects.get(key)?.object.records.length ?? 1)),
+	);
 	const [only] = walked;
 	const built =
 		walked.size === 1 &&
 		only !== undefined &&
 		input.view.objects.get(only)?.object.res === res;
 	if (built && replaced.every((key) => key === only)) return null;
+	// Counts retire sources: one replacing only earlier counts is rebuilt every run; the walk counts what stays.
+	if (
+		res === "counts" &&
+		replaced.every(
+			(key) => input.view.objects.get(key)?.object.res === "counts",
+		)
+	) {
+		return null;
+	}
 
 	const records = target.walked.map((walked) => walked.record);
 	const consumed = new Set(replaced);

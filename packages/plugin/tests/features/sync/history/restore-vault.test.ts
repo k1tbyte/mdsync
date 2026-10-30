@@ -86,6 +86,23 @@ describe("planVaultRestore", () => {
 		expect(plan.remove).toEqual([]);
 	});
 
+	it("leaves a skipped path alone: unreadable here, or a second spelling of a case clash", () => {
+		const plan = planVaultRestore(
+			target({ "A.md": entry("H1"), "a.md": entry("H2"), "l.md": entry("L2") }),
+			local(
+				{ "A.md": entry("H1") },
+				{
+					skipped: [
+						{ path: "a.md", reason: "case-clash", other: "A.md" },
+						{ path: "l.md", reason: "unreadable" },
+					],
+				},
+			),
+		);
+		expect(plan.write).toEqual([]);
+		expect(plan.ignored.sort()).toEqual(["a.md", "l.md"]);
+	});
+
 	it("handles a path named like an Object member", () => {
 		const plan = planVaultRestore(
 			target({ toString: entry("T1") }),

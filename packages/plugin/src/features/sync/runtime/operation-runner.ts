@@ -53,6 +53,8 @@ interface OperationRunnerDeps {
 	localRevision?: () => number;
 	/** A push of this device published its manifest. */
 	onPublished?: (space: Space) => void;
+	/** A fresh compare of `space` became its result. */
+	onCompared?: (space: Space, result: CompareResult) => void;
 }
 
 export class OperationRunner {
@@ -70,6 +72,7 @@ export class OperationRunner {
 	): void {
 		if (this.invalidatedSince(epoch)) return;
 		this.deps.runtimeState.setResult(space, result);
+		this.deps.onCompared?.(space, result);
 		if (space.id === VAULT_SPACE.id) {
 			this.deps.runtimeState.setVaultChecked(storage);
 		}
@@ -155,6 +158,10 @@ export class OperationRunner {
 			});
 			if (this.invalidatedSince(epoch)) return;
 			this.deps.runtimeState.setResults(results);
+			for (const [space, result] of results) {
+				if (refreshedRoots.has(space.root))
+					this.deps.onCompared?.(space, result);
+			}
 			if (vaultStorage) this.deps.runtimeState.setVaultChecked(vaultStorage);
 			this.deps.runtimeState.setSpaceErrors(failed);
 			this.unindexed = new Set(

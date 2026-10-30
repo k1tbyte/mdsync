@@ -72,9 +72,11 @@ export async function readTimeline(
  * reach follow. A pin marks every version whose content it holds.
  */
 export async function getFileHistory(
-	query: Source & { path: string },
+	query: Source & Pick<HistoryQuery, "configDir"> & { path: string },
 ): Promise<FileVersion[]> {
 	const { path } = query;
+	// Records leave it out, so walking them would pass HEAD's entry off as the oldest version.
+	if (!historyTracks(query.configDir)(path)) return [];
 	const { head, cover } = await readTimeline(query);
 	if (!head) return [];
 	const pins = await readPins(
@@ -97,6 +99,12 @@ export async function getFileHistory(
 	}
 	for (const walked of chain) {
 		const before = undoChangesForPath(entry, walked.record.changes, path);
+		// A merged deletion replays to its parent's entry; the content right before it is kept apart.
+		const last =
+			entry === null && entryAt(walked.record.changes.deletedLast ?? {}, path);
+		if (last && last.hash !== before?.hash) {
+			versions.push(toVersion(walked.record, datingOf(walked), last, pinOf));
+		}
 		if (entry && before?.hash !== entry.hash) {
 			versions.push({
 				...toVersion(walked.record, datingOf(walked), entry, pinOf),

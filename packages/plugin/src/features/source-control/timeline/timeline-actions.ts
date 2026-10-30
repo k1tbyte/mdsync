@@ -1,7 +1,7 @@
 import { Menu } from "obsidian";
 import { notifyError, notifyInfo, openConfirmModal } from "@/core/ui";
-import { confirmRestore } from "@/features/diff";
 import type { SourceControlHost } from "../host";
+import { confirmAndRestoreFile } from "../restore-file";
 import type { SessionRow } from "./session-rows";
 import { addSnapshotPinItems } from "./snapshot-menu";
 import {
@@ -82,22 +82,11 @@ export class TimelineActions {
 	}
 
 	async restoreFile(file: TimelineFileRow): Promise<void> {
-		const confirmed = await confirmRestore({
-			plugin: this.plugin,
-			path: file.path,
-			target: file.path,
-			version: file.version,
-		});
-		if (!confirmed) return;
-		try {
-			await this.plugin.controller.history.restoreFileVersion(
-				file.path,
-				file.version.hash,
-			);
-			notifyInfo("Restored. Review and push the change when ready.");
-		} catch (error) {
-			notifyError("Restore failed", error);
-		}
+		await confirmAndRestoreFile(
+			this.plugin,
+			{ path: file.path, target: file.path, version: file.version },
+			"Restored. Review and push the change when ready.",
+		);
 	}
 
 	private async restoreVault(row: TimelineRow): Promise<void> {

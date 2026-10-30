@@ -4,10 +4,11 @@ import {
 	type AutoPushSelector,
 	createAutoPushSelector,
 } from "./automation/auto-push";
+import { RestoredFiles } from "./automation/restored-files";
 import { SlowFiles } from "./automation/slow-files";
 import { clearRemoteTextCache } from "./changes/content";
 import type { EngineDependencies } from "./engine";
-import { ActivityCache, type ActivityStore } from "./history/activity-cache";
+import { ActivityCache } from "./history/activity-cache";
 import type { Activity } from "./history/model/types";
 import type { HunkSelection } from "./hunks/hunks";
 import { authorOf, type LastEdit } from "./identity/authors";
@@ -50,7 +51,7 @@ import {
 } from "./runtime/operation-runner";
 import { RefreshQueue } from "./runtime/refresh-queue";
 import { SavedRefresh } from "./runtime/saved-refresh";
-import type { LocalState } from "./types";
+import type { LocalState, LocalStore } from "./types";
 
 export const EConflictStrategy = {
 	KeepLocal: "keep-local",
@@ -87,7 +88,9 @@ export interface SyncControllerHost {
 		partition: readonly Space[],
 	): Promise<EngineDependencies | null>;
 	/** Where the vault's last-read activity is kept on this device; without it nothing is. */
-	activityStore?: ActivityStore;
+	activityStore?: LocalStore;
+	/** Where restored files wait for a push by hand; without it they wait for this session only. */
+	restoredStore?: LocalStore;
 	/** A quick local look at the space's files; null where a session would need a prompt. Never reaches the network. */
 	openLocal?: LocalOpener;
 	persistState(state: LocalState): Promise<void>;
@@ -148,6 +151,9 @@ const CONFLICT_STRATEGY_OPS: Record<
 	},
 };
 
+/** Without a host store, kept for this session only. */
+const NO_STORE: LocalStore = { load: () => null, save: () => {} };
+
 export class SyncController {
 	private readonly host: SyncControllerHost;
 	private readonly runtimeState: SyncControllerRuntimeState;
@@ -162,13 +168,13 @@ export class SyncController {
 	readonly activity: ActivityCache;
 	/** Driven by the scheduler, read by every automatic push. */
 	readonly slowFiles = new SlowFiles();
+	private readonly restored: RestoredFiles;
 
 	constructor(host: SyncControllerHost) {
 		this.host = host;
 		this.runtimeState = new SyncControllerRuntimeState();
-		this.activity = new ActivityCache(
-			host.activityStore ?? { load: () => null, save: () => {} },
-		);
+		this.activity = new ActivityCache(host.activityStore ?? NO_STORE);
+		this.restored = new RestoredFiles(host.restoredStore ?? NO_STORE);
 		const remember = (storage: string, activity: Activity, since: number) =>
 			this.activity.remember(storage, activity, since);
 		const open = (space: Space) => this.operations.openSession(space);
@@ -184,6 +190,7 @@ export class SyncController {
 			clearFileDiffs: () => this.fileDiffs.clear(),
 			localRevision: () => this.localRevision,
 			onPublished: (space) => this.maintenance.afterPush(space),
+			onCompared: (space, result) => this.restored.settle(space, result),
 		});
 		this.autoPushPaths = createAutoPushSelector(
 			() => host.autoDeleteLimit?.() ?? null,
@@ -195,7 +202,10 @@ export class SyncController {
 				);
 				host.onDeletionsHeld?.(space, held);
 			},
-			(path) => this.slowFiles.holds(path),
+			(space, diff) => {
+				const restored = this.restored.waiting(space, diff);
+				return (path) => this.slowFiles.holds(path) || restored.has(path);
+			},
 		);
 		this.refreshes = new RefreshQueue(
 			(run) => this.runtimeState.enqueue(run),
@@ -215,6 +225,7 @@ export class SyncController {
 			enqueue: (task) => this.runtimeState.enqueue(task),
 			refresh: () => this.operations.refreshNow(),
 			remember,
+			restored: (space, left) => this.restored.hold(space, left),
 		});
 		this.maintenance = new MaintenanceService({
 			openSession: open,
