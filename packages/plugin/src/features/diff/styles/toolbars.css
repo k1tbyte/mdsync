@@ -77,8 +77,13 @@
 	--mdsync-kind: var(--color-purple-rgb, 157, 105, 220);
 }
 
-/* The bar's buttons are ghosts, like the editor's own header. */
-.mdsync-diff-header .mdsync-icon-btn {
+/* Header, pane head and find bar buttons are ghosts, like the editor's own header. */
+:is(
+	.mdsync-diff-header,
+	.mdsync-compare-head,
+	.mdsync-merge-pane-head,
+	.mdsync-search-bar
+) .mdsync-icon-btn {
 	width: 28px;
 	min-width: 28px;
 	height: 28px;
@@ -89,17 +94,35 @@
 	color: var(--text-muted);
 }
 
-.mdsync-diff-header .mdsync-icon-btn:hover {
+:is(
+		.mdsync-diff-header,
+		.mdsync-compare-head,
+		.mdsync-merge-pane-head,
+		.mdsync-search-bar
+	)
+	.mdsync-icon-btn:hover {
 	background: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
 
-.mdsync-diff-header .mdsync-icon-btn.is-active {
+:is(
+		.mdsync-diff-header,
+		.mdsync-compare-head,
+		.mdsync-merge-pane-head,
+		.mdsync-search-bar
+	)
+	.mdsync-icon-btn.is-active {
 	background: var(--background-modifier-hover);
 	color: var(--text-accent);
 }
 
-.mdsync-diff-header .mdsync-icon-btn:disabled {
+:is(
+		.mdsync-diff-header,
+		.mdsync-compare-head,
+		.mdsync-merge-pane-head,
+		.mdsync-search-bar
+	)
+	.mdsync-icon-btn:disabled {
 	background: transparent;
 	opacity: 0.4;
 }

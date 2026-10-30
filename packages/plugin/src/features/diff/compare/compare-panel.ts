@@ -16,6 +16,7 @@ import {
 	spanBounds,
 	updatePaneViewportWidth,
 } from "../lines/geometry";
+import { PanelSearch } from "../lines/pane-search";
 import {
 	NO_ANCHORS,
 	PaneScrollSync,
@@ -23,7 +24,7 @@ import {
 	spanAnchors,
 } from "../lines/scroll-sync";
 import { setCombinedMode } from "../merge/merge-decorations";
-import { changeNavigation, type RailAction } from "../rail";
+import { changeNavigation, type RailAction, stepIndex } from "../rail";
 import { CompareControls } from "./compare-controls";
 import {
 	buildSegments,
@@ -67,7 +68,10 @@ export function renderTextDiff(
  * carries all picks out.
  */
 export class ComparePanel {
-	private readonly choices = new HunkChoices();
+	readonly choices = new HunkChoices();
+	readonly search = new PanelSearch<CompareSide>("right", () =>
+		this.unfoldAll(),
+	);
 	/** Keys of the segments folded to one row in both panes. */
 	private readonly folded = new Set<number>();
 	/** Unchanged runs opened in both panes, by index. */
@@ -191,9 +195,7 @@ export class ComparePanel {
 		this.leftView = null;
 		this.rightView = null;
 		this.rootEl = null;
-		this.controls?.info.remove();
-		this.controls?.controls.remove();
-		this.controls?.pending.remove();
+		this.controls?.remove();
 		this.controls = null;
 		this.current = -1;
 		this.choices.clear();
@@ -225,10 +227,11 @@ export class ComparePanel {
 		side: CompareSide,
 		first: boolean,
 	): EditorView {
-		heads.createDiv({
+		const head = heads.createDiv({
 			cls: `mdsync-compare-head is-${side}`,
 			text: side === "left" ? model.leftLabel : model.rightLabel,
 		});
+		this.search.appendToggle(head, side);
 		const host = body.createDiv({
 			cls: `mdsync-compare-host is-${side}${first ? " is-first" : ""}`,
 		});
@@ -270,6 +273,7 @@ export class ComparePanel {
 						},
 					}),
 					lineNumbers(),
+					this.search.extension(side),
 					EditorView.domEventHandlers({
 						// A click on a change's lines selects it, as one on its connector does.
 						click: (event, view) => {
@@ -377,7 +381,14 @@ export class ComparePanel {
 	}
 
 	private renderToolbar(root: HTMLElement): void {
-		this.controls = new CompareControls();
+		this.controls = new CompareControls({
+			...this.options,
+			choices: this.choices,
+			discard: () => this.discardChoices(),
+			apply: () => {
+				if (this.choices.size > 0) this.options.onApply(this.choices);
+			},
+		});
 		const toolbar = this.controls.controls;
 		this.layoutMode = new LayoutMode(root, toolbar, (combined, changed) => {
 			if (changed) {
@@ -386,6 +397,7 @@ export class ComparePanel {
 				}
 			}
 			this.controls?.showPin(!combined);
+			this.search.setInline(combined);
 			this.scheduleLayout();
 		});
 		this.wrapping.mount(toolbar);
@@ -397,25 +409,20 @@ export class ComparePanel {
 			});
 		}
 		this.controls.navigation((delta) => this.jump(delta));
+		this.search.appendInlineToggle(toolbar);
+	}
+
+	/** Search reads every line: folded runs and changes open. */
+	private unfoldAll(): void {
+		this.folded.clear();
+		for (let index = 0; index <= this.segments.length; index++) {
+			this.opened.add(index);
+		}
+		this.redrawSegments();
 	}
 
 	private updateToolbar(): void {
-		let added = 0;
-		let removed = 0;
-		for (const segment of this.segments) {
-			added += segment.added;
-			removed += segment.removed;
-		}
-		this.controls?.update(
-			{ added, removed, changes: this.segments.length, current: this.current },
-			this.options.direction,
-			this.options.actionable,
-			this.choices,
-			() => this.discardChoices(),
-			() => {
-				if (this.choices.size > 0) this.options.onApply(this.choices);
-			},
-		);
+		this.controls?.update(this.segments, this.current);
 	}
 
 	private discardChoices(): void {
@@ -447,7 +454,8 @@ export class ComparePanel {
 	}
 
 	private jump(delta: number): void {
-		const segment = this.segments[this.nextIndex(delta)];
+		this.current = stepIndex(this.current, delta, this.segments.length);
+		const segment = this.segments[this.current];
 		if (!segment) return;
 		this.divider?.select(segment.key);
 		this.updateToolbar();
@@ -471,18 +479,6 @@ export class ComparePanel {
 			selection: { anchor: at },
 			effects: EditorView.scrollIntoView(at, { y: "center" }),
 		});
-	}
-
-	private nextIndex(delta: number): number {
-		const count = this.segments.length;
-		if (count === 0) return -1;
-		this.current =
-			this.current < 0
-				? delta > 0
-					? 0
-					: count - 1
-				: (this.current + delta + count) % count;
-		return this.current;
 	}
 
 	private scheduleLayout(): void {

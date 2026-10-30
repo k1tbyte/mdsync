@@ -109,4 +109,9 @@ body.is-phone .mdsync-diff-view .mdsync-compare-host .cm-content {
 .mdsync-compare-host .cm-content {
 	caret-color: transparent;
 }
+
+/* CodeMirror's light theme paints the caret black. */
+.mdsync-merge-editor-host.is-result .cm-content {
+	caret-color: var(--caret-color);
+}
 /* biome-ignore-end lint/style/noDescendingSpecificity: see above */

@@ -2,6 +2,7 @@ import { EditorView } from "@codemirror/view";
 import { isResolved, type MergeChange } from "@/features/sync";
 import { spanBounds } from "../lines/geometry";
 import type { PaneScrollSync } from "../lines/scroll-sync";
+import { stepIndex } from "../rail";
 import { snapToLines } from "./edit-plan";
 
 export interface NavigationHost {
@@ -26,11 +27,7 @@ export class MergeNavigation {
 	}
 
 	jump(delta: number): void {
-		const total = this.host.changes().length;
-		if (total === 0) return;
-		let next = (this.current + delta + total) % total;
-		if (this.current < 0) next = delta > 0 ? 0 : total - 1;
-		this.reveal(next);
+		this.reveal(stepIndex(this.current, delta, this.host.changes().length));
 	}
 
 	/** The next unresolved change after the selected one, wrapping round. */

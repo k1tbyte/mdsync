@@ -38,6 +38,7 @@
 @import "./features/diff/styles/cards.css";
 @import "./features/diff/styles/merge.css";
 @import "./features/diff/styles/hunk-preview.css";
+@import "./features/diff/styles/search.css";
 
 @import "./features/transfer/ui/transfer.css";
 @import "./features/settings/overview.css";

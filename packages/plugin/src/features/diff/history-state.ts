@@ -64,13 +64,77 @@ export async function openDiffView(
 	await plugin.app.workspace.revealLeaf(leaf);
 }
 
-export type HistoryMode = "change" | "preview" | "diff";
-
-export interface HistoryModeInput {
+/** What a diff tab shows: a file, or stored versions of it. */
+export interface DiffTarget {
+	path: string | null;
 	historyHash: string | null;
+	historyLabel: string;
+	historySize: number | undefined;
+	against: HistoryVersionRef | null;
 	historyChange: HistoryChange | null;
 	historyPreviewIfMissing: boolean;
-	against: HistoryVersionRef | null;
+}
+
+/** A state without a path keeps `path`; every other field it leaves out resets. */
+export function readTarget(
+	state: DiffViewState,
+	path: string | null,
+): DiffTarget {
+	return {
+		path: state.path ?? path,
+		historyHash: state.historyHash ?? null,
+		historyLabel: state.historyLabel ?? "Version",
+		historySize: state.historySize,
+		against: state.againstHash
+			? {
+					hash: state.againstHash,
+					label: state.againstLabel ?? "Other version",
+					size: state.againstSize,
+				}
+			: null,
+		historyChange: state.historyChange ?? null,
+		historyPreviewIfMissing: state.historyPreviewIfMissing ?? false,
+	};
+}
+
+export const fileTarget = (path: string | null): DiffTarget =>
+	readTarget({}, path);
+
+/** History fields are stored too, so a restored workspace keeps a version diff. */
+export function targetState(target: DiffTarget): DiffViewState {
+	const { path, historyHash, against } = target;
+	return {
+		path: path ?? undefined,
+		historyHash: historyHash ?? undefined,
+		historyLabel: historyHash ? target.historyLabel : undefined,
+		historySize: target.historySize,
+		againstHash: against?.hash,
+		againstLabel: against?.label,
+		againstSize: against?.size,
+		historyChange: target.historyChange ?? undefined,
+		historyPreviewIfMissing: target.historyPreviewIfMissing || undefined,
+	};
+}
+
+/** A size alone never reloads; a pin rename changes only the label, which the header reads. */
+export function sameTarget(a: DiffTarget, b: DiffTarget): boolean {
+	return (
+		a.path === b.path &&
+		a.historyHash === b.historyHash &&
+		a.against?.hash === b.against?.hash &&
+		(a.historyHash === null || a.historyLabel === b.historyLabel) &&
+		!changesDiffer(a.historyChange, b.historyChange) &&
+		a.historyPreviewIfMissing === b.historyPreviewIfMissing
+	);
+}
+
+export type HistoryMode = "change" | "preview" | "diff";
+
+export interface HistoryModeInput
+	extends Pick<
+		DiffTarget,
+		"historyHash" | "historyChange" | "historyPreviewIfMissing" | "against"
+	> {
 	localExists: boolean;
 }
 
@@ -82,13 +146,10 @@ export function selectHistoryMode(input: HistoryModeInput): HistoryMode {
 	return "diff";
 }
 
-export interface HistoryRequestInput {
+export interface HistoryRequestInput
+	extends Omit<DiffTarget, "path" | "historyHash" | "historyPreviewIfMissing"> {
 	path: string;
 	historyHash: string;
-	historyLabel: string;
-	historySize: number | undefined;
-	historyChange: HistoryChange | null;
-	against: HistoryVersionRef | null;
 	forceText: boolean;
 }
 

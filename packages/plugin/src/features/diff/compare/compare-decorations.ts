@@ -319,14 +319,21 @@ function changeCard(
 	const where = `${to - from > 1 ? "Lines" : "Line"} ${rangeLabel(from + 1, to)}`;
 	const actions = config.combined.actions(segment);
 	const kind = segmentKind(segment);
+	const counters = { added: segment.added, removed: segment.removed };
 	return {
 		key: String(segment.key),
 		tone: "removed",
 		head:
 			chosen === undefined
-				? { mark: kind, text: `${where} · ${KIND_TEXT[kind]}`, actions }
+				? {
+						mark: kind,
+						text: `${where} · ${KIND_TEXT[kind]}`,
+						counters,
+						actions,
+					}
 				: {
 						mark: "chosen",
+						counters,
 						// Regular verbs: push, revert, pull, accept, restore.
 						text: `${where} · will be ${choiceVerb(config.combined.direction, chosen).replace(/e?$/, "ed")}`,
 						actions: actions

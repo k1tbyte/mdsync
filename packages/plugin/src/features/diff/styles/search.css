@@ -1,0 +1,128 @@
+/* CodeMirror paints its panels and matches light unless the editor is marked dark. */
+.mdsync-diff-view .cm-panels {
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+}
+
+/* Find floats over the text, as in VS Code: opening it moves no line. CodeMirror pins `top: 0` inline. */
+.mdsync-diff-view .cm-editor .cm-panels-top {
+	position: absolute;
+	left: auto;
+	right: var(--size-4-4);
+	width: min(30em, calc(100% - var(--size-4-8)));
+	margin-top: var(--size-4-1);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background-color: var(--background-secondary);
+	box-shadow: var(--shadow-s);
+}
+
+.mdsync-compare-head .mdsync-search-toggle,
+.mdsync-merge-pane-head .mdsync-search-toggle {
+	margin-inline-start: auto;
+}
+
+.mdsync-diff-view .cm-panels-bottom {
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+/* Go to line is CodeMirror's own dialog: Obsidian's field and button. */
+.mdsync-diff-view .cm-editor .cm-dialog {
+	padding: var(--size-4-1) var(--size-4-8) var(--size-4-1) var(--size-4-2);
+}
+
+.mdsync-diff-view .cm-editor .cm-dialog label {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+}
+
+.mdsync-diff-view .cm-editor .cm-textfield {
+	background-color: var(--background-modifier-form-field);
+	border-color: var(--background-modifier-border);
+	font-size: var(--font-ui-small);
+	margin-inline-start: var(--size-4-1);
+}
+
+.mdsync-diff-view .cm-editor .cm-button {
+	background-image: none;
+	border: none;
+	font-size: var(--font-ui-small);
+}
+
+.mdsync-diff-view .cm-editor .cm-dialog-close {
+	top: 50%;
+	transform: translateY(-50%);
+	right: var(--size-4-2);
+	color: var(--text-muted);
+	box-shadow: none;
+}
+
+/* As Obsidian's own note search: every match highlighted, the current one ringed. Older Obsidian names the highlight `--text-highlight-bg`. */
+.mdsync-diff-view .cm-editor .cm-searchMatch {
+	background-color: var(
+		--highlight-background,
+		var(--text-highlight-bg, rgba(255, 208, 0, 0.4))
+	);
+	border-radius: 2px;
+}
+
+.mdsync-diff-view .cm-editor .cm-searchMatch-selected {
+	box-shadow: 0 0 0 2px var(--text-accent);
+}
+
+.mdsync-search-bar {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-1);
+	padding: var(--size-4-1) var(--size-4-2);
+}
+
+/* A narrow pane wraps the buttons under the field rather than clipping them. */
+.mdsync-search-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--size-2-1);
+}
+
+.mdsync-search-row[hidden] {
+	display: none;
+}
+
+.mdsync-search-field {
+	flex: 1 1 8em;
+	min-width: 6em;
+}
+
+.mdsync-search-tools {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
+}
+
+.mdsync-search-field .search-input-container,
+.mdsync-search-field input {
+	width: 100%;
+	margin: 0;
+}
+
+/* The count sits in the field, left of Obsidian's clear button (28px, 2px from the edge); the text stops short of both. */
+.mdsync-search-field .search-input-container input {
+	padding-inline-end: calc(30px + 7ch);
+}
+
+.mdsync-search-count {
+	position: absolute;
+	top: 50%;
+	right: 30px;
+	transform: translateY(-50%);
+	pointer-events: none;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.mdsync-search-count.is-empty {
+	color: var(--text-error);
+}
