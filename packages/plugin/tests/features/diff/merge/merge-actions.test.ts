@@ -130,3 +130,28 @@ describe("settling a conflict", () => {
 		expect(merge.status()).toEqual({ local: "open", remote: "open" });
 	});
 });
+
+describe("taking a side that never changed the region", () => {
+	const BASE = "a\nb\nc\nd\ne\n";
+
+	it("puts the base lines back over text typed there", () => {
+		const merge = open(BASE, "a\nL\nc\nd\ne\n", "a\nb\nc\nR\ne\n");
+		expect(merge.text()).toBe("a\nL\nc\nR\ne\n");
+		merge.type(2, 3, "typed");
+
+		merge.actions.settle(0, ["remote"]);
+
+		expect(merge.text()).toBe("a\nb\nc\nR\ne\n");
+	});
+
+	it("leaves the document alone when the base lines are already there", () => {
+		const merge = open(BASE, "a\nL\nc\nd\ne\n", "a\nb\nc\nR\ne\n");
+		merge.actions.settle(0, []);
+		expect(merge.text()).toBe("a\nb\nc\nR\ne\n");
+
+		merge.actions.settle(0, ["remote"]);
+		merge.undoOnce();
+
+		expect(merge.text()).toBe("a\nL\nc\nR\ne\n");
+	});
+});

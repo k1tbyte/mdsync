@@ -2,7 +2,7 @@ import { ItemView, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { DIFF_VIEW_TYPE } from "@/core/constants";
 import { userMessage } from "@/core/shared";
 import { notifyError, openConfirmModal, redrawOnPhoneChange } from "@/core/ui";
-import type { CompareResult } from "@/features/sync";
+import type { CompareResult, EMergeSide } from "@/features/sync";
 import {
 	EDiffDirection,
 	type FileDiffModel,
@@ -29,6 +29,13 @@ import {
 import type { DiffHost } from "./host";
 import { MergeEditorPanel } from "./merge/merge-editor";
 import { DiffOperations } from "./operations";
+
+/** A merge open in a diff view, as commands reach it. */
+export interface ActiveMerge {
+	take(sides: readonly EMergeSide[]): void;
+	nextConflict(): void;
+	save(): void;
+}
 
 export class DiffView extends ItemView {
 	private readonly plugin: DiffHost;
@@ -187,6 +194,12 @@ export class DiffView extends ItemView {
 			this.seenBusy = busy;
 			if (result === this.seenResult && !settled) return;
 			this.seenResult = result;
+			if (result && this.path && this.mergePanel.isEditing) {
+				const status = this.plugin.controller.fileDiffs.getStatusForPath(
+					this.path,
+				);
+				this.mergePanel.checkVersions(status?.conflict);
+			}
 			// Stored versions are immutable: a compare cannot change them.
 			if (this.against || this.historyChange) return;
 			this.stale = true;
@@ -335,10 +348,7 @@ export class DiffView extends ItemView {
 				historyLabel: this.historyLabel,
 			},
 			{
-				saveResolution: () =>
-					void this.mergePanel.save(this.plugin, path, (resolved: string) =>
-						this.advanceAfterResolve(resolved),
-					),
+				saveResolution: () => this.saveMerge(path),
 				cancelResolution: () =>
 					void this.leaveMerge().then((leave) => {
 						if (!leave) return;
@@ -473,6 +483,23 @@ export class DiffView extends ItemView {
 		if (!target || !(await this.leaveMerge())) return;
 		this.showFile(target);
 		await this.refreshModel();
+	}
+
+	/** What merge commands act on; null unless this view is merging. */
+	get merge(): ActiveMerge | null {
+		const path = this.path;
+		if (!this.mergePanel.isEditing || !path) return null;
+		return {
+			take: (sides) => this.mergePanel.take(sides),
+			nextConflict: () => this.mergePanel.nextConflict(),
+			save: () => this.saveMerge(path),
+		};
+	}
+
+	private saveMerge(path: string): void {
+		void this.mergePanel.save(this.plugin, path, (resolved) =>
+			this.advanceAfterResolve(resolved),
+		);
 	}
 
 	/** False when the user keeps an unsaved merge on screen. */

@@ -103,6 +103,25 @@ function takeSides(
 			"ignored",
 		);
 	}
+	const asked = state.field(mergeChangesField)[index];
+	// No side asked for changed this region: its base lines are the answer, over anything typed there.
+	if (
+		mode === "settle" &&
+		asked &&
+		sides.every((side) => asked.status[side] === "none")
+	) {
+		const plan = revertPlan(
+			state.doc,
+			asked,
+			sides[0] ?? "local",
+			base.slice(...asked.base),
+		);
+		if (state.sliceDoc(plan.from, plan.to) !== plan.insert) {
+			const tr = state.update(planSpec(index, plan, {}));
+			changes = changes.compose(tr.changes);
+			state = tr.state;
+		}
+	}
 	for (const side of sides) {
 		step(
 			side,

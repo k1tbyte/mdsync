@@ -1,7 +1,7 @@
 import { MarkdownView, type Plugin } from "obsidian";
 import { SOURCE_CONTROL_VIEW_TYPE } from "@/core/constants";
 import { notifyInfo } from "@/core/ui";
-import { openDiffView } from "@/features/diff";
+import { type ActiveMerge, DiffView, openDiffView } from "@/features/diff";
 import {
 	isLinkable,
 	noteLinks,
@@ -32,6 +32,23 @@ import {
 	verifyRemoteIntegrity,
 } from "@/features/sync";
 import type { PluginHost } from "./host";
+
+/** Shown only while the active view merges; the change is the one at the cursor. */
+const MERGE_COMMANDS: readonly [
+	string,
+	string,
+	(merge: ActiveMerge) => void,
+][] = [
+	["merge-take-local", "Take local in merge", (m) => m.take(["local"])],
+	["merge-take-remote", "Take remote in merge", (m) => m.take(["remote"])],
+	[
+		"merge-take-both",
+		"Take both in merge, local first",
+		(m) => m.take(["local", "remote"]),
+	],
+	["merge-next-conflict", "Go to next merge conflict", (m) => m.nextConflict()],
+	["merge-save", "Save merge result", (m) => m.save()],
+];
 
 export function registerCommands(
 	plugin: Plugin & PluginHost,
@@ -210,6 +227,19 @@ export function registerCommands(
 		name: "Accept shared folder invite",
 		callback: () => void openInvite(plugin),
 	});
+
+	for (const [id, name, run] of MERGE_COMMANDS) {
+		plugin.addCommand({
+			id,
+			name,
+			checkCallback: (checking) => {
+				const merge = plugin.app.workspace.getActiveViewOfType(DiffView)?.merge;
+				if (!merge) return false;
+				if (!checking) run(merge);
+				return true;
+			},
+		});
+	}
 
 	plugin.addCommand({
 		id: "open-diff-active-file",

@@ -15,6 +15,7 @@ A view that diffs one pair of texts while the operation recomputes from another 
 - A hunk operation takes both texts from `loadHunkSides` (`features/sync/operations/text-loaders.ts`) with the `EHunkPair` the view used: `Local` is baseline vs local, `Remote` is local vs remote (conflicts too). The projection (`features/sync/hunks/projection.ts`) builds its own sides from the same texts, its baseline through `hunkBaseline`, never `deps.state.baseline` directly.
 - Every operation verifies the sha256 of each side against the `expected` hashes the view drew (`assertSidesUnchanged`); a view passes `leftHash` / `rightHash` of its `FileDiffModel`. A file edited since gets an error, never a stale index applied.
 - `loadHunkSides` refuses a path outside the sync scope.
+- The merge screen's sides come from `getConflictThreeWay` (`features/sync/runtime/file-diff-service.ts`): it refuses a local file whose sha256 is not the compare's, and a `.json` conflict gets base and remote in local's key order and indent (`alignJsonSides`, `features/sync/hunks/json-align.ts`), only when every side is exactly `JSON.stringify` output, so the rewrite loses nothing.
 
 ## Patch order
 

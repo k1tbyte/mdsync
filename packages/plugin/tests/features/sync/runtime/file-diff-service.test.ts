@@ -23,19 +23,19 @@ function service(a: TestSession, result: CompareResult): FileDiffService {
 	});
 }
 
-/** `note.md` edited on both devices since the version they share. */
-async function conflicted(): Promise<{
-	a: TestSession;
-	result: CompareResult;
-}> {
+/** `path` edited on both devices since the version they share. */
+async function conflicted(
+	path = "note.md",
+	[base, local, remote] = ["base\n", "local\n", "remote\n"],
+): Promise<{ a: TestSession; result: CompareResult }> {
 	const [a, b] = pairedSessions();
-	a.adapter.putText("note.md", "base\n");
-	await push(a, "note.md");
-	b.adapter.putText("note.md", "base\n");
+	a.adapter.putText(path, base);
+	await push(a, path);
+	b.adapter.putText(path, base);
 	await b.adoptRemote();
-	b.adapter.putText("note.md", "remote\n");
-	await push(b, "note.md");
-	a.adapter.putText("note.md", "local\n");
+	b.adapter.putText(path, remote);
+	await push(b, path);
+	a.adapter.putText(path, local);
 	return { a, result: await a.compare() };
 }
 
@@ -54,6 +54,23 @@ describe("getConflictThreeWay", () => {
 				localHash: conflict?.localHash,
 				remoteHash: conflict?.remoteHash,
 			},
+		});
+	});
+
+	it("gives JSON base and remote in local's key order", async () => {
+		const json = (value: unknown) => JSON.stringify(value, null, 2);
+		const { a, result } = await conflicted("data.json", [
+			json({ a: 1, b: 1 }),
+			json({ b: 2, a: 1 }),
+			json({ a: 3, b: 1 }),
+		]);
+
+		const texts = await service(a, result).getConflictThreeWay("data.json");
+
+		expect(texts).toMatchObject({
+			base: json({ b: 1, a: 1 }),
+			local: json({ b: 2, a: 1 }),
+			remote: json({ b: 1, a: 3 }),
 		});
 	});
 

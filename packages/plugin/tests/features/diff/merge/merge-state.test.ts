@@ -12,6 +12,7 @@ import {
 	setCombinedMode,
 } from "@/features/diff/merge/merge-decorations";
 import {
+	changeAt,
 	initialMergeChanges,
 	mergeChangesField,
 	setChangeState,
@@ -434,5 +435,32 @@ describe("responsive merge state", () => {
 
 		state = state.update({ effects: toggleMergeGap.of(0) }).state;
 		expect(state.field(openedGapsField).size).toBe(0);
+	});
+});
+
+describe("changeAt", () => {
+	it("finds the change whose lines hold the position", () => {
+		const state = open("a\nb\nc\nd\ne\n", "a\nB\nc\nd\ne\n", "a\nb\nc\nD\ne\n");
+		expect(state.doc.toString()).toBe("a\nB\nc\nD\ne\n");
+
+		expect(changeAt(state, 2)).toBe(0);
+		expect(changeAt(state, 3)).toBe(0);
+		expect(changeAt(state, 6)).toBe(1);
+		expect(changeAt(state, 0)).toBe(-1);
+		expect(changeAt(state, 4)).toBe(-1);
+	});
+});
+
+describe("changeAt at the end of the file", () => {
+	it("holds a last change whose final line has no line break", () => {
+		const state = open("a\nb\nc\nd\ne", "a\nL\nc\nd\nX", "a\nR\nc\nd\nY");
+
+		expect(changeAt(state, state.doc.length)).toBe(1);
+	});
+
+	it("leaves out the empty line after a final line break", () => {
+		const state = open("a\nb\nc\nd\ne\n", "a\nB\nc\nd\ne\n", "a\nb\nc\nd\nE\n");
+
+		expect(changeAt(state, state.doc.length)).toBe(-1);
 	});
 });

@@ -11,6 +11,7 @@ import {
 import { HUNK_TEXT_MAX_BYTES } from "../constants";
 import type { CompareResult, EngineDependencies } from "../engine";
 import { DiffCache, type DiffCacheInput } from "../hunks/diff-cache";
+import { alignJsonSides } from "../hunks/json-align";
 import type { FileDiffModel } from "../hunks/projection";
 import type { Space } from "../remote/space";
 import type {
@@ -122,10 +123,14 @@ export class FileDiffService {
 		if ((await sha256Hex(textToBytes(local))) !== conflict.localHash) {
 			return "it changed since the last compare. Refresh and try again.";
 		}
+		// Reordered keys would read as changes: base and remote follow local's order and indent.
+		const aligned = path.endsWith(".json")
+			? alignJsonSides(base, local, remote)
+			: null;
 		return {
-			base,
+			base: aligned?.base ?? base,
 			local,
-			remote,
+			remote: aligned?.remote ?? remote,
 			expected: {
 				localHash: conflict.localHash,
 				remoteHash: conflict.remoteHash,

@@ -21,6 +21,44 @@ export function keepMergeDraft(path: string, draft: MergeDraft): void {
 	}
 }
 
+export interface MergeStart {
+	text: string;
+	changes: readonly MergeChange[];
+	/** From a draft: its edits count before any undo step exists. */
+	restored: boolean;
+	notice: string | null;
+}
+
+/** A kept draft of these versions, else the fresh session; the notice says which. */
+export function startMerge(
+	path: string,
+	expected: MergeDraft["expected"],
+	session: { text: string; changes: readonly MergeChange[] },
+): MergeStart {
+	const draft = takeMergeDraft(path, expected);
+	if (draft && draft !== "stale") {
+		const { text, changes } = draft;
+		return {
+			text,
+			changes,
+			restored: true,
+			notice: "Restored your unsaved merge.",
+		};
+	}
+	const notice =
+		draft === "stale"
+			? "This file changed since you left its merge, so your unsaved edits were dropped."
+			: session.changes.some((change) => change.conflict)
+				? null
+				: "No overlapping changes - auto-merged. Review and save.";
+	return {
+		text: session.text,
+		changes: session.changes,
+		restored: false,
+		notice,
+	};
+}
+
 /** Takes the draft for `path` off the store; `stale` when either side changed since it was kept. */
 export function takeMergeDraft(
 	path: string,
