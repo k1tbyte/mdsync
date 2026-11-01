@@ -102,6 +102,8 @@ The panel has four tabs: **Changes**, **History**, **Timeline** and **Deleted**.
 
 ### Automatic sync
 
+With everything here off, sync is manual: after startup MDSync only compares, so the file tree, the status bar and **Changes** show what waits, and nothing moves until you push or pull. It skips that compare when it would have to ask for your passphrase.
+
 Under **Automatic sync** in **Settings → MDSync → Sync** you can turn on:
 
 - **Autosync**: compare, pull and push after startup and then at the **Interval** you choose.

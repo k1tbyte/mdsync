@@ -1,6 +1,8 @@
 import type { Plugin, TAbstractFile } from "obsidian";
 import type { MdsyncSettings } from "@/core/settings";
+import { isStorageConfigured } from "@/features/storage";
 import type { SyncController, SyncStatusSnapshot } from "../controller";
+import type { PassphraseManager } from "../remote/passphrase-manager";
 import { type Space, spaceOf, VAULT_SPACE } from "../remote/space";
 import { canSync } from "../settings";
 import { isSlowFile, type QueueEdit } from "./slow-files";
@@ -28,6 +30,7 @@ export interface SchedulerHost extends Plugin {
 	settings: MdsyncSettings;
 	/** The records' partition: known from launch, before any refresh partitions. */
 	spaces: { partition(): readonly Space[] };
+	passphrase: Pick<PassphraseManager, "loadSaved">;
 }
 
 export function registerScheduler(
@@ -99,6 +102,8 @@ export function registerScheduler(
 	// Interval 0 with the toggle on is deliberate: sync once after startup, then stay quiet until reload.
 	if (host.settings.autoSyncEnabled) {
 		scheduleFirstRun(host, () => void tick());
+	} else {
+		scheduleFirstRun(host, () => void compareAtStartup(host, controller));
 	}
 
 	// Read the interval on every wake-up so setting changes apply without restart.
@@ -244,6 +249,26 @@ export function registerScheduler(
 	host.registerEvent(host.app.vault.on("create", onVaultEvent(false)));
 	host.registerEvent(host.app.vault.on("delete", onVaultEvent(false)));
 	host.registerEvent(host.app.vault.on("rename", onVaultEvent(false)));
+}
+
+/**
+ * Manual sync still shows where things stand after a launch: one compare, which moves nothing. Never a
+ * passphrase prompt on launch: without one entered or saved, the person's first sync action asks.
+ */
+async function compareAtStartup(
+	host: SchedulerHost,
+	controller: SyncController,
+): Promise<void> {
+	const { settings } = host;
+	// Autosync turned on since launch runs its own cycle; an open Changes panel may have compared already.
+	if (settings.autoSyncEnabled || !navigator.onLine || !canSync(settings)) {
+		return;
+	}
+	if (controller.getSnapshot().result) return;
+	if (isStorageConfigured(settings) && !(await host.passphrase.loadSaved())) {
+		return;
+	}
+	await controller.refresh();
 }
 
 /**

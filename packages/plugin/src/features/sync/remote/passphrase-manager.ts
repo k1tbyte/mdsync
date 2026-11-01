@@ -111,6 +111,11 @@ export class PassphraseManager {
 		this.cachedKey = null;
 	}
 
+	/** The passphrase without asking: the one entered this session, or the copy saved on this device. */
+	async loadSaved(): Promise<boolean> {
+		return this.passphrase !== null || (await this.tryLoadCached());
+	}
+
 	/** Concurrent askers share one prompt instead of stacking modals. */
 	async prompt(replace: boolean): Promise<boolean> {
 		if (this.passphrase && !replace) return true;

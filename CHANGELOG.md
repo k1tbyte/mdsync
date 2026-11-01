@@ -30,6 +30,7 @@ The newest section must match `version` in `manifest.json`. Headings are `## [x.
 
 - The setup wizard rises as a bottom sheet on a phone, with its buttons always in reach.
 - A new install keeps file history from the start. Sync stays manual until you choose otherwise.
+- With manual sync, MDSync compares once after startup, so the file tree, status bar and **Changes** show what waits right away. Nothing moves until you push or pull, and it never asks for the passphrase on launch.
 - **History** has its own page in **Settings → MDSync**. On the **Sync** page, **Automatic sync** and **Real time** are separate groups, and **Interval** is a list of choices.
 - **Turn on history** in the History, Timeline and Deleted tabs, where history is off, instead of a pointer to settings.
 - While a conflict is open, Push and Pull in the Changes panel look disabled, and pushing a file says which conflict to resolve first instead of failing.

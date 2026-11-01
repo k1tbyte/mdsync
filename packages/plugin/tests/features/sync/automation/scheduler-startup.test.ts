@@ -10,6 +10,8 @@ import type { SyncController } from "@/features/sync/controller";
 interface Harness {
 	host: SchedulerHost;
 	refreshes: () => number;
+	/** Plain compares: no pull, no push. */
+	compares: () => number;
 	resolveCache: () => void;
 	unload: () => void;
 }
@@ -18,8 +20,13 @@ function harness(state: {
 	layoutReady: boolean;
 	initialized?: boolean;
 	autosync?: boolean;
+	/** A passphrase entered or saved on this device; asking for one is never allowed here. */
+	savedPassphrase?: boolean;
+	/** A compare that already ran, as the Changes panel does when it shows. */
+	compared?: boolean;
 }): Harness {
 	let refreshes = 0;
+	let compares = 0;
 	const teardown: Array<() => void> = [];
 	const resolvedListeners: Array<() => void> = [];
 	const host = {
@@ -53,6 +60,7 @@ function harness(state: {
 			},
 			vault: { on: () => ({}) },
 		},
+		passphrase: { loadSaved: async () => state.savedPassphrase ?? true },
 		register: (fn: () => void) => teardown.push(fn),
 		registerInterval: () => undefined,
 		registerDomEvent: () => undefined,
@@ -62,7 +70,15 @@ function harness(state: {
 		refreshAndAutoSync: async () => {
 			refreshes++;
 		},
-		getSnapshot: () => ({ error: null, offline: false, spaceErrors: [] }),
+		refresh: async () => {
+			compares++;
+		},
+		getSnapshot: () => ({
+			error: null,
+			offline: false,
+			spaceErrors: [],
+			result: state.compared ? {} : null,
+		}),
 		subscribe: () => () => undefined,
 		slowFiles: new SlowFiles(),
 	} as unknown as SyncController;
@@ -70,6 +86,7 @@ function harness(state: {
 	return {
 		host,
 		refreshes: () => refreshes,
+		compares: () => compares,
 		resolveCache: () => {
 			for (const fn of resolvedListeners) fn();
 		},
@@ -129,7 +146,7 @@ describe("startup autosync", () => {
 		expect(h.refreshes()).toBe(0);
 	});
 
-	it("skips the startup run when autosync is off", async () => {
+	it("only compares at startup when autosync is off", async () => {
 		const h = harness({
 			layoutReady: true,
 			initialized: true,
@@ -137,5 +154,52 @@ describe("startup autosync", () => {
 		});
 		await vi.advanceTimersByTimeAsync(60_000);
 		expect(h.refreshes()).toBe(0);
+		expect(h.compares()).toBe(1);
+	});
+
+	it("waits for the metadata cache before that compare too", async () => {
+		const h = harness({
+			layoutReady: false,
+			initialized: false,
+			autosync: false,
+		});
+		await vi.advanceTimersByTimeAsync(10_000);
+		expect(h.compares()).toBe(0);
+		h.resolveCache();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(h.compares()).toBe(1);
+	});
+
+	it("never asks for a passphrase on launch to compare", async () => {
+		const h = harness({
+			layoutReady: true,
+			initialized: true,
+			autosync: false,
+			savedPassphrase: false,
+		});
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(h.compares()).toBe(0);
+	});
+
+	it("leaves a compare that already ran alone", async () => {
+		const h = harness({
+			layoutReady: true,
+			initialized: true,
+			autosync: false,
+			compared: true,
+		});
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(h.compares()).toBe(0);
+	});
+
+	it("does not compare offline", async () => {
+		vi.stubGlobal("navigator", { onLine: false });
+		const h = harness({
+			layoutReady: true,
+			initialized: true,
+			autosync: false,
+		});
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(h.compares()).toBe(0);
 	});
 });
