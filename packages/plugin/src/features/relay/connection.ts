@@ -7,6 +7,7 @@ import { EFrame, type ServerFrame } from "@mdsync/protocol";
 import {
 	HubLink,
 	type HubListener,
+	type LinkState,
 	type RelayStatus,
 	relayStatus,
 	type SpaceHub,
@@ -24,6 +25,15 @@ export interface HubConnectionOptions {
 
 const REVOKED_RETRY_MS = 15_000;
 const REVOKED_RETRIES = 3;
+
+/** One socket: the relay it goes to, the state its spaces share, and those spaces in slot order. */
+export interface RelaySocket {
+	url: string;
+	state: LinkState;
+	spaces: readonly string[];
+	/** Spaces this relay had no slot left for: they sync on the schedule. */
+	full: readonly string[];
+}
 
 interface OpenLink {
 	route: HubRoute;
@@ -60,6 +70,16 @@ export class HubConnection {
 			full: [...this.links.values()].some(({ route }) =>
 				route.full.includes(spaceId),
 			),
+		});
+	}
+
+	/** The sockets this device holds, in the routes' order: its own relay first. */
+	relays(): RelaySocket[] {
+		return hubRoutes(this.options.settings()).flatMap(({ serverUrl }) => {
+			const open = this.links.get(serverUrl);
+			if (!open) return [];
+			const { spaces, full } = open.route;
+			return [{ url: serverUrl, state: open.link.state, spaces, full }];
 		});
 	}
 

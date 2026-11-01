@@ -37,6 +37,7 @@ The newest section must match `version` in `manifest.json`. Headings are `## [x.
 - A conflict with no earlier version to merge from (a file added on two devices, or a binary file) offers **Compare…** instead of **Merge…**, and its card says it was added on both sides.
 - Compare in a narrow pane keeps the file name and its buttons in view: the hint gets its own line and the buttons wrap.
 - The status bar menu no longer says nobody is in a shared note when no shared folder is connected.
+- The status bar menu groups the vault and shared folders under the relay that carries them, since folders on one relay share one connection. A folder whose state differs from its relay's says so, one with no room left on its relay too, and selecting a shared folder opens its window.
 - On a phone, settings that do nothing there (**Status bar indicator**, **Ignore symlinks**) are hidden.
 - Autosync merges conflicts on its own only in notes (`.md`) and in settings files. Everything else, plugin code and other JSON included, waits for you: a merge by lines can break such files.
 - In a JSON file written by Obsidian or a plugin, keys that only moved show no change in merge, and a merged result that is not valid JSON is not saved.

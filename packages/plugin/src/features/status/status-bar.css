@@ -90,3 +90,81 @@
 		animation: none;
 	}
 }
+
+/* The folders on one relay hang from its icon: an icon-less label's title starts under the icon's middle. */
+.mdsync-relay-member {
+	position: relative;
+	display: block;
+	padding-left: var(--size-4-4);
+}
+
+/* The rail overshoots and the item clips it, so stacked items join whatever padding a platform gives them. */
+.menu-item:has(.mdsync-relay-member) {
+	overflow: hidden;
+}
+
+/* A share is a button, the vault a label: both set like the relay above them, the title unclipped for the rail. */
+.menu .menu-item:has(.mdsync-relay-member) .menu-item-title {
+	display: block;
+	overflow: visible;
+	white-space: normal;
+	-webkit-line-clamp: none;
+}
+
+body:not(.is-phone) .menu-item:has(.mdsync-relay-member) {
+	font-size: var(--font-ui-small);
+}
+
+/* A phone sets tappable items in a card with dividers, which would cut the rail into pieces. */
+body.is-phone .menu-item:has(.mdsync-relay-member) {
+	border-radius: 0;
+	background-color: transparent;
+}
+
+body.is-phone .menu-item:has(.mdsync-relay-member):active {
+	background-color: var(--background-modifier-hover);
+}
+
+body.is-phone .menu-group .menu-item:has(.mdsync-relay-member)::after {
+	display: none;
+}
+
+.mdsync-relay-member::before,
+.mdsync-relay-member::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	border-color: var(--background-modifier-border-hover);
+	border-style: solid;
+	border-width: 0;
+}
+
+.mdsync-relay-member::before {
+	top: -100px;
+	bottom: -100px;
+	border-left-width: 1px;
+}
+
+.mdsync-relay-member::after {
+	top: 0.5lh;
+	width: var(--size-4-2);
+	border-top-width: 1px;
+}
+
+.mdsync-relay-member.is-last::before {
+	bottom: calc(100% - 0.5lh);
+}
+
+.mdsync-relay-member.is-trouble .mdsync-person-state {
+	color: var(--color-orange);
+}
+
+/* A host breaks at its hyphens: the state goes under it instead. */
+.mdsync-relay-name {
+	display: inline-block;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	vertical-align: bottom;
+}

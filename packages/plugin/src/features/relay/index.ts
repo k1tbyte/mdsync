@@ -1,4 +1,4 @@
-export { HubConnection } from "./connection";
+export { HubConnection, type RelaySocket } from "./connection";
 export {
 	activateRelay,
 	deployOwnRelay,

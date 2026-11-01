@@ -365,6 +365,32 @@ describe("HubConnection", () => {
 		expect(hub.statusOf("late")).toBe("full");
 	});
 
+	it("lists each socket with its spaces, the home relay first", () => {
+		settings = settingsWith([
+			joined("theirs", OTHER),
+			...Array.from({ length: MAX_SLOTS }, (_, i) => owned(`s${i}`)),
+		]);
+		const hub = connection();
+		expect(hub.relays()).toEqual([]);
+
+		hub.restart();
+		const [home, other] = links;
+		if (other) other.state = "offline";
+		const [first, second] = hub.relays();
+
+		expect(first?.url).toBe(HOME);
+		expect(first?.state).toBe(home?.state);
+		expect(first?.spaces[0]).toBe("vault");
+		expect(first?.spaces).toHaveLength(MAX_SLOTS);
+		expect(first?.full).toEqual([`s${MAX_SLOTS - 1}`]);
+		expect(second).toEqual({
+			url: OTHER,
+			state: "offline",
+			spaces: ["theirs"],
+			full: [],
+		});
+	});
+
 	it("asks again for a slot the relay refused while its socket stays up, a few times", () => {
 		vi.useFakeTimers();
 		settings = settingsWith([owned("mine")]);

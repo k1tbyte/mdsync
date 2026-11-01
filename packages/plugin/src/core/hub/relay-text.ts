@@ -16,6 +16,16 @@ export const RELAY_TEXT: Record<RelayStatus, string> = {
 	offline: "Relay unreachable: changes sync on the schedule",
 };
 
+/** A socket's state in a word, beside the relay it goes to. */
+export const LINK_TEXT: Record<LinkState, string> = {
+	connecting: "Connecting…",
+	connected: "Connected",
+	unauthorized: "Refused",
+	offline: "Unreachable",
+};
+
+export const FULL_SHORT_TEXT = "No room on this relay: syncs on the schedule";
+
 export const UNREADABLE_TEXT =
 	"Can't read everyone here: a different passphrase or access";
 

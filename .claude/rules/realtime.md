@@ -47,7 +47,7 @@ Hub model, storage, accepted limits: `packages/relay/README.md`. Wire formats: `
 - A cut slot gets `REVOKED(slot)` and other slots live on; a socket with none left closes `UNAUTHORIZED_CLOSE_CODE`. `purgeChannel` (a share ended) deletes the rows and shuts the channel for good (`closed`): no write can bring it back.
 - Client: `HubConnection` marks the slot revoked and ignores its signals; it retries `REVOKED_RETRIES` times (jittered, doubling), a refused socket `UNAUTHORIZED_RETRIES` times (a fresh token can be refused for a minute while KV catches up), then reads `unauthorized` until settings change or the device wakes (`online`, page visible).
 - Space channels are `SpaceHub` per space behind `SpaceHubs` (`core/hub/space-hub.ts`); `HubConnection` implements them, live and presence see only the contract.
-- Relay state is one answer: `HubConnection.statusOf` -> `relayStatus` (`core/hub/status.ts`). A display never derives its own.
+- Relay state is one answer: `HubConnection.statusOf` -> `relayStatus` (`core/hub/status.ts`). A display never derives its own; the sockets, their state and the spaces on each (full ones apart) are `HubConnection.relays()`.
 
 ## Client socket
 
