@@ -111,7 +111,7 @@ Under **Automatic sync** in **Settings → MDSync → Sync** you can turn on:
 
 ### Conflicts
 
-A conflict is a file changed both here and on the remote. For each one you can **Keep local**, **Accept remote**, **Keep both versions** (the remote copy lands next to yours as `todo (conflict from Phone 2026-07-05).md`) or **Merge…**.
+A conflict is a file changed both here and on the remote. For each one you can **Keep local**, **Accept remote**, **Keep both versions** (the remote copy lands next to yours as `todo (conflict from Phone 2026-07-05).md`) or **Merge…**. A file added on both devices with different contents has no earlier version to merge from, nor has a binary file: **Compare…** shows the two side by side to keep one, or both. While a conflict is open, nothing else in the vault (or in that shared folder) pushes or pulls.
 
 **Merge…** opens a three-way editor: your version, the result and the remote version side by side. Changes that do not overlap are merged up front, and you review and save. Autosync merges such conflicts in notes (`.md`) on its own, and in Obsidian's and plugins' settings when each device changed different settings. It leaves the rest to you, plugin code and other JSON included: a merge by lines can break them. In a JSON file written by Obsidian or a plugin, keys that only moved show no change, and a result that is not valid JSON is not saved. Unsaved merge edits come back when you close the tab and open **Merge…** again, as long as neither version changed.
 
@@ -150,7 +150,7 @@ README.md
 
 Ignoring never deletes anything: a matching file stops syncing, and copies on the remote and other devices stay. To remove a file everywhere, delete it first and then ignore it.
 
-**Ignore symlinks** (on by default) skips symbolic links and Windows junctions, which Obsidian shows as ordinary folders. **Max file size** skips anything larger.
+**Ignore symlinks** (on by default, desktop only) skips symbolic links and Windows junctions, which Obsidian shows as ordinary folders. **Max file size** skips anything larger.
 
 ### Obsidian settings sync
 

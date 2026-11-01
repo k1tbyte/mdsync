@@ -26,7 +26,8 @@ export function addRelaySections(menu: Menu, plugin: StatusHost): void {
 	addRelayFixes(menu, plugin, spaces);
 	menu.addSeparator();
 	const here = inSharedNotes(plugin);
-	if (here.length === 0) {
+	// Only a connected shared folder shows who is in it; without one, "nobody" would be a guess.
+	if (here.length === 0 && spaces.some(({ id }) => id !== VAULT_SPACE.id)) {
 		menu.addItem((item) =>
 			item.setTitle(infoTitle("Nobody is in a shared note")).setIsLabel(true),
 		);

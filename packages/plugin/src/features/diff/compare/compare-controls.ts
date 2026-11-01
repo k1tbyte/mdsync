@@ -1,6 +1,6 @@
 import { ButtonComponent, setIcon } from "obsidian";
 import { appendIconButton } from "@/core/ui";
-import type { EDiffDirection } from "@/features/sync";
+import { EDiffDirection } from "@/features/sync";
 import {
 	CHOICE_ICON,
 	choiceVerb,
@@ -24,10 +24,14 @@ const HINT: Record<EDiffDirection, string> = {
 	conflict: "Select a change to accept it, or settle the whole file.",
 	history: "Select a change to restore it. Nothing changes until you apply.",
 };
+const NO_MERGE_HINT =
+	"No earlier version to merge from: select a change to accept it, or settle the whole file.";
 
 export interface CompareControlsOptions {
 	direction: EDiffDirection;
 	actionable: boolean;
+	/** A conflict **Merge…** can open; one that cannot says why. */
+	mergeable: boolean;
 	choices: HunkChoices;
 	discard(): void;
 	apply(): void;
@@ -86,7 +90,7 @@ export class CompareControls {
 	}
 
 	update(segments: readonly LineCounters[], current: number): void {
-		const { direction, actionable, choices } = this.options;
+		const { direction, actionable, mergeable, choices } = this.options;
 		let added = 0;
 		let removed = 0;
 		for (const segment of segments) {
@@ -116,7 +120,10 @@ export class CompareControls {
 		if (actionable)
 			this.pending.createSpan({
 				cls: "mdsync-diff-hint",
-				text: HINT[direction],
+				text:
+					direction === EDiffDirection.Conflict && !mergeable
+						? NO_MERGE_HINT
+						: HINT[direction],
 			});
 		if (choices.size === 0) return;
 		const buttons = this.pending.createDiv({

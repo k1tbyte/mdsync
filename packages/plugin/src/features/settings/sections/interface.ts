@@ -1,4 +1,4 @@
-import type { SettingDefinitionGroup } from "obsidian";
+import { Platform, type SettingDefinitionGroup } from "obsidian";
 import {
 	EFieldKind,
 	type FieldContext,
@@ -8,14 +8,15 @@ import {
 } from "@/core/settings";
 import type { SettingsTabHost } from "../host";
 
+const STATUS_BAR_FIELD: SettingsField<SettingsTabHost> = {
+	kind: EFieldKind.Toggle,
+	name: "Status bar indicator",
+	desc: "Applies after Obsidian restarts.",
+	get: (s) => s.showStatusBar,
+	set: (v) => ({ showStatusBar: v }),
+};
+
 const INTERFACE_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
-	{
-		kind: EFieldKind.Toggle,
-		name: "Status bar indicator",
-		desc: "Applies after Obsidian restarts.",
-		get: (s) => s.showStatusBar,
-		set: (v) => ({ showStatusBar: v }),
-	},
 	{
 		kind: EFieldKind.Toggle,
 		name: "Ribbon icon",
@@ -66,8 +67,12 @@ const INTERFACE_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 export function interfaceSection(
 	ctx: FieldContext<SettingsTabHost>,
 ): SettingDefinitionGroup {
+	// Obsidian mobile has no status bar. Left out, not hidden: a hidden first row leaves its separator on the next.
+	const fields = Platform.isMobile
+		? INTERFACE_FIELDS
+		: [STATUS_BAR_FIELD, ...INTERFACE_FIELDS];
 	return group(
 		undefined,
-		INTERFACE_FIELDS.map((field) => fieldRow(ctx, field)),
+		fields.map((field) => fieldRow(ctx, field)),
 	);
 }

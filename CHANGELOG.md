@@ -32,6 +32,11 @@ The newest section must match `version` in `manifest.json`. Headings are `## [x.
 - A new install keeps file history from the start. Sync stays manual until you choose otherwise.
 - **History** has its own page in **Settings → MDSync**. On the **Sync** page, **Automatic sync** and **Real time** are separate groups, and **Interval** is a list of choices.
 - **Turn on history** in the History, Timeline and Deleted tabs, where history is off, instead of a pointer to settings.
+- While a conflict is open, Push and Pull in the Changes panel look disabled, and pushing a file says which conflict to resolve first instead of failing.
+- A conflict with no earlier version to merge from (a file added on two devices, or a binary file) offers **Compare…** instead of **Merge…**, and its card says it was added on both sides.
+- Compare in a narrow pane keeps the file name and its buttons in view: the hint gets its own line and the buttons wrap.
+- The status bar menu no longer says nobody is in a shared note when no shared folder is connected.
+- On a phone, settings that do nothing there (**Status bar indicator**, **Ignore symlinks**) are hidden.
 - Autosync merges conflicts on its own only in notes (`.md`) and in settings files. Everything else, plugin code and other JSON included, waits for you: a merge by lines can break such files.
 - In a JSON file written by Obsidian or a plugin, keys that only moved show no change in merge, and a merged result that is not valid JSON is not saved.
 - Unsaved merge edits come back when you close the tab and open **Merge…** again, as long as neither version changed.

@@ -6,6 +6,7 @@ import type { Manifest } from "@/features/sync";
 import {
 	canPullAll,
 	canPushAll,
+	conflictsFirst,
 	deviceLabel,
 	isVaultMismatch,
 	type SyncStatusSnapshot,
@@ -349,14 +350,15 @@ function chip(
 	badge.addEventListener("click", open);
 }
 
-/** Why Push or Pull of everything is off while there is something to sync; selected files still go. */
+/** Why Push or Pull of everything is off while there is something to sync. */
 function blockedHint(snapshot: SyncStatusSnapshot): string | null {
 	const diff = snapshot.result?.diff;
 	if (snapshot.busy || !diff) return null;
 	const { conflicts, localChanges, remoteChanges } = diff;
 	if (conflicts.length > 0 && localChanges.length + remoteChanges.length > 0) {
-		return "Resolve the conflicts to push or pull everything.";
+		return conflictsFirst(conflicts.map((c) => c.path));
 	}
+	// Selected files without a remote change still go.
 	if (remoteChanges.length > 0 && localChanges.length > 0) {
 		return "Pull first to push everything.";
 	}

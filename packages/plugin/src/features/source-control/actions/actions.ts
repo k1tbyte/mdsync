@@ -1,6 +1,7 @@
 import { Menu, Platform } from "obsidian";
 import {
 	attempt,
+	notifyInfo,
 	openInEditor,
 	revealInFileExplorer,
 	runWithNotice,
@@ -12,6 +13,7 @@ import {
 	confirmRevert,
 	EChangeType,
 	EConflictStrategy,
+	heldByConflicts,
 	isIgnoreNote,
 } from "@/features/sync";
 import type { SourceControlHost } from "../host";
@@ -219,7 +221,7 @@ export class SourceControlActions {
 	}
 
 	async pushPaths(paths: string[]): Promise<boolean> {
-		if (paths.length === 0) return false;
+		if (paths.length === 0 || this.held(paths)) return false;
 		return runWithNotice(
 			() => this.plugin.controller.pushPaths(paths),
 			`Pushed ${paths.length} file(s).`,
@@ -228,12 +230,19 @@ export class SourceControlActions {
 	}
 
 	async pullPaths(paths: string[]): Promise<boolean> {
-		if (paths.length === 0) return false;
+		if (paths.length === 0 || this.held(paths)) return false;
 		return runWithNotice(
 			() => this.plugin.controller.pullPaths(paths),
 			`Pulled ${paths.length} file(s).`,
 			"Pull failed",
 		);
+	}
+
+	/** The engine refuses these while a conflict waits: say so, not "Push failed". */
+	private held(paths: ReadonlyArray<string>): boolean {
+		const held = heldByConflicts(this.plugin.controller, paths);
+		if (held) notifyInfo(held);
+		return held !== null;
 	}
 
 	async adoptNewVault(): Promise<void> {

@@ -194,7 +194,9 @@ export function renderConflictCard(
 	const who = ctx.editor(row.path) ?? "remotely";
 	card.createDiv({
 		cls: "mdsync-conflict-note",
-		text: `Changed here and ${who} since the last sync.`,
+		text: row.hasBase
+			? `Changed here and ${who} since the last sync.`
+			: `Added here and ${who}, with different contents.`,
 	});
 	const choices = card.createDiv({ cls: "mdsync-conflict-choices" });
 	textButton(choices, "Keep local").onClick(
@@ -203,7 +205,10 @@ export function renderConflictCard(
 	textButton(choices, "Accept remote").onClick(
 		() => void ctx.actions.resolveAcceptRemote(row.path),
 	);
-	textButton(choices, "Merge…").onClick(() => ctx.openMerge(row.path));
+	// Without a base or as binary, the merge request opens the side-by-side diff with its choices.
+	textButton(choices, row.mergeable ? "Merge…" : "Compare…").onClick(() =>
+		ctx.openMerge(row.path),
+	);
 	if (ctx.previews.isExpanded(row.path)) ctx.previews.render(card, row.path);
 	return card;
 }

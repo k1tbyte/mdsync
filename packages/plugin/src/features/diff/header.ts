@@ -5,10 +5,10 @@ import {
 	renderPath,
 	slideWhenCut,
 } from "@/core/ui";
-import type {
+import {
 	EDiffDirection,
-	FileDiffModel,
-	HistoryVersionRef,
+	type FileDiffModel,
+	type HistoryVersionRef,
 } from "@/features/sync";
 import { renderActionBar } from "./action-bar";
 import { type FilePosition, getFilePosition } from "./file-navigation";
@@ -20,6 +20,8 @@ export interface DiffHeaderState {
 	isBinary: boolean;
 	/** A remote deletion leaves no version to keep beside the local one. */
 	remotePresent: boolean;
+	/** A conflict whose two versions grew from one earlier, readable version. */
+	mergeable: boolean;
 	isEditing: boolean;
 	position: FilePosition | null;
 	/** Names the side a history restore would take, when that is ambiguous. */
@@ -82,6 +84,7 @@ export function renderDiffFrame(
 		direction: model?.direction ?? null,
 		isBinary: model?.isBinary ?? false,
 		remotePresent: model?.rightPresent ?? false,
+		mergeable: isMergeable(model),
 		isEditing,
 		position: getFilePosition(paths, path),
 		restoreLabel: against ? `Restore ${historyLabel}` : "Restore this version",
@@ -193,4 +196,13 @@ function renderResolution(
 		.setButtonText("Save and push")
 		.setCta()
 		.onClick(actions.saveResolution).buttonEl;
+}
+
+/** Merge needs the version both sides started from: none for a file added on both, or one that is not text. */
+export function isMergeable(model: FileDiffModel | null): boolean {
+	return (
+		model?.direction === EDiffDirection.Conflict &&
+		!model.isBinary &&
+		model.baseText !== null
+	);
 }

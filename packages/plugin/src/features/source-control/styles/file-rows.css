@@ -268,16 +268,18 @@
 	font-size: var(--font-ui-smaller);
 }
 
+/* Sized by their labels, wrapping in a narrow sidebar: equal thirds cut "Accept remote" short. */
 .mdsync-conflict-choices {
 	display: flex;
-	gap: var(--size-2-3);
+	flex-wrap: wrap;
+	gap: var(--size-2-2);
 }
 
 .mdsync-conflict-choices > button {
-	flex: 1 1 0;
+	flex: 1 1 auto;
 	min-width: 0;
 	height: 26px;
-	padding: 0 var(--size-2-3);
+	padding: 0 var(--size-2-2);
 	font-size: var(--font-ui-smaller);
 }
 

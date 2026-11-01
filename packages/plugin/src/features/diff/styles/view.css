@@ -188,6 +188,36 @@
 	flex-shrink: 0;
 }
 
+/* A narrow pane: the hint takes the row and the buttons go under it, not a column of seven lines. */
+@container mdsync-diff (max-width: 640px) {
+	body:not(.is-phone) .mdsync-diff-action-bar {
+		flex-wrap: wrap;
+	}
+
+	body:not(.is-phone) .mdsync-diff-pending-host,
+	body:not(.is-phone) .mdsync-diff-action-bar > .mdsync-diff-hint {
+		flex-basis: 100%;
+	}
+
+	body:not(.is-phone) .mdsync-diff-file-actions {
+		flex-shrink: 1;
+		justify-content: flex-end;
+		min-width: 0;
+	}
+}
+
+/* The name first: the arrows keep their labels, and each change card counts its own lines. */
+@container mdsync-diff (max-width: 480px) {
+	body:not(.is-phone) .mdsync-diff-header {
+		gap: var(--size-4-1);
+	}
+
+	body:not(.is-phone) .mdsync-diff-file-position,
+	body:not(.is-phone) .mdsync-diff-header .mdsync-diff-info {
+		display: none;
+	}
+}
+
 .mdsync-diff-action-bar:not(.has-button, .has-hint),
 .mdsync-diff-file-actions:empty,
 .mdsync-diff-action-bar:not(.has-pending-items) .mdsync-diff-pending-host,

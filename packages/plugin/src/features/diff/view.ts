@@ -8,8 +8,7 @@ import {
 import { DIFF_VIEW_TYPE } from "@/core/constants";
 import { userMessage } from "@/core/shared";
 import { notifyError, redrawOnPhoneChange } from "@/core/ui";
-import type { CompareResult, EMergeSide } from "@/features/sync";
-import { EDiffDirection, type FileDiffModel } from "@/features/sync";
+import type { CompareResult, EMergeSide, FileDiffModel } from "@/features/sync";
 import { watchDiffChrome } from "./action-bar";
 import { renderBinaryDiff } from "./compare/binary-view";
 import { type ComparePanel, renderTextDiff } from "./compare/compare-panel";
@@ -18,7 +17,7 @@ import {
 	getNextConflictPath,
 	getOrderedPaths,
 } from "./file-navigation";
-import { refitDiffTitle, renderDiffFrame } from "./header";
+import { isMergeable, refitDiffTitle, renderDiffFrame } from "./header";
 import {
 	buildHistoryRequest,
 	compareActionable,
@@ -129,13 +128,8 @@ export class DiffView extends ItemView {
 		const { path } = this.target;
 		if (!path || this.mergeRequested !== path || !model) return;
 		this.mergeRequested = null;
-		if (
-			model.direction !== EDiffDirection.Conflict ||
-			model.isBinary ||
-			this.mergePanel.isEditing
-		) {
-			return;
-		}
+		// Without a version to merge from, the diff and its whole-file choices are the answer, not an error.
+		if (!isMergeable(model) || this.mergePanel.isEditing) return;
 		await this.mergePanel.enter(this.plugin, path, this.stillShowing(), () =>
 			this.renderShell(),
 		);
@@ -393,6 +387,7 @@ export class DiffView extends ItemView {
 		this.comparePanel = renderTextDiff(body, model, {
 			direction: model.direction,
 			actionable: this.compareActionable(model),
+			mergeable: isMergeable(model),
 			lineWrapping: this.lineWrapping,
 			onLineWrappingChange: (enabled) => {
 				this.lineWrapping = enabled;

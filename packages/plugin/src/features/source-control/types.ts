@@ -14,6 +14,10 @@ export interface FileRow {
 	statusLetter: string;
 	statusClass: string;
 	isConflict: boolean;
+	/** A conflict over an earlier version both sides changed; without one, both sides added the file. */
+	hasBase?: boolean;
+	/** A conflict **Merge…** can open: a base, and text. */
+	mergeable?: boolean;
 }
 
 export interface TreeNode {

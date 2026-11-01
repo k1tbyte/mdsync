@@ -131,6 +131,23 @@
 	background: rgba(0, 0, 0, 0.2);
 }
 
+/* Off while conflicts or a pull wait: an accent fill at Obsidian's disabled opacity still reads as the next step. */
+.mdsync-sync-summary-buttons > button:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.mdsync-sync-summary-buttons > button.mod-cta:disabled {
+	background-color: var(--interactive-normal);
+	color: var(--text-muted);
+}
+
+.mdsync-sync-summary-buttons
+	> button.mod-cta:disabled
+	.mdsync-sync-summary-count {
+	background: rgba(var(--mono-rgb-100), 0.1);
+}
+
 /* Set apart from the buttons: what is left out, not what to do. */
 .mdsync-sync-summary-extras {
 	display: flex;

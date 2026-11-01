@@ -1,4 +1,5 @@
 import { notifyError, notifyInfo, runWithNotice } from "@/core/ui";
+import type { SyncController } from "../controller";
 import type { SyncHost } from "../host";
 import type { DiffResult } from "../types";
 
@@ -16,9 +17,7 @@ export async function runPushAll(plugin: SyncHost): Promise<void> {
 		// Re-compare first: a stale diff can push a file another device changed, or miss conflicts.
 		await plugin.controller.refresh();
 		const diff = comparedDiff(plugin);
-		if (!diff || (await announceConflicts(plugin, diff.conflicts.length))) {
-			return;
-		}
+		if (!diff || (await announceConflicts(plugin, diff))) return;
 		// A read-only share's changes cannot go out; they must not hold back the rest.
 		const paths = diff.localChanges
 			.map((c) => c.path)
@@ -41,9 +40,7 @@ export async function runPullAll(plugin: SyncHost): Promise<void> {
 	try {
 		await plugin.controller.refresh();
 		const diff = comparedDiff(plugin);
-		if (!diff || (await announceConflicts(plugin, diff.conflicts.length))) {
-			return;
-		}
+		if (!diff || (await announceConflicts(plugin, diff))) return;
 		const paths = diff.remoteChanges.map((c) => c.path);
 		if (paths.length === 0) {
 			notifyInfo("Nothing to pull.");
@@ -70,10 +67,32 @@ function comparedDiff(plugin: SyncHost): DiffResult | null {
 /** Push and pull must never choose a side silently; conflicts go to the user. */
 async function announceConflicts(
 	plugin: SyncHost,
-	count: number,
+	diff: DiffResult,
 ): Promise<boolean> {
-	if (count === 0) return false;
-	notifyInfo(`Resolve ${count} conflict(s) first.`);
+	if (diff.conflicts.length === 0) return false;
+	notifyInfo(conflictsFirst(diff.conflicts.map((c) => c.path)));
 	await plugin.openChanges();
 	return true;
+}
+
+export function conflictsFirst(paths: ReadonlyArray<string>): string {
+	const which =
+		paths.length === 1
+			? `the conflict in "${paths[0]}"`
+			: `the ${paths.length} conflicts`;
+	return `Resolve ${which} first: nothing pushes or pulls until then.`;
+}
+
+/** Why `paths` cannot go now, or null: an open conflict holds every push and pull of its space. */
+export function heldByConflicts(
+	controller: Pick<SyncController, "getSnapshot" | "spaceFor">,
+	paths: ReadonlyArray<string>,
+): string | null {
+	const conflicts = controller.getSnapshot().result?.diff.conflicts ?? [];
+	if (conflicts.length === 0) return null;
+	const spaces = new Set(paths.map((path) => controller.spaceFor(path).id));
+	const holding = conflicts
+		.map((c) => c.path)
+		.filter((path) => spaces.has(controller.spaceFor(path).id));
+	return holding.length > 0 ? conflictsFirst(holding) : null;
 }

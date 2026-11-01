@@ -2,6 +2,7 @@ export { registerScheduler } from "./automation/scheduler";
 export {
 	bytesToText,
 	clearRemoteTextCache,
+	hasKnownBinaryExtension,
 	textToBytes,
 } from "./changes/content";
 export { movesByPath } from "./changes/moves";
@@ -149,5 +150,11 @@ export {
 } from "./ui/modals";
 export { addPushMenuItem, pushScope, scopedPaths } from "./ui/push-action";
 export { skippedFiles, skippedText } from "./ui/skipped";
-export { runCompare, runPullAll, runPushAll } from "./ui/sync-actions";
+export {
+	conflictsFirst,
+	heldByConflicts,
+	runCompare,
+	runPullAll,
+	runPushAll,
+} from "./ui/sync-actions";
 export { registerVaultAdoptionPrompt } from "./ui/vault-adoption";

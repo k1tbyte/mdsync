@@ -1,6 +1,7 @@
 import type { Menu } from "obsidian";
 import { notifyError, notifyInfo, runWithNotice } from "@/core/ui";
 import type { SyncHost } from "../host";
+import { heldByConflicts } from "./sync-actions";
 
 /** Changes inside `scope`: a file matches itself, a folder everything below it (the vault root "/" covers all). */
 export function scopedPaths(
@@ -60,17 +61,17 @@ export async function pushScope(
 		);
 		return;
 	}
-	const conflicts = scopedPaths(diff.conflicts, path, isFolder);
-	if (conflicts.length > 0) {
-		notifyInfo(
-			conflicts.length === 1
-				? `Resolve the conflict in "${conflicts[0]}" first.`
-				: `Resolve ${conflicts.length} conflicts under this ${target} first.`,
-		);
+	const paths = scopedPaths(diff.localChanges, path, isFolder);
+	// A conflict elsewhere in the same space holds this push too.
+	const held = heldByConflicts(plugin.controller, [
+		...scopedPaths(diff.conflicts, path, isFolder),
+		...paths,
+	]);
+	if (held) {
+		notifyInfo(held);
 		await plugin.openSourceControl();
 		return;
 	}
-	const paths = scopedPaths(diff.localChanges, path, isFolder);
 	if (paths.length === 0) {
 		const where =
 			isFolder && path === "/"

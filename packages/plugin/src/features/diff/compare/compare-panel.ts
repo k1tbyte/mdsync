@@ -39,6 +39,7 @@ import {
 export interface ComparePanelOptions extends LineWrappingOptions {
 	direction: EDiffDirection;
 	actionable: boolean;
+	mergeable: boolean;
 	pinChosen: boolean;
 	onPinChosenChange(enabled: boolean): void;
 	onApply(choices: HunkChoices): void;

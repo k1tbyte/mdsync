@@ -3,6 +3,7 @@ import {
 	type ChangeAction,
 	changeActionOf,
 	deviceLabel,
+	hasKnownBinaryExtension,
 	movesByPath,
 } from "@/features/sync";
 import type { FileRow } from "../types";
@@ -68,12 +69,16 @@ export function foldMoves(
 }
 
 export function rowFromConflict(conflict: Conflict, size?: number): FileRow {
+	const hasBase = conflict.baselineHash !== null;
 	return {
 		path: conflict.path,
 		size,
 		statusLetter: "C",
 		statusClass: "mdsync-status-conflict",
 		isConflict: true,
+		hasBase,
+		// The diff view decides for sure once it reads both sides; this only names the button.
+		mergeable: hasBase && !hasKnownBinaryExtension(conflict.path),
 	};
 }
 

@@ -35,6 +35,8 @@ export function renderActionBar(
 					.setButtonText("Keep both versions")
 					.onClick(actions.keepBothVersions);
 			}
+		}
+		if (state.mergeable) {
 			new ButtonComponent(buttons)
 				.setButtonText("Merge…")
 				.setCta()

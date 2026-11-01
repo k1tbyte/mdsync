@@ -1,4 +1,9 @@
-import { type App, type SettingDefinitionGroup, TFile } from "obsidian";
+import {
+	type App,
+	Platform,
+	type SettingDefinitionGroup,
+	TFile,
+} from "obsidian";
 import { IGNORE_FILE_NAME } from "@/core/constants";
 import {
 	EFieldKind,
@@ -21,6 +26,8 @@ const EXCLUSION_FIELDS: ReadonlyArray<SettingsField<SyncHost>> = [
 		kind: EFieldKind.Toggle,
 		name: "Ignore symlinks",
 		desc: "Skip symbolic links, Windows junctions and directory links on this device. They can point outside the vault.",
+		// Links are detected on desktop only (core/vault/symlinks.ts).
+		when: () => !Platform.isMobile,
 		get: (s) => s.ignoreSymlinks,
 		set: (v) => ({ ignoreSymlinks: v }),
 		refreshScope: true,

@@ -242,3 +242,17 @@ body.is-phone .mdsync-source-control .mdsync-timeline-file {
 	white-space: normal;
 	overflow-wrap: anywhere;
 }
+
+/* Beside the tools the pill is too narrow for a whole name: the active tab is then its icon on the accent. */
+body.is-phone .mdsync-source-control .mdsync-source-tabs {
+	container: mdsync-source-tabs / inline-size;
+}
+
+@container mdsync-source-tabs (max-width: 229px) {
+	body.is-phone
+		.mdsync-source-control
+		.mdsync-settings-tab-button.is-active
+		.mdsync-source-tab-label {
+		display: none;
+	}
+}

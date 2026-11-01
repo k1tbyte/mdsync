@@ -58,6 +58,24 @@ describe("source control row formatting", () => {
 		expect(row.statusLetter).toBe("C");
 	});
 
+	it("offers Merge only for text with an earlier version", () => {
+		const conflict = (path: string, baselineHash: string | null) =>
+			rowFromConflict({ path, localHash: "l", remoteHash: "r", baselineHash });
+
+		expect(conflict("a.md", "base")).toMatchObject({
+			hasBase: true,
+			mergeable: true,
+		});
+		expect(conflict("a.md", null)).toMatchObject({
+			hasBase: false,
+			mergeable: false,
+		});
+		expect(conflict("photo.png", "base")).toMatchObject({
+			hasBase: true,
+			mergeable: false,
+		});
+	});
+
 	it("does not show a delta for additions", () => {
 		const row = rowFromChange(
 			{
