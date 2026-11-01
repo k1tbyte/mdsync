@@ -12,13 +12,14 @@
 	display: none;
 }
 
+/* Edge to edge: the first step is just its dot, each later one fills the space up to its own dot. */
 .mdsync-step {
 	position: relative;
 	display: flex;
 	flex: 1 1 0;
 	flex-direction: column;
 	min-width: 0;
-	align-items: center;
+	align-items: flex-end;
 	gap: var(--size-4-2);
 	color: var(--text-faint);
 	font-size: var(--font-ui-smaller);
@@ -27,13 +28,19 @@
 	animation-delay: calc(var(--mdsync-step-index, 0) * 70ms);
 }
 
+.mdsync-step:first-child {
+	flex: none;
+	width: var(--mdsync-step-dot);
+	align-items: flex-start;
+}
+
 /* The line into a step: empty until the step is reached, then filled left to right. */
 .mdsync-step + .mdsync-step::before {
 	content: "";
 	position: absolute;
 	top: calc(var(--mdsync-step-dot) / 2 - 1px);
-	right: calc(50% + var(--mdsync-step-dot) / 2 + var(--mdsync-step-gap));
-	left: calc(-50% + var(--mdsync-step-dot) / 2 + var(--mdsync-step-gap));
+	right: calc(var(--mdsync-step-dot) + var(--mdsync-step-gap));
+	left: var(--mdsync-step-gap);
 	height: 2px;
 	border-radius: 1px;
 	background-color: var(--background-modifier-border);
@@ -50,6 +57,7 @@
 	background-size: 100% 100%;
 }
 
+/* The sheet's own colour: a phone's dark theme paints --background-primary black under a grey sheet. */
 .mdsync-step-dot {
 	position: relative;
 	z-index: 1;
@@ -60,7 +68,7 @@
 	height: var(--mdsync-step-dot);
 	border: 2px solid var(--background-modifier-border);
 	border-radius: var(--mdsync-radius-pill);
-	background-color: var(--background-primary);
+	background-color: var(--modal-background, var(--background-primary));
 	color: var(--text-faint);
 	transition:
 		background-color 0.3s ease,
@@ -90,9 +98,13 @@
 }
 
 .mdsync-step-label {
-	max-width: 100%;
-	overflow-wrap: anywhere;
+	white-space: nowrap;
 	transition: color 0.3s ease;
+}
+
+/* Centred under its dot; the end labels line up with the edges instead. */
+.mdsync-step:not(:first-child, :last-child) .mdsync-step-label {
+	transform: translateX(calc(50% - var(--mdsync-step-dot) / 2));
 }
 
 .mdsync-step.is-reached .mdsync-step-dot {

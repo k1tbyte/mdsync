@@ -26,7 +26,9 @@ import { logsPage } from "./logs-view";
 import { overviewGroup } from "./overview";
 import { advancedSection } from "./sections/advanced";
 import { automationSection } from "./sections/automation";
+import { historySection, historyValue } from "./sections/history";
 import { interfaceSection } from "./sections/interface";
+import { realtimeSection } from "./sections/realtime";
 
 export class MdsyncSettingTab extends PluginSettingTab {
 	private readonly plugin: Plugin & SettingsTabHost;
@@ -90,7 +92,7 @@ export class MdsyncSettingTab extends PluginSettingTab {
 					{
 						type: "page",
 						name: "Sync",
-						desc: "Automation, shared folders, share links, configuration scope and exclusions.",
+						desc: "When to sync, real time, shared folders, share links, Obsidian configuration and exclusions.",
 						displayValue: () => {
 							const open = this.plugin.spaces
 								.list()
@@ -98,12 +100,20 @@ export class MdsyncSettingTab extends PluginSettingTab {
 							return open ? `${open} shared` : "";
 						},
 						items: [
-							automationSection(ctx, () => this.loadHistory()),
+							automationSection(ctx),
+							realtimeSection(ctx),
 							sharesSection(ctx),
 							linksSection(ctx),
 							configurationScopeSection(ctx),
 							exclusionsSection(ctx),
 						],
+					},
+					{
+						type: "page",
+						name: "History",
+						desc: "Past versions, how long they stay, and pushes per day.",
+						displayValue: () => historyValue(this.plugin),
+						items: [historySection(ctx, () => this.loadHistory())],
 					},
 					{
 						type: "page",

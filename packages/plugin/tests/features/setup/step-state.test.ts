@@ -44,11 +44,13 @@ describe("setup paths", () => {
 		expect(PATH_STEPS[ESetupPath.New]).toEqual([
 			ESetupStep.Storage,
 			ESetupStep.Passphrase,
+			ESetupStep.Features,
 			ESetupStep.Relay,
 			ESetupStep.Ready,
 		]);
 		expect(PATH_STEPS[ESetupPath.Join]).toEqual([
 			ESetupStep.Import,
+			ESetupStep.Features,
 			ESetupStep.Relay,
 			ESetupStep.Ready,
 		]);

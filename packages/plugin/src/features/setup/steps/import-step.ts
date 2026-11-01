@@ -35,7 +35,7 @@ export function createImportStep(wizard: Wizard): StepView {
 				callout(
 					el,
 					"warning",
-					"Importing replaces this device's storage and relay settings.",
+					"Importing replaces the settings the link carries: storage, what syncs, automation and history, and the relay.",
 				);
 			}
 			const linkRow = new Setting(el).setName("Setup link").addTextArea((t) => {

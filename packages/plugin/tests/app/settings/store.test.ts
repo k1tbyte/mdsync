@@ -27,6 +27,20 @@ describe("SettingsStore", () => {
 		expect(saved.freshInstall).toBe(false);
 	});
 
+	it("starts a first install with history on, and keeps a saved choice", async () => {
+		const fresh = new SettingsStore(
+			plugin(null),
+			deviceKey(new FakeSecretStorage()),
+		);
+		expect((await fresh.load()).fileHistoryEnabled).toBe(true);
+
+		const saved = new SettingsStore(
+			plugin({}),
+			deviceKey(new FakeSecretStorage()),
+		);
+		expect((await saved.load()).fileHistoryEnabled).toBe(false);
+	});
+
 	it("seals secrets an earlier build left in the clear at load", async () => {
 		const host = plugin({ relaySecret: "relay-secret" });
 		const store = new SettingsStore(host, deviceKey(new FakeSecretStorage()));

@@ -127,8 +127,9 @@ export class TimelineTab {
 		if (!this.plugin.settings.fileHistoryEnabled) {
 			renderHistoryOff(
 				pane,
-				this.plugin.app,
-				"History is off. Turn on History in MDSync settings to see the timeline.",
+				this.plugin,
+				"The timeline shows what each push changed, day by day. It starts with the next push.",
+				this.onRerender,
 			);
 			return;
 		}

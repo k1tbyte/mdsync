@@ -62,8 +62,8 @@
 	color: var(--text-error);
 }
 
-/* The control under its description, across the row. */
-.mdsync-settings .mdsync-stacked-setting {
+/* The control under its description, across the row: in settings and in the setup wizard. */
+.setting-item.mdsync-stacked-setting {
 	flex-direction: column;
 	align-items: stretch;
 	gap: var(--size-4-2);

@@ -104,10 +104,16 @@ export function configurationScopeSection(
 		},
 		...SETTINGS_SYNC_ROWS.flatMap((row) =>
 			row.key === "pluginConfigs"
-				? [pluginsRow(ctx, row), perPluginRow(ctx)]
+				? [pluginsRow(ctx, row, true), perPluginRow(ctx)]
 				: [categoryRow(ctx, row)],
 		),
 	]);
+}
+
+/** The Plugins level and Per plugin rows for the setup wizard, which offers no Clear on remote. */
+export function pluginLevelRows(ctx: FieldContext<SyncHost>): SettingsRow[] {
+	const row = SETTINGS_SYNC_ROWS.find(({ key }) => key === "pluginConfigs");
+	return row ? [pluginsRow(ctx, row, false), perPluginRow(ctx)] : [];
 }
 
 function categoryRow(
@@ -138,6 +144,7 @@ function categoryRow(
 function pluginsRow(
 	ctx: FieldContext<SyncHost>,
 	row: SettingsSyncRow,
+	clear: boolean,
 ): SettingsRow {
 	const { plugin } = ctx;
 	return {
@@ -170,7 +177,7 @@ function pluginsRow(
 					ctx.rerender();
 				},
 			).el.addClasses(["is-compact", "mdsync-plugin-level"]);
-			addClearButton(ctx, row, setting);
+			if (clear) addClearButton(ctx, row, setting);
 		},
 	};
 }

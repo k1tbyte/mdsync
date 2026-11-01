@@ -151,6 +151,12 @@
 	white-space: nowrap;
 }
 
+/* A cut value says too little on a phone; it wraps instead. */
+.is-phone .mdsync-summary-value {
+	overflow-wrap: anywhere;
+	white-space: normal;
+}
+
 .mdsync-summary-state {
 	display: grid;
 	flex: none;
@@ -165,4 +171,126 @@
 .mdsync-summary-row.is-off .mdsync-summary-value,
 .mdsync-summary-row.is-off .mdsync-summary-state {
 	color: var(--text-faint);
+}
+
+/* First sync: what a sync would move, before it does. */
+.mdsync-sync-counts {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--size-4-2);
+	margin: var(--size-4-3) 0;
+	padding: 0;
+	list-style: none;
+}
+
+.mdsync-sync-count {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-1);
+	min-width: 0;
+	padding: var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+}
+
+.mdsync-sync-count-value {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	color: var(--text-normal);
+	font-size: var(--font-ui-large);
+	font-weight: var(--font-semibold);
+}
+
+.mdsync-sync-count-icon {
+	display: grid;
+	color: var(--text-accent);
+}
+
+.mdsync-sync-count.is-conflict .mdsync-sync-count-icon {
+	color: var(--text-warning);
+}
+
+.mdsync-sync-count.is-zero
+	:is(.mdsync-sync-count-value, .mdsync-sync-count-icon) {
+	color: var(--text-faint);
+}
+
+.mdsync-sync-count-label {
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+
+.mdsync-sync-count-hint {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: var(--line-height-tight);
+}
+
+/* Three columns are too narrow on a phone: one bordered list, a count per row. */
+.is-phone .mdsync-sync-counts {
+	grid-template-columns: minmax(0, 1fr);
+	gap: 0;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+}
+
+.is-phone .mdsync-sync-count {
+	display: grid;
+	grid-template-areas: "value label" "value hint";
+	grid-template-columns: 4em minmax(0, 1fr);
+	column-gap: var(--size-4-2);
+	align-items: center;
+	padding: var(--size-4-2) var(--size-4-3);
+	border: 0;
+	border-radius: 0;
+}
+
+.is-phone .mdsync-sync-count + .mdsync-sync-count {
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.is-phone .mdsync-sync-count-value {
+	grid-area: value;
+}
+
+.is-phone .mdsync-sync-count-label {
+	grid-area: label;
+}
+
+.is-phone .mdsync-sync-count-hint {
+	grid-area: hint;
+}
+
+/* Done: where things live. */
+.mdsync-tour-row .mdsync-summary-icon {
+	background: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
+	color: var(--text-accent);
+}
+
+.mdsync-tour-name {
+	font-weight: var(--font-medium);
+}
+
+.mdsync-tour-text {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: var(--line-height-tight);
+}
+
+.mdsync-tour-words {
+	display: grid;
+	grid-template-columns: max-content 1fr;
+	gap: var(--size-4-2) var(--size-4-4);
+	margin: 0;
+	font-size: var(--font-ui-small);
+}
+
+.mdsync-tour-words dt {
+	font-weight: var(--font-medium);
+}
+
+.mdsync-tour-words dd {
+	margin: 0;
+	color: var(--text-muted);
 }

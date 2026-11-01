@@ -518,12 +518,12 @@ async function checkDeleted(device: Obsidian, page: Page): Promise<void> {
 	);
 }
 
-/** The plugin's Sync page, scrolled to the toggle that hides the calendar. */
+/** The plugin's History page, scrolled to the toggle that hides the calendar. */
 async function checkActivitySetting(
 	device: Obsidian,
 	browser: NonNullable<Awaited<ReturnType<typeof chromium.connectOverCDP>>>,
 ): Promise<void> {
-	await openSettings(device, "Sync");
+	await openSettings(device, "History");
 	const row = await device.evaluate(() => {
 		const found = [
 			...activeDocument.querySelectorAll<HTMLElement>(
@@ -545,7 +545,7 @@ async function checkActivitySetting(
 		};
 	});
 	console.log(`Show activity in Timeline: ${JSON.stringify(row)}`);
-	check("the activity toggle is in the Sync page", row !== null, true);
+	check("the activity toggle is in the History page", row !== null, true);
 	check("the activity toggle is visible", row?.shown && row.inView, true);
 	check("the activity toggle is on", row?.on, true);
 	const page = await poll("the settings window", async () => {

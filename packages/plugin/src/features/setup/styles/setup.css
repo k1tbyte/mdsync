@@ -23,6 +23,23 @@
 	box-shadow: 0 var(--size-4-4) 0 var(--mdsync-footer-bg);
 }
 
+/*
+ * A sheet ends at the screen's edge: the footer sits flush and clears the home indicator.
+ * On mobile the content scrolls, not the modal, so its padding is the strip to close.
+ */
+body.is-phone .modal.mdsync-setup,
+body.is-phone .modal.mdsync-setup .modal-content {
+	padding-bottom: 0;
+}
+
+body.is-phone .modal.mdsync-setup .setting-item.mdsync-setup-footer {
+	padding-bottom: max(
+		var(--size-4-3),
+		var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
+	);
+	box-shadow: none;
+}
+
 .mdsync-setup-footer .setting-item-info {
 	display: none;
 }
@@ -51,4 +68,35 @@
 .mdsync-setup-stacked textarea {
 	flex-basis: 100%;
 	width: 100%;
+}
+
+.mdsync-setup-lead {
+	margin-top: 0;
+	color: var(--text-muted);
+}
+
+.mdsync-setup-choice {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	width: 100%;
+	padding-bottom: var(--size-4-2);
+	text-align: start;
+}
+
+.mdsync-setup-choice-desc,
+.mdsync-setup-note {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: var(--line-height-tight);
+}
+
+.mdsync-setup-note {
+	padding-bottom: var(--size-4-2);
+}
+
+.mdsync-setup-heading {
+	margin: var(--size-4-6) 0 var(--size-4-2);
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-semibold);
 }

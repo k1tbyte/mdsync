@@ -26,6 +26,8 @@ export function createPassphraseStep(wizard: Wizard): StepView {
 	/** Unreachable because the storage turned the keys away, not the network. */
 	let refused = false;
 	const state = { busy: false, error: "" };
+	/** Entered by Back after it was done: it stays to be looked at. */
+	const wasUnlocked = passphrase.isUnlocked();
 
 	/** A passphrase entered or saved earlier is tried first, so a set-up device just moves on. */
 	const check = async (): Promise<void> => {
@@ -33,8 +35,13 @@ export function createPassphraseStep(wizard: Wizard): StepView {
 		state.error = "";
 		wizard.redraw();
 		try {
-			if (await passphrase.unlock()) phase = "unlocked";
-			else phase = (await passphrase.vaultHasKey()) ? "existing" : "new";
+			if (await passphrase.unlock()) {
+				phase = "unlocked";
+				if (!wasUnlocked && wizard.isShowing(view)) {
+					wizard.moveOn();
+					return;
+				}
+			} else phase = (await passphrase.vaultHasKey()) ? "existing" : "new";
 		} catch (err) {
 			if (err instanceof PassphraseRotatedError) {
 				phase = "existing";

@@ -8,6 +8,8 @@ export const ESetupStep = {
 	Storage: "storage",
 	Passphrase: "passphrase",
 	Import: "import",
+	/** Presets for what syncs and when; always done, its values are the settings. */
+	Features: "features",
 	Relay: "relay",
 	Ready: "ready",
 } as const;
@@ -25,10 +27,16 @@ export const PATH_STEPS: Record<ESetupPath, readonly ESetupStep[]> = {
 	[ESetupPath.New]: [
 		ESetupStep.Storage,
 		ESetupStep.Passphrase,
+		ESetupStep.Features,
 		ESetupStep.Relay,
 		ESetupStep.Ready,
 	],
-	[ESetupPath.Join]: [ESetupStep.Import, ESetupStep.Relay, ESetupStep.Ready],
+	[ESetupPath.Join]: [
+		ESetupStep.Import,
+		ESetupStep.Features,
+		ESetupStep.Relay,
+		ESetupStep.Ready,
+	],
 };
 
 /** Computed, never stored, so the wizard always agrees with the settings. */

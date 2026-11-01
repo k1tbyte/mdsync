@@ -9,6 +9,11 @@
 	margin-inline-end: 0;
 }
 
+/* Obsidian's phone rule aligns a modal's stacked rows to the start, which would shrink the body to its content. */
+.mdsync-holds-body {
+	align-self: stretch;
+}
+
 .mdsync-holds-calendar {
 	min-height: 120px;
 	color: var(--text-faint);
@@ -19,6 +24,11 @@
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
 	gap: var(--size-4-1);
+}
+
+/* Three to a row on a phone: auto-fit would leave the six steps four and two. */
+.is-phone .mdsync-holds-ladder {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .mdsync-holds-step {

@@ -1,21 +1,22 @@
-import { Setting, setIcon } from "obsidian";
-import {
-	fieldRow,
-	isRelayConfigured,
-	renderDefinitions,
-} from "@/core/settings";
-import { alertLine } from "@/core/ui";
-import { SETUP_FIELDS } from "@/features/settings";
+import { setIcon } from "obsidian";
+import { HISTORY_KEEP_TEXT } from "@/core/constants";
+import { isRelayConfigured } from "@/core/settings";
 import {
 	activeStorage,
 	describeStorageTarget,
 	isStorageConfigured,
 } from "@/features/storage";
-import type { SyncStatusSnapshot } from "@/features/sync";
 import { canSync } from "@/features/sync";
-import { showSettingsTransferExport } from "@/features/transfer";
-
+import { ESyncMode, syncModeOf } from "../feature-choices";
 import type { StepView, Wizard } from "../wizard";
+import { renderDoneTour } from "./done-tour";
+import { createFirstSync } from "./first-sync";
+
+const MODE_TEXT: Record<ESyncMode, string> = {
+	[ESyncMode.Manual]: "Manual: when you push and pull",
+	[ESyncMode.Automatic]: "Automatic",
+	[ESyncMode.Instant]: "Instant, over the relay",
+};
 
 function summaryRow(
 	list: HTMLElement,
@@ -38,77 +39,7 @@ function summaryRow(
 
 export function createReadyStep(wizard: Wizard): StepView {
 	const { plugin } = wizard;
-	const { controller } = plugin;
-	let syncing = false;
-	let synced: SyncStatusSnapshot | null = null;
-
-	/** The scheduled sync's own cycle: pulls, pushes, and leaves files changed on both sides for Changes. */
-	const syncNow = async (): Promise<void> => {
-		syncing = true;
-		wizard.redraw();
-		const unsubscribe = controller.subscribe(() => wizard.redraw());
-		try {
-			await controller.refreshAndAutoSync(true);
-		} finally {
-			unsubscribe();
-			syncing = false;
-			synced = controller.getSnapshot();
-			wizard.redraw();
-		}
-	};
-
-	const renderSync = (el: HTMLElement): void => {
-		const ready = canSync(plugin.settings);
-		const row = new Setting(el)
-			.setName("First sync")
-			.setDesc(
-				"Compares this vault with the storage, then pulls and pushes what changed.",
-			)
-			.addButton((b) =>
-				b
-					.setButtonText(syncing ? "Syncing…" : "Sync now")
-					.setCta()
-					.setDisabled(syncing || !ready)
-					.onClick(() => void syncNow()),
-			);
-		if (!ready) {
-			row.setDesc("Set up a storage first.");
-			return;
-		}
-		if (syncing) {
-			row.setDesc(controller.getSnapshot().progressText ?? "Syncing…");
-			return;
-		}
-		if (!synced) return;
-		const { error, spaceErrors, conflicts, pendingLocal, pendingRemote } =
-			synced;
-		const left = conflicts + pendingLocal + pendingRemote;
-		if (error) {
-			alertLine(el).setText(error);
-			return;
-		}
-		if (spaceErrors.length > 0) {
-			for (const { root, message } of spaceErrors) {
-				alertLine(el).setText(`Error in "${root}": ${message}`);
-			}
-			return;
-		}
-		if (left === 0) {
-			row.setDesc("In sync.");
-			return;
-		}
-		row.setDesc(
-			conflicts > 0
-				? `${conflicts} file(s) changed both here and in the storage. Choose a side for each in Changes.`
-				: `${left} change(s) were not synced. Review them in Changes.`,
-		);
-		row.addButton((b) =>
-			b.setButtonText("Open changes").onClick(() => {
-				wizard.close();
-				void plugin.openSourceControl();
-			}),
-		);
-	};
+	const firstSync = createFirstSync(wizard);
 
 	const renderSummary = (el: HTMLElement): void => {
 		const { settings } = plugin;
@@ -140,44 +71,45 @@ export function createReadyStep(wizard: Wizard): StepView {
 			relay ? settings.relayUrl : "Not set up (optional)",
 			relay,
 		);
+		const mode = syncModeOf(settings);
+		summaryRow(list, "refresh-cw", "When to sync", MODE_TEXT[mode], true);
+		summaryRow(
+			list,
+			"history",
+			"History",
+			!settings.fileHistoryEnabled
+				? "Off"
+				: settings.fileHistoryKeep === "forever"
+					? "Kept forever"
+					: `Kept for ${HISTORY_KEEP_TEXT[settings.fileHistoryKeep]}`,
+			settings.fileHistoryEnabled,
+		);
 	};
 
 	const view: StepView = {
 		render(el) {
-			const ready = canSync(plugin.settings);
-			const hero = el.createDiv({ cls: "mdsync-hero" });
-			const icon = hero.createDiv({ cls: "mdsync-hero-icon" });
-			icon.toggleClass("is-success", ready);
-			setIcon(icon, ready ? "party-popper" : "sparkles");
-			const text = hero.createDiv({ cls: "mdsync-hero-text" });
-			text.createEl("h3", { text: ready ? "You're all set" : "Almost there" });
-			text.createEl("p", {
-				text: ready
-					? "Your vault syncs through storage you own, encrypted on this device."
-					: "Set up a storage to start syncing.",
+			if (!canSync(plugin.settings)) {
+				const hero = el.createDiv({ cls: "mdsync-hero" });
+				setIcon(hero.createDiv({ cls: "mdsync-hero-icon" }), "sparkles");
+				const text = hero.createDiv({ cls: "mdsync-hero-text" });
+				text.createEl("h3", { text: "Almost there" });
+				text.createEl("p", { text: "Set up a storage to start syncing." });
+				renderSummary(el);
+				return;
+			}
+			firstSync.start();
+			if (firstSync.done()) {
+				renderDoneTour(el, wizard);
+				return;
+			}
+			firstSync.render(el);
+			el.createEl("h4", {
+				cls: "mdsync-setup-heading",
+				text: "On this device",
 			});
 			renderSummary(el);
-			renderSync(el);
-			renderDefinitions(
-				el,
-				SETUP_FIELDS.map((field) =>
-					fieldRow({ plugin, rerender: () => wizard.redraw() }, field),
-				),
-			);
-			new Setting(el)
-				.setName("Set up another device")
-				.setDesc(
-					"Shows a link and QR code that bring this setup to your phone or another computer.",
-				)
-				.addButton((b) =>
-					b.setButtonText("Show setup link").onClick(() =>
-						showSettingsTransferExport(plugin.app, {
-							createPackage: (options) =>
-								plugin.transfer.createPackage(options),
-						}),
-					),
-				);
 		},
+		quietFooter: () => canSync(plugin.settings) && firstSync.leads(),
 	};
 	return view;
 }

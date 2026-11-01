@@ -12,6 +12,11 @@ export class DomButtonComponent {
 		return this;
 	}
 
+	setCta(): this {
+		this.buttonEl.addClass("mod-cta");
+		return this;
+	}
+
 	setDisabled(disabled: boolean): this {
 		this.disabled = disabled;
 		this.buttonEl.disabled = disabled;

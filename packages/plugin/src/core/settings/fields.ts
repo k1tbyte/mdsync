@@ -110,8 +110,10 @@ export interface SliderField<H = SettingsHost> extends FieldBase<H> {
 
 export interface ChoiceField<H = SettingsHost> extends FieldBase<H> {
 	kind: typeof EFieldKind.Choice;
-	/** Value to label. */
-	options: Record<string, string>;
+	/** Value to label; a function when the list depends on the current value. */
+	options:
+		| Record<string, string>
+		| ((settings: MdsyncSettings) => Record<string, string>);
 	get: (settings: MdsyncSettings) => string;
 	set: (value: string, plugin: H) => Partial<MdsyncSettings>;
 }
@@ -169,7 +171,11 @@ function applyControl<H extends SettingsHost>(
 	if (field.kind === EFieldKind.Choice) {
 		return setting.addDropdown((dropdown) =>
 			dropdown
-				.addOptions(field.options)
+				.addOptions(
+					typeof field.options === "function"
+						? field.options(ctx.plugin.settings)
+						: field.options,
+				)
 				.setValue(field.get(ctx.plugin.settings))
 				.onChange((value) => apply(field.set(value, ctx.plugin))),
 		);

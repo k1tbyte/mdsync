@@ -1,51 +1,33 @@
-import type { Setting, SettingDefinitionGroup } from "obsidian";
+import type { SettingDefinitionGroup } from "obsidian";
 import {
 	AUTO_PUSH_SETTLE_MAX_SECONDS,
 	AUTO_PUSH_SETTLE_MIN_SECONDS,
-	AUTO_SYNC_MAX_MINUTES,
-	AUTO_SYNC_MIN_MINUTES,
 	BULK_DELETE_LIMIT_MAX,
 	BULK_DELETE_LIMIT_MIN,
-	HISTORY_KEEP_MS,
-	HISTORY_KEEP_TEXT,
-	LIVE_SEND_MS,
 	SLOW_FILE_SETTLE_MAX_SECONDS,
 	SLOW_FILE_SETTLE_MIN_SECONDS,
 } from "@/core/constants";
-import type { RelayStatus } from "@/core/hub";
-import { closePluginSettings, RELAY_TEXT } from "@/core/hub";
 import {
 	DEFAULT_CORE_SETTINGS,
 	EFieldKind,
 	type FieldContext,
 	fieldRow,
 	group,
-	type HistoryKeep,
-	isRelayConfigured,
 	type SettingsField,
-	type SettingsHost,
-	type SettingsRow,
-	SUB_SETTING_CLASS,
 } from "@/core/settings";
-import type { LiveSessions } from "@/features/live";
-import type { People } from "@/features/presence";
-import type { HubConnection } from "@/features/relay";
-import {
-	renderHistoryHolds,
-	type SnapshotListResult,
-	VAULT_SPACE,
-} from "@/features/sync";
+import { pluralize } from "@/core/shared";
 import type { SettingsTabHost } from "../host";
 
-/** The wizard shows these too, so they ask only what its host has. */
-type RealtimeFieldHost = SettingsHost & {
-	readonly realtime: {
-		readonly hub: HubConnection;
-		readonly live: LiveSessions;
-	};
+const INTERVAL_CHOICES: Readonly<Record<number, string>> = {
+	0: "Only at startup",
+	5: "Every 5 minutes",
+	15: "Every 15 minutes",
+	30: "Every 30 minutes",
+	60: "Every hour",
+	240: "Every 4 hours",
 };
 
-const AUTOSYNC_FIELD: SettingsField<RealtimeFieldHost> = {
+const AUTOSYNC_FIELD: SettingsField<SettingsTabHost> = {
 	kind: EFieldKind.Toggle,
 	name: "Autosync",
 	desc: "Sync automatically: once after startup and on a schedule. Pulls remote changes; conflicts that cannot be merged safely stop the cycle.",
@@ -54,76 +36,17 @@ const AUTOSYNC_FIELD: SettingsField<RealtimeFieldHost> = {
 	rerender: true,
 };
 
-const REALTIME_FIELD: SettingsField<RealtimeFieldHost> = {
-	kind: EFieldKind.Toggle,
-	name: "Real-time sync",
-	desc: "Other devices pull the moment you push, and you see who is in which note. Turning it off also stops live editing. Your devices use the relay server (Connection tab), shared folders their owner's.",
-	get: (s) => s.realtimeSync,
-	set: (v) => ({ realtimeSync: v }),
-	after: restartRelay,
-	rerender: true,
-};
-
-const LIVE_EDITING_FIELD: SettingsField<RealtimeFieldHost> = {
-	kind: EFieldKind.Toggle,
-	name: "Live editing",
-	desc: "Notes open in the editor edit together, keystroke by keystroke, across your devices and with the people in shared folders, through the relay.",
-	when: (s) => s.realtimeSync,
-	sub: true,
-	get: (s) => s.liveEditing,
-	set: (v) => ({ liveEditing: v }),
-	after: (plugin) => void plugin.realtime.live.refresh(),
-	rerender: true,
-};
-
-const LIVE_SPEED_FIELD: SettingsField<SettingsTabHost> = {
-	kind: EFieldKind.Choice,
-	name: "Live editing speed",
-	desc: "How often your typing reaches others. Each send is a write on the relay, and Cloudflare's free plan allows 100,000 a day. Set per device.",
-	when: (s) => s.realtimeSync && s.liveEditing,
-	sub: true,
-	options: {
-		[LIVE_SEND_MS.instant]: "Instant",
-		[LIVE_SEND_MS.balanced]: "Balanced",
-		[LIVE_SEND_MS.economical]: "Economical: once a second",
-	},
-	get: (s) => String(s.liveSendMs),
-	set: (v) => ({ liveSendMs: Number(v) }),
-};
-
-/** What the setup wizard offers once the vault syncs; real-time sync only with a relay to carry it. */
-export const SETUP_FIELDS: ReadonlyArray<SettingsField<RealtimeFieldHost>> = [
-	AUTOSYNC_FIELD,
-	{ ...REALTIME_FIELD, when: isRelayConfigured },
-	LIVE_EDITING_FIELD,
-];
-
-const KEEP_HISTORY_FIELD: SettingsField<SettingsTabHost> = {
-	kind: EFieldKind.Choice,
-	name: "Keep history for",
-	desc: "Every push stays for an hour, then one version per 10 minutes, hour, day and week; past this only how busy each day was remains. Pinned versions stay. Each device thins the same history, so the shortest choice among them applies.",
-	when: (s) => s.fileHistoryEnabled,
-	sub: true,
-	options: HISTORY_KEEP_TEXT,
-	get: (s) => s.fileHistoryKeep,
-	set: (v) => ({ fileHistoryKeep: v as HistoryKeep }),
-	after: (plugin) => plugin.refreshSourceControlView(true),
-	// The ladder below it follows the choice.
-	rerender: true,
-};
-
 const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 	AUTOSYNC_FIELD,
 	{
-		kind: EFieldKind.Number,
-		name: "Interval (minutes)",
-		desc: `How often to sync. 0 means only once after startup. Max ${AUTO_SYNC_MAX_MINUTES}.`,
+		kind: EFieldKind.Choice,
+		name: "Interval",
+		desc: "How often to sync after the sync at startup.",
 		when: (s) => s.autoSyncEnabled,
 		sub: true,
+		options: (s) => intervalChoices(s.autoSyncIntervalMinutes),
 		get: (s) => String(s.autoSyncIntervalMinutes),
-		parse: (raw) =>
-			clampInt(raw, AUTO_SYNC_MIN_MINUTES, AUTO_SYNC_MAX_MINUTES, 0),
-		set: (v) => ({ autoSyncIntervalMinutes: v }),
+		set: (v) => ({ autoSyncIntervalMinutes: Number(v) }),
 	},
 	{
 		kind: EFieldKind.Toggle,
@@ -206,114 +129,24 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 			),
 		set: (v) => ({ bulkDeleteLimit: v }),
 	},
-	{
-		kind: EFieldKind.Toggle,
-		name: "History",
-		desc: "Keep past versions of files so you can view or restore them. Each push stores what it changed as a small encrypted record; old versions thin out automatically.",
-		get: (s) => s.fileHistoryEnabled,
-		set: (v) => ({ fileHistoryEnabled: v }),
-		rerender: true,
-	},
-	KEEP_HISTORY_FIELD,
-	{
-		kind: EFieldKind.Toggle,
-		name: "Show activity in Timeline",
-		desc: "A calendar of pushes per day above the Timeline; select a day to jump to it.",
-		when: (s) => s.fileHistoryEnabled,
-		sub: true,
-		get: (s) => s.fileHistoryActivity,
-		set: (v) => ({ fileHistoryActivity: v }),
-		after: (plugin) => plugin.refreshSourceControlView(),
-	},
-	{
-		kind: EFieldKind.Toggle,
-		name: "Auto-refresh history after push",
-		desc: "Reload the open file-history view automatically when a push completes. Disable to refresh only via the ⟳ button.",
-		when: (s) => s.fileHistoryEnabled,
-		sub: true,
-		get: (s) => s.historyAutoRefresh,
-		set: (v) => ({ historyAutoRefresh: v }),
-	},
-	REALTIME_FIELD,
-	LIVE_EDITING_FIELD,
-	LIVE_SPEED_FIELD,
-	{
-		kind: EFieldKind.Toggle,
-		name: "Show my open note to others",
-		desc: "Off, others see only that you are online. Live editing still shows you in a note you both have open.",
-		when: (s) => s.realtimeSync,
-		sub: true,
-		get: (s) => s.showOpenNote,
-		set: (v) => ({ showOpenNote: v }),
-	},
 ];
 
 export function automationSection(
 	ctx: FieldContext<SettingsTabHost>,
-	loadHistory: () => Promise<SnapshotListResult>,
 ): SettingDefinitionGroup {
-	const rows = AUTOMATION_FIELDS.map((field) => fieldRow(ctx, field));
-	const keep = AUTOMATION_FIELDS.indexOf(KEEP_HISTORY_FIELD) + 1;
-	return group("Automation", [
-		...rows.slice(0, keep),
-		historyHoldsRow(ctx.plugin, loadHistory),
-		...rows.slice(keep),
-		{
-			name: "Connected devices",
-			visible: () => ctx.plugin.settings.realtimeSync,
-			render: (setting) => renderConnectedDevices(setting, ctx.plugin),
-		},
-	]);
+	return group(
+		"Automatic sync",
+		AUTOMATION_FIELDS.map((field) => fieldRow(ctx, field)),
+	);
 }
 
-function historyHoldsRow(
-	plugin: SettingsTabHost,
-	loadHistory: () => Promise<SnapshotListResult>,
-): SettingsRow {
+/** A value from an older version or a setup link stays choosable as it is. */
+function intervalChoices(current: number): Record<number, string> {
+	if (current in INTERVAL_CHOICES) return { ...INTERVAL_CHOICES };
 	return {
-		name: "What history holds",
-		desc: "Pushes per day across your devices. Faded days keep counts only. Select a day to open it in Timeline.",
-		visible: () => plugin.settings.fileHistoryEnabled,
-		render: (setting) => {
-			setting.settingEl.addClass(SUB_SETTING_CLASS);
-			renderHistoryHolds(setting, {
-				load: loadHistory,
-				horizon: HISTORY_KEEP_MS[plugin.settings.fileHistoryKeep],
-				onPick: (day) => {
-					closePluginSettings(plugin.app);
-					void plugin.openTimeline(day.start);
-				},
-			});
-		},
+		...INTERVAL_CHOICES,
+		[current]: `Every ${pluralize(current, "minute")}`,
 	};
-}
-
-function renderConnectedDevices(
-	devicesSetting: Setting,
-	plugin: SettingsTabHost,
-): () => void {
-	devicesSetting.settingEl.addClass(SUB_SETTING_CLASS);
-	const { hub, people } = plugin.realtime;
-	const render = (): void => {
-		devicesSetting.setDesc(
-			describeConnectedDevices(
-				plugin.realtime.hub.statusOf(VAULT_SPACE.id),
-				people.devices(),
-			),
-		);
-	};
-	render();
-
-	const unsubscribeStatus = hub.listen({ onConnectionChange: render });
-	const unsubscribeDevices = people.subscribe(render);
-	return () => {
-		unsubscribeStatus();
-		unsubscribeDevices();
-	};
-}
-
-function restartRelay(plugin: RealtimeFieldHost): void {
-	plugin.realtime.hub.restart();
 }
 
 function clampInt(
@@ -327,16 +160,4 @@ function clampInt(
 		min,
 		Math.min(max, Number.isFinite(parsed) ? parsed : fallback),
 	);
-}
-
-function describeConnectedDevices(
-	status: RelayStatus,
-	{ locked, devices }: ReturnType<People["devices"]>,
-): string {
-	if (status !== "connected") return RELAY_TEXT[status];
-	if (locked) return "Sync once to unlock the device list.";
-	if (devices.length === 0) {
-		return "No other devices connected.";
-	}
-	return devices.map((device) => device.name).join(", ");
 }

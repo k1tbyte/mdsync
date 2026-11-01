@@ -27,7 +27,7 @@
 	background: color-mix(
 		in srgb,
 		var(--text-success) 16%,
-		var(--background-primary)
+		var(--modal-background, var(--background-primary))
 	);
 	box-shadow: 0 6px 18px
 		color-mix(in srgb, var(--text-success) 25%, transparent);
@@ -62,10 +62,10 @@
 	box-sizing: border-box;
 	width: 100%;
 	height: auto;
-	padding: var(--size-4-3) var(--size-4-4);
+	padding: var(--size-4-3) var(--size-4-4) var(--size-4-3) var(--size-4-3);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-m);
-	background: var(--background-primary);
+	background: var(--modal-background, var(--background-primary));
 	box-shadow: none;
 	text-align: left;
 	cursor: pointer;
@@ -80,7 +80,7 @@
 	background: color-mix(
 		in srgb,
 		var(--interactive-accent) 6%,
-		var(--background-primary)
+		var(--modal-background, var(--background-primary))
 	);
 	box-shadow: none;
 }
@@ -128,6 +128,8 @@
 	flex-direction: column;
 	gap: 2px;
 	min-width: 0;
+	/* A button keeps its text on one line; a long title runs off a phone's card. */
+	white-space: normal;
 }
 
 .mdsync-choice-title {
@@ -152,7 +154,6 @@
 	color: var(--text-muted);
 	font-size: var(--font-ui-small);
 	line-height: var(--line-height-tight);
-	white-space: normal;
 }
 
 .mdsync-choice-arrow {
@@ -176,10 +177,16 @@
 	}
 }
 
-.is-phone .mdsync-hero {
-	align-items: flex-start;
+/* A sheet is narrow: the tile would only squeeze the text into more lines. */
+.is-phone .mdsync-hero-icon {
+	display: none;
 }
 
 .is-phone .mdsync-choice {
 	min-height: var(--mdsync-touch);
+}
+
+/* Obsidian's mobile button padding outranks the card's: the tile would sit 20px from the edge and 4px from the top. */
+.is-mobile .mdsync-choices .mdsync-choice {
+	padding: var(--size-4-3) var(--size-4-4) var(--size-4-3) var(--size-4-3);
 }

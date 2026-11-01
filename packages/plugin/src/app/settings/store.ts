@@ -4,6 +4,12 @@ import type { MdsyncSettings } from "@/core/settings";
 import { SettingsEnvelope } from "./envelope";
 import { mergeSettings } from "./index";
 
+/**
+ * Where a new install starts beyond the defaults. Not the defaults themselves: a setup link leaves
+ * default values out, so a changed default would flip the setting for links made before.
+ */
+const FRESH_INSTALL: Partial<MdsyncSettings> = { fileHistoryEnabled: true };
+
 /** `data.json` through the envelope, one write at a time. */
 export class SettingsStore {
 	private readonly envelope: SettingsEnvelope;
@@ -34,7 +40,9 @@ export class SettingsStore {
 		> | null;
 		this.fresh = data === null;
 		const { stored, inTheClear } = await this.envelope.open(data);
-		const settings = mergeSettings(stored);
+		const settings = mergeSettings(
+			this.fresh ? { ...stored, ...FRESH_INSTALL } : stored,
+		);
 		// Sealed now, not at the next change: the secrets of an earlier build must not linger in the clear.
 		if (inTheClear) await this.write(settings);
 		return settings;

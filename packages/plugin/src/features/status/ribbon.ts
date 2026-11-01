@@ -4,9 +4,11 @@ import { SOURCE_CONTROL_VIEW_TYPE } from "@/core/constants";
 import type { HubConnection } from "@/features/relay";
 import { openSourceControlView } from "@/features/source-control";
 import type { SyncController, SyncStatusSnapshot } from "@/features/sync";
+import type { StatusHost } from "./host";
+import { syncHeadline } from "./status-menu";
 
 export function registerRibbon(
-	plugin: Plugin,
+	plugin: Plugin & StatusHost,
 	controller: SyncController,
 	hub: Pick<HubConnection, "isConnected" | "listen">,
 ): void {
@@ -27,7 +29,8 @@ export function registerRibbon(
 		const hasConflict = snapshot.conflicts > 0;
 		icon.toggleClass("is-pending", pending > 0 || hasConflict);
 		icon.toggleClass("is-conflict", hasConflict);
-		icon.setAttr("aria-label", buildLabel(snapshot));
+		// The status bar's words, so the two never disagree.
+		icon.setAttr("aria-label", `MDSync: ${syncHeadline(plugin, snapshot)}`);
 	};
 
 	// A CSS class, not an element: `setIcon` removes the first child and appends a new one, so an element of ours
@@ -44,12 +47,4 @@ export function registerRibbon(
 	plugin.register(() => {
 		unlisten();
 	});
-}
-
-function buildLabel(snapshot: SyncStatusSnapshot): string {
-	if (snapshot.conflicts > 0)
-		return `MDSync — ${snapshot.conflicts} conflict(s)`;
-	const pending = snapshot.pendingLocal + snapshot.pendingRemote;
-	if (pending === 0) return "MDSync — no changes";
-	return `MDSync — ${snapshot.pendingLocal} to push, ${snapshot.pendingRemote} to pull`;
 }

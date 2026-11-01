@@ -53,7 +53,7 @@ MDSync syncs your vault through an S3 bucket, a WebDAV server or Google Drive. T
 ## Quick start
 
 1. Install [MDSync](https://community.obsidian.md/plugins/mdsync) from **Settings → Community plugins** and enable it. The setup wizard opens on its own; later, run **MDSync: Set up sync**.
-2. On the first device, choose **Start syncing this vault**: pick a storage, choose a passphrase (12 characters or more) and, if you want real time, deploy the relay. **Sync now** on the last step does the first upload.
+2. On the first device, choose **Start syncing this vault**: pick a storage, choose a passphrase (12 characters or more), choose when to sync and what of Obsidian syncs and, if you want real time, deploy the relay. The last step shows what the first sync would move; **Sync N files** runs it.
 3. On every other device, choose **Connect to a vault set up on another device** and paste a [setup link](#device-transfer) from the first one.
 
 Give each vault its own bucket prefix. MDSync refuses a prefix that already holds another vault.
@@ -102,9 +102,9 @@ The panel has four tabs: **Changes**, **History**, **Timeline** and **Deleted**.
 
 ### Automatic sync
 
-In **Settings → MDSync → Sync** you can turn on:
+Under **Automatic sync** in **Settings → MDSync → Sync** you can turn on:
 
-- **Autosync**: compare, pull and push every few minutes.
+- **Autosync**: compare, pull and push after startup and then at the **Interval** you choose.
 - **Push after changes settle**: push once the vault has been quiet for a set delay. It never pulls, so conflicts and incoming changes wait for you.
 - **Slow files**: drawings and canvases save every few seconds while you work. A push after changes leaves them until you pause, leave the file or 10 minutes pass, so your notes still go out on time. A push by hand sends them at once.
 - **Push after successful pull**.
@@ -158,7 +158,7 @@ Under **Obsidian configuration scope** you choose what else to sync: core settin
 
 ## History
 
-Every push records what it changed. History keeps every push for an hour, then fewer as they age: one per 10 minutes, hour, day and then week. **Keep history for** (3 months by default) sets how long versions stay; past it only how busy each day was remains. Pinned versions are kept until you unpin them. Every device thins the same history, so the shortest choice among your devices applies.
+Every push records what it changed (history is on for a new install; turn it off with **Keep history** in **Settings → MDSync → History**). History keeps every push for an hour, then fewer as they age: one per 10 minutes, hour, day and then week. **Keep history for** (3 months by default) sets how long versions stay; past it only how busy each day was remains. Pinned versions are kept until you unpin them. Every device thins the same history, so the shortest choice among your devices applies.
 
 ### File history
 

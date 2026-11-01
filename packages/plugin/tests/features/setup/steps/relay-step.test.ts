@@ -120,6 +120,8 @@ function setup() {
 		plugin,
 		isShowing: (v: StepView) => open && v === view,
 		isLive: () => open,
+		currentPath: () => null,
+		moveOn: () => {},
 		redraw: () => {
 			el.replaceChildren();
 			buttons.length = 0;

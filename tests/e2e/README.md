@@ -17,7 +17,7 @@ Scenarios run real processes (Obsidian, `wrangler dev`, headless Chrome, in-memo
 |---|---|
 | `pnpm exec jiti tests/e2e/optimization-ui.ts` | a real Obsidian renders synthetic 20,000-file Timeline and Trash lists in 100-row pages; page navigation and full-list selection. Build first. Ports 8832, 9233 |
 | `pnpm e2e:settings` | passphrase and toggle scroll retention, device-only ignore rules, phone layouts at 320, 390 and 600 px. Port 9235 |
-| `pnpm e2e:setup` | fresh install opens the wizard; one device starts a vault (Other storage on in-memory S3, passphrase, relay skipped, Sync now), a second joins by its setup link. Ports 9241, 9242, 8841 |
+| `pnpm e2e:setup` | fresh install opens the wizard; one device starts a vault (Other storage on in-memory S3, passphrase, Features, relay skipped, first sync preview, done guide), a second joins by its setup link. Ports 9241, 9242, 8841 |
 | `pnpm e2e:links` | share links under `wrangler dev` and headless Chrome: the Link Durable Object (chunks, erase, expiry, a restart), the routes, the viewer page (passphrase, one view, reload costs none, a hostile note runs nothing, outline on desktop and phone, folds, anchors, wide text, code copy). Port 8799 |
 | `pnpm e2e:links-obsidian` | shares a note from a real Obsidian through the file menu and opens the link in Chrome: properties, comments and embedded notes absent, math as MathML, callout, task and image kept, passphrase, view count, update, stop. Ports 8799, 9246; `E2E_SHOTS=1` saves `link-viewer.png` |
 | `pnpm e2e:hub` | the relay hub under `wrangler dev` with scripted peers; ending a share cuts its channel for good, across a restart too; the last run sets `HUB_STALE_MS` low to watch the stale-socket sweep |

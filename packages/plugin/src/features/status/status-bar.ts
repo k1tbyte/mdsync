@@ -98,7 +98,7 @@ function renderSync(
 		).addClass("is-offline");
 	}
 	if (!snapshot.result) {
-		part(el, "cloud", "Not compared");
+		part(el, "cloud", "Not compared yet");
 		return;
 	}
 	if (conflicts > 0) {

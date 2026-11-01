@@ -77,8 +77,9 @@ export class HistoryTab {
 		if (!this.plugin.settings.fileHistoryEnabled) {
 			renderHistoryOff(
 				pane,
-				this.plugin.app,
-				"History is off. Turn on History in MDSync settings.",
+				this.plugin,
+				"Keep past versions of your files to view or restore any of them. Each push saves what it changed, encrypted.",
+				this.onRerender,
 			);
 			return;
 		}

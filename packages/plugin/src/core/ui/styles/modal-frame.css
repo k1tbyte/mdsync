@@ -253,6 +253,13 @@ body.is-phone .mdsync-drawer :is(.modal-close-button, .modal-header-button) {
 	display: none;
 }
 
+/* Obsidian keeps a phone title clear of header buttons a sheet does not show. */
+body.is-phone .modal.mdsync-drawer .mdsync-modal-head {
+	flex: 1 1 auto;
+	max-width: none;
+	padding-inline-end: 0;
+}
+
 body.is-phone .modal.mdsync-modal {
 	.mdsync-modal-footer {
 		margin-bottom: 0;

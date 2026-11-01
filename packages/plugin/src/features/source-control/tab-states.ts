@@ -1,5 +1,5 @@
-import { type App, ButtonComponent, setIcon } from "obsidian";
-import { openPluginSettings } from "@/core/hub";
+import { ButtonComponent, setIcon } from "obsidian";
+import type { SettingsHost } from "@/core/settings";
 import { OFFLINE_MESSAGE } from "@/core/shared";
 import { callout } from "@/core/ui";
 
@@ -62,17 +62,26 @@ export function renderLoading(parent: HTMLElement): void {
 	for (let i = 0; i < 5; i++) el.createDiv({ cls: "mdsync-skeleton-row" });
 }
 
+/** Records from the next push on: nothing from before comes back. */
 export function renderHistoryOff(
 	parent: HTMLElement,
-	app: App,
+	plugin: SettingsHost,
 	text: string,
+	onEnabled: () => void,
 ): void {
 	renderEmptyState(parent, {
 		icon: "timer-off",
 		tone: "muted",
 		title: "History is off",
 		text,
-		action: { text: "Open settings", run: () => openPluginSettings(app) },
+		action: {
+			text: "Turn on history",
+			cta: true,
+			run: () => {
+				Object.assign(plugin.settings, { fileHistoryEnabled: true });
+				void plugin.saveSettings().then(onEnabled);
+			},
+		},
 	});
 }
 

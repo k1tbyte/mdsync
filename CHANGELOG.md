@@ -13,9 +13,9 @@ The newest section must match `version` in `manifest.json`. Headings are `## [x.
 
 ### Features
 
-- **New file history.** Every push is kept for an hour, then one version per 10 minutes, hour, day and week. Past that, only how busy each day was remains. Pinned versions stay. **Keep history for** in **Settings → MDSync → Sync** replaces **Versions to keep**; with several devices, the shortest choice among them applies.
+- **New file history.** Every push is kept for an hour, then one version per 10 minutes, hour, day and week. Past that, only how busy each day was remains. Pinned versions stay. **Keep history for** in **Settings → MDSync → History** replaces **Versions to keep**; with several devices, the shortest choice among them applies.
 - **Timeline** groups pushes into sessions, with an activity calendar and a filter by path and day. **History** lists a file's versions by age, dated by their push. **Deleted** has a path filter and says until when each file is kept.
-- **What history holds** in **Settings → MDSync → Sync** shows pushes per day across your devices; select a day to open it in Timeline. An **Activity** card on the settings page shows the same at a glance.
+- **What history holds** in **Settings → MDSync → History** shows pushes per day across your devices; select a day to open it in Timeline. An **Activity** card on the settings page shows the same at a glance.
 - **Big files sync in parts.** Only the parts that changed are uploaded, and a pull downloads only the parts the copy on disk lacks.
 - **Slow files.** Drawings and canvases save every few seconds while you work on them, so an automatic push waits until you stop or leave the file, at most 10 minutes. Set the list and its quiet period under **Slow files** in **Settings → MDSync → Sync**. Pushing by hand sends them at once.
 - **Search in compare and merge.** Each pane has a search icon in its header, and Ctrl/Cmd+F opens and closes search in the pane you are in. Find works with match case, whole word and regular expressions, folded lines included, and Result also replaces. Ctrl/Cmd+Alt+G goes to a line.
@@ -23,9 +23,15 @@ The newest section must match `version` in `manifest.json`. Headings are `## [x.
 - **Choose per plugin.** Under **Plugins** in **Settings → MDSync → Sync**, **Per plugin** sets a level for single plugins on this device: **Off**, **Settings**, **Code** (also the plugin itself) or **All** (also the rest of its folder, such as caches). Plugins that only your other devices have are listed too. A plugin set on its own also syncs while **Plugins** is off, so you can sync just one private plugin. The choice is not shared between devices, but it travels with a device transfer link.
 - **Restart notice.** When a sync brings plugin code or the list of enabled plugins from another device, MDSync says "Plugins changed on another device. Restart Obsidian to load them.", because Obsidian reads them only at startup.
 - **Settings merge by key.** When two devices change different settings of Obsidian or of a plugin, autosync merges the settings file instead of leaving a conflict.
+- **Setup asks what you want.** A new step in the setup wizard chooses when to sync (**Manual**, **Automatic** or **Instant** with a relay), whether to keep history, and which parts of Obsidian sync, plugins one by one included. On a device joining by a setup link it shows what the link brought, to change for this device.
+- **First sync shows what it will do.** The last step of the wizard compares first and lists what would be uploaded, downloaded or is in conflict, before **Sync N files** moves anything. When it is done, a short guide says where the status bar, panel, file tree marks and editor margin are.
 
 ### Improvements
 
+- The setup wizard rises as a bottom sheet on a phone, with its buttons always in reach.
+- A new install keeps file history from the start. Sync stays manual until you choose otherwise.
+- **History** has its own page in **Settings → MDSync**. On the **Sync** page, **Automatic sync** and **Real time** are separate groups, and **Interval** is a list of choices.
+- **Turn on history** in the History, Timeline and Deleted tabs, where history is off, instead of a pointer to settings.
 - Autosync merges conflicts on its own only in notes (`.md`) and in settings files. Everything else, plugin code and other JSON included, waits for you: a merge by lines can break such files.
 - In a JSON file written by Obsidian or a plugin, keys that only moved show no change in merge, and a merged result that is not valid JSON is not saved.
 - Unsaved merge edits come back when you close the tab and open **Merge…** again, as long as neither version changed.

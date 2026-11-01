@@ -1,5 +1,5 @@
 import { Modal, Setting } from "obsidian";
-import { renderKeepingFocus } from "@/core/ui";
+import { asDrawer, renderKeepingFocus } from "@/core/ui";
 import type { SetupHost } from "./host";
 import {
 	ESetupPath,
@@ -15,6 +15,7 @@ import {
 	type StepperItem,
 	stepStates,
 } from "./stepper";
+import { createFeaturesStep } from "./steps/features-step";
 import { createImportStep } from "./steps/import-step";
 import { createPassphraseStep } from "./steps/passphrase-step";
 import { createReadyStep } from "./steps/ready-step";
@@ -28,8 +29,13 @@ export interface Wizard {
 	isShowing(view: StepView): boolean;
 	/** Not `isOpen`: Obsidian's Modal already has that as a boolean field. */
 	isLive(): boolean;
-	redraw(): void;
+	/** Join shows what the setup link brought; New, what this device starts with. */
+	currentPath(): ESetupPath | null;
+	/** `fromTop` when the step's content was replaced whole, not updated in place. */
+	redraw(fromTop?: boolean): void;
 	next(): void;
+	/** Leaves a step found done with nothing asked: where this device stands if the wizard opened on it, else the next. */
+	moveOn(): void;
 	choose(path: ESetupPath): void;
 	close(): void;
 }
@@ -39,6 +45,8 @@ export interface StepView {
 	/** Goes back inside the step; false when it has nothing to undo. */
 	back?(): boolean;
 	blocksNext?(): boolean;
+	/** The step's own button leads, so the footer's is not the accent one. */
+	quietFooter?(): boolean;
 }
 
 interface StepSpec {
@@ -69,6 +77,11 @@ const STEPS: Record<ESetupStep, StepSpec> = {
 		icon: "link",
 		create: createImportStep,
 	},
+	[ESetupStep.Features]: {
+		label: "Features",
+		icon: "sliders-horizontal",
+		create: createFeaturesStep,
+	},
 	[ESetupStep.Relay]: {
 		label: "Relay",
 		icon: "radio-tower",
@@ -87,16 +100,20 @@ class SetupWizardModal extends Modal implements Wizard {
 	private step: ESetupStep;
 	private view: StepView;
 	private opened = false;
+	/** The step chosen by where this device stands, until the person moves. */
+	private landing: ESetupStep | null;
 	private stepper: Stepper | null = null;
 	private bodyEl: HTMLElement | null = null;
 
 	constructor(
 		readonly plugin: SetupHost,
 		step: ESetupStep,
+		landed: boolean,
 		private readonly onClosed: () => void,
 	) {
 		super(plugin.app);
 		this.step = step;
+		this.landing = landed ? step : null;
 		this.path = pathOf(step, null);
 		this.view = STEPS[step].create(this);
 	}
@@ -105,6 +122,7 @@ class SetupWizardModal extends Modal implements Wizard {
 		this.opened = true;
 		this.titleEl.setText("Set up MDSync");
 		this.modalEl.addClass("mdsync-setup");
+		asDrawer(this);
 		this.stepper = createStepper(this.contentEl);
 		this.bodyEl = this.contentEl.createDiv();
 		this.redraw();
@@ -127,11 +145,21 @@ class SetupWizardModal extends Modal implements Wizard {
 		return this.opened;
 	}
 
-	redraw(): void {
+	currentPath(): ESetupPath | null {
+		return this.path;
+	}
+
+	redraw(fromTop = false): void {
 		if (!this.opened || !this.stepper || !this.bodyEl) return;
 		const body = this.bodyEl;
 		this.stepper.update(this.stepperItems());
 		renderKeepingFocus(body, () => this.draw(body));
+		if (fromTop) this.contentEl.scrollTop = 0;
+	}
+
+	moveOn(): void {
+		if (this.landing === this.step) this.go(firstStep(this.plugin));
+		else this.next();
 	}
 
 	next(): void {
@@ -147,11 +175,11 @@ class SetupWizardModal extends Modal implements Wizard {
 	}
 
 	go(step: ESetupStep): void {
+		this.landing = null;
 		this.path = pathOf(step, this.path);
 		this.step = step;
 		this.view = STEPS[step].create(this);
-		this.contentEl.scrollTop = 0;
-		this.redraw();
+		this.redraw(true);
 	}
 
 	private steps(): readonly ESetupStep[] {
@@ -207,13 +235,12 @@ class SetupWizardModal extends Modal implements Wizard {
 				b.setButtonText("Skip").onClick(() => this.next()),
 			);
 		}
-		footer.addButton((b) =>
-			b
-				.setButtonText(last ? "Done" : "Next")
-				.setCta()
-				.setDisabled(!done || this.view.blocksNext?.() === true)
-				.onClick(() => this.next()),
-		);
+		// Until the step is done its own button moves on; a bare disabled Next would not say why.
+		if (!done || this.view.blocksNext?.() === true) return;
+		footer.addButton((b) => {
+			b.setButtonText(last ? "Done" : "Next").onClick(() => this.next());
+			if (!this.view.quietFooter?.()) b.setCta();
+		});
 	}
 }
 
@@ -243,6 +270,11 @@ export function openSetupWizard(
 		return;
 	}
 	current?.close();
-	current = new SetupWizardModal(plugin, step ?? firstStep(plugin), onClosed);
+	current = new SetupWizardModal(
+		plugin,
+		step ?? firstStep(plugin),
+		step === undefined,
+		onClosed,
+	);
 	current.open();
 }

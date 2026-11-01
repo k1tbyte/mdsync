@@ -90,7 +90,10 @@ export {
 	vaultPathOf,
 } from "./remote/space";
 export { canPullAll, canPushAll } from "./runtime/sync-gates";
-export { configurationScopeSection } from "./scope/configuration-scope-section";
+export {
+	configurationScopeSection,
+	pluginLevelRows,
+} from "./scope/configuration-scope-section";
 export { exclusionsSection } from "./scope/exclusions-section";
 export {
 	createIgnoreMatcher,

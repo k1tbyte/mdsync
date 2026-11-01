@@ -10,7 +10,7 @@ export function renderSetupPrompt(
 	const el = renderEmptyState(parent, {
 		icon: "hard-drive",
 		title: "Connect storage to sync",
-		text: "Pick S3, WebDAV or Google Drive and set a passphrase. Files are encrypted on this device.",
+		text: "Use Cloudflare R2, S3, WebDAV or Google Drive and set a passphrase. Files are encrypted on this device.",
 		action: { text: "Set up sync", cta: true, run: () => plugin.openSetup() },
 	});
 	const join = el.createEl("a", {
