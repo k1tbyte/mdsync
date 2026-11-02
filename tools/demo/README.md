@@ -8,6 +8,8 @@ DEMO_HOLD=1 pnpm exec jiti tools/demo/readonly.ts   # stage the scene and keep O
 ```
 
 - Needs Obsidian, `ffmpeg` and, for `drawing.ts`, network access once (fetches the Excalidraw plugin).
+- `img2webp` (libwebp tools) when the `ffmpeg` build has no libwebp, as Homebrew's: it packs the frames instead.
+- The pointer is drawn from `pointer.cur`, `link.cur` and `beam.cur` in `artifacts/cursors/` (not in git), a plain arrow without them.
 - Solo demos: `changes marks merge history timeline deleted`. Pair demos (two panes, relay and S3 on localhost): `share readonly live presence follow drawing`.
 - `links.ts` films Obsidian and a headless browser one after another (relay on localhost, no S3): a link created, read, then stopped.
 - `transfer.ts` films two windows one after another (no relay): the setup QR, `scan.ts` overlay, then the import prompt.

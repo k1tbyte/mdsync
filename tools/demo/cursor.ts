@@ -1,7 +1,7 @@
-/** A drawn cursor for synthetic input, which moves no real pointer: the Windows scheme when there is one. */
+/** A drawn cursor for synthetic input, which moves no real pointer: the .cur files in artifacts/cursors when all are there, else a plain arrow. */
 
-import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import type { Page } from "playwright-core";
 
@@ -15,11 +15,13 @@ interface CursorImage {
 	rgba: number[];
 }
 
-/** Registry value per CSS cursor kind. */
-const REGISTRY_NAMES: Record<Kind, string> = {
-	default: "Arrow",
-	pointer: "Hand",
-	text: "IBeam",
+/** Not in git: the files are someone else's artwork, so a clone falls back to the arrow. */
+const CURSOR_DIR = "artifacts/cursors";
+
+const CURSOR_FILES: Record<Kind, string> = {
+	default: "pointer.cur",
+	pointer: "link.cur",
+	text: "beam.cur",
 };
 
 export async function installCursor(page: Page): Promise<void> {
@@ -87,27 +89,14 @@ export async function installCursor(page: Page): Promise<void> {
 			},
 			true,
 		);
-	}, systemScheme());
+	}, loadScheme());
 }
 
-/** The current Windows cursors, so demos point like the desktop; null when unreadable. */
-function systemScheme(): Record<Kind, CursorImage> | null {
-	if (process.platform !== "win32") return null;
+function loadScheme(): Record<Kind, CursorImage> | null {
 	const scheme: Partial<Record<Kind, CursorImage>> = {};
-	for (const [kind, name] of Object.entries(REGISTRY_NAMES) as [
-		Kind,
-		string,
-	][]) {
-		const out = spawnSync(
-			"reg",
-			["query", "HKCU\\Control Panel\\Cursors", "/v", name],
-			{ encoding: "utf8" },
-		).stdout;
-		const path = /REG_(?:EXPAND_)?SZ\s+(.+)/
-			.exec(out)?.[1]
-			?.trim()
-			.replace(/%SystemRoot%/i, process.env.SystemRoot ?? "C:\\Windows");
-		const image = path?.endsWith(".cur") && existsSync(path) && parseCur(path);
+	for (const [kind, file] of Object.entries(CURSOR_FILES) as [Kind, string][]) {
+		const path = join(CURSOR_DIR, file);
+		const image = existsSync(path) && parseCur(path);
 		if (!image) return null;
 		scheme[kind] = image;
 	}
