@@ -1,10 +1,10 @@
 /** Demo: every push of the vault, one push's changes, and the whole vault put back to an older push. */
 
-import type { Page } from "playwright-core";
+import type { Locator, Page } from "playwright-core";
 
 import { CLEAN, sync, write } from "../../tests/e2e/device";
 import { check, sleep } from "../../tests/e2e/harness";
-import { click, openTab, pickMenuItem } from "./recorder";
+import { click, glide, openTab, pickMenuItem } from "./recorder";
 import {
 	backdate,
 	create,
@@ -72,12 +72,20 @@ async function scene(page: Page): Promise<void> {
 	await cards.nth(4).waitFor();
 	await sleep(1400);
 
-	await click(page, cards.nth(2).locator(".mdsync-timeline-head"));
+	await click(page, cards.nth(2).locator(".mdsync-timeline-head").first());
 	await sleep(1200);
+	// A card past the quiet hour keeps one row per period: its files sit one open further.
+	const version = cards
+		.nth(2)
+		.locator(".mdsync-timeline-version .mdsync-timeline-head");
+	if (await version.count()) {
+		await click(page, version.first());
+		await sleep(1000);
+	}
 	await pickMenuItem(
 		page,
 		`[aria-label='Actions for ${WEBSITE}']`,
-		"Show changes in this push",
+		"Show changes",
 	);
 	await page.locator(".mdsync-compare-panel").waitFor();
 	await sleep(2200);
@@ -85,13 +93,14 @@ async function scene(page: Page): Promise<void> {
 	await click(page, cards.nth(1).locator(".mdsync-timeline-head"));
 	await sleep(1500);
 
+	await scrollTo(page, cards.nth(3));
 	await pickMenuItem(
 		page,
-		cards.nth(3).locator("[aria-label='Snapshot actions']"),
-		"Restore vault to this snapshot…",
+		cards.nth(3).locator("[aria-label='Actions']").first(),
+		"Restore vault to this version…",
 	);
 	const restore =
-		".modal .mdsync-modal-buttons button:has-text('Restore vault')";
+		".modal .mdsync-modal-footer button:has-text('Restore vault')";
 	await page.locator(restore).waitFor();
 	await sleep(2600);
 	await click(page, restore, 700);
@@ -103,4 +112,17 @@ async function scene(page: Page): Promise<void> {
 	await openTab(page, "Changes");
 	await openFolders(page);
 	await sleep(2200);
+}
+
+/** The list scrolls under the pointer, as a wheel would, until the card clears the bottom edge. */
+async function scrollTo(page: Page, card: Locator): Promise<void> {
+	await glide(page, ".mdsync-timeline-list", 500);
+	const clear = () =>
+		card.evaluate(
+			(el) => el.getBoundingClientRect().bottom < window.innerHeight - 80,
+		);
+	for (let step = 0; step < 40 && !(await clear()); step++) {
+		await page.mouse.wheel(0, 60);
+		await sleep(40);
+	}
 }
