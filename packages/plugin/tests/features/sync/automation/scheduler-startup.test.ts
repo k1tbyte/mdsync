@@ -22,6 +22,8 @@ function harness(state: {
 	autosync?: boolean;
 	/** A passphrase entered or saved on this device; asking for one is never allowed here. */
 	savedPassphrase?: boolean;
+	/** The saved passphrase was rotated on another device: opening the vault with it fails. */
+	rotated?: boolean;
 	/** A compare that already ran, as the Changes panel does when it shows. */
 	compared?: boolean;
 }): Harness {
@@ -60,7 +62,12 @@ function harness(state: {
 			},
 			vault: { on: () => ({}) },
 		},
-		passphrase: { loadSaved: async () => state.savedPassphrase ?? true },
+		passphrase: {
+			unlock: async () => {
+				if (state.rotated) throw new Error("rotated elsewhere");
+				return state.savedPassphrase ?? true;
+			},
+		},
 		register: (fn: () => void) => teardown.push(fn),
 		registerInterval: () => undefined,
 		registerDomEvent: () => undefined,
@@ -176,6 +183,17 @@ describe("startup autosync", () => {
 			initialized: true,
 			autosync: false,
 			savedPassphrase: false,
+		});
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(h.compares()).toBe(0);
+	});
+
+	it("skips the compare when the saved passphrase no longer opens the vault", async () => {
+		const h = harness({
+			layoutReady: true,
+			initialized: true,
+			autosync: false,
+			rotated: true,
 		});
 		await vi.advanceTimersByTimeAsync(60_000);
 		expect(h.compares()).toBe(0);

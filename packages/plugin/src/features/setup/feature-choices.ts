@@ -16,7 +16,40 @@ export function syncModeOf(settings: MdsyncSettings): ESyncMode {
 	if (settings.realtimeSync && isRelayConfigured(settings)) {
 		return ESyncMode.Instant;
 	}
-	return settings.autoSyncEnabled ? ESyncMode.Automatic : ESyncMode.Manual;
+	// Push after change uploads on its own, so it is not Manual.
+	return settings.autoSyncEnabled || settings.autoPushAfterChange
+		? ESyncMode.Automatic
+		: ESyncMode.Manual;
+}
+
+/** Instant without a relay is a wish over Automatic's settings; turning them Manual elsewhere drops it. */
+function standingPick(
+	picked: ESyncMode | null,
+	settings: MdsyncSettings,
+): ESyncMode | null {
+	return picked === ESyncMode.Instant &&
+		syncModeOf(settings) === ESyncMode.Manual
+		? ESyncMode.Manual
+		: picked;
+}
+
+export function shownSyncMode(
+	picked: ESyncMode | null,
+	settings: MdsyncSettings,
+): ESyncMode {
+	return standingPick(picked, settings) === ESyncMode.Instant &&
+		!isRelayConfigured(settings)
+		? ESyncMode.Instant
+		: syncModeOf(settings);
+}
+
+/** The relay step turns real-time sync on for a relay unless Manual or Automatic was picked on purpose. */
+export function enablesRealtime(
+	picked: ESyncMode | null,
+	settings: MdsyncSettings,
+): boolean {
+	const standing = standingPick(picked, settings);
+	return standing === null || standing === ESyncMode.Instant;
 }
 
 /**

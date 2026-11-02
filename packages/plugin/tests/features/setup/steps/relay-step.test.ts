@@ -13,6 +13,7 @@ import {
 	useRelay,
 } from "@/features/relay/deploy/deploy-flow";
 import { testRelay } from "@/features/relay/relay-test";
+import { ESyncMode } from "@/features/setup/feature-choices";
 import { createRelayStep } from "@/features/setup/steps/relay-step";
 import type { StepView, Wizard } from "@/features/setup/wizard";
 
@@ -120,6 +121,7 @@ function setup() {
 		plugin,
 		isShowing: (v: StepView) => open && v === view,
 		isLive: () => open,
+		syncMode: null as ESyncMode | null,
 		currentPath: () => null,
 		moveOn: () => {},
 		redraw: () => {
@@ -182,8 +184,22 @@ describe("the manual relay form", () => {
 			relayUrl: "https://relay.example",
 			relaySecret: "typed",
 		});
-		expect(useRelay).toHaveBeenCalledOnce();
+		expect(useRelay).toHaveBeenCalledExactlyOnceWith(plugin, true);
 		expect(wizard.next).toHaveBeenCalledOnce();
+	});
+
+	it("leaves real-time sync off for a relay connected after Manual was picked", async () => {
+		vi.mocked(testRelay).mockResolvedValue({ ok: true, message: "" });
+		const { plugin, el, card, wizard } = setup();
+		wizard.syncMode = ESyncMode.Manual;
+		card("I already have a relay");
+		const input = fill(el)[0];
+		if (!input) throw new Error("no input");
+
+		enter(input);
+		await flush();
+
+		expect(useRelay).toHaveBeenCalledExactlyOnceWith(plugin, false);
 	});
 
 	it("leaves the settings alone when the wizard closed while the relay was tested", async () => {
@@ -261,8 +277,28 @@ describe("deploying from the wizard", () => {
 		answer.resolve(true);
 		await flush();
 
-		expect(activateRelay).toHaveBeenCalledExactlyOnceWith(plugin);
+		expect(activateRelay).toHaveBeenCalledExactlyOnceWith(
+			plugin,
+			expect.any(Function),
+		);
 		expect(wizard.next).not.toHaveBeenCalled();
+	});
+
+	it("keeps real-time sync off for a relay deployed after Automatic was picked", async () => {
+		vi.mocked(deployOwnRelay).mockResolvedValue();
+		vi.mocked(activateRelay).mockResolvedValue(true);
+		const { plugin, wizard, card } = setup();
+		wizard.syncMode = ESyncMode.Automatic;
+		plugin.settings.autoSyncEnabled = true;
+
+		card("Deploy to my Cloudflare");
+		await flush();
+
+		const realtime = vi.mocked(activateRelay).mock.calls[0]?.[1];
+		expect(realtime?.()).toBe(false);
+		// Asked when the relay answers: the choice may change while it is awaited.
+		wizard.syncMode = ESyncMode.Instant;
+		expect(realtime?.()).toBe(true);
 	});
 
 	it("ignores a remembered failed deploy once a relay is set", async () => {

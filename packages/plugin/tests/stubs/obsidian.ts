@@ -39,7 +39,10 @@ export function loadMathJax(): Promise<void> {
 class Stub {}
 
 export class Notice extends Stub {}
-export class Modal extends Stub {}
+export class Modal extends Stub {
+	open(): void {}
+	close(): void {}
+}
 export class Plugin extends Stub {}
 export class PluginSettingTab extends Stub {
 	hide(): void {}

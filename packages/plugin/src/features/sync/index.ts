@@ -92,6 +92,7 @@ export {
 } from "./remote/space";
 export { canPullAll, canPushAll } from "./runtime/sync-gates";
 export {
+	categoryField,
 	configurationScopeSection,
 	pluginLevelRows,
 } from "./scope/configuration-scope-section";

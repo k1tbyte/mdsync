@@ -7,6 +7,7 @@ import {
 	group,
 	introRow,
 	type MdsyncSettings,
+	type SettingsField,
 	type SettingsRow,
 	type SettingsSyncCategories,
 	SUB_SETTING_CLASS,
@@ -116,21 +117,29 @@ export function pluginLevelRows(ctx: FieldContext<SyncHost>): SettingsRow[] {
 	return row ? [pluginsRow(ctx, row, false), perPluginRow(ctx)] : [];
 }
 
+/** One category's toggle: the settings tab and the setup wizard word it their own way. */
+export function categoryField(
+	key: keyof SettingsSyncCategories,
+	name: string,
+	desc: string,
+): SettingsField<SyncHost> {
+	return {
+		kind: EFieldKind.Toggle,
+		name,
+		desc,
+		get: (s) => s.settingsSync[key],
+		set: (v, plugin) => ({
+			settingsSync: { ...plugin.settings.settingsSync, [key]: v },
+		}),
+		refreshScope: true,
+	};
+}
+
 function categoryRow(
 	ctx: FieldContext<SyncHost>,
 	row: SettingsSyncRow,
 ): SettingsRow {
-	const { plugin } = ctx;
-	const field = fieldRow(ctx, {
-		kind: EFieldKind.Toggle,
-		name: row.name,
-		desc: row.desc,
-		get: (s) => s.settingsSync[row.key],
-		set: (v) => ({
-			settingsSync: { ...plugin.settings.settingsSync, [row.key]: v },
-		}),
-		refreshScope: true,
-	});
+	const field = fieldRow(ctx, categoryField(row.key, row.name, row.desc));
 	return {
 		...field,
 		render: (setting) => {

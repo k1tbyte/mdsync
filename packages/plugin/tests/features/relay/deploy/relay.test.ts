@@ -397,6 +397,39 @@ describe("activateRelay", () => {
 		expect(plugin.realtime.hub.restart).toHaveBeenCalledTimes(1);
 	});
 
+	it("asks whether to enable real-time sync when the relay answers, not before", async () => {
+		vi.useFakeTimers();
+		vi.mocked(testRelay).mockResolvedValue({
+			ok: true,
+			message: "ready",
+			version: RELAY_VERSION,
+		});
+		const plugin = host();
+		let wanted = true;
+
+		const answer = activateRelay(plugin, () => wanted);
+		wanted = false;
+
+		expect(await answer).toBe(true);
+		expect(plugin.settings.realtimeSync).toBe(false);
+		expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps real-time sync as it is without a choice, as for a relay update", async () => {
+		vi.useFakeTimers();
+		vi.mocked(testRelay).mockResolvedValue({
+			ok: true,
+			message: "ready",
+			version: RELAY_VERSION,
+		});
+		const plugin = host();
+		plugin.settings.realtimeSync = false;
+
+		expect(await activateRelay(plugin)).toBe(true);
+		expect(plugin.settings.realtimeSync).toBe(false);
+		expect(plugin.realtime.hub.restart).toHaveBeenCalledTimes(1);
+	});
+
 	it("gives up without switching anything on once the plugin is unloaded", async () => {
 		const plugin = Object.assign(host(), { unloaded: true });
 
@@ -416,6 +449,13 @@ describe("useRelay", () => {
 		await useRelay(plugin);
 		expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
 		expect(plugin.realtime.hub.restart).toHaveBeenCalledTimes(1);
+	});
+
+	it("leaves real-time sync as it is when the person chose otherwise", async () => {
+		const plugin = host();
+		await useRelay(plugin, false);
+		expect(plugin.settings.realtimeSync).toBe(false);
+		expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
 	});
 
 	it("does not restart the hub when saving fails", async () => {

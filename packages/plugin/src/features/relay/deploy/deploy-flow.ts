@@ -127,15 +127,22 @@ export async function waitForRelay(
 
 let activating: Promise<boolean> | null = null;
 
-/** One wait however many wizards ask: the relay is switched on once, when it answers. Survives a closed wizard, stops on unload. */
-export function activateRelay(plugin: RelayHost): Promise<boolean> {
+/**
+ * One wait however many wizards ask: the relay is switched on once, when it answers. Survives a closed wizard, stops on unload.
+ * `realtime` is asked when the relay answers, not before: the choice may change while it is awaited.
+ * Without it real-time sync stays as it is, as an update needs.
+ */
+export function activateRelay(
+	plugin: RelayHost,
+	realtime: () => boolean = () => false,
+): Promise<boolean> {
 	activating ??= (async () => {
 		try {
 			const answered = await waitForRelay(
 				plugin.settings,
 				() => !plugin.unloaded,
 			);
-			if (answered) await useRelay(plugin);
+			if (answered) await useRelay(plugin, realtime());
 			return answered;
 		} finally {
 			activating = null;
@@ -144,9 +151,12 @@ export function activateRelay(plugin: RelayHost): Promise<boolean> {
 	return activating;
 }
 
-/** Real-time sync is what a relay is for: on once it answers. */
-export async function useRelay(plugin: RelayHost): Promise<void> {
-	plugin.settings.realtimeSync = true;
+/** Real-time sync is what a relay is for: on once it answers, unless the person chose otherwise (`realtime` false). */
+export async function useRelay(
+	plugin: RelayHost,
+	realtime = true,
+): Promise<void> {
+	if (realtime) plugin.settings.realtimeSync = true;
 	await plugin.saveSettings();
 	plugin.realtime.hub.restart();
 }

@@ -4,6 +4,8 @@ import type { MdsyncSettings } from "@/core/settings/model";
 import {
 	AUTOMATIC_INTERVAL_MINUTES,
 	ESyncMode,
+	enablesRealtime,
+	shownSyncMode,
 	syncModeOf,
 	syncModePatch,
 } from "@/features/setup/feature-choices";
@@ -22,6 +24,23 @@ describe("sync mode", () => {
 		expect(syncModeOf(mergeSettings({}))).toBe(ESyncMode.Manual);
 	});
 
+	it("reads push after change alone as Automatic, since it uploads on its own", () => {
+		const settings = mergeSettings({
+			autoSyncEnabled: false,
+			autoPushAfterChange: true,
+		});
+		expect(syncModeOf(settings)).toBe(ESyncMode.Automatic);
+	});
+
+	it("turns real-time sync on with a relay unless Manual or Automatic was picked", () => {
+		const base = mergeSettings(RELAY);
+		const instant = apply(base, syncModePatch(base, ESyncMode.Instant));
+		expect(enablesRealtime(null, base)).toBe(true);
+		expect(enablesRealtime(ESyncMode.Instant, instant)).toBe(true);
+		expect(enablesRealtime(ESyncMode.Automatic, base)).toBe(false);
+		expect(enablesRealtime(ESyncMode.Manual, base)).toBe(false);
+	});
+
 	it("round-trips every mode with a relay", () => {
 		const base = mergeSettings(RELAY);
 		for (const mode of Object.values(ESyncMode)) {
@@ -34,6 +53,18 @@ describe("sync mode", () => {
 		const patch = syncModePatch(base, ESyncMode.Instant);
 		expect(patch.realtimeSync).toBe(false);
 		expect(syncModeOf(apply(base, patch))).toBe(ESyncMode.Automatic);
+	});
+
+	it("drops a picked Instant without a relay once the settings turn Manual, shown and on activation alike", () => {
+		const base = mergeSettings({});
+		const instant = apply(base, syncModePatch(base, ESyncMode.Instant));
+		expect(shownSyncMode(ESyncMode.Instant, instant)).toBe(ESyncMode.Instant);
+		expect(shownSyncMode(null, instant)).toBe(ESyncMode.Automatic);
+		expect(shownSyncMode(ESyncMode.Instant, apply(instant, RELAY))).toBe(
+			ESyncMode.Automatic,
+		);
+		expect(shownSyncMode(ESyncMode.Instant, base)).toBe(ESyncMode.Manual);
+		expect(enablesRealtime(ESyncMode.Instant, apply(base, RELAY))).toBe(false);
 	});
 
 	it("gives Automatic a schedule when the interval was left at startup only, and keeps one already set", () => {

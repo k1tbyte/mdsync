@@ -30,7 +30,7 @@ export interface SchedulerHost extends Plugin {
 	settings: MdsyncSettings;
 	/** The records' partition: known from launch, before any refresh partitions. */
 	spaces: { partition(): readonly Space[] };
-	passphrase: Pick<PassphraseManager, "loadSaved">;
+	passphrase: Pick<PassphraseManager, "unlock">;
 }
 
 export function registerScheduler(
@@ -253,7 +253,8 @@ export function registerScheduler(
 
 /**
  * Manual sync still shows where things stand after a launch: one compare, which moves nothing. Never a
- * passphrase prompt on launch: without one entered or saved, the person's first sync action asks.
+ * passphrase prompt on launch: the key is opened first from the entered or saved passphrase alone, and
+ * without one that opens the vault (none, or rotated on another device) the first sync action asks.
  */
 async function compareAtStartup(
 	host: SchedulerHost,
@@ -265,8 +266,9 @@ async function compareAtStartup(
 		return;
 	}
 	if (controller.getSnapshot().result) return;
-	if (isStorageConfigured(settings) && !(await host.passphrase.loadSaved())) {
-		return;
+	if (isStorageConfigured(settings)) {
+		const unlocked = await host.passphrase.unlock().catch(() => false);
+		if (!unlocked) return;
 	}
 	await controller.refresh();
 }

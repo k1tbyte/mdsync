@@ -1,6 +1,7 @@
 import { Menu, Platform } from "obsidian";
 import {
 	attempt,
+	notifyError,
 	notifyInfo,
 	openInEditor,
 	revealInFileExplorer,
@@ -221,7 +222,7 @@ export class SourceControlActions {
 	}
 
 	async pushPaths(paths: string[]): Promise<boolean> {
-		if (paths.length === 0 || this.held(paths)) return false;
+		if (paths.length === 0 || (await this.held(paths))) return false;
 		return runWithNotice(
 			() => this.plugin.controller.pushPaths(paths),
 			`Pushed ${paths.length} file(s).`,
@@ -230,7 +231,7 @@ export class SourceControlActions {
 	}
 
 	async pullPaths(paths: string[]): Promise<boolean> {
-		if (paths.length === 0 || this.held(paths)) return false;
+		if (paths.length === 0 || (await this.held(paths))) return false;
 		return runWithNotice(
 			() => this.plugin.controller.pullPaths(paths),
 			`Pulled ${paths.length} file(s).`,
@@ -239,8 +240,17 @@ export class SourceControlActions {
 	}
 
 	/** The engine refuses these while a conflict waits: say so, not "Push failed". */
-	private held(paths: ReadonlyArray<string>): boolean {
-		const held = heldByConflicts(this.plugin.controller, paths);
+	private async held(paths: ReadonlyArray<string>): Promise<boolean> {
+		const { controller } = this.plugin;
+		if (!heldByConflicts(controller, paths)) return false;
+		// The cached conflict may have been resolved elsewhere since; a fresh compare decides.
+		try {
+			await controller.refresh();
+		} catch (err) {
+			notifyError("Could not compare", err);
+			return true;
+		}
+		const held = heldByConflicts(controller, paths);
 		if (held) notifyInfo(held);
 		return held !== null;
 	}

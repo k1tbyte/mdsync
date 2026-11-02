@@ -1,7 +1,7 @@
 import { setIcon } from "obsidian";
 import { pluralize } from "@/core/shared";
 import { alertLine, callout } from "@/core/ui";
-import type { Conflict, SyncStatusSnapshot } from "@/features/sync";
+import type { Conflict, DiffResult, SyncStatusSnapshot } from "@/features/sync";
 import { actionRow, busyLine } from "../form";
 import type { Wizard } from "../wizard";
 
@@ -63,6 +63,10 @@ export function createFirstSync(wizard: Wizard): FirstSync {
 		for (const { root, message } of snapshot.spaceErrors) {
 			alertLine(el).setText(`Error in "${root}": ${message}`);
 		}
+		// A cancelled passphrase prompt ends the compare with neither an error nor a result.
+		if (!snapshot.error && snapshot.spaceErrors.length === 0) {
+			alertLine(el).setText("The comparison did not finish.");
+		}
 		actionRow(el).addButton((b) =>
 			b.setButtonText("Try again").onClick(compare),
 		);
@@ -72,8 +76,9 @@ export function createFirstSync(wizard: Wizard): FirstSync {
 		const { pendingLocal, pendingRemote, conflicts } = snapshot;
 		const open = snapshot.result?.diff.conflicts ?? [];
 		const synced = phase === EPhase.Synced;
-		// Without a version both sides started from nothing can merge them, and a conflict holds the whole sync.
-		const held = open.length > 0 && open.every((c) => c.baselineHash === null);
+		const held =
+			snapshot.result !== null &&
+			syncHeld(snapshot.result.diff, (path) => controller.spaceFor(path).id);
 		el.createDiv({
 			cls: "mdsync-setup-note",
 			text: !synced
@@ -134,8 +139,7 @@ export function createFirstSync(wizard: Wizard): FirstSync {
 			if (phase !== EPhase.Compared && phase !== EPhase.Synced) return false;
 			const snapshot = controller.getSnapshot();
 			return (
-				!snapshot.error &&
-				snapshot.spaceErrors.length === 0 &&
+				!failed(snapshot) &&
 				snapshot.pendingLocal + snapshot.pendingRemote + snapshot.conflicts ===
 					0
 			);
@@ -154,13 +158,43 @@ export function createFirstSync(wizard: Wizard): FirstSync {
 				busyLine(el, snapshot.progressText ?? "Syncing…");
 				return;
 			}
-			if (snapshot.error || snapshot.spaceErrors.length > 0) {
+			if (failed(snapshot)) {
 				renderFailed(el, snapshot);
 				return;
 			}
 			renderPreview(el, snapshot);
 		},
 	};
+}
+
+/**
+ * Nothing a sync would move: a conflict holds its own space only (`sync/runtime/auto-cycle.ts`), and one
+ * without a common version never merges, so every pending file sits in a space held that way.
+ */
+export function syncHeld(
+	diff: DiffResult,
+	spaceOf: (path: string) => string,
+): boolean {
+	const held = new Set<string>();
+	for (const { path, baselineHash } of diff.conflicts) {
+		if (baselineHash !== null) return false;
+		held.add(spaceOf(path));
+	}
+	return (
+		held.size > 0 &&
+		[...diff.localChanges, ...diff.remoteChanges].every(({ path }) =>
+			held.has(spaceOf(path)),
+		)
+	);
+}
+
+/** No result without an error means the compare never ran, as when the passphrase prompt was cancelled. */
+function failed(snapshot: SyncStatusSnapshot): boolean {
+	return (
+		Boolean(snapshot.error) ||
+		snapshot.spaceErrors.length > 0 ||
+		snapshot.result === null
+	);
 }
 
 function count(

@@ -21,6 +21,7 @@ import {
 	inSharedNotes,
 	type RelayGroup,
 	relayGroups,
+	sharesConnected,
 	spaceName,
 } from "./live-spaces";
 
@@ -31,8 +32,7 @@ export function addRelaySections(menu: Menu, plugin: StatusHost): void {
 	addRelayFixes(menu, plugin, spaces);
 	menu.addSeparator();
 	const here = inSharedNotes(plugin);
-	// Only a connected shared folder shows who is in it; without one, "nobody" would be a guess.
-	if (here.length === 0 && spaces.some(({ id }) => id !== VAULT_SPACE.id)) {
+	if (here.length === 0 && sharesConnected(spaces)) {
 		menu.addItem((item) =>
 			item.setTitle(infoTitle("Nobody is in a shared note")).setIsLabel(true),
 		);

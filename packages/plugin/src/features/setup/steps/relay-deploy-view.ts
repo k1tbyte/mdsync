@@ -23,6 +23,7 @@ import {
 	cloudflareOf,
 	forgetCloudflare,
 } from "@/features/storage";
+import { enablesRealtime } from "../feature-choices";
 import { actionRow, busyLine } from "../form";
 import type { Wizard } from "../wizard";
 import { renderTokenForm, tokenForm } from "./cloudflare-token";
@@ -148,7 +149,8 @@ export function relayDeployView(
 	const wait = async (): Promise<void> => {
 		phase = "waiting";
 		wizard.redraw();
-		if (!(await activateRelay(plugin))) {
+		const realtime = () => enablesRealtime(wizard.syncMode, plugin.settings);
+		if (!(await activateRelay(plugin, realtime))) {
 			phase = "silent";
 			wizard.redraw();
 			return;

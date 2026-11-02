@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RelayStatus } from "@/core/hub";
 import type { RelaySocket } from "@/features/relay";
 import type { StatusHost } from "@/features/status/host";
-import { relayGroups } from "@/features/status/live-spaces";
+import { relayGroups, sharesConnected } from "@/features/status/live-spaces";
 
 const HOME = "https://relay.home.example";
 const OTHER = "https://relay.friend.example";
@@ -92,5 +92,27 @@ describe("relayGroups", () => {
 				full: [],
 			},
 		]);
+	});
+});
+
+describe("sharesConnected", () => {
+	it("is true only for a connected shared folder", () => {
+		expect(sharesConnected([{ id: "a", status: "connected" }])).toBe(true);
+	});
+
+	it.each(["offline", "connecting", "unauthorized"] as const)(
+		"is false while the only shared folder is %s",
+		(status) => {
+			expect(
+				sharesConnected([
+					{ id: "vault", status: "connected" },
+					{ id: "a", status },
+				]),
+			).toBe(false);
+		},
+	);
+
+	it("is false for the vault alone", () => {
+		expect(sharesConnected([{ id: "vault", status: "connected" }])).toBe(false);
 	});
 });

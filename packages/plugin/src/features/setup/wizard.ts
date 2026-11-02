@@ -1,5 +1,6 @@
 import { Modal, Setting } from "obsidian";
 import { asDrawer, renderKeepingFocus } from "@/core/ui";
+import type { ESyncMode } from "./feature-choices";
 import type { SetupHost } from "./host";
 import {
 	ESetupPath,
@@ -29,6 +30,8 @@ export interface Wizard {
 	isShowing(view: StepView): boolean;
 	/** Not `isOpen`: Obsidian's Modal already has that as a boolean field. */
 	isLive(): boolean;
+	/** The preset picked on the Features step, null until then; one for every wizard of the launch. The Relay step reads it. */
+	syncMode: ESyncMode | null;
 	/** Join shows what the setup link brought; New, what this device starts with. */
 	currentPath(): ESetupPath | null;
 	/** `fromTop` when the step's content was replaced whole, not updated in place. */
@@ -95,7 +98,16 @@ const STEPS: Record<ESetupStep, StepSpec> = {
 	},
 };
 
+/** Shared by every wizard of a launch: a relay deploy outlives its wizard and asks the latest pick when it answers. */
+let pickedSyncMode: ESyncMode | null = null;
+
 class SetupWizardModal extends Modal implements Wizard {
+	get syncMode(): ESyncMode | null {
+		return pickedSyncMode;
+	}
+	set syncMode(mode: ESyncMode | null) {
+		pickedSyncMode = mode;
+	}
 	private path: ESetupPath | null;
 	private step: ESetupStep;
 	private view: StepView;

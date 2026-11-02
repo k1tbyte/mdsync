@@ -9,6 +9,7 @@ import {
 	useRelay,
 } from "@/features/relay";
 import { choiceCard } from "../choice-card";
+import { enablesRealtime } from "../feature-choices";
 import { actionRow, busyLine } from "../form";
 import { runAction } from "../run-action";
 import type { StepView, Wizard } from "../wizard";
@@ -50,7 +51,7 @@ export function createRelayStep(wizard: Wizard): StepView {
 			// A wizard closed meanwhile may be reopened with another relay typed in.
 			if (mode !== "manual" || !wizard.isShowing(view)) return;
 			Object.assign(plugin.settings, relay);
-			await useRelay(plugin);
+			await useRelay(plugin, enablesRealtime(wizard.syncMode, plugin.settings));
 		});
 		if (connected && mode === "manual") moveOn();
 	};

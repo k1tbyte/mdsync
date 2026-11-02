@@ -1,4 +1,4 @@
-import { isLinkState, type LinkState } from "@/core/hub";
+import { isConnected, isLinkState, type LinkState } from "@/core/hub";
 import { isRelayConfigured } from "@/core/settings";
 import { relayBase } from "@/core/shared";
 import { isAtNote, type Person } from "@/features/presence";
@@ -42,6 +42,13 @@ export function relayGroups(plugin: StatusHost): RelayGroup[] {
 			const name = url === own ? "Your relay" : hostOf(url);
 			return [{ name, state, spaces: riding, full: left }];
 		});
+}
+
+/** Only a connected shared folder shows who is in it; without one, "nobody" would be a guess. */
+export function sharesConnected(spaces: readonly CarriedSpace[]): boolean {
+	return spaces.some(
+		({ id, status }) => id !== VAULT_SPACE.id && isConnected(status),
+	);
 }
 
 export function inSharedNotes(plugin: StatusHost): Person[] {

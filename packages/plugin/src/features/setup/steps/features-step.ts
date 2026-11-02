@@ -11,8 +11,8 @@ import {
 import { pluralize } from "@/core/shared";
 import { callout, renderSegments } from "@/core/ui";
 import { SETUP_FIELDS } from "@/features/settings";
-import { pluginLevelRows } from "@/features/sync";
-import { ESyncMode, syncModeOf, syncModePatch } from "../feature-choices";
+import { categoryField, pluginLevelRows } from "@/features/sync";
+import { ESyncMode, shownSyncMode, syncModePatch } from "../feature-choices";
 import type { SetupHost } from "../host";
 import { ESetupPath } from "../step-state";
 import type { StepView, Wizard } from "../wizard";
@@ -48,26 +48,12 @@ const HISTORY_FIELDS: ReadonlyArray<SettingsField<SetupHost>> = [
 ];
 
 const CONFIG_FIELDS: ReadonlyArray<SettingsField<SetupHost>> = [
-	{
-		kind: EFieldKind.Toggle,
-		name: "Core settings",
-		desc: "App, appearance, core plugins, bookmarks and templates.",
-		get: (s) => s.settingsSync.coreSettings,
-		set: (v, plugin) => ({
-			settingsSync: { ...plugin.settings.settingsSync, coreSettings: v },
-		}),
-		refreshScope: true,
-	},
-	{
-		kind: EFieldKind.Toggle,
-		name: "Hotkeys",
-		desc: "Your keyboard shortcuts.",
-		get: (s) => s.settingsSync.hotkeys,
-		set: (v, plugin) => ({
-			settingsSync: { ...plugin.settings.settingsSync, hotkeys: v },
-		}),
-		refreshScope: true,
-	},
+	categoryField(
+		"coreSettings",
+		"Core settings",
+		"App, appearance, core plugins, bookmarks and templates.",
+	),
+	categoryField("hotkeys", "Hotkeys", "Your keyboard shortcuts."),
 	{
 		kind: EFieldKind.Toggle,
 		name: "Themes and snippets",
@@ -82,36 +68,23 @@ const CONFIG_FIELDS: ReadonlyArray<SettingsField<SetupHost>> = [
 		}),
 		refreshScope: true,
 	},
-	{
-		kind: EFieldKind.Toggle,
-		name: "Enabled plugins",
-		desc: "Which community plugins are switched on. Without it a plugin whose code syncs arrives switched off.",
-		get: (s) => s.settingsSync.pluginList,
-		set: (v, plugin) => ({
-			settingsSync: { ...plugin.settings.settingsSync, pluginList: v },
-		}),
-		refreshScope: true,
-	},
+	categoryField(
+		"pluginList",
+		"Enabled plugins",
+		"Which community plugins are switched on. Without it a plugin whose code syncs arrives switched off.",
+	),
 ];
 
 export function createFeaturesStep(wizard: Wizard): StepView {
 	const { plugin } = wizard;
-	// Instant without a relay is a wish until the relay step: real-time sync turns on once one answers.
-	let wantsInstant = false;
 	const ctx = { plugin, rerender: () => wizard.redraw() };
 
 	const shownMode = (): ESyncMode =>
-		wantsInstant && !isRelayConfigured(plugin.settings)
-			? ESyncMode.Instant
-			: syncModeOf(plugin.settings);
+		shownSyncMode(wizard.syncMode, plugin.settings);
 
 	const save = async (patch: Partial<MdsyncSettings>): Promise<void> => {
-		const realtime = plugin.settings.realtimeSync;
 		Object.assign(plugin.settings, patch);
 		await plugin.saveSettings();
-		if (plugin.settings.realtimeSync !== realtime) {
-			plugin.realtime.hub.restart();
-		}
 		wizard.redraw();
 	};
 
@@ -123,7 +96,7 @@ export function createFeaturesStep(wizard: Wizard): StepView {
 		heading(el, "When to sync");
 		const box = el.createDiv({ cls: "mdsync-setup-choice" });
 		renderSegments(box, "mdsync-sync-mode", MODES, shownMode, (mode) => {
-			wantsInstant = mode === ESyncMode.Instant;
+			wizard.syncMode = mode;
 			return save(syncModePatch(plugin.settings, mode));
 		});
 		box.createDiv({
