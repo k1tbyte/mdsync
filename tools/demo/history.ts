@@ -25,6 +25,8 @@ const VERSIONS = [
 const TYPING = { delay: 80 };
 
 await runDemo("history", {
+	// The vault starts before its first draft: storage times never run back along the history.
+	startedAgo: 4 * DAY,
 	prepare: async ({ laptop, phone }) => {
 		const [first, second, third, fourth] = VERSIONS;
 		await backdate(laptop, 3 * DAY);
@@ -47,25 +49,25 @@ await runDemo("history", {
 });
 
 async function scene(page: Page): Promise<void> {
-	const cards = page.locator(".mdsync-history-list .mdsync-timeline-card");
+	const cards = page.locator(".mdsync-history-list .mdsync-history-row");
 	await sleep(600);
 	await openTab(page, "History");
 	await cards.nth(3).waitFor();
 	await sleep(1200);
 
-	await click(page, cards.nth(2).locator(".mdsync-timeline-head"));
+	await click(page, cards.nth(2));
 	await page.locator(".mdsync-compare-panel").waitFor();
 	await sleep(2000);
 	await versionAction(page, cards.nth(1), "Compare with previous");
 	await sleep(2000);
 
 	// A pin moves up under its own heading, so it is the first card from here on.
-	await versionAction(page, cards.nth(3), "Pin this snapshot");
-	await cards.nth(0).locator(".mdsync-history-pinned-badge").waitFor();
+	await versionAction(page, cards.nth(3), "Pin this version");
+	await cards.nth(0).locator(".mdsync-history-pin").waitFor();
 	await sleep(1400);
 	await versionAction(page, cards.nth(0), "Rename pin…");
 	await page.locator(".modal input").waitFor();
-	await page.keyboard.press("Control+A");
+	await page.keyboard.press("ControlOrMeta+A");
 	await page.keyboard.type("First draft", TYPING);
 	await sleep(400);
 	await click(page, ".modal button:has-text('Save')", 600);
@@ -73,7 +75,8 @@ async function scene(page: Page): Promise<void> {
 	await sleep(1200);
 
 	await versionAction(page, cards.nth(0), "Restore this version");
-	const restore = ".modal .mdsync-modal-buttons button:has-text('Restore')";
+	const restore =
+		".modal .mdsync-modal-footer button:has-text('Restore'):not([disabled])";
 	await page.locator(restore).waitFor();
 	await sleep(1800);
 	await click(page, restore, 700);
