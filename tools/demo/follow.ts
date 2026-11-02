@@ -6,7 +6,7 @@ import { open } from "../../tests/e2e/editor";
 import { sleep } from "../../tests/e2e/harness";
 import type { Obsidian } from "../../tests/e2e/obsidian";
 import { joinShare, nameOwner, runPair } from "./pair";
-import { pickMenuItem } from "./recorder";
+import { click, pickMenuItem } from "./recorder";
 import { quickOpen } from "./stage";
 
 // biome-ignore lint/suspicious/noExplicitAny: the renderer's app is untyped here.
@@ -45,13 +45,16 @@ async function scene(owner: Page, guest: Page): Promise<void> {
 	await owner.locator(".view-header-title:text-is('Notes')").waitFor();
 	await sleep(1800);
 
-	await guest.keyboard.press("Control+End");
+	await guest.keyboard.press("ControlOrMeta+End");
 	await guest.keyboard.type("Send the recap", TYPING);
 	await sleep(2800);
 
-	// Scrolling away is how a person says they are done following.
-	await owner.mouse.move(350, 300);
-	await owner.mouse.wheel(0, -900);
+	// The banner's button is how a person says they are done following.
+	await click(
+		owner,
+		".mdsync-follow-banner button:has-text('Stop following')",
+		800,
+	);
 	await sleep(2200);
 }
 

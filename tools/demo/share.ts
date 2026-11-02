@@ -34,7 +34,7 @@ async function scene(owner: Page, guest: Page): Promise<void> {
 	await owner.locator(".modal").waitFor();
 	await sleep(1800);
 
-	await click(owner, row("Name", ".modal input"), 700);
+	await click(owner, ".mdsync-invite-row input", 700);
 	await owner.keyboard.type("Bob", TYPING);
 	await sleep(400);
 	await click(owner, ".modal button:has-text('Create invite')", 600);

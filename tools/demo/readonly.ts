@@ -6,7 +6,7 @@ import { sleep } from "../../tests/e2e/harness";
 import type { Obsidian } from "../../tests/e2e/obsidian";
 import { shareFolder } from "../../tests/e2e/sharing";
 import { file, folder, nameOwner, runPair } from "./pair";
-import { click, pickMenuItem } from "./recorder";
+import { click, glide, pickMenuItem } from "./recorder";
 import { clickLineEnd } from "./stage";
 
 // biome-ignore lint/suspicious/noExplicitAny: the renderer's app is untyped here.
@@ -15,6 +15,8 @@ declare const app: any;
 const PLAN = "Team/Plan.md";
 const NOTES = "Team/Notes.md";
 const TYPING = { delay: 80 };
+const INVITE_NAME = ".modal .mdsync-invite-row input";
+const INVITE_ACCESS = ".modal .mdsync-invite-row select:not(.is-measuring)";
 
 await runPair("readonly", {
 	files: {
@@ -87,11 +89,13 @@ async function readOnlyInvite(
 	await pickMenuItem(owner, folder("Team"), "Manage sharing", "right");
 	await owner.locator(".modal").waitFor();
 	await sleep(1800);
-	await reach(owner, row("Read-only", ".checkbox-container"));
-	await click(owner, row("Read-only", ".checkbox-container"), 700);
+	await reach(owner, INVITE_ACCESS);
+	// A native option cannot be clicked, so the pointer goes to the select and the choice is made on it.
+	await glide(owner, INVITE_ACCESS, 700);
+	await owner.locator(INVITE_ACCESS).selectOption("read");
 	await sleep(500);
-	await reach(owner, row("Name", "input"));
-	await click(owner, row("Name", "input"), 600);
+	await reach(owner, INVITE_NAME);
+	await click(owner, INVITE_NAME, 600);
 	await owner.keyboard.type("Bob", TYPING);
 	await sleep(400);
 	await click(owner, ".modal button:has-text('Create invite')", 600);
@@ -145,11 +149,19 @@ async function acceptInvite(
 /** Opens the window again: Bob is listed with the access he holds and where he is. */
 async function revoke(owner: Page): Promise<void> {
 	await pickMenuItem(owner, folder("Team"), "Manage sharing", "right");
-	const bob = ".modal .setting-item:has-text('Bob')";
+	const bob = ".modal .mdsync-share-person:has-text('Bob')";
 	await owner.locator(bob).waitFor();
 	await sleep(2200);
-	await click(owner, `${bob} button:has-text('Revoke')`, 700);
-	const confirm = ".mdsync-modal-buttons button:text-is('Revoke')";
+	// Bob's row holds a lone Revoke button, or a menu with it once he is in a note.
+	const lone = `${bob} button:text-is('Revoke')`;
+	if (await owner.locator(lone).count()) await click(owner, lone, 700);
+	else
+		await pickMenuItem(
+			owner,
+			`${bob} [aria-label='More for Bob']`,
+			"Revoke access",
+		);
+	const confirm = ".mdsync-modal-footer button:text-is('Revoke')";
 	await owner.locator(confirm).waitFor();
 	await sleep(1800);
 	await click(owner, confirm, 600);
