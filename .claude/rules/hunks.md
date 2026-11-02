@@ -27,7 +27,7 @@ A view that diffs one pair of texts while the operation recomputes from another 
 
 ## Gutter marks
 
-- Editor gutter marks are the push/revert segments, never a second diff: `markedChanges` (`features/editor-signs/helpers.ts`) runs `computeHunks` and `hunkSegments`, the unit `pushHunk` and `segmentRevert` act on. Blank lines make diffs ambiguous; a mark must show exactly what Push and Revert move.
+- Editor gutter marks are the push/revert segments, never a second diff: `markedChanges` (`features/editor-signs/marks.ts`) runs `computeHunks` and `hunkSegments`, the unit `pushHunk` and `segmentRevert` act on. Blank lines make diffs ambiguous; a mark must show exactly what Push and Revert move.
 - `pushHunk` (`features/editor-signs/provider.ts`) sends the baseline hash and the sha256 of the editor's current text as `expected`, so an unsaved buffer never pushes a different hunk. A revert from the popup edits the editor through `segmentRevert` (`features/editor-signs/popup/hunk-revert.ts`), whole lines out of the baseline, terminator included.
 
 ## Size and binary

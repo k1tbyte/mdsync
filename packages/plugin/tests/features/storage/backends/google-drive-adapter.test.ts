@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createGoogleDriveAdapter } from "@/features/storage/backends/google-drive";
-import { isRefusedCredentials } from "@/features/storage/backends/util";
+import { isRefusedCredentials } from "@/features/storage/backends/http";
 import { EStorageBackend } from "@/features/storage/config";
 
 const requests: { url: string; method?: string }[] = [];

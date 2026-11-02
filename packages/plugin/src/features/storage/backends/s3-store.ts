@@ -7,9 +7,6 @@ import {
 	type StorageAdapter,
 	StorageRequestError,
 } from "../types";
-
-import type { S3RequestInput, S3Signer } from "./s3-signer";
-import { parseErrorCode, parseListObjects } from "./s3-xml";
 import {
 	assertOk,
 	headerValue,
@@ -18,7 +15,9 @@ import {
 	transferBytes,
 	withDeadline,
 	withRetry,
-} from "./util";
+} from "./http";
+import type { S3RequestInput, S3Signer } from "./s3-signer";
+import { parseErrorCode, parseListObjects } from "./s3-xml";
 
 const HTTP_NOT_FOUND = 404;
 const HTTP_NOT_MODIFIED = 304;

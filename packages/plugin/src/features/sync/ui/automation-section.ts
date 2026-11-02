@@ -8,15 +8,16 @@ import {
 	SLOW_FILE_SETTLE_MIN_SECONDS,
 } from "@/core/constants";
 import {
+	bind,
 	DEFAULT_CORE_SETTINGS,
 	EFieldKind,
 	type FieldContext,
 	fieldRow,
 	group,
 	type SettingsField,
+	type SettingsHost,
 } from "@/core/settings";
 import { pluralize } from "@/core/shared";
-import type { SettingsTabHost } from "../host";
 
 const INTERVAL_CHOICES: Readonly<Record<number, string>> = {
 	0: "Only at startup",
@@ -27,16 +28,15 @@ const INTERVAL_CHOICES: Readonly<Record<number, string>> = {
 	240: "Every 4 hours",
 };
 
-const AUTOSYNC_FIELD: SettingsField<SettingsTabHost> = {
+const AUTOSYNC_FIELD: SettingsField<SettingsHost> = {
 	kind: EFieldKind.Toggle,
 	name: "Autosync",
 	desc: "Sync automatically: once after startup and on a schedule. Pulls remote changes; conflicts that cannot be merged safely stop the cycle.",
-	get: (s) => s.autoSyncEnabled,
-	set: (v) => ({ autoSyncEnabled: v }),
+	...bind("autoSyncEnabled"),
 	rerender: true,
 };
 
-const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
+const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsHost>> = [
 	AUTOSYNC_FIELD,
 	{
 		kind: EFieldKind.Choice,
@@ -54,15 +54,13 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 		desc: "After a pull with no conflicts, also push local changes. Disable to only pull and review incoming changes.",
 		when: (s) => s.autoSyncEnabled,
 		sub: true,
-		get: (s) => s.autoPushAfterSync,
-		set: (v) => ({ autoPushAfterSync: v }),
+		...bind("autoPushAfterSync"),
 	},
 	{
 		kind: EFieldKind.Toggle,
 		name: "Push after changes settle",
 		desc: "Queue changed files and push once the vault has been quiet for the delay below. Rapid saves are combined into one compare and push. Never pulls: conflicts and incoming changes are left untouched.",
-		get: (s) => s.autoPushAfterChange,
-		set: (v) => ({ autoPushAfterChange: v }),
+		...bind("autoPushAfterChange"),
 		rerender: true,
 	},
 	{
@@ -74,8 +72,7 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 		min: AUTO_PUSH_SETTLE_MIN_SECONDS,
 		max: AUTO_PUSH_SETTLE_MAX_SECONDS,
 		step: 1,
-		get: (s) => s.autoPushSettleSeconds,
-		set: (v) => ({ autoPushSettleSeconds: v }),
+		...bind("autoPushSettleSeconds"),
 	},
 	{
 		kind: EFieldKind.Toggle,
@@ -83,16 +80,14 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 		desc: "Push only files changed during the quiet period. Disable to also push other pending local changes.",
 		when: (s) => s.autoPushAfterChange,
 		sub: true,
-		get: (s) => s.autoPushChangedFilesOnly,
-		set: (v) => ({ autoPushChangedFilesOnly: v }),
+		...bind("autoPushChangedFilesOnly"),
 	},
 	{
 		kind: EFieldKind.Text,
 		name: "Slow files",
 		desc: "Files ending with these, separated by commas, save every few seconds while you work on them. A push after changes waits until you stop or leave the file, at most 10 minutes. Excalidraw drawings count as .excalidraw.md whatever their name. Pushing by hand sends them at once.",
 		placeholder: ".excalidraw.md, .canvas",
-		get: (s) => s.slowFileSuffixes,
-		set: (v) => ({ slowFileSuffixes: v }),
+		...bind("slowFileSuffixes"),
 	},
 	{
 		kind: EFieldKind.Slider,
@@ -102,15 +97,13 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 		min: SLOW_FILE_SETTLE_MIN_SECONDS,
 		max: SLOW_FILE_SETTLE_MAX_SECONDS,
 		step: 5,
-		get: (s) => s.slowFileSettleSeconds,
-		set: (v) => ({ slowFileSettleSeconds: v }),
+		...bind("slowFileSettleSeconds"),
 	},
 	{
 		kind: EFieldKind.Toggle,
 		name: "Ask before pushing many deletions",
 		desc: "An automatic push holds back deleting more files than the limit below and asks you to review them first. Guards against storage that briefly hides a folder. Pushing by hand is not affected.",
-		get: (s) => s.confirmBulkDeletes,
-		set: (v) => ({ confirmBulkDeletes: v }),
+		...bind("confirmBulkDeletes"),
 		rerender: true,
 	},
 	{
@@ -132,7 +125,7 @@ const AUTOMATION_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 ];
 
 export function automationSection(
-	ctx: FieldContext<SettingsTabHost>,
+	ctx: FieldContext<SettingsHost>,
 ): SettingDefinitionGroup {
 	return group(
 		"Automatic sync",

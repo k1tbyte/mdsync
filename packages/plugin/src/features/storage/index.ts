@@ -1,3 +1,4 @@
+export { errorCode, isRefusedCredentials } from "./backends/http";
 export {
 	endpointUrl,
 	type S3Method,
@@ -5,7 +6,6 @@ export {
 	signingRegion,
 } from "./backends/s3-signer";
 export { createS3Store } from "./backends/s3-store";
-export { errorCode, isRefusedCredentials } from "./backends/util";
 export {
 	accountsOf,
 	type CloudflareLogin,

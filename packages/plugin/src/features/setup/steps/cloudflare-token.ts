@@ -1,10 +1,10 @@
 import { Setting } from "obsidian";
 
 import { type CloudflareAccount, tokenTemplateUrl } from "@/core/cloudflare";
-import { alertLine, focusKey, onEnter } from "@/core/ui";
+import { focusKey, onEnter } from "@/core/ui";
 import { accountsOf, connectCloudflare } from "@/features/storage";
 
-import { actionRow } from "../form";
+import { busyButton } from "../form";
 import { type ActionState, runAction } from "../run-action";
 import type { Wizard } from "../wizard";
 
@@ -135,12 +135,5 @@ export function renderTokenForm(
 				});
 			});
 	}
-	if (form.error) alertLine(el).setText(form.error);
-	actionRow(el).addButton((b) =>
-		b
-			.setButtonText(form.busy ? "Connecting…" : "Connect")
-			.setCta()
-			.setDisabled(form.busy)
-			.onClick(() => void connect()),
-	);
+	busyButton(el, form, "Connect", "Connecting…", connect);
 }

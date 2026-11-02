@@ -9,7 +9,7 @@ import {
 	r2StorageOf,
 } from "@/features/storage";
 import { PassphraseRotatedError } from "@/features/sync";
-import { actionRow, busyLine } from "../form";
+import { actionRow, busyButton, busyLine } from "../form";
 import { passphraseMeter } from "../passphrase-meter";
 import { runAction } from "../run-action";
 import type { StepView, Wizard } from "../wizard";
@@ -160,19 +160,12 @@ export function createPassphraseStep(wizard: Wizard): StepView {
 					value = v;
 				});
 			}
-			if (state.error) alertLine(el).setText(state.error);
-			actionRow(el).addButton((b) =>
-				b
-					.setButtonText(
-						state.busy
-							? "Checking…"
-							: phase === "new"
-								? "Set passphrase"
-								: "Unlock",
-					)
-					.setCta()
-					.setDisabled(state.busy)
-					.onClick(() => void submit()),
+			busyButton(
+				el,
+				state,
+				phase === "new" ? "Set passphrase" : "Unlock",
+				"Checking…",
+				submit,
 			);
 		},
 	};

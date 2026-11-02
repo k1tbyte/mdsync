@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { isRefusedCredentials } from "@/features/storage/backends/http";
 import { createS3Adapter } from "@/features/storage/backends/s3";
-import { isRefusedCredentials } from "@/features/storage/backends/util";
 import {
 	EStorageBackend,
 	type S3StorageConfig,

@@ -1,6 +1,6 @@
 import { type EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 
-import { shouldRedeliverBaseline } from "./helpers";
+import { shouldRedeliverBaseline } from "./marks";
 import type { SignsProvider } from "./provider";
 import { compareTextField, pathFromState } from "./state";
 

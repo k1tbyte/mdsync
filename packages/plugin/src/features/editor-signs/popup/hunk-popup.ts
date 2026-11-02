@@ -3,7 +3,7 @@ import { type App, Modal, Platform } from "obsidian";
 import { asDrawer } from "@/core/ui";
 
 import { focusHunk } from "../focus";
-import { findChangeForLine } from "../helpers";
+import { findChangeForLine } from "../marks";
 import type { SignsProvider } from "../provider";
 import { changesField, compareTextField } from "../state";
 import { installDismissHandlers } from "./popup-dismiss";

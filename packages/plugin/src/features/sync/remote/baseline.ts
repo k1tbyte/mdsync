@@ -2,7 +2,7 @@ import { randomId } from "@/core/crypto";
 import { diskRefuses } from "@/core/vault";
 import { isUnderUnreadableDir } from "../changes/diff";
 import { entryAt, sortedByPath } from "../changes/records";
-import type { CompareResult } from "../engine";
+import type { CompareResult, EngineDependencies } from "../engine";
 import type { ScopePolicy } from "../scope/scope";
 import type {
 	HashCacheEntry,
@@ -47,6 +47,27 @@ export function advanceSessionAfterPush(
 		),
 		hashCache: result.updatedCache,
 	};
+}
+
+/** The state once an operation acknowledged `paths` of `published` and wrote `written` to disk. */
+export function stateAfterWrites(
+	deps: Pick<EngineDependencies, "state" | "scope">,
+	result: CompareResult,
+	published: Manifest,
+	paths: ReadonlySet<string>,
+	written: ReadonlyMap<string, ManifestEntry | null>,
+): SessionState {
+	return buildSessionState(
+		deps.state,
+		advanceBaselineForPaths(
+			deps.state.baseline,
+			published,
+			paths,
+			result.snapshot.emptyFolders,
+			deps.scope,
+		),
+		mergeWrittenIntoCache(written, result.updatedCache),
+	);
 }
 
 /**

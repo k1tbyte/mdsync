@@ -5,7 +5,7 @@ import {
 	StateField,
 } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
-import type { ChangeMark } from "./helpers";
+import type { ChangeMark } from "./marks";
 
 /** The change under the pointer and the one whose popup is open: their marks widen, the open one tints its lines. */
 export interface HunkFocus {

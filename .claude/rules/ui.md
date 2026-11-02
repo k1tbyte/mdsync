@@ -23,7 +23,7 @@ Paths are relative to `packages/plugin/src/`. Stylesheet order, tokens and row m
 | inline state, warning | `callout`, `alertLine`, `copyable`, `renderPath`, `slideWhenCut` / `measureSlide` (cut paths slide) |
 | redraw keeping focus | `renderKeepingFocus`, `focusKey`, `onEnter`, `onLongPress` |
 | an element's size | `observeResize`: the observer of the element's own window (settings and popouts are windows of their own), rebuilt when Obsidian moves the tab. Never `new ResizeObserver` |
-| wizard-only parts | `choiceCard`, `actionRow`, `busyLine`, `renderTokenForm` (`features/setup/`) |
+| wizard-only parts | `choiceCard`, `actionRow`, `busyButton` (error line and accent button of a `runAction` step), `busyLine`, `renderTokenForm` (`features/setup/`) |
 
 When one falls short, extend it in `core/ui` instead of writing a second.
 

@@ -7,7 +7,7 @@ import {
 import { type EditorView, GutterMarker, gutter } from "@codemirror/view";
 
 import { focusHunk, hunkFocusField, sameMark } from "./focus";
-import { type ChangeMark, findChangeForLine } from "./helpers";
+import { type ChangeMark, findChangeForLine } from "./marks";
 import { showHunkPopupAt } from "./popup/hunk-popup";
 import type { SignsProvider } from "./provider";
 import {

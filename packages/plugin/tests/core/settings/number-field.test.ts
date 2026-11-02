@@ -8,7 +8,7 @@ import {
 	type NumberField,
 } from "@/core/settings/fields";
 
-vi.mock("obsidian", () => {
+vi.mock("obsidian", async (importOriginal) => {
 	class Setting {
 		settingEl = { addClass: () => undefined };
 		setName() {
@@ -19,6 +19,7 @@ vi.mock("obsidian", () => {
 		}
 		addText(build: (text: unknown) => void) {
 			build({
+				inputEl: input,
 				setValue() {
 					return this;
 				},
@@ -30,10 +31,15 @@ vi.mock("obsidian", () => {
 			return this;
 		}
 	}
-	return { Setting, debounce: (fn: unknown) => fn };
+	return {
+		...(await importOriginal<object>()),
+		Setting,
+		debounce: (fn: unknown) => fn,
+	};
 });
 
 let typed: (raw: string) => void = () => undefined;
+let input: Record<string, string> = {};
 
 const minutes: NumberField = {
 	kind: EFieldKind.Number,
@@ -43,13 +49,14 @@ const minutes: NumberField = {
 	set: (value) => ({ autoSyncIntervalMinutes: value }),
 };
 
-function typeInto(raw: string) {
+function typeInto(raw: string, field: NumberField = minutes) {
 	const settings = { autoSyncIntervalMinutes: 15 };
 	const ctx = {
 		plugin: { settings, saveSettings: async () => undefined },
 		rerender: () => undefined,
 	} as unknown as FieldContext;
-	fieldRow(ctx, minutes).render(new Setting({} as HTMLElement));
+	input = {};
+	fieldRow(ctx, field).render(new Setting({} as HTMLElement));
 	typed(raw);
 	return settings.autoSyncIntervalMinutes;
 }
@@ -64,5 +71,20 @@ describe("a number field", () => {
 
 	it("saves a whole number", () => {
 		expect(typeInto("30")).toBe(30);
+	});
+
+	it("leaves the input a plain text box without bounds", () => {
+		typeInto("30");
+		expect(input).toEqual({});
+	});
+
+	it("becomes a native number input with its bounds", () => {
+		typeInto("30", { ...minutes, min: 1, max: 60 });
+		expect(input).toEqual({ type: "number", min: "1", max: "60" });
+	});
+
+	it("sets only the bound it has", () => {
+		typeInto("30", { ...minutes, min: 0 });
+		expect(input).toEqual({ type: "number", min: "0" });
 	});
 });

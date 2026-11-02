@@ -6,6 +6,8 @@ import {
 	type SettingGroupItem,
 } from "obsidian";
 
+import { notifyError } from "@/core/ui";
+
 import type { MdsyncSettings } from "./model";
 
 export const EFieldKind = {
@@ -94,6 +96,9 @@ export interface TextField<H = SettingsHost> extends FieldBase<H> {
 
 export interface NumberField<H = SettingsHost> extends FieldBase<H> {
 	kind: typeof EFieldKind.Number;
+	/** Native bounds: either one makes the input a number input. */
+	min?: number;
+	max?: number;
 	get: (settings: MdsyncSettings) => string;
 	parse: (raw: string) => number;
 	set: (value: number, plugin: H) => Partial<MdsyncSettings>;
@@ -125,6 +130,19 @@ export type SettingsField<H = SettingsHost> =
 	| SliderField<H>
 	| ChoiceField<H>;
 
+/** The get/set pair of a setting stored as is; spread it into a field, whose value type must match the key's. */
+export function bind<K extends keyof MdsyncSettings>(
+	key: K,
+): {
+	get: (settings: MdsyncSettings) => MdsyncSettings[K];
+	set: (value: MdsyncSettings[K]) => Pick<MdsyncSettings, K>;
+} {
+	return {
+		get: (s) => s[key],
+		set: (v) => ({ [key]: v }) as Pick<MdsyncSettings, K>,
+	};
+}
+
 export type SettingsRow = Omit<SettingDefinitionRender, "render"> & {
 	render: (setting: Setting) => ReturnType<SettingDefinitionRender["render"]>;
 };
@@ -152,12 +170,14 @@ function applyControl<H extends SettingsHost>(
 	if (field.sub) setting.settingEl.addClass(SUB_SETTING_CLASS);
 
 	const apply = (patch: Partial<MdsyncSettings>): void => {
-		applyPatch(ctx, patch, field);
+		Object.assign(ctx.plugin.settings, patch);
+		persist(ctx, field);
 	};
-	const applyTyped = onSettled(apply);
+	// Typed edits are in the settings at once: a patch replayed later could revert another field's.
+	const persistTyped = onSettled(() => persist(ctx, field));
 	const type = (patch: Partial<MdsyncSettings>): void => {
 		Object.assign(ctx.plugin.settings, patch);
-		applyTyped(patch);
+		persistTyped();
 	};
 
 	if (field.kind === EFieldKind.Toggle) {
@@ -182,12 +202,17 @@ function applyControl<H extends SettingsHost>(
 	}
 
 	if (field.kind === EFieldKind.Number) {
-		return setting.addText((text) =>
+		return setting.addText((text) => {
+			if (field.min !== undefined || field.max !== undefined) {
+				text.inputEl.type = "number";
+				if (field.min !== undefined) text.inputEl.min = String(field.min);
+				if (field.max !== undefined) text.inputEl.max = String(field.max);
+			}
 			text.setValue(field.get(ctx.plugin.settings)).onChange((raw) => {
 				if (!WHOLE_NUMBER.test(raw)) return;
 				type(field.set(field.parse(raw), ctx.plugin));
-			}),
-		);
+			});
+		});
 	}
 
 	if (field.kind === EFieldKind.Slider) {
@@ -273,17 +298,18 @@ export function renderDefinitions(
 	}
 }
 
-function applyPatch<H extends SettingsHost>(
+function persist<H extends SettingsHost>(
 	ctx: FieldContext<H>,
-	patch: Partial<MdsyncSettings>,
 	field: SettingsField<H>,
 ): void {
-	Object.assign(ctx.plugin.settings, patch);
-	void ctx.plugin.saveSettings().then(() => {
-		if (field.refreshScope) {
-			ctx.plugin.scheduleScopeRefresh("Sync scope settings changed.");
-		}
-		field.after?.(ctx.plugin);
-		if (field.rerender) ctx.rerender();
-	});
+	void ctx.plugin.saveSettings().then(
+		() => {
+			if (field.refreshScope) {
+				ctx.plugin.scheduleScopeRefresh("Sync scope settings changed.");
+			}
+			field.after?.(ctx.plugin);
+			if (field.rerender) ctx.rerender();
+		},
+		(err: unknown) => notifyError("Could not save settings", err),
+	);
 }

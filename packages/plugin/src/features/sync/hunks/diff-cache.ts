@@ -1,6 +1,7 @@
 import type { EngineDependencies } from "../engine";
 import { hunkBaseline } from "../operations/text-loaders";
 import type { Conflict, FileChange, Move } from "../types";
+import { trimOldest } from "./bounded-map";
 import {
 	buildConflictDiff,
 	buildLocalChangeDiff,
@@ -9,7 +10,7 @@ import {
 	type ProjectionDeps,
 } from "./projection";
 
-/** Total text bytes the in-memory diff model cache may retain. */
+/** Total text the cache may retain: forced diffs must not pin megabytes of strings. */
 const DIFF_CACHE_MAX_BYTES = 8 * 1024 * 1024;
 
 export interface PathStatusInput {
@@ -30,11 +31,9 @@ const DIFF_CACHE_MAX_ENTRIES = 64;
 
 export class DiffCache {
 	private readonly entries = new Map<string, FileDiffModel>();
-	private retainedBytes = 0;
 
 	clear(): void {
 		this.entries.clear();
-		this.retainedBytes = 0;
 	}
 
 	async get(input: DiffCacheInput): Promise<FileDiffModel | null> {
@@ -56,32 +55,17 @@ export class DiffCache {
 		};
 		const model = await buildModel(projection, input.status, forceText);
 		if (model) {
-			// A concurrent miss on the same key already charged for its own model.
-			const raced = this.entries.get(cacheKey);
-			if (raced) {
-				this.retainedBytes -= modelBytes(raced);
-				this.entries.delete(cacheKey);
-			}
+			// A concurrent miss may have stored the key: delete first so this model is the newest.
+			this.entries.delete(cacheKey);
 			this.entries.set(cacheKey, model);
-			this.retainedBytes += modelBytes(model);
-			this.evict();
+			trimOldest(
+				this.entries,
+				DIFF_CACHE_MAX_BYTES,
+				modelBytes,
+				DIFF_CACHE_MAX_ENTRIES,
+			);
 		}
 		return model;
-	}
-
-	/** Evicts LRU entries past the count or byte budget so forced diffs do not pin megabytes of strings. */
-	private evict(): void {
-		for (const [key, model] of this.entries) {
-			if (
-				this.entries.size <= DIFF_CACHE_MAX_ENTRIES &&
-				this.retainedBytes <= DIFF_CACHE_MAX_BYTES
-			) {
-				break;
-			}
-			if (this.entries.size === 1) break; // Always keep the newest model.
-			this.entries.delete(key);
-			this.retainedBytes -= modelBytes(model);
-		}
 	}
 }
 

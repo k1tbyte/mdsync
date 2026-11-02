@@ -6,7 +6,7 @@ import {
 	transferBytes,
 	withDeadline,
 	withRetry,
-} from "./util";
+} from "./http";
 
 const FORBIDDEN = 403;
 const TOO_MANY_REQUESTS = 429;

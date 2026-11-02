@@ -2,7 +2,7 @@ import type { ChangeDesc } from "@codemirror/state";
 import { type EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import { debounce } from "obsidian";
 
-import { markedChanges } from "./helpers";
+import { markedChanges } from "./marks";
 import {
 	changesField,
 	compareTextField,

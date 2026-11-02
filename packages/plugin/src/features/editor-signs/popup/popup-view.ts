@@ -11,7 +11,7 @@ import {
 	markPlace,
 	presentSyncChange,
 	type SyncChange,
-} from "../helpers";
+} from "../marks";
 import type { SignsProvider } from "../provider";
 import { segmentRevert } from "./hunk-revert";
 

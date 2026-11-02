@@ -1,5 +1,6 @@
 import { Setting, type SettingDefinitionGroup } from "obsidian";
 import {
+	bind,
 	EFieldKind,
 	type FieldContext,
 	fieldRow,
@@ -25,8 +26,7 @@ export function sharesSection(
 			kind: EFieldKind.Toggle,
 			name: "Use shared folders on this device",
 			desc: "Off, none of them syncs or shows up here, and the relay carries only the vault. Their folders already here stay as they are. This device only.",
-			get: (s) => s.useSharedFolders,
-			set: (v) => ({ useSharedFolders: v }),
+			...bind("useSharedFolders"),
 			after: (host) => {
 				// A pull or push running now would go on writing into a share.
 				if (!host.settings.useSharedFolders) host.controller.cancel();
@@ -55,8 +55,7 @@ export function sharesSection(
 			kind: EFieldKind.Toggle,
 			name: "Push shared folders right away",
 			desc: "A change in a shared folder reaches the others a couple of seconds after you stop, whatever the vault's auto-push says. Read-only folders never push.",
-			get: (s) => s.pushSharesRightAway,
-			set: (v) => ({ pushSharesRightAway: v }),
+			...bind("pushSharesRightAway"),
 			rerender: true,
 		}),
 		fieldRow(ctx, {
@@ -65,16 +64,14 @@ export function sharesSection(
 			name: "Push only added, moved and deleted files",
 			desc: "Edits wait for your push, so their gutter marks show what changed. Open notes still update live.",
 			sub: true,
-			get: (s) => s.shareEditsWait,
-			set: (v) => ({ shareEditsWait: v }),
+			...bind("shareEditsWait"),
 		}),
 		fieldRow(ctx, {
 			when: enabled,
 			kind: EFieldKind.Toggle,
 			name: "Pause shared folders added on other devices",
 			desc: "They arrive here paused, before anything is pulled, until you resume them. This device only.",
-			get: (s) => s.pauseArrivingShares,
-			set: (v) => ({ pauseArrivingShares: v }),
+			...bind("pauseArrivingShares"),
 		}),
 		{
 			name: "Accept an invite",

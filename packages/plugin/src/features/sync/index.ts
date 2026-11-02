@@ -35,7 +35,7 @@ export type {
 	SnapshotListResult,
 	SnapshotSummary,
 } from "./history/types";
-export type { SyncHost } from "./host";
+export type { HistorySectionHost, SyncHost } from "./host";
 export {
 	computeHunks,
 	DIFF_BUDGET,
@@ -123,6 +123,7 @@ export {
 	type Move,
 	type SkippedFile,
 } from "./types";
+export { automationSection } from "./ui/automation-section";
 export { type ChangeAction, changeActionOf } from "./ui/change-action";
 export { encryptionSection } from "./ui/encryption-section";
 export { renderActivityCalendar } from "./ui/history/activity-calendar";
@@ -132,7 +133,10 @@ export {
 	type CalendarDay,
 	RESOLUTION_TEXT,
 } from "./ui/history/calendar";
-export { renderHistoryHolds } from "./ui/history/holds-row";
+export {
+	historySection,
+	historyValue,
+} from "./ui/history/history-section";
 export {
 	addIgnoreMenuItem,
 	carryVaultIgnores,

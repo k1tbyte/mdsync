@@ -4,6 +4,7 @@ import { reportWarning } from "@/core/shared";
 import { runWithConcurrency } from "@/core/utils";
 import { listEntries, type ObjectStorage } from "@/features/storage";
 import { REMOTE_PINS_PREFIX } from "../constants";
+import { trimOldest } from "../hunks/bounded-map";
 import { manifestToSpace, manifestToVault } from "../remote/space-paths";
 import type { Manifest } from "../types";
 
@@ -217,12 +218,5 @@ function remember(
 ): void {
 	pins.delete(storageKey);
 	pins.set(storageKey, entry);
-	let held = 0;
-	for (const { entries } of pins.values()) held += entries;
-	// The pin just read is last, so it stays even when it alone is over the bound.
-	for (const [oldest, { entries }] of pins) {
-		if (held <= PIN_CACHE_ENTRIES || pins.size === 1) break;
-		pins.delete(oldest);
-		held -= entries;
-	}
+	trimOldest(pins, PIN_CACHE_ENTRIES, ({ entries }) => entries);
 }

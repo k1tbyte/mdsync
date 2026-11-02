@@ -280,23 +280,20 @@ export function applyHunks(
 			cursor++;
 		}
 		const taken = selected.get(hunk.index);
-		let segment = -1;
-		let inSegment = false;
-		for (const [offset, line] of hunk.lines.entries()) {
-			const prefix = line[0];
-			if (prefix !== " " && prefix !== "-" && prefix !== "+") continue;
-			if (prefix === " ") {
-				inSegment = false;
-			} else if (!inSegment) {
-				inSegment = true;
-				segment++;
-			}
-			const keep = taken?.has(segment) ? "+" : "-";
-			if (prefix === " " || prefix === keep) {
+		let offset = 0;
+		const emit = (to: number, keep: string): void => {
+			for (; offset < to; offset++) {
+				const line = hunk.lines[offset] as string;
+				if (line[0] !== " " && line[0] !== keep) continue;
 				const ending = hunk.lines[offset + 1]?.startsWith("\\") ? "" : "\n";
 				out.push(line.slice(1) + ending);
 			}
+		};
+		for (const segment of hunkSegments(hunk)) {
+			emit(segment.from, " ");
+			emit(segment.to, taken?.has(segment.index) ? "+" : "-");
 		}
+		emit(hunk.lines.length, " ");
 		cursor = startIndex + hunk.oldLines;
 	}
 	while (cursor < baseLines.length) {

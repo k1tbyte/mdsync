@@ -1,7 +1,7 @@
 import { Setting } from "obsidian";
-import { alertLine, callout, focusKey, onEnter } from "@/core/ui";
+import { callout, focusKey, onEnter } from "@/core/ui";
 import { canSync } from "@/features/sync";
-import { actionRow } from "../form";
+import { busyButton } from "../form";
 import { runAction } from "../run-action";
 import type { StepView, Wizard } from "../wizard";
 
@@ -62,14 +62,7 @@ export function createImportStep(wizard: Wizard): StepView {
 					});
 					onEnter(t.inputEl, () => void submit());
 				});
-			if (state.error) alertLine(el).setText(state.error);
-			actionRow(el).addButton((b) =>
-				b
-					.setButtonText(state.busy ? "Importing…" : "Import")
-					.setCta()
-					.setDisabled(state.busy)
-					.onClick(() => void submit()),
-			);
+			busyButton(el, state, "Import", "Importing…", submit);
 		},
 	};
 	return view;

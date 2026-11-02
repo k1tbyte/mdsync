@@ -1,4 +1,5 @@
 export {
+	bind,
 	type CheckResult,
 	checkRow,
 	EFieldKind,

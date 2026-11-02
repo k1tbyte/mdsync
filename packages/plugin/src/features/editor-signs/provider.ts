@@ -8,7 +8,7 @@ import { notifyError, runWithNotice } from "@/core/ui";
 import type { SyncController } from "@/features/sync";
 import { textToBytes } from "@/features/sync";
 
-import { type SyncChange, toCmText } from "./helpers";
+import { type SyncChange, toCmText } from "./marks";
 import { dismissPopupIn } from "./popup/hunk-popup";
 import { compareTextField, setCompareTextEffect } from "./state";
 

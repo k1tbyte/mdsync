@@ -3,152 +3,120 @@ import { type App, ButtonComponent, Modal, Setting } from "obsidian";
 import { weakPassphrase } from "@/core/crypto";
 import { alertLine } from "../controls/alert-line";
 import { onEnter } from "../input/enter-key";
-import { modalFooter, renderModalHead } from "../modal-frame";
+import { type ModalHead, modalFooter, renderModalHead } from "../modal-frame";
 
 import { openPromiseModal } from "./promise-modal";
 
-class PassphraseModal extends Modal {
-	private readonly resolveValue: (value: string | null) => void;
-	private value = "";
-	private errorEl: HTMLElement | null = null;
+type Answer = (value: string | null) => void;
 
-	constructor(app: App, resolveValue: (value: string | null) => void) {
-		super(app);
-		this.resolveValue = resolveValue;
-	}
-
-	onOpen(): void {
-		const { contentEl } = this;
-		renderModalHead(this, { icon: "lock", title: "MDSync passphrase" });
-		contentEl.createEl("p", {
-			text: "Enter the encryption passphrase for this vault. It is never sent to the remote storage.",
-		});
-
-		new Setting(contentEl).setName("Passphrase").addText((t) => {
-			t.inputEl.type = "password";
-			t.inputEl.setAttr("aria-label", "Passphrase");
-			t.onChange((v) => {
-				this.value = v;
-			});
-			onEnter(t.inputEl, () => this.submit());
-		});
-
-		this.errorEl = alertLine(contentEl);
-
-		const footer = modalFooter(this);
-		new ButtonComponent(footer).setButtonText("Cancel").onClick(() => {
-			this.resolveValue(null);
-			this.close();
-		});
-		new ButtonComponent(footer)
-			.setButtonText("Continue")
-			.setCta()
-			.onClick(() => this.submit());
-	}
-
-	onClose(): void {
-		this.contentEl.empty();
-	}
-
-	private submit(): void {
-		if (!this.value) {
-			this.errorEl?.setText("Enter the passphrase, or cancel.");
-			return;
-		}
-		this.resolveValue(this.value);
-		this.close();
-	}
+function openFrame(
+	app: App,
+	answer: Answer,
+	head: ModalHead,
+	text: string,
+): { modal: Modal; finish: Answer } {
+	const modal = new Modal(app);
+	renderModalHead(modal, head);
+	modal.contentEl.createEl("p", { text });
+	return {
+		modal,
+		finish: (value) => {
+			answer(value);
+			modal.close();
+		},
+	};
 }
 
-class NewPassphraseModal extends Modal {
-	private readonly resolveValue: (value: string | null) => void;
-	private next = "";
-	private confirm = "";
-	private errorEl: HTMLElement | null = null;
-
-	constructor(app: App, resolveValue: (value: string | null) => void) {
-		super(app);
-		this.resolveValue = resolveValue;
-	}
-
-	onOpen(): void {
-		const { contentEl } = this;
-		renderModalHead(this, { icon: "key-round", title: "Change passphrase" });
-		contentEl.createEl("p", {
-			text: "Re-wraps the vault's data key under a new passphrase. Your notes are not re-encrypted, so this is instant. Every device must switch to the new passphrase afterwards.",
-		});
-
-		let confirmField: HTMLInputElement | undefined;
-		new Setting(contentEl).setName("New passphrase").addText((t) => {
-			t.inputEl.type = "password";
-			t.inputEl.setAttr("aria-label", "New passphrase");
-			t.onChange((v) => {
-				this.next = v;
-			});
-			onEnter(t.inputEl, () =>
-				this.next ? confirmField?.focus() : this.submit(),
-			);
-		});
-
-		new Setting(contentEl).setName("Confirm passphrase").addText((t) => {
-			confirmField = t.inputEl;
-			t.inputEl.type = "password";
-			t.inputEl.setAttr("aria-label", "Confirm passphrase");
-			t.onChange((v) => {
-				this.confirm = v;
-			});
-			onEnter(t.inputEl, () => this.submit());
-		});
-
-		this.errorEl = alertLine(contentEl);
-		this.errorEl.hidden = true;
-
-		const footer = modalFooter(this);
-		new ButtonComponent(footer).setButtonText("Cancel").onClick(() => {
-			this.resolveValue(null);
-			this.close();
-		});
-		new ButtonComponent(footer)
-			.setButtonText("Change")
-			.setCta()
-			.onClick(() => this.submit());
-	}
-
-	onClose(): void {
-		this.contentEl.empty();
-	}
-
-	private submit(): void {
-		const weak = weakPassphrase(this.next);
-		if (weak) {
-			this.showError(weak);
-			return;
-		}
-		if (this.next !== this.confirm) {
-			this.showError("Passphrases do not match.");
-			return;
-		}
-		this.resolveValue(this.next);
-		this.close();
-	}
-
-	private showError(message: string): void {
-		if (!this.errorEl) return;
-		this.errorEl.setText(message);
-		this.errorEl.hidden = false;
-	}
+function passwordField(
+	modal: Modal,
+	label: string,
+	onChange: (value: string) => void,
+	onSubmit: () => void,
+): HTMLInputElement {
+	let input!: HTMLInputElement;
+	new Setting(modal.contentEl).setName(label).addText((t) => {
+		input = t.inputEl;
+		t.inputEl.type = "password";
+		t.inputEl.setAttr("aria-label", label);
+		t.onChange(onChange);
+		onEnter(t.inputEl, onSubmit);
+	});
+	return input;
 }
 
-export function askNewPassphrase(app: App): Promise<string | null> {
-	return openPromiseModal<string | null>(
-		(answer) => new NewPassphraseModal(app, answer),
-		null,
-	);
+function cancelAndConfirm(
+	modal: Modal,
+	confirmLabel: string,
+	cancel: () => void,
+	submit: () => void,
+): void {
+	const footer = modalFooter(modal);
+	new ButtonComponent(footer).setButtonText("Cancel").onClick(cancel);
+	new ButtonComponent(footer)
+		.setButtonText(confirmLabel)
+		.setCta()
+		.onClick(submit);
 }
 
 export function askPassphrase(app: App): Promise<string | null> {
-	return openPromiseModal<string | null>(
-		(answer) => new PassphraseModal(app, answer),
-		null,
-	);
+	return openPromiseModal<string | null>((answer) => {
+		const { modal, finish } = openFrame(
+			app,
+			answer,
+			{ icon: "lock", title: "MDSync passphrase" },
+			"Enter the encryption passphrase for this vault. It is never sent to the remote storage.",
+		);
+		let value = "";
+		const submit = (): void => {
+			if (!value) {
+				error.setText("Enter the passphrase, or cancel.");
+				return;
+			}
+			finish(value);
+		};
+		passwordField(modal, "Passphrase", (v) => (value = v), submit);
+		const error = alertLine(modal.contentEl);
+		cancelAndConfirm(modal, "Continue", () => finish(null), submit);
+		return modal;
+	}, null);
+}
+
+export function askNewPassphrase(app: App): Promise<string | null> {
+	return openPromiseModal<string | null>((answer) => {
+		const { modal, finish } = openFrame(
+			app,
+			answer,
+			{ icon: "key-round", title: "Change passphrase" },
+			"Re-wraps the vault's data key under a new passphrase. Your notes are not re-encrypted, so this is instant. Every device must switch to the new passphrase afterwards.",
+		);
+		let next = "";
+		let confirm = "";
+		const submit = (): void => {
+			const problem =
+				weakPassphrase(next) ??
+				(next === confirm ? null : "Passphrases do not match.");
+			if (problem) {
+				error.setText(problem);
+				error.hidden = false;
+				return;
+			}
+			finish(next);
+		};
+		passwordField(
+			modal,
+			"New passphrase",
+			(v) => (next = v),
+			() => (next ? confirmField.focus() : submit()),
+		);
+		const confirmField = passwordField(
+			modal,
+			"Confirm passphrase",
+			(v) => (confirm = v),
+			submit,
+		);
+		const error = alertLine(modal.contentEl);
+		error.hidden = true;
+		cancelAndConfirm(modal, "Change", () => finish(null), submit);
+		return modal;
+	}, null);
 }

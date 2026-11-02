@@ -14,9 +14,12 @@ import {
 	storageIdentity,
 } from "@/features/storage";
 import {
+	automationSection,
 	configurationScopeSection,
 	encryptionSection,
 	exclusionsSection,
+	historySection,
+	historyValue,
 	maintenanceSection,
 	type SnapshotListResult,
 } from "@/features/sync";
@@ -25,8 +28,6 @@ import type { SettingsTabHost } from "./host";
 import { logsPage } from "./logs-view";
 import { overviewGroup } from "./overview";
 import { advancedSection } from "./sections/advanced";
-import { automationSection } from "./sections/automation";
-import { historySection, historyValue } from "./sections/history";
 import { interfaceSection } from "./sections/interface";
 import { realtimeSection } from "./sections/realtime";
 

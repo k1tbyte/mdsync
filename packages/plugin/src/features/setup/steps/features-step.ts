@@ -1,5 +1,6 @@
 import { HISTORY_KEEP_TEXT } from "@/core/constants";
 import {
+	bind,
 	EFieldKind,
 	fieldRow,
 	type HistoryKeep,
@@ -31,8 +32,7 @@ const HISTORY_FIELDS: ReadonlyArray<SettingsField<SetupHost>> = [
 		kind: EFieldKind.Toggle,
 		name: "Keep history",
 		desc: "Past versions of every file, deleted files and a timeline of each push, encrypted. Without it a file deleted on any device cannot be brought back.",
-		get: (s) => s.fileHistoryEnabled,
-		set: (v) => ({ fileHistoryEnabled: v }),
+		...bind("fileHistoryEnabled"),
 		rerender: true,
 	},
 	{

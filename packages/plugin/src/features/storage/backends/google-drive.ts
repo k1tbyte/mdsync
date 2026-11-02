@@ -9,7 +9,7 @@ import {
 } from "./google-drive-auth";
 import { type AuthorizedRequest, driveRequest } from "./google-drive-request";
 import { sendUpload } from "./google-drive-upload";
-import { assertOk, dateOf } from "./util";
+import { assertOk, dateOf } from "./http";
 
 const DRIVE_API = "https://www.googleapis.com/drive/v3/files";
 const DRIVE_PAGE_SIZE = "1000";

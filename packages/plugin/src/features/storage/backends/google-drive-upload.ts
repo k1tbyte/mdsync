@@ -1,6 +1,6 @@
 import { toArrayBuffer } from "@/core/utils";
 import { type AuthorizedRequest, driveRequest } from "./google-drive-request";
-import { assertOk } from "./util";
+import { assertOk } from "./http";
 
 const DRIVE_UPLOAD_API = "https://www.googleapis.com/upload/drive/v3/files";
 /** Multipart max; larger files go resumable. */

@@ -5,7 +5,7 @@
  */
 
 import type { ListedObject } from "../types";
-import { dateOf } from "./util";
+import { dateOf } from "./http";
 
 export interface ListPage {
 	objects: ListedObject[];

@@ -30,7 +30,7 @@ One modal stepper takes a fresh install to a syncing vault: storage (Cloudflare 
 - `features/setup/wizard.ts` - modal shell, `STEPS` table (label, icon, `create*Step`), stepper header, Back, Skip and Next footer. `Wizard` is what steps get: `redraw(fromTop?)` (`fromTop` when the content was replaced whole), `next`, `moveOn`, `choose(path)`, `close`, `isShowing(view)`, `isLive()`, `currentPath()`.
 - `features/setup/feature-choices.ts` - the Features step's sync mode presets over the automation settings, pure.
 - `features/setup/steps/first-sync.ts`, `features/setup/steps/done-tour.ts` - the Ready step's first sync preview and the guide it ends on.
-- `features/setup/stepper.ts`, `features/setup/choice-card.ts`, `features/setup/form.ts` (`actionRow`, `busyLine`), `features/setup/passphrase-meter.ts`, `features/setup/run-action.ts` (busy and error wrapper for every async button), `features/setup/styles/`.
+- `features/setup/stepper.ts`, `features/setup/choice-card.ts`, `features/setup/form.ts` (`actionRow`, `busyButton`, `busyLine`), `features/setup/passphrase-meter.ts`, `features/setup/run-action.ts` (busy and error wrapper for every async button), `features/setup/styles/`.
 - `features/setup/steps/cloudflare-token.ts` - the token form shared by the Storage and Relay steps: **Open Cloudflare** (`tokenTemplateUrl`, permissions preselected), paste, account picker when the token reaches several accounts, then `connectCloudflare`.
 - Non-UI logic lives with its domain: Cloudflare login and R2 in `features/storage/cloudflare/`, deploy and update in `features/relay/deploy/` and `features/relay/update/`, `importWith` in `features/transfer/`, `unlock` and `vaultHasKey` in `PassphraseManager` (`features/sync/remote/passphrase-manager.ts`).
 

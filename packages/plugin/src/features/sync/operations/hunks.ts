@@ -16,11 +16,7 @@ import {
 	isFullSelection,
 	selectionSize,
 } from "../hunks/hunks";
-import {
-	advanceBaselineForPaths,
-	buildSessionState,
-	mergeWrittenIntoCache,
-} from "../remote/baseline";
+import { mergeWrittenIntoCache, stateAfterWrites } from "../remote/baseline";
 import type { Manifest, ManifestEntry } from "../types";
 import {
 	assertSidesUnchanged,
@@ -85,13 +81,9 @@ export const localHunksOp: Operation<LocalHunksArgs> = async (
 		}
 	}
 	// Only a revert wrote the file; otherwise the scanned cache already holds it.
-	const hashCache =
-		reverting > 0
-			? mergeWrittenIntoCache(
-					new Map([[path, localEntry]]),
-					result.updatedCache,
-				)
-			: result.updatedCache;
+	const written = new Map<string, ManifestEntry | null>(
+		reverting > 0 ? [[path, localEntry]] : [],
+	);
 
 	let manifest = result.remote;
 	if (pushing > 0) {
@@ -101,18 +93,13 @@ export const localHunksOp: Operation<LocalHunksArgs> = async (
 		manifest = deleted
 			? await publishWithoutPath(deps, result, path)
 			: await pushSingleFile(deps, result, path, textToBytes(merged));
-		const baseline = advanceBaselineForPaths(
-			deps.state.baseline,
-			manifest,
-			new Set([path]),
-			result.snapshot.emptyFolders,
-			deps.scope,
+		await ctx.persistState(
+			stateAfterWrites(deps, result, manifest, new Set([path]), written),
 		);
-		await ctx.persistState(buildSessionState(deps.state, baseline, hashCache));
 	} else {
 		// A revert moves no baseline; only the hash cache learns the written file.
-		const fresh = ctx.getFreshState();
-		await ctx.persistState({ ...fresh, hashCache });
+		const hashCache = mergeWrittenIntoCache(written, result.updatedCache);
+		await ctx.persistState({ ...ctx.getFreshState(), hashCache });
 	}
 	const parts = [
 		pushing > 0 ? `pushed ${pushing}` : "",
@@ -155,22 +142,18 @@ export const pullHunksOp: Operation<PullHunksArgs> = async (
 	await assertSidesUnchanged(sides, args.expected);
 	const { hunks } = computeHunks(sides.left, sides.right);
 	const merged = withEolOf(sides.left, applyHunks(sides.left, hunks, selected));
-	const localEntry = await writeLocalFile(deps, path, textToBytes(merged));
+	const written = new Map([
+		[path, await writeLocalFile(deps, path, textToBytes(merged))],
+	]);
 
 	// Only a pull taking every segment acknowledges the remote; a partial pull's baseline would hide
 	// left-behind segments and let the next push overwrite them.
-	const baseline = advanceBaselineForPaths(
-		deps.state.baseline,
-		result.remote,
-		isFullSelection(hunks, selected) ? new Set([path]) : new Set<string>(),
-		result.snapshot.emptyFolders,
-		deps.scope,
+	const acknowledged = isFullSelection(hunks, selected)
+		? new Set([path])
+		: new Set<string>();
+	await ctx.persistState(
+		stateAfterWrites(deps, result, result.remote, acknowledged, written),
 	);
-	const hashCache = mergeWrittenIntoCache(
-		new Map([[path, localEntry]]),
-		result.updatedCache,
-	);
-	await ctx.persistState(buildSessionState(deps.state, baseline, hashCache));
 	await ctx.logInfo(
 		ESyncLogOperation.Pull,
 		`Pulled ${pulling} hunk(s) of ${path}.`,
@@ -178,7 +161,7 @@ export const pullHunksOp: Operation<PullHunksArgs> = async (
 	return {
 		newRemote: result.remote,
 		touchedPaths: new Set([path]),
-		localEntries: new Map([[path, localEntry]]),
+		localEntries: written,
 	};
 };
 

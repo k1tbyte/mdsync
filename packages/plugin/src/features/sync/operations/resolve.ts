@@ -23,11 +23,7 @@ import {
 } from "../engine";
 import { coldSince, settleLive, writeIncoming } from "../live-notes";
 import { baseStep } from "../recovery/cut-short";
-import {
-	advanceBaselineForPaths,
-	buildSessionState,
-	mergeWrittenIntoCache,
-} from "../remote/baseline";
+import { stateAfterWrites } from "../remote/baseline";
 import type { ManifestEntry } from "../types";
 import type { Operation, OperationContext, OperationOutcome } from "./types";
 
@@ -85,18 +81,13 @@ export const batchAcceptRemoteOp: Operation<ReadonlySet<string>> = async (
 	if (conflictPaths.length === 0) {
 		throw new Error(held.length > 0 ? LIVE_HELD : EDITED_SINCE);
 	}
-	const baseline = advanceBaselineForPaths(
-		deps.state.baseline,
-		remote,
-		new Set(conflictPaths),
-		result.snapshot.emptyFolders,
-		deps.scope,
-	);
 	await ctx.persistState(
-		buildSessionState(
-			deps.state,
-			baseline,
-			mergeWrittenIntoCache(localEntries, result.updatedCache),
+		stateAfterWrites(
+			deps,
+			result,
+			remote,
+			new Set(conflictPaths),
+			localEntries,
 		),
 	);
 	await deps.journal?.acknowledge(deps.space);
@@ -150,18 +141,13 @@ export const batchKeepLocalOp: Operation<ReadonlySet<string>> = async (
 		},
 	);
 	const manifest = await publishFileMap(deps, result, files);
-	const baseline = advanceBaselineForPaths(
-		deps.state.baseline,
-		manifest,
-		new Set(conflictPaths),
-		result.snapshot.emptyFolders,
-		deps.scope,
-	);
 	await ctx.persistState(
-		buildSessionState(
-			deps.state,
-			baseline,
-			mergeWrittenIntoCache(localEntries, result.updatedCache),
+		stateAfterWrites(
+			deps,
+			result,
+			manifest,
+			new Set(conflictPaths),
+			localEntries,
 		),
 	);
 	await ctx.logInfo(

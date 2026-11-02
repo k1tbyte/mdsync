@@ -17,3 +17,10 @@ export interface SyncHost extends SettingsHost {
 	openSourceControl(): Promise<void>;
 	openChanges(): Promise<void>;
 }
+
+/** What the History page reads from the plugin. */
+export interface HistorySectionHost extends SettingsHost {
+	readonly app: App;
+	refreshSourceControlView(history?: boolean): void;
+	openTimeline(day?: number): Promise<void>;
+}

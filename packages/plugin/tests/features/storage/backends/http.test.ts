@@ -12,7 +12,7 @@ import {
 	withDeadline,
 	withRetry,
 	withTimeout,
-} from "@/features/storage/backends/util";
+} from "@/features/storage/backends/http";
 
 describe("storage error semantics", () => {
 	it("treats only 'come back later' statuses as retryable", () => {

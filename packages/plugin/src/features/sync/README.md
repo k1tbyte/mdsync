@@ -18,7 +18,7 @@ File sync of the vault and of each shared folder (a "space") against object stor
 | `runtime/` | what `features/sync/controller.ts` is built from: `features/sync/runtime/operation-runner.ts`, `features/sync/runtime/refresh-queue.ts`, `features/sync/runtime/auto-cycle.ts`, `features/sync/runtime/scan-cycle.ts`, `features/sync/runtime/controller-state.ts`, `features/sync/runtime/file-diff-service.ts`, `features/sync/runtime/history-service.ts`, `features/sync/runtime/maintenance.ts`, `features/sync/runtime/saved-refresh.ts`, `features/sync/runtime/merged-result.ts` |
 | `content/` | the one owner of file content on the remote: `features/sync/content/load.ts` (`loadContent`, `openContent`, `prepareContent`), `features/sync/content/store.ts` (`storeContent`), `features/sync/content/header.ts`, `features/sync/content/keys.ts` (root and chunk keys), `features/sync/content/closure.ts` (chunks recipes name) |
 | `history/` | push records, queries, replay, pins, vault restore plan, GC and sweep |
-| `ui/` | menu items, modals, the maintenance section |
+| `ui/` | menu items, modals, the settings sections (Automatic sync, encryption, maintenance, History) |
 
 Top level: `features/sync/engine.ts` (`compare`, `pushPaths`, `publishFileMap`), `features/sync/session-state.ts`, `features/sync/state.ts` (the state file), `features/sync/types.ts`, `features/sync/constants.ts` (remote layout, size limits), `features/sync/live-notes.ts` (the seam to live editing: the file sync never imports `features/live`), `features/sync/index.ts` (facade).
 

@@ -3,6 +3,7 @@ import { LIVE_SEND_MS } from "@/core/constants";
 import type { RelayStatus } from "@/core/hub";
 import { RELAY_TEXT } from "@/core/hub";
 import {
+	bind,
 	EFieldKind,
 	type FieldContext,
 	fieldRow,
@@ -19,8 +20,7 @@ const REALTIME_FIELD: SettingsField<SettingsHost> = {
 	kind: EFieldKind.Toggle,
 	name: "Real-time sync",
 	desc: "Other devices pull the moment you push, and you see who is in which note. Turning it off also stops live editing. Your devices use the relay server (Connection tab), shared folders their owner's.",
-	get: (s) => s.realtimeSync,
-	set: (v) => ({ realtimeSync: v }),
+	...bind("realtimeSync"),
 	rerender: true,
 };
 
@@ -30,8 +30,7 @@ const LIVE_EDITING_FIELD: SettingsField<SettingsHost> = {
 	desc: "Notes open in the editor edit together, keystroke by keystroke, across your devices and with the people in shared folders, through the relay.",
 	when: (s) => s.realtimeSync,
 	sub: true,
-	get: (s) => s.liveEditing,
-	set: (v) => ({ liveEditing: v }),
+	...bind("liveEditing"),
 	rerender: true,
 };
 
@@ -56,8 +55,7 @@ const SHOW_OPEN_NOTE_FIELD: SettingsField<SettingsHost> = {
 	desc: "Off, others see only that you are online. Live editing still shows you in a note you both have open.",
 	when: (s) => s.realtimeSync,
 	sub: true,
-	get: (s) => s.showOpenNote,
-	set: (v) => ({ showOpenNote: v }),
+	...bind("showOpenNote"),
 };
 
 /** What the setup wizard's Features step shows under real-time sync, which its sync mode turns on. */

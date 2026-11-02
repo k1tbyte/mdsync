@@ -1,4 +1,5 @@
 import type { ListedObject, ObjectStorage } from "@/features/storage";
+import { trimOldest } from "../hunks/bounded-map";
 
 /**
  * Blobs uploaded here but not yet in a published manifest, so an unpublished push resumes. Any other non-head
@@ -20,10 +21,7 @@ export function rememberUpload(storage: ObjectStorage, hash: string): void {
 	}
 	byHash.delete(hash);
 	byHash.set(hash, Date.now());
-	for (const [oldest] of byHash) {
-		if (byHash.size <= UPLOAD_LOG_MAX) break;
-		byHash.delete(oldest);
-	}
+	trimOldest(byHash, UPLOAD_LOG_MAX);
 }
 
 /** Still worth a probe; the probe decides. */

@@ -1,7 +1,7 @@
 import { Setting } from "obsidian";
 import { isRelayConfigured } from "@/core/settings";
 import { relayBase } from "@/core/shared";
-import { alertLine, callout, focusKey, onEnter } from "@/core/ui";
+import { callout, focusKey, onEnter } from "@/core/ui";
 import {
 	type RelayTestResult,
 	relayBehind,
@@ -10,7 +10,7 @@ import {
 } from "@/features/relay";
 import { choiceCard } from "../choice-card";
 import { enablesRealtime } from "../feature-choices";
-import { actionRow, busyLine } from "../form";
+import { busyButton, busyLine } from "../form";
 import { runAction } from "../run-action";
 import type { StepView, Wizard } from "../wizard";
 import { relayDeployView } from "./relay-deploy-view";
@@ -141,14 +141,7 @@ export function createRelayStep(wizard: Wizard): StepView {
 				manual.secret = v.trim();
 			});
 		});
-		if (manual.error) alertLine(el).setText(manual.error);
-		actionRow(el).addButton((b) =>
-			b
-				.setButtonText(manual.busy ? "Connecting…" : "Connect")
-				.setCta()
-				.setDisabled(manual.busy)
-				.onClick(() => void connect()),
-		);
+		busyButton(el, manual, "Connect", "Connecting…", connect);
 	};
 
 	if (isRelayConfigured(plugin.settings)) void checkStatus();

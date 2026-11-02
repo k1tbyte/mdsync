@@ -14,7 +14,7 @@ import {
 	transferBytes,
 	withDeadline,
 	withRetry,
-} from "./util";
+} from "./http";
 
 const PROPFIND_BODY =
 	'<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getetag/><d:getlastmodified/></d:prop></d:propfind>';

@@ -1,20 +1,23 @@
 import type { SettingDefinitionGroup } from "obsidian";
 import { HISTORY_KEEP_MS, HISTORY_KEEP_TEXT } from "@/core/constants";
 import {
+	bind,
 	EFieldKind,
 	type FieldContext,
 	fieldRow,
 	group,
 	type HistoryKeep,
 	type SettingsField,
+	type SettingsHost,
 	type SettingsRow,
 	SUB_SETTING_CLASS,
 } from "@/core/settings";
 import { closePluginSettings } from "@/core/ui";
-import { renderHistoryHolds, type SnapshotListResult } from "@/features/sync";
-import type { SettingsTabHost } from "../host";
+import type { SnapshotListResult } from "../../history/types";
+import type { HistorySectionHost } from "../../host";
+import { renderHistoryHolds } from "./holds-row";
 
-const KEEP_HISTORY_FIELD: SettingsField<SettingsTabHost> = {
+const KEEP_HISTORY_FIELD: SettingsField<HistorySectionHost> = {
 	kind: EFieldKind.Choice,
 	name: "Keep history for",
 	desc: "Every push stays for an hour, then one version per 10 minutes, hour, day and week; past this only how busy each day was remains. Pinned versions stay. Each device thins the same history, so the shortest choice among them applies.",
@@ -28,13 +31,12 @@ const KEEP_HISTORY_FIELD: SettingsField<SettingsTabHost> = {
 	rerender: true,
 };
 
-const HISTORY_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
+const HISTORY_FIELDS: ReadonlyArray<SettingsField<HistorySectionHost>> = [
 	{
 		kind: EFieldKind.Toggle,
 		name: "Keep history",
 		desc: "Keep past versions of files so you can view or restore them. Each push stores what it changed as a small encrypted record; old versions thin out automatically.",
-		get: (s) => s.fileHistoryEnabled,
-		set: (v) => ({ fileHistoryEnabled: v }),
+		...bind("fileHistoryEnabled"),
 		rerender: true,
 	},
 	KEEP_HISTORY_FIELD,
@@ -44,8 +46,7 @@ const HISTORY_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 		desc: "A calendar of pushes per day above the Timeline; select a day to jump to it.",
 		when: (s) => s.fileHistoryEnabled,
 		sub: true,
-		get: (s) => s.fileHistoryActivity,
-		set: (v) => ({ fileHistoryActivity: v }),
+		...bind("fileHistoryActivity"),
 		after: (plugin) => plugin.refreshSourceControlView(),
 	},
 	{
@@ -54,19 +55,18 @@ const HISTORY_FIELDS: ReadonlyArray<SettingsField<SettingsTabHost>> = [
 		desc: "Reload the open file-history view automatically when a push completes. Disable to refresh only via the ⟳ button.",
 		when: (s) => s.fileHistoryEnabled,
 		sub: true,
-		get: (s) => s.historyAutoRefresh,
-		set: (v) => ({ historyAutoRefresh: v }),
+		...bind("historyAutoRefresh"),
 	},
 ];
 
 /** What the History page's row says beside its name. */
-export function historyValue(plugin: SettingsTabHost): string {
+export function historyValue(plugin: SettingsHost): string {
 	const { fileHistoryEnabled, fileHistoryKeep } = plugin.settings;
 	return fileHistoryEnabled ? HISTORY_KEEP_TEXT[fileHistoryKeep] : "Off";
 }
 
 export function historySection(
-	ctx: FieldContext<SettingsTabHost>,
+	ctx: FieldContext<HistorySectionHost>,
 	loadHistory: () => Promise<SnapshotListResult>,
 ): SettingDefinitionGroup {
 	const rows = HISTORY_FIELDS.map((field) => fieldRow(ctx, field));
@@ -79,7 +79,7 @@ export function historySection(
 }
 
 function historyHoldsRow(
-	plugin: SettingsTabHost,
+	plugin: HistorySectionHost,
 	loadHistory: () => Promise<SnapshotListResult>,
 ): SettingsRow {
 	return {

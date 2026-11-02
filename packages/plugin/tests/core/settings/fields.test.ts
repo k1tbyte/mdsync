@@ -1,17 +1,23 @@
-import type { Setting, SettingDefinitionRender } from "obsidian";
+import { Setting, type SettingDefinitionRender } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import { EFieldKind } from "@/core/settings";
-
 import {
+	bind,
 	type FieldContext,
 	fieldRow,
 	group,
 	introRow,
 	renderDefinitions,
 	type SettingsRow,
+	type SliderField,
+	type ToggleField,
 } from "@/core/settings/fields";
+import { notifyError } from "@/core/ui/notices";
 
-vi.mock("obsidian", () => ({
+vi.mock("@/core/ui/notices", () => ({ notifyError: vi.fn() }));
+
+vi.mock("obsidian", async (importOriginal) => ({
+	...(await importOriginal<object>()),
 	debounce: (fn: unknown) => fn,
 	Setting: class {
 		name = "";
@@ -19,6 +25,18 @@ vi.mock("obsidian", () => ({
 		heading = false;
 		constructor() {
 			rows.push(this);
+		}
+		addToggle(build: (toggle: unknown) => void) {
+			build({
+				setValue() {
+					return this;
+				},
+				onChange(handler: (value: boolean) => void) {
+					toggled = handler;
+					return this;
+				},
+			});
+			return this;
 		}
 		setName(name: string) {
 			this.name = name;
@@ -36,6 +54,7 @@ vi.mock("obsidian", () => ({
 }));
 
 const rows: { name: string; desc: string; heading: boolean }[] = [];
+let toggled: (value: boolean) => void = () => undefined;
 
 describe("setting definitions", () => {
 	it("evaluates field visibility against current settings", () => {
@@ -76,5 +95,85 @@ describe("setting definitions", () => {
 		]);
 		expect(render).toHaveBeenCalledWith(rows[1] as unknown as Setting);
 		expect(hidden).not.toHaveBeenCalled();
+	});
+});
+
+describe("a field's save", () => {
+	function toggleRow(saveSettings: () => Promise<void>) {
+		const settings = { liveEditing: false };
+		const after = vi.fn();
+		const ctx = {
+			plugin: { settings, saveSettings },
+			rerender: vi.fn(),
+		} as unknown as FieldContext;
+		fieldRow(ctx, {
+			kind: EFieldKind.Toggle,
+			name: "Live editing",
+			...bind("liveEditing"),
+			after,
+			rerender: true,
+		}).render(new Setting({} as HTMLElement));
+		return { settings, after, ctx };
+	}
+
+	it("tells the user when settings cannot be saved, and skips what follows", async () => {
+		const failure = new Error("disk full");
+		const { settings, after, ctx } = toggleRow(() => Promise.reject(failure));
+
+		toggled(true);
+		await vi.waitFor(() => expect(notifyError).toHaveBeenCalled());
+
+		expect(notifyError).toHaveBeenCalledWith(
+			"Could not save settings",
+			failure,
+		);
+		expect(settings.liveEditing).toBe(true);
+		expect(after).not.toHaveBeenCalled();
+		expect(ctx.rerender).not.toHaveBeenCalled();
+	});
+
+	it("runs what follows once saved", async () => {
+		vi.mocked(notifyError).mockClear();
+		const { after, ctx } = toggleRow(async () => undefined);
+
+		toggled(true);
+		await vi.waitFor(() => expect(after).toHaveBeenCalled());
+
+		expect(ctx.rerender).toHaveBeenCalled();
+		expect(notifyError).not.toHaveBeenCalled();
+	});
+});
+
+describe("bind", () => {
+	it("reads and patches one key", () => {
+		const field = bind("autoSyncEnabled");
+		expect(field.get({ autoSyncEnabled: true } as never)).toBe(true);
+		expect(field.set(false)).toEqual({ autoSyncEnabled: false });
+	});
+
+	it("only fits a field of the key's value type", () => {
+		const toggle = (field: ToggleField) => field;
+		const slider = (field: SliderField) => field;
+		const range = { min: 0, max: 1 };
+		toggle({ kind: EFieldKind.Toggle, name: "ok", ...bind("autoSyncEnabled") });
+		slider({
+			kind: EFieldKind.Slider,
+			name: "ok",
+			...range,
+			...bind("autoPushSettleSeconds"),
+		});
+		// @ts-expect-error a number setting is no toggle
+		toggle({
+			kind: EFieldKind.Toggle,
+			name: "no",
+			...bind("autoPushSettleSeconds"),
+		});
+		// @ts-expect-error a boolean setting is no slider
+		slider({
+			kind: EFieldKind.Slider,
+			name: "no",
+			...range,
+			...bind("autoSyncEnabled"),
+		});
 	});
 });

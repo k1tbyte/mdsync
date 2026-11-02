@@ -6,7 +6,7 @@ import {
 } from "@codemirror/state";
 import { editorInfoField } from "obsidian";
 
-import type { MarkedChange } from "./helpers";
+import type { MarkedChange } from "./marks";
 
 export interface ChangesData {
 	changes: readonly MarkedChange[];

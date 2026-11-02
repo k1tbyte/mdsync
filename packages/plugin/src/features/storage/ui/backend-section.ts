@@ -45,7 +45,7 @@ export function backendSection(
 			},
 		},
 		...listBackends().flatMap(({ kind }) =>
-			storageRows(plugin, kind).map((row) => ({
+			storageRows(ctx, kind).map((row) => ({
 				...row,
 				visible: () => plugin.settings.activeStorageKind === kind,
 			})),

@@ -11,7 +11,7 @@ import {
 	presentSyncChange,
 	shouldRedeliverBaseline,
 	toCmText,
-} from "@/features/editor-signs/helpers";
+} from "@/features/editor-signs/marks";
 import { segmentRevert } from "@/features/editor-signs/popup/hunk-revert";
 import { registerEditorSigns } from "@/features/editor-signs/register";
 import {

@@ -19,6 +19,7 @@ import type {
 	Manifest,
 	Move,
 } from "../types";
+import { trimOldest } from "./bounded-map";
 import { type ComputedHunks, computeHunks } from "./hunks";
 
 export const EDiffDirection = {
@@ -347,14 +348,7 @@ async function loadVersion(
 	const bytes = await loadRemoteBytes(deps, hash);
 	if (!bytes) return null;
 	cache.set(hash, bytes);
-	let total = 0;
-	for (const held of cache.values()) total += held.length;
-	for (const [oldest, held] of cache) {
-		// The newest stays even alone over the cap: the open diff refreshes it.
-		if (total <= VERSION_CACHE_MAX_BYTES || cache.size === 1) break;
-		cache.delete(oldest);
-		total -= held.length;
-	}
+	trimOldest(cache, VERSION_CACHE_MAX_BYTES, (held) => held.length);
 	return bytes;
 }
 

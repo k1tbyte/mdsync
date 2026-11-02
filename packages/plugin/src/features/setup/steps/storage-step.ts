@@ -15,7 +15,7 @@ import {
 	useR2,
 } from "@/features/storage";
 import { choiceCard } from "../choice-card";
-import { actionRow } from "../form";
+import { actionRow, busyButton } from "../form";
 import { runAction } from "../run-action";
 import type { StepView, Wizard } from "../wizard";
 import { renderTokenForm, tokenForm } from "./cloudflare-token";
@@ -132,13 +132,8 @@ export function createStorageStep(wizard: Wizard): StepView {
 		renderDefinitions(el, [
 			backendSection({ plugin, rerender: () => wizard.redraw() }),
 		]);
-		if (state.error) alertLine(el).setText(state.error);
-		actionRow(el).addButton((b) =>
-			b
-				.setButtonText(state.busy ? "Checking…" : "Continue")
-				.setCta()
-				.setDisabled(state.busy)
-				.onClick(() => void finish(async () => undefined)),
+		busyButton(el, state, "Continue", "Checking…", () =>
+			finish(async () => undefined),
 		);
 	};
 
