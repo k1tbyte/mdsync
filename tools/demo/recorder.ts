@@ -301,6 +301,19 @@ export async function click(
 }
 
 /** Clicks a source control tab again if a re-render ate the press, which a recorded take cannot afford. */
+/** The modal is taller than the window: scrolls it, in view, until `selector` is in the middle. */
+export async function scrollToMiddle(
+	page: Page,
+	selector: string,
+): Promise<void> {
+	await page
+		.locator(selector)
+		.evaluate((el) =>
+			el.scrollIntoView({ block: "center", behavior: "smooth" }),
+		);
+	await sleep(900);
+}
+
 export async function openTab(page: Page, label: string): Promise<void> {
 	const tab = `[role='tab'][aria-label='${label}']`;
 	for (let attempt = 0; attempt < 3; attempt++) {

@@ -4,7 +4,7 @@ import type { Page } from "playwright-core";
 
 import { sleep } from "../../tests/e2e/harness";
 import { file, folder, runPair } from "./pair";
-import { click, pickMenuItem } from "./recorder";
+import { click, pickMenuItem, scrollToMiddle } from "./recorder";
 
 // biome-ignore lint/suspicious/noExplicitAny: the renderer's app is untyped here.
 declare const app: any;
@@ -42,7 +42,18 @@ async function scene(owner: Page, guest: Page): Promise<void> {
 	await sleep(1200);
 	await click(owner, "[aria-label='Copy link']", 700);
 	await sleep(900);
-	await click(owner, "[aria-label='Copy password']", 600);
+	await scrollToMiddle(owner, "[aria-label='Copy password']");
+	await sleep(700);
+	// The icon sits flush to the modal's edge, under a macOS overlay scrollbar: the click goes to its left part.
+	const icon = await owner
+		.locator("[aria-label='Copy password']")
+		.boundingBox();
+	if (!icon) throw new Error("no Copy password button");
+	await click(
+		owner,
+		{ x: icon.x + icon.width * 0.3, y: icon.y + icon.height / 2 },
+		600,
+	);
 	await sleep(1200);
 
 	const { link, password } = await owner.evaluate(() => {

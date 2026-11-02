@@ -14,6 +14,7 @@ import {
 	frameWindow,
 	type Pane,
 	record,
+	scrollToMiddle,
 	sequence,
 } from "./recorder";
 import { coverWhite, liftVeil, scanThrough } from "./scan";
@@ -163,16 +164,6 @@ async function openExportModal(device: Obsidian, page: Page): Promise<void> {
 			: undefined,
 	);
 	await button.evaluate((el) => (el as HTMLElement).click());
-}
-
-/** The modal is taller than the window: scrolls it, in view, until `selector` is in the middle. */
-async function scrollToMiddle(page: Page, selector: string): Promise<void> {
-	await page
-		.locator(selector)
-		.evaluate((el) =>
-			el.scrollIntoView({ block: "center", behavior: "smooth" }),
-		);
-	await sleep(900);
 }
 
 /** What the OS hands the plugin once a scanned link opens; the prompt waits for a typed IMPORT. */

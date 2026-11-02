@@ -282,7 +282,10 @@ async function readNote(web: Page, passphrase: string): Promise<void> {
 	await web.locator(".markdown-rendered").waitFor();
 	await sleep(1400);
 	await click(web, ".copy-markdown", 700);
-	await sleep(1100);
+	await sleep(900);
+	// The label says "Copied" for a moment and moves the wide toggle beside it: aim after it is back.
+	await web.locator(".copy-markdown:not([data-state])").waitFor();
+	await sleep(300);
 	await click(web, ".wide-toggle", 600);
 	await sleep(1400);
 	await scroll(web, 600);
