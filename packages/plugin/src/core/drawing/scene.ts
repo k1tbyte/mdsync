@@ -38,6 +38,6 @@ export async function sceneOfBytes(
 }
 
 /** An element at one version: any edit gives it a new nonce. */
-export function stamp({ id, version, versionNonce }: SceneElement): string {
+function stamp({ id, version, versionNonce }: SceneElement): string {
 	return `${id}:${version}:${versionNonce}`;
 }

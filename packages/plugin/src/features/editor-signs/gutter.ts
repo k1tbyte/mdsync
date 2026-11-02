@@ -18,6 +18,7 @@ import {
 	setCompareTextEffect,
 } from "./state";
 
+/** Each value is the suffix of its `mdsync-sign-<kind>` class in signs.css. */
 const ESignKind = {
 	Add: "add",
 	Change: "change",
@@ -26,14 +27,6 @@ const ESignKind = {
 	ChangeDelete: "changedelete",
 } as const;
 type ESignKind = (typeof ESignKind)[keyof typeof ESignKind];
-
-const KIND_CLASS: Record<ESignKind, string> = {
-	[ESignKind.Add]: "mdsync-sign-add",
-	[ESignKind.Change]: "mdsync-sign-change",
-	[ESignKind.Delete]: "mdsync-sign-delete",
-	[ESignKind.TopDelete]: "mdsync-sign-topdelete",
-	[ESignKind.ChangeDelete]: "mdsync-sign-changedelete",
-};
 
 class SignMarker extends GutterMarker {
 	constructor(
@@ -52,7 +45,7 @@ class SignMarker extends GutterMarker {
 	}
 
 	override toDOM(): HTMLElement {
-		const cls = `mdsync-sign ${KIND_CLASS[this.kind]}`;
+		const cls = `mdsync-sign mdsync-sign-${this.kind}`;
 		return createDiv({ cls: this.wide ? `${cls} is-wide` : cls });
 	}
 }
@@ -168,10 +161,7 @@ function buildMarkers(state: EditorState): RangeSet<GutterMarker> {
 
 /** One colour down a change, so a block reads as one stroke; its last line may also mark lines removed below. */
 function signKind(mark: ChangeMark, line: number): ESignKind {
-	if (mark.kind === "add") return ESignKind.Add;
-	if (mark.kind === "delete") return ESignKind.Delete;
-	if (mark.kind === "topdelete") return ESignKind.TopDelete;
 	return mark.removesBelow && line === mark.to
 		? ESignKind.ChangeDelete
-		: ESignKind.Change;
+		: mark.kind;
 }

@@ -5,7 +5,7 @@ import { folderName } from "@/core/shared";
 const CONFLICT_COPY_LIMIT = 100;
 
 /** "notes/todo.md" → "notes/todo (conflict from Phone 2026-07-05).md" */
-export function conflictCopyPath(
+function conflictCopyPath(
 	path: string,
 	deviceName: string | undefined,
 	now = new Date(),

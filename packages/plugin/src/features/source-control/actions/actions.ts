@@ -1,6 +1,7 @@
-import { Menu, Platform } from "obsidian";
+import { type App, Menu, Platform } from "obsidian";
 import {
 	attempt,
+	copyText,
 	notifyError,
 	notifyInfo,
 	openInEditor,
@@ -32,6 +33,21 @@ function pathMenu(path: string): Menu {
 	menu.addItem((item) => item.setTitle(title).setIsLabel(true));
 	menu.addSeparator();
 	return menu;
+}
+
+function addLocateItems(menu: Menu, app: App, path: string): void {
+	menu.addItem((item) =>
+		item
+			.setTitle("Reveal in file explorer")
+			.setIcon("folder")
+			.onClick(() => void revealInFileExplorer(app, path)),
+	);
+	menu.addItem((item) =>
+		item
+			.setTitle("Copy path")
+			.setIcon("clipboard")
+			.onClick(() => void copyText("Path", path)),
+	);
 }
 
 interface SourceControlActionDeps {
@@ -69,25 +85,7 @@ export class SourceControlActions {
 				.setIcon("file-text")
 				.onClick(() => void openInEditor(this.plugin.app, path)),
 		);
-		menu.addItem((item) =>
-			item
-				.setTitle("Reveal in file explorer")
-				.setIcon("folder")
-				.onClick(() => void revealInFileExplorer(this.plugin.app, path)),
-		);
-		menu.addItem((item) =>
-			item
-				.setTitle("Copy path")
-				.setIcon("clipboard")
-				.onClick(
-					() =>
-						void runWithNotice(
-							() => navigator.clipboard.writeText(path),
-							"Path copied.",
-							"Could not copy the path",
-						),
-				),
-		);
+		addLocateItems(menu, this.plugin.app, path);
 		if (this.plugin.settings.fileHistoryEnabled) {
 			menu.addItem((item) =>
 				item
@@ -129,25 +127,7 @@ export class SourceControlActions {
 
 	showFolderContextMenu(event: MouseEvent, path: string): void {
 		const menu = pathMenu(path);
-		menu.addItem((item) =>
-			item
-				.setTitle("Reveal in file explorer")
-				.setIcon("folder")
-				.onClick(() => void revealInFileExplorer(this.plugin.app, path)),
-		);
-		menu.addItem((item) =>
-			item
-				.setTitle("Copy path")
-				.setIcon("clipboard")
-				.onClick(
-					() =>
-						void runWithNotice(
-							() => navigator.clipboard.writeText(path),
-							"Path copied.",
-							"Could not copy the path",
-						),
-				),
-		);
+		addLocateItems(menu, this.plugin.app, path);
 		menu.addSeparator();
 		addIgnoreMenuItem(menu, this.plugin, path, true);
 		menu.showAtMouseEvent(event);

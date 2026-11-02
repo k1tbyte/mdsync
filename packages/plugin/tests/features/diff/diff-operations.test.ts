@@ -54,6 +54,7 @@ function setup(stateOverrides: Partial<DiffOperationState> = {}) {
 
 	const restoreFn = vi.fn().mockResolvedValue(undefined);
 	const restoreHunksFn = vi.fn().mockResolvedValue(undefined);
+	const resolveMergedFn = vi.fn().mockResolvedValue({ ok: true });
 
 	const plugin = {
 		app: {
@@ -64,12 +65,44 @@ function setup(stateOverrides: Partial<DiffOperationState> = {}) {
 				restoreFileVersion: restoreFn,
 				restoreHistoryHunks: restoreHunksFn,
 			},
+			resolveConflictMerged: resolveMergedFn,
 		},
 	};
 
 	const ops = new DiffOperations(plugin as unknown as PluginHost, callbacks);
-	return { ops, restoreFn, restoreHunksFn, refreshFn, advanceFn };
+	return {
+		ops,
+		restoreFn,
+		restoreHunksFn,
+		resolveMergedFn,
+		refreshFn,
+		advanceFn,
+	};
 }
+
+describe("DiffOperations.saveMerge", () => {
+	const expected = { localHash: "l", remoteHash: "r" };
+
+	it("saves the merged text, then lets the merge go before the next file opens", async () => {
+		const { ops, resolveMergedFn, advanceFn } = setup();
+		const saved = vi.fn();
+		await ops.saveMerge("merged", expected, saved);
+		expect(resolveMergedFn).toHaveBeenCalledWith("note.md", "merged", expected);
+		expect(saved).toHaveBeenCalledOnce();
+		expect(saved.mock.invocationCallOrder[0]).toBeLessThan(
+			advanceFn.mock.invocationCallOrder[0] ?? 0,
+		);
+	});
+
+	it("keeps the merge open and stays on the file when the save is refused", async () => {
+		const { ops, resolveMergedFn, advanceFn } = setup();
+		resolveMergedFn.mockResolvedValue({ ok: false, error: "changed" });
+		const saved = vi.fn();
+		await ops.saveMerge("merged", expected, saved);
+		expect(saved).not.toHaveBeenCalled();
+		expect(advanceFn).not.toHaveBeenCalled();
+	});
+});
 
 describe("DiffOperations with historyChange", () => {
 	it("applyChoices does nothing when historyChange is set", async () => {

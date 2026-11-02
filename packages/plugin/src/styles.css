@@ -66,5 +66,8 @@
 @import "./features/source-control/styles/phone.css";
 @import "./features/diff/styles/phone.css";
 
+/* After every feature: `.mdsync-hidden` beats a feature's own display. */
+@import "./core/ui/styles/utilities.css";
+
 /* Last: phone overrides win on specificity, but stay last as documented. */
 @import "./core/ui/styles/mobile.css";

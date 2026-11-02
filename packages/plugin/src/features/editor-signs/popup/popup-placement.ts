@@ -10,7 +10,7 @@ interface Size {
 	height: number;
 }
 
-export function placePopup(click: Point, size: Size, viewport: Size): Point {
+function placePopup(click: Point, size: Size, viewport: Size): Point {
 	let x = click.x + MARGIN;
 	let y = click.y + MARGIN;
 	if (x + size.width > viewport.width - MARGIN) {

@@ -3,7 +3,7 @@ import { EditorView, lineNumbers } from "@codemirror/view";
 import { EDiffDirection, type FileDiffModel } from "@/features/sync";
 import { choiceActions, type EChoiceKind, HunkChoices } from "../choices";
 import type { PanelHosts } from "../header";
-import { LayoutMode } from "../layout-mode";
+import { LayoutMode, setCombinedMode } from "../layout-mode";
 import {
 	LineWrappingControl,
 	type LineWrappingOptions,
@@ -24,7 +24,6 @@ import {
 	type ScrollAnchors,
 	spanAnchors,
 } from "../lines/scroll-sync";
-import { setCombinedMode } from "../merge/merge-decorations";
 import { changeNavigation, type RailAction, stepIndex } from "../rail";
 import { CompareControls } from "./compare-controls";
 import {

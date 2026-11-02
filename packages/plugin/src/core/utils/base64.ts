@@ -1,3 +1,5 @@
+export { toBase64Url as bytesToBase64Url } from "@mdsync/protocol";
+
 const BTOA_CHUNK_SIZE = 0x8000;
 
 export function bytesToBase64(bytes: Uint8Array): string {
@@ -16,13 +18,6 @@ export function base64ToBytes(value: string): Uint8Array {
 		bytes[i] = binary.charCodeAt(i);
 	}
 	return bytes;
-}
-
-export function bytesToBase64Url(bytes: Uint8Array): string {
-	return bytesToBase64(bytes)
-		.replace(/\+/g, "-")
-		.replace(/\//g, "_")
-		.replace(/=+$/g, "");
 }
 
 export function base64UrlToBytes(value: string): Uint8Array {

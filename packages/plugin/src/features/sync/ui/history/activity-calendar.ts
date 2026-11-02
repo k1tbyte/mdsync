@@ -1,5 +1,5 @@
-import { Notice, Platform } from "obsidian";
-import { observeResize } from "@/core/ui";
+import { Platform } from "obsidian";
+import { observeResize, tapTooltip } from "@/core/ui";
 import {
 	type ActivityCalendar,
 	bandsOf,
@@ -10,7 +10,6 @@ import {
 
 /** Narrower bands leave their label out. */
 const LABELED_WEEKS = 4;
-const TIP_MS = 4000;
 /** Cells run day by day, a week per column. */
 const KEY_STEPS: Record<string, number> = {
 	ArrowUp: -1,
@@ -53,15 +52,11 @@ export function renderActivityCalendar(
 	}
 	renderBands(scroller, calendar.weeks);
 	const ringed = grid.querySelector<HTMLElement>(".is-picked");
-	let tip: Notice | null = null;
+	const showTip = tapTooltip();
 	const pick = (cell: HTMLElement): void => {
 		const day = days.get(cell.dataset.day ?? "");
 		if (!day) return;
-		// A phone has no hover to show the tooltip.
-		if (Platform.isMobile) {
-			tip?.hide();
-			tip = new Notice(cell.getAttribute("aria-label") ?? "", TIP_MS);
-		}
+		if (Platform.isMobile) showTip(cell);
 		onPick?.(day);
 	};
 	grid.addEventListener("click", (event) => {

@@ -53,7 +53,7 @@ function setup(people: Person[] = [ALEX], unseen: string[] = []) {
 		collapsed: (path) => folded.has(path),
 	};
 	const decorator = new RowDecorator(plugin, controller);
-	let links: ReadonlyMap<string, string> = new Map();
+	let links: ReadonlySet<string> = new Set();
 	return {
 		plugin,
 		decorator,
@@ -70,7 +70,7 @@ function setup(people: Person[] = [ALEX], unseen: string[] = []) {
 			statuses = next;
 			result = { diff: { moves }, snapshot: { skipped: [] } };
 		},
-		setLinks: (next: ReadonlyMap<string, string>) => {
+		setLinks: (next: ReadonlySet<string>) => {
 			links = next;
 		},
 		setPartition: (next: Space[]) => {
@@ -243,7 +243,7 @@ describe("the base layer", () => {
 			"the diff",
 			(rig) => rig.setStatuses(new Map([[CHANGED, EChangeType.LocalDelete]])),
 		],
-		["the links", (rig) => rig.setLinks(new Map([["Team/link", "Team/link"]]))],
+		["the links", (rig) => rig.setLinks(new Set(["Team/link"]))],
 		["the ignore rules", (rig) => rig.decorator.ignoredChanged()],
 		["the partition", (rig) => rig.setPartition([...SPACES])],
 	];

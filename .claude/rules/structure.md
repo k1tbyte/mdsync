@@ -45,7 +45,7 @@ Paths in this file are relative to `packages/plugin/src/`.
 
 `styles.css` is bundled to `packages/plugin/styles.css` by `packages/plugin/esbuild.config.mjs`; the output is gitignored, edit the slices.
 
-- A stylesheet sits in its feature (`features/<name>/styles/` or `ui/`), shared ones in `core/ui/styles/`. Each is imported from `styles.css`: core first, features lowest first, `core/ui/styles/mobile.css` last. Import order is the cascade: append within a slice, never reorder.
+- A stylesheet sits in its feature (`features/<name>/styles/` or `ui/`), shared ones in `core/ui/styles/`. Each is imported from `styles.css`: core first, features lowest first, then `core/ui/styles/utilities.css` (the shared spinner and `.mdsync-hidden`, late so hiding beats a feature's own display), `core/ui/styles/mobile.css` last. Import order is the cascade: append within a slice, never reorder.
 - Phone overrides live next to the component they override; `core/ui/styles/mobile.css` is only the cross-cutting touch-target pass.
 - Spacing is Obsidian's 4px grid (`--size-4-*`, `--size-2-*`), never a parallel scale. `core/ui/styles/tokens.css` holds only what Obsidian lacks (`--mdsync-icon`, `--mdsync-touch`, `--mdsync-bar`, `--mdsync-bar-strong`, `--mdsync-radius-pill`, the change-state palette). The bar is the tone change bar, the strong one the accent bar of a chosen side.
 - Raw px only for hairlines and off-grid values with no token. Row `min-height` is a contract with `features/source-control/virtual-list.ts`, which measures it and sets `--mdsync-row-height`: do not round it.

@@ -34,9 +34,23 @@
 	background: var(--background-primary-alt);
 }
 
+/* The status spinner's look: a pseudo-element cannot take its class. */
 .mdsync-file-row.is-opening::after {
 	content: "";
 	flex: 0 0 auto;
+	display: inline-block;
+	width: 0.75rem;
+	height: 0.75rem;
+	border: 2px solid var(--background-modifier-border);
+	border-top-color: var(--interactive-accent);
+	border-radius: 50%;
+	animation: mdsync-spin 0.65s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.mdsync-file-row.is-opening::after {
+		animation: none;
+	}
 }
 
 /* A tinted letter tile: the colour comes from the status class. */
@@ -307,4 +321,27 @@
 .mdsync-conflict-preview-more {
 	margin: 0;
 	padding: var(--size-2-2) var(--size-4-2);
+}
+
+.mdsync-unified-line {
+	display: block;
+}
+
+.mdsync-line-prefix {
+	display: inline-block;
+	width: 1.5em;
+	text-align: center;
+	user-select: none;
+	opacity: 0.6;
+}
+
+/* Tint from the theme's own hue, not `--background-modifier-error/success`: solid fills make same-hue text invisible. */
+.mdsync-unified-line.is-add {
+	background-color: rgba(var(--mdsync-added-rgb), 0.15);
+	color: var(--text-normal);
+}
+
+.mdsync-unified-line.is-del {
+	background-color: rgba(var(--mdsync-deleted-rgb), 0.15);
+	color: var(--text-normal);
 }

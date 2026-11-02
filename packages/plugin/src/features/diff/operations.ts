@@ -8,6 +8,7 @@ import {
 import { EChoiceKind, type HunkChoices } from "./choices";
 import type { HistoryChange } from "./history-state";
 import type { DiffHost } from "./host";
+import type { MergeDraft } from "./merge/merge-drafts";
 import { confirmRestore } from "./ui/restore-modal";
 
 export interface DiffOperationState {
@@ -156,10 +157,26 @@ export class DiffOperations {
 		);
 	}
 
+	/** `saved` runs before the next file opens, so leaving the merge asks nothing. */
+	async saveMerge(
+		text: string,
+		expected: MergeDraft["expected"],
+		saved: () => void,
+	): Promise<void> {
+		await this.resolve(
+			(path) =>
+				this.plugin.controller.resolveConflictMerged(path, text, expected),
+			"Conflict resolved with merged content.",
+			"Save resolution failed",
+			saved,
+		);
+	}
+
 	private async resolve(
 		action: (path: string) => Promise<SyncOperationResult>,
 		okMessage: string,
 		failureLabel: string,
+		resolved: () => void = () => {},
 	): Promise<void> {
 		const { path } = this.callbacks.state();
 		if (!path) return;
@@ -167,7 +184,10 @@ export class DiffOperations {
 			() => action(path),
 			okMessage,
 			failureLabel,
-			() => this.callbacks.advance(path),
+			() => {
+				resolved();
+				return this.callbacks.advance(path);
+			},
 		);
 	}
 

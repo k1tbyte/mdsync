@@ -10,7 +10,7 @@ import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { setIcon } from "obsidian";
 import { randomId } from "@/core/crypto";
-import { notifyError, notifyInfo, runWithNotice } from "@/core/ui";
+import { notifyError, notifyInfo } from "@/core/ui";
 import { eolOf } from "@/core/utils";
 import {
 	buildMergeSession,
@@ -21,7 +21,7 @@ import {
 } from "@/features/sync";
 import type { PanelHosts } from "../header";
 import type { DiffHost } from "../host";
-import { LayoutMode } from "../layout-mode";
+import { LayoutMode, setCombinedMode } from "../layout-mode";
 import {
 	LineWrappingControl,
 	type LineWrappingOptions,
@@ -43,7 +43,6 @@ import { openAllMergeGaps, toggleMergeGap } from "./merge-cards";
 import { dividerItems } from "./merge-controls";
 import {
 	mergeResultState,
-	setCombinedMode,
 	showSideChanges,
 	sideDecorations,
 } from "./merge-decorations";
@@ -424,32 +423,20 @@ export class MergeEditorPanel {
 		this.nav.nextConflict();
 	}
 
-	async save(
-		plugin: DiffHost,
-		path: string,
-		onSaved: (resolvedPath: string) => Promise<void>,
-	): Promise<void> {
+	/** The text to save and the versions it was merged from, once no conflict is left open. */
+	merged(): { text: string; expected: MergeDraft["expected"] } | null {
 		const view = this.resultView;
-		if (!view) return;
+		if (!view) return null;
 		if (countUnresolved(this.currentChanges()) > 0) {
 			notifyError("Resolve every conflict before saving.");
-			return;
+			return null;
 		}
 		const { expected } = this;
-		if (!expected) return;
-		const text = view.state.doc.toString().replace(/\n/g, this.eol);
-		try {
-			const saved = await runWithNotice(
-				() => plugin.controller.resolveConflictMerged(path, text, expected),
-				"Conflict resolved with merged content.",
-				"Save resolution failed",
-			);
-			if (!saved) return;
-			this.active = false;
-			await onSaved(path);
-		} catch (err) {
-			notifyError("Save resolution failed", err);
-		}
+		if (!expected) return null;
+		return {
+			text: view.state.doc.toString().replace(/\n/g, this.eol),
+			expected,
+		};
 	}
 
 	destroy(): void {

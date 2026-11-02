@@ -1,9 +1,9 @@
 import { ButtonComponent, Modal, Setting } from "obsidian";
-import { openPluginSettings } from "@/core/hub";
 import {
 	alertLine,
 	modalFooter,
 	onEnter,
+	openPluginSettings,
 	openPromiseModal,
 	renderModalHead,
 } from "@/core/ui";

@@ -3,6 +3,7 @@ import { ButtonComponent, Notice } from "obsidian";
 import { errorMessage } from "@/core/shared";
 
 const NOTICE_DURATION_MS = 8000;
+const TIP_MS = 4000;
 
 export function notifyError(messagePrompt: string, err?: unknown): void {
 	const details = err === undefined ? "" : ` - ${errorMessage(err)}`;
@@ -30,6 +31,15 @@ export function notifyAction(
 			notice.hide();
 			action();
 		});
+}
+
+/** A phone has no hover: a tap shows the element's tooltip as a notice, the newest replacing the last. */
+export function tapTooltip(): (el: Element) => void {
+	let tip: Notice | null = null;
+	return (el) => {
+		tip?.hide();
+		tip = new Notice(el.getAttribute("aria-label") ?? "", TIP_MS);
+	};
 }
 
 /** Shows a caught error as a notice and logs the original to the console. */

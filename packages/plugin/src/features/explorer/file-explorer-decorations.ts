@@ -59,7 +59,7 @@ const TARGET_CLASSES = [
 export function computeBase(
 	plugin: ExplorerHost,
 	controller: SyncController,
-	directLinks: ReadonlyMap<string, string>,
+	directLinks: ReadonlySet<string>,
 ): Map<string, BaseMarks> {
 	const out = new Map<string, BaseMarks>();
 	const statuses = controller.fileDiffs.getChangedPathStatuses();
@@ -74,8 +74,8 @@ export function computeBase(
 		if (statuses.get(path) === "conflict") continue;
 		patchDecoration(out, path, { change: { kind: "move", incoming } });
 	}
-	for (const [path, linkRoot] of directLinks) {
-		patchDecoration(out, path, { linkRoot });
+	for (const path of directLinks) {
+		patchDecoration(out, path, { linkRoot: path });
 	}
 	const ignored = plugin.ignoreState.ignoredPaths();
 	for (const path of ignored) {

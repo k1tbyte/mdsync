@@ -53,7 +53,7 @@ describe("incremental explorer link scans", () => {
 		frame();
 		expect(detector.findLink).toHaveBeenCalledOnce();
 		expect(detector.findLink).toHaveBeenCalledWith("notes/new.md");
-		expect([...scan.links.keys()]).toEqual(["notes/0.md"]);
+		expect([...scan.links]).toEqual(["notes/0.md"]);
 	});
 
 	it("retains published links when a change interrupts a multi-frame scan", () => {
@@ -80,7 +80,7 @@ describe("incremental explorer link scans", () => {
 		scan.invalidate("Moved");
 		scan.scan();
 		frame();
-		expect([...scan.links.keys()]).toEqual(["Moved/alias.md"]);
+		expect([...scan.links]).toEqual(["Moved/alias.md"]);
 		expect(detector.invalidate.mock.calls).toEqual([["notes"], ["Moved"]]);
 		expect(detector.findLink).toHaveBeenCalledOnce();
 	});

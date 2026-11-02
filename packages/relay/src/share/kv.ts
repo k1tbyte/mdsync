@@ -3,6 +3,8 @@
  * The key layout stays in this file.
  */
 
+import { toBase64Url } from "@mdsync/protocol";
+
 import { type HubEnv, hubStub } from "../hub/stub";
 import { fingerprint, type SecretEnv } from "../secret";
 import type { S3Target } from "./sigv4";
@@ -82,7 +84,9 @@ export async function saveToken(
 	env: ShareEnv,
 	grant: Omit<TokenRecord, "createdAt">,
 ): Promise<TokenRecord & { token: string }> {
-	const token = base64Url(crypto.getRandomValues(new Uint8Array(TOKEN_BYTES)));
+	const token = toBase64Url(
+		crypto.getRandomValues(new Uint8Array(TOKEN_BYTES)),
+	);
 	const record: TokenRecord = { ...grant, createdAt: Date.now() };
 	const pointer = pointerKey(record.shareId, record.participantId);
 	const previous = await env.SHARE_TOKENS.get(pointer);
@@ -172,11 +176,4 @@ async function participantIds(
 async function dropToken(env: ShareEnv, token: string): Promise<void> {
 	await hubStub(env).dropGrant(await fingerprint(token));
 	await env.SHARE_TOKENS.delete(tokenKey(token));
-}
-
-function base64Url(bytes: Uint8Array): string {
-	return btoa(String.fromCharCode(...bytes))
-		.replace(/\+/g, "-")
-		.replace(/\//g, "_")
-		.replace(/=+$/, "");
 }

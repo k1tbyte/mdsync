@@ -11,3 +11,15 @@ export {
 	shareChannel,
 	sharePrefix,
 } from "./share";
+export {
+	amzTimestamp,
+	canonicalizeQuery,
+	decodePath,
+	deriveSigningKey,
+	encodePath,
+	encodeRfc3986,
+	hmac,
+	SIGV4_ALGORITHM,
+	SIGV4_SERVICE,
+	UNSIGNED_PAYLOAD,
+} from "./sigv4";

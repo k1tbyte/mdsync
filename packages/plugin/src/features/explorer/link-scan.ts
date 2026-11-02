@@ -4,7 +4,7 @@ import { createSymlinkDetector, type SymlinkDetector } from "@/core/vault";
 import type { FileExplorerRows } from "./file-explorer-api";
 
 const BATCH = 64;
-const NO_LINKS: ReadonlyMap<string, string> = new Map();
+const NO_LINKS: ReadonlySet<string> = new Set();
 
 interface LinkScanHost {
 	enabled(): boolean;
@@ -29,7 +29,7 @@ export class LinkScan {
 		this.detector = createSymlinkDetector(adapter, this.enabled);
 	}
 
-	get links(): ReadonlyMap<string, string> {
+	get links(): ReadonlySet<string> {
 		return this.found;
 	}
 
@@ -57,9 +57,9 @@ export class LinkScan {
 				this.checked.delete(checked);
 		}
 		this.publish(
-			new Map(
+			new Set(
 				[...this.found].filter(
-					([found]) => found !== path && !found.startsWith(`${path}/`),
+					(found) => found !== path && !found.startsWith(`${path}/`),
 				),
 			),
 		);
@@ -85,14 +85,12 @@ export class LinkScan {
 		const paths = explorer.paths();
 		const pending = paths.filter((path) => !this.checked.has(path));
 		const visible = new Set(paths);
-		const found = new Map(
-			[...this.found].filter(([path]) => visible.has(path)),
-		);
+		const found = new Set([...this.found].filter((path) => visible.has(path)));
 		if (pending.length === 0) this.publish(found);
 		else this.check(pending, found);
 	}
 
-	private check(pending: string[], found: Map<string, string>): void {
+	private check(pending: string[], found: Set<string>): void {
 		const generation = ++this.generation;
 		let index = 0;
 		const batch = (): void => {
@@ -102,9 +100,9 @@ export class LinkScan {
 				const path = pending[index];
 				if (!path) continue;
 				this.checked.add(path);
-				if (this.detector.findLink(path) === path) found.set(path, path);
+				if (this.detector.findLink(path) === path) found.add(path);
 			}
-			this.publish(new Map(found));
+			this.publish(new Set(found));
 			if (index < pending.length) {
 				this.frame = window.requestAnimationFrame(batch);
 				return;
@@ -118,20 +116,16 @@ export class LinkScan {
 		this.frame = window.requestAnimationFrame(batch);
 	}
 
-	private publish(found: ReadonlyMap<string, string>): void {
-		if (sameStringMap(found, this.found)) return;
+	private publish(found: ReadonlySet<string>): void {
+		if (sameStringSet(found, this.found)) return;
 		this.found = found;
 		this.host.linksChanged();
 	}
 }
 
-function sameStringMap(
-	left: ReadonlyMap<string, string>,
-	right: ReadonlyMap<string, string>,
+function sameStringSet(
+	left: ReadonlySet<string>,
+	right: ReadonlySet<string>,
 ): boolean {
-	if (left.size !== right.size) return false;
-	for (const [key, value] of left) {
-		if (right.get(key) !== value) return false;
-	}
-	return true;
+	return left.size === right.size && [...left].every((path) => right.has(path));
 }

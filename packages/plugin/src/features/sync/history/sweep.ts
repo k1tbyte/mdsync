@@ -79,7 +79,7 @@ export async function reachableHashes(
 }
 
 /** A candidate file a day old: every listing shows what was written around the run that freed its hashes. */
-export function isSettled({ modified }: ListedObject): boolean {
+function isSettled({ modified }: ListedObject): boolean {
 	return modified !== null && modified < Date.now() - SETTLED_AFTER_MS;
 }
 

@@ -14,7 +14,7 @@ Paths are relative to `packages/plugin/src/`. Stylesheet order, tokens and row m
 
 | Need | Use |
 |---|---|
-| a message | `notifyInfo`, `notifyError`, `notifyAction` (one button, for what a background task cannot open a modal for), `reportError`, `runWithNotice`, `attempt` (`core/ui/notices.ts`). Never `new Notice` |
+| a message | `notifyInfo`, `notifyError`, `notifyAction` (one button, for what a background task cannot open a modal for), `reportError`, `runWithNotice`, `attempt`, `tapTooltip` (`core/ui/notices.ts`); copying, `copyText` (`core/ui/controls/copyable.ts`). Never `new Notice` |
 | a window | `renderModalHead` + `modalSection`, `modalCard`, `modalHint`, `modalWarning`, `modalFooter` (`core/ui/modal-frame.ts`): icon tile (red `tone: "danger"` for a destructive question), footer buttons, bottom sheet on a phone (`asDrawer`). The setup wizard keeps its own layout and is a sheet too (`asDrawer`, its sticky footer flush with the safe area) |
 | a question | `openConfirmModal`, `openChoiceModal`, `openPromptModal`, `askPassphrase`, `askNewPassphrase`; a custom modal that returns a value uses `openPromiseModal` |
 | icon button, labeled button | `appendIconButton`, `appendLabeledButton` |
@@ -38,7 +38,7 @@ When one falls short, extend it in `core/ui` instead of writing a second.
 
 - Never set `title`: Obsidian renders its own tooltip from `aria-label`, so both would overlap. `aria-label` (or `setTooltip` on a component) is the only source, worded as one since it is also the accessible name.
 - `appendIconButton` and `makeActivatable` set `aria-label`; pass the text, do not add the attribute after. A button with visible text needs none (`appendLabeledButton`).
-- On a phone a mark with a tooltip shows it as a notice on tap (`features/explorer/file-explorer-badges.ts`).
+- On a phone a mark with a tooltip shows it as a notice on tap (`tapTooltip`: file tree marks, activity calendar days).
 
 ## Style
 

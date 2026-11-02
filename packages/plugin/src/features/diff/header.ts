@@ -124,7 +124,7 @@ export function refitDiffTitle(root: HTMLElement): void {
 	if (name) measureSlide(name);
 }
 
-export function renderDiffHeader(
+function renderDiffHeader(
 	parent: HTMLElement,
 	state: DiffHeaderState,
 	actions: DiffHeaderActions,

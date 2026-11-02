@@ -63,34 +63,6 @@
 	font-size: var(--font-ui-smaller);
 }
 
-.mdsync-status-spinner,
-.mdsync-file-row.is-opening::after {
-	display: inline-block;
-	width: 0.75rem;
-	height: 0.75rem;
-	border: 2px solid var(--background-modifier-border);
-	border-top-color: var(--interactive-accent);
-	border-radius: 50%;
-	animation: mdsync-spin 0.65s linear infinite;
-}
-
-.mdsync-status-spinner.mdsync-hidden,
-.mdsync-hidden {
-	display: none;
-}
-
-@keyframes mdsync-spin {
-	to {
-		transform: rotate(360deg);
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.mdsync-file-row.is-opening::after {
-		animation: none;
-	}
-}
-
 /* The folders on one relay hang from its icon: an icon-less label's title starts under the icon's middle. */
 .mdsync-relay-member {
 	position: relative;

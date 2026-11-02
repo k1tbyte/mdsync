@@ -1,12 +1,12 @@
 import { Menu, setIcon } from "obsidian";
 import { HISTORY_KEEP_MS } from "@/core/constants";
-import { openPluginSettings } from "@/core/hub";
 import { formatDay, pluralize } from "@/core/shared";
 import {
 	appendIconButton,
 	appendLabeledButton,
 	attempt,
 	makeActivatable,
+	openPluginSettings,
 } from "@/core/ui";
 import type { HistoryDiffTarget } from "@/features/diff";
 import { countsBefore, type FileVersion } from "@/features/sync";

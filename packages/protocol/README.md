@@ -1,17 +1,18 @@
 # Protocol
 
-`@mdsync/protocol`: the wire formats the plugin, the relay and the viewer share. Types and functions here are the single definition; a package that needs one imports it, never copies it. Source is the reference (`packages/protocol/package.json` points `main` at `packages/protocol/src/index.ts`, no build step), this file is the map. Hub constraints: `.claude/rules/realtime.md`; link constraints: `.claude/rules/links.md`.
+`@mdsync/protocol`: the wire formats and signing the plugin, the relay and the viewer share. Types and functions here are the single definition; a package that needs one imports it, never copies it. Source is the reference (`packages/protocol/package.json` points `main` at `packages/protocol/src/index.ts`, no build step), this file is the map. Hub constraints: `.claude/rules/realtime.md`; link constraints: `.claude/rules/links.md`.
 
 | File | Defines |
 |---|---|
 | `packages/protocol/src/admin.ts` | `ADMIN_HEADER`, the request header that carries the relay secret |
 | `packages/protocol/src/frames.ts` | hub paths and query params, keepalive constants, `EFrame`, `ERefusal`, `ClientFrame` / `ServerFrame`, limits, `OWNER`, `CHANNEL_DOC` |
 | `packages/protocol/src/codec.ts` | `encodeClient` / `decodeClient`, `encodeServer` / `decodeServer`, `withSlot` |
-| `packages/protocol/src/bytes.ts` | `Writer` / `Reader` (u8, u32, length-prefixed text and blocks), base64url and hex |
+| `packages/protocol/src/bytes.ts` | `Writer` / `Reader` (u8, u32, length-prefixed text and blocks), base64url (`toBase64Url`, `fromBase64Url`) and hex |
 | `packages/protocol/src/grant.ts` | the owner's channel grant: `deriveChannelGrant`, `grantExpiry`, `GRANT_TTL_S` |
 | `packages/protocol/src/share.ts` | share ids, the share's hub channel and storage prefix, signing batch size |
 | `packages/protocol/src/link.ts` | the share-link seal: ids, keys, gate, payload, URL, route headers, limits |
 | `packages/protocol/src/link-content.ts` | the `href` and image `src` allow-lists used by the plugin's sanitizer and the viewer's |
+| `packages/protocol/src/sigv4.ts` | SigV4 pieces shared by the plugin's request signer and the relay's presigner: constants, `deriveSigningKey`, `hmac`, RFC 3986 and path encoding, canonical query, timestamp |
 
 ## Hub frames
 

@@ -4,7 +4,6 @@ export type { SpacesHost } from "./host";
 export { INVITE_ACTION, invitePassword } from "./invite";
 export { pauseOf } from "./partition";
 export {
-	isSpaceRecord,
 	parseSpaceRecords,
 	type SpaceRecord,
 	shareIdentity,

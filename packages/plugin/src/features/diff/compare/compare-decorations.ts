@@ -14,6 +14,7 @@ import {
 import type { EDiffDirection, FileDiffModel, Span } from "@/features/sync";
 import { hunkSegments, type LineRange } from "@/features/sync";
 import { choiceVerb, type HunkChoices } from "../choices";
+import { combinedModeField } from "../layout-mode";
 import { addCodeMarks, type LineMarks, lineMarks } from "../lines/code-lines";
 import {
 	addUnchangedGaps,
@@ -29,7 +30,6 @@ import {
 	viewportTints,
 } from "../lines/line-tints";
 import { type SourceBlock, SourceBlockWidget } from "../lines/source-widget";
-import { combinedModeField } from "../merge/merge-decorations";
 import type { RailAction } from "../rail";
 
 export type CompareSide = "left" | "right";

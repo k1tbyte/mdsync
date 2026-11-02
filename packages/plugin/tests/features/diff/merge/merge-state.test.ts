@@ -6,17 +6,17 @@ import {
 } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { assert, describe, expect, it } from "vitest";
+import {
+	combinedModeField,
+	setCombinedMode,
+} from "@/features/diff/layout-mode";
 import { applyPlan, revertPlan } from "@/features/diff/merge/edit-plan";
 import {
 	openAllMergeGaps,
 	openedGapsField,
 	toggleMergeGap,
 } from "@/features/diff/merge/merge-cards";
-import {
-	combinedModeField,
-	mergeResultState,
-	setCombinedMode,
-} from "@/features/diff/merge/merge-decorations";
+import { mergeResultState } from "@/features/diff/merge/merge-decorations";
 import {
 	changeAt,
 	initialMergeChanges,

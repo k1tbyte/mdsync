@@ -42,7 +42,7 @@ export class RowDecorator {
 
 	apply(
 		explorer: FileExplorerRows,
-		directLinks: ReadonlyMap<string, string>,
+		directLinks: ReadonlySet<string>,
 		indicators: boolean,
 		rowsChanged: boolean,
 	): void {
@@ -73,7 +73,7 @@ export class RowDecorator {
 	}
 
 	private baseMarks(
-		directLinks: ReadonlyMap<string, string>,
+		directLinks: ReadonlySet<string>,
 	): ReadonlyMap<string, BaseMarks> {
 		const inputs = [
 			this.controller.fileDiffs.getChangedPathStatuses(),

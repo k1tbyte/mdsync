@@ -1,4 +1,15 @@
-import { toHex } from "@mdsync/protocol";
+import {
+	amzTimestamp,
+	canonicalizeQuery,
+	decodePath,
+	deriveSigningKey,
+	encodePath,
+	hmac,
+	SIGV4_ALGORITHM,
+	SIGV4_SERVICE,
+	toHex,
+	UNSIGNED_PAYLOAD,
+} from "@mdsync/protocol";
 
 import { sha256Hex } from "@/core/crypto";
 import type { S3StorageConfig } from "../config";
@@ -8,19 +19,10 @@ import type { S3StorageConfig } from "../config";
  * `fetch`: at origin `app://obsidian.md` fetch is subject to CORS, which most backends reject until the
  * user hand-writes a bucket CORS policy.
  */
-const ALGORITHM = "AWS4-HMAC-SHA256";
-const SERVICE = "s3";
 
 /** SHA-256 of the empty string: the payload hash of a request with no body. */
 const EMPTY_PAYLOAD_SHA256 =
 	"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
-
-/**
- * Hashing an upload is a second full pass over every blob on the UI thread. Over HTTPS TLS protects the
- * body and AWS documents this option; a plain-HTTP endpoint (a LAN MinIO) has no transport integrity, so
- * there the body is hashed.
- */
-const UNSIGNED_PAYLOAD = "UNSIGNED-PAYLOAD";
 
 const AWS_DEFAULT_REGION = "us-east-1";
 
@@ -54,12 +56,11 @@ export function createS3Signer(config: S3StorageConfig): S3Signer {
 
 	const signingKey = async (dateStamp: string): Promise<CryptoKey> => {
 		if (cached?.dateStamp === dateStamp) return cached.key;
-		let key = await importHmacKey(
-			encoder.encode(`AWS4${config.secretAccessKey}`),
+		const key = await deriveSigningKey(
+			config.secretAccessKey,
+			dateStamp,
+			region,
 		);
-		for (const part of [dateStamp, region, SERVICE, "aws4_request"]) {
-			key = await importHmacKey(await hmac(key, part));
-		}
 		cached = { dateStamp, key };
 		return key;
 	};
@@ -68,7 +69,7 @@ export function createS3Signer(config: S3StorageConfig): S3Signer {
 		const canonicalUri = objectUri(config, endpoint.basePath, input.key);
 		const canonicalQuery = canonicalizeQuery(input.query ?? {});
 		const payloadHash = await payloadDigest(input.body, endpoint.protocol);
-		const amzDate = timestamp();
+		const amzDate = amzTimestamp();
 		const dateStamp = amzDate.slice(0, 8);
 
 		const signed: Record<string, string> = { host: endpoint.host };
@@ -94,9 +95,9 @@ export function createS3Signer(config: S3StorageConfig): S3Signer {
 			payloadHash,
 		].join("\n");
 
-		const scope = `${dateStamp}/${region}/${SERVICE}/aws4_request`;
+		const scope = `${dateStamp}/${region}/${SIGV4_SERVICE}/aws4_request`;
 		const stringToSign = [
-			ALGORITHM,
+			SIGV4_ALGORITHM,
 			amzDate,
 			scope,
 			await sha256Hex(encoder.encode(canonicalRequest)),
@@ -114,7 +115,7 @@ export function createS3Signer(config: S3StorageConfig): S3Signer {
 				"x-amz-content-sha256": payloadHash,
 				"x-amz-date": amzDate,
 				Authorization:
-					`${ALGORITHM} Credential=${config.accessKeyId}/${scope}, ` +
+					`${SIGV4_ALGORITHM} Credential=${config.accessKeyId}/${scope}, ` +
 					`SignedHeaders=${signedHeaders}, Signature=${signature}`,
 			},
 		};
@@ -161,6 +162,11 @@ function resolveEndpoint(config: S3StorageConfig): ResolvedEndpoint {
 	};
 }
 
+/**
+ * Hashing an upload is a second full pass over every blob on the UI thread. Over HTTPS TLS protects the
+ * body and AWS documents UNSIGNED-PAYLOAD; a plain-HTTP endpoint (a LAN MinIO) has no transport integrity,
+ * so there the body is hashed.
+ */
 async function payloadDigest(
 	body: Uint8Array | undefined,
 	protocol: string,
@@ -185,59 +191,4 @@ function objectUri(
 			: `/${config.bucket}`
 		: `/${key}`;
 	return encodePath(`${basePath}${path}`) || "/";
-}
-
-function canonicalizeQuery(query: Record<string, string>): string {
-	return Object.keys(query)
-		.sort()
-		.map((name) => `${encodeRfc3986(name)}=${encodeRfc3986(query[name] ?? "")}`)
-		.join("&");
-}
-
-/** `20260907T101530Z`, the only format SigV4 accepts. */
-function timestamp(): string {
-	return new Date()
-		.toISOString()
-		.replace(/[:-]/g, "")
-		.replace(/\.\d{3}/, "");
-}
-
-function importHmacKey(raw: BufferSource): Promise<CryptoKey> {
-	return crypto.subtle.importKey(
-		"raw",
-		raw,
-		{ name: "HMAC", hash: "SHA-256" },
-		false,
-		["sign"],
-	);
-}
-
-function hmac(key: CryptoKey, data: string): Promise<ArrayBuffer> {
-	return crypto.subtle.sign("HMAC", key, encoder.encode(data));
-}
-
-/** `encodeURIComponent` leaves these, and SigV4 requires them encoded. */
-function encodeRfc3986(value: string): string {
-	return encodeURIComponent(value).replace(
-		/[!'()*]/g,
-		(char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
-	);
-}
-
-/** Percent-encodes each path segment, leaving the separators intact. */
-function encodePath(path: string): string {
-	return path.split("/").map(encodeRfc3986).join("/");
-}
-
-function decodePath(path: string): string {
-	return path
-		.split("/")
-		.map((segment) => {
-			try {
-				return decodeURIComponent(segment);
-			} catch {
-				return segment;
-			}
-		})
-		.join("/");
 }

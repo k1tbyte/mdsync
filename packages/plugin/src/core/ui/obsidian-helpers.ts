@@ -1,5 +1,22 @@
 import { type App, TFile, type View } from "obsidian";
+import { PLUGIN_ID } from "@/core/constants";
 import { notifyInfo } from "./notices";
+
+interface SettingsDialog {
+	open(): void;
+	close(): void;
+	openTabById(id: string): void;
+}
+
+export function openPluginSettings(app: App): void {
+	const { setting } = app as App & { setting?: SettingsDialog };
+	setting?.open();
+	setting?.openTabById(PLUGIN_ID);
+}
+
+export function closePluginSettings(app: App): void {
+	(app as App & { setting?: SettingsDialog }).setting?.close();
+}
 
 interface FileExplorerReveal extends View {
 	revealInFolder?: (file: unknown) => void;

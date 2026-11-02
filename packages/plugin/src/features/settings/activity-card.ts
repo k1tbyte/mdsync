@@ -1,6 +1,6 @@
 import { ButtonComponent } from "obsidian";
-import { closePluginSettings } from "@/core/hub";
 import { formatRelativeTime, pluralize } from "@/core/shared";
+import { closePluginSettings } from "@/core/ui";
 import {
 	activeStorage,
 	isStorageConfigured,

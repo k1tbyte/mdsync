@@ -13,29 +13,3 @@
 		display: none;
 	}
 }
-.mdsync-unified-line {
-	display: block;
-}
-
-.mdsync-line-prefix {
-	display: inline-block;
-	width: 1.5em;
-	text-align: center;
-	user-select: none;
-	opacity: 0.6;
-}
-
-.mdsync-line-content {
-	white-space: pre;
-}
-
-/* Tint from the theme's own hue, not `--background-modifier-error/success`: solid fills make same-hue text invisible. */
-.mdsync-unified-line.is-add {
-	background-color: rgba(var(--mdsync-added-rgb), 0.15);
-	color: var(--text-normal);
-}
-
-.mdsync-unified-line.is-del {
-	background-color: rgba(var(--mdsync-deleted-rgb), 0.15);
-	color: var(--text-normal);
-}

@@ -76,7 +76,7 @@ export function markedChanges(baseline: Text, current: Text): MarkedChange[] {
 }
 
 /** A change's lines here, less those that differ only by the note's final newline. */
-export function changeMark(change: SyncChange): ChangeMark {
+function changeMark(change: SyncChange): ChangeMark {
 	const { removedLines, addedLines } = presentSyncChange(change);
 	const { head, tail } = commonEnds(removedLines, addedLines);
 	const removed = removedLines.slice(head, removedLines.length - tail);

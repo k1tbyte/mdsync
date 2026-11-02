@@ -317,7 +317,7 @@ export class DiffView extends ItemView {
 				historyLabel,
 			},
 			{
-				saveResolution: () => this.saveMerge(path),
+				saveResolution: () => this.saveMerge(),
 				cancelResolution: () =>
 					void this.mayLeave().then((leave) => {
 						if (!leave) return;
@@ -443,13 +443,15 @@ export class DiffView extends ItemView {
 		return {
 			take: (sides) => this.mergePanel.take(sides),
 			nextConflict: () => this.mergePanel.nextConflict(),
-			save: () => this.saveMerge(path),
+			save: () => this.saveMerge(),
 		};
 	}
 
-	private saveMerge(path: string): void {
-		void this.mergePanel.save(this.plugin, path, (resolved) =>
-			this.advanceAfterResolve(resolved),
+	private saveMerge(): void {
+		const merged = this.mergePanel.merged();
+		if (!merged) return;
+		void this.operations.saveMerge(merged.text, merged.expected, () =>
+			this.mergePanel.reset(),
 		);
 	}
 

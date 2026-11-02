@@ -14,8 +14,10 @@ import {
 
 import {
 	broadcast,
+	type DocState,
 	leaveFrame,
 	movedFrame,
+	type Pointer,
 	peerFrame,
 	refuse,
 	send,
@@ -30,20 +32,6 @@ export interface FrameContext {
 	peers: readonly HubPeer[];
 	peer: HubPeer;
 	grant: Grant;
-}
-
-export interface DocState {
-	head: number;
-	snapshot: Uint8Array | null;
-	deltas: Uint8Array[];
-	/** Drawn when the log's first row is: a lost log grows again under another. */
-	log: string;
-}
-
-/** Where a moved document continued, and the sealed note its mover left there. */
-export interface Pointer {
-	target: string;
-	note: Uint8Array;
 }
 
 export interface DocStore {

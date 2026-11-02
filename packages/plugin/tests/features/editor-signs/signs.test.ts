@@ -1,5 +1,7 @@
 import { EditorState, Text } from "@codemirror/state";
-import { describe, expect, it, vi } from "vitest";
+import type { EditorView } from "@codemirror/view";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { focusHunk, hunkFocusField } from "@/features/editor-signs/focus";
 import { signsField } from "@/features/editor-signs/gutter";
 import {
 	type ChangeMark,
@@ -194,10 +196,17 @@ describe("signs helpers", () => {
 });
 
 describe("signs gutter field", () => {
+	beforeAll(() => {
+		vi.stubGlobal("createDiv", ({ cls }: { cls: string }) => ({
+			className: cls,
+		}));
+	});
+	afterAll(() => vi.unstubAllGlobals());
+
 	function stateWithSigns(doc: string, baseline: string): EditorState {
 		const initial = EditorState.create({
 			doc,
-			extensions: [compareTextField, changesField, signsField],
+			extensions: [compareTextField, changesField, hunkFocusField, signsField],
 		});
 		const withBaseline = initial.update({
 			effects: setCompareTextEffect.of(toCmText(baseline)),
@@ -227,6 +236,25 @@ describe("signs gutter field", () => {
 		}
 	});
 
+	it.each([
+		["add", "a\n", "a\nb\n"],
+		["change", "one\ntwo\n", "one\nTWO\n"],
+		["delete", "a\nb\n", "a\n"],
+		["topdelete", "a\nb\n", "b\n"],
+		["changedelete", "a\nb\nc\n", "a\nB\n"],
+	])("draws a %s sign with its class", (kind, baseline, current) => {
+		const state = stateWithSigns(current, baseline);
+		expect(signClasses(state)).toEqual([`mdsync-sign mdsync-sign-${kind}`]);
+
+		const [first] = marks(baseline, current);
+		const wide = state.update({
+			effects: focusHunk.of({ hover: first as ChangeMark }),
+		}).state;
+		expect(signClasses(wide)).toEqual([
+			`mdsync-sign mdsync-sign-${kind} is-wide`,
+		]);
+	});
+
 	it("drops every marker once the baseline is cleared", () => {
 		const state = stateWithSigns("one\nTWO\n", "one\ntwo\n");
 		const cleared = state.update({
@@ -235,6 +263,17 @@ describe("signs gutter field", () => {
 		expect(countMarkers(cleared)).toBe(0);
 	});
 });
+
+function signClasses(state: EditorState): string[] {
+	const classes: string[] = [];
+	const cursor = state.field(signsField).iter();
+	while (cursor.value) {
+		const node = cursor.value.toDOM?.({} as EditorView) as HTMLElement;
+		classes.push(node.className);
+		cursor.next();
+	}
+	return classes;
+}
 
 function countMarkers(state: EditorState): number {
 	let count = 0;

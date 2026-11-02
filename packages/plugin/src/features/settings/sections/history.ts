@@ -1,6 +1,5 @@
 import type { SettingDefinitionGroup } from "obsidian";
 import { HISTORY_KEEP_MS, HISTORY_KEEP_TEXT } from "@/core/constants";
-import { closePluginSettings } from "@/core/hub";
 import {
 	EFieldKind,
 	type FieldContext,
@@ -11,6 +10,7 @@ import {
 	type SettingsRow,
 	SUB_SETTING_CLASS,
 } from "@/core/settings";
+import { closePluginSettings } from "@/core/ui";
 import { renderHistoryHolds, type SnapshotListResult } from "@/features/sync";
 import type { SettingsTabHost } from "../host";
 

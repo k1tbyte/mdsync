@@ -32,9 +32,15 @@ export {
 	notifyInfo,
 	reportError,
 	runWithNotice,
+	tapTooltip,
 } from "./notices";
 export { observeResize } from "./observe-resize";
-export { openInEditor, revealInFileExplorer } from "./obsidian-helpers";
+export {
+	closePluginSettings,
+	openInEditor,
+	openPluginSettings,
+	revealInFileExplorer,
+} from "./obsidian-helpers";
 export { openNote } from "./open-note";
 export { redrawOnPhoneChange } from "./phone-change";
 export { serial } from "./serial";

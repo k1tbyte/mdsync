@@ -4,12 +4,11 @@ import {
 	isConnected,
 	LINK_TEXT,
 	type LinkState,
-	openPluginSettings,
 	RELAY_TEXT,
 	relayFixOf,
 	UNREADABLE_TEXT,
 } from "@/core/hub";
-import { infoTitle, openNote } from "@/core/ui";
+import { infoTitle, openNote, openPluginSettings } from "@/core/ui";
 import { LINK_LIVE_STATE, STATE_ICONS } from "@/features/live";
 import { personTitle } from "@/features/presence";
 import { lastEditLabel, openShareWindow } from "@/features/spaces";

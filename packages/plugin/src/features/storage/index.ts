@@ -1,4 +1,3 @@
-export { defaultS3Config } from "./backends/s3";
 export {
 	endpointUrl,
 	type S3Method,
@@ -22,7 +21,6 @@ export {
 	type S3StorageConfig,
 	type StorageAdapterConfig,
 } from "./config";
-export { CONCURRENCY_FIELD } from "./field-spec";
 export type { StorageHost } from "./host";
 export { listEntries } from "./listing";
 export {
@@ -31,14 +29,12 @@ export {
 	removeRecord,
 	writeRecord,
 } from "./records";
+export { createStorageRefusedPrompt } from "./refused-prompt";
 export {
 	type CompactStorageConfig,
 	compactStorageConfig,
 	createStorageAdapter,
 	describeStorageTarget,
-	getDescriptor,
-	isAdapterConfigured,
-	isKnownBackend,
 	storageDefaults,
 	storageIdentity,
 } from "./registry";

@@ -1,6 +1,6 @@
 import { MarkdownView, Menu, type WorkspaceLeaf } from "obsidian";
-import { openPluginSettings, relayFixOf } from "@/core/hub";
-import { infoTitle, showMenuAt } from "@/core/ui";
+import { relayFixOf } from "@/core/hub";
+import { infoTitle, openPluginSettings, showMenuAt } from "@/core/ui";
 import { personTitle } from "@/features/presence";
 import { lastEditLabel, openShareWindow } from "@/features/spaces";
 import { headerOf, showsHeader } from "./header-state";

@@ -70,7 +70,7 @@ export async function fetchRemoteManifest(
 }
 
 /** A conditional read where the backend has validators, else a plain one. */
-export function readIfChanged(
+function readIfChanged(
 	storage: ObjectStorage,
 	name: string,
 	etag: string | null,

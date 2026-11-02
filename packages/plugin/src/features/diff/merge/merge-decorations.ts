@@ -12,6 +12,7 @@ import {
 	MERGE_SIDES,
 	type MergeChange,
 } from "@/features/sync";
+import { combinedModeField } from "../layout-mode";
 import { addCodeMarks } from "../lines/code-lines";
 import { numberUnchangedLines } from "../lines/gap-widgets";
 import { forEachVisibleRange, rangeLabel, sideSpan } from "../lines/geometry";
@@ -34,17 +35,6 @@ import {
 import { type MergeTone, settleActions, toneOf } from "./merge-controls";
 import type { SideMarks } from "./merge-marks";
 import { mergeChangesField, rememberChangeState } from "./merge-state";
-
-export const setCombinedMode = StateEffect.define<boolean>();
-export const combinedModeField = StateField.define<boolean>({
-	create: () => false,
-	update: (combined, transaction) => {
-		for (const effect of transaction.effects) {
-			if (effect.is(setCombinedMode)) return effect.value;
-		}
-		return combined;
-	},
-});
 
 export function mergeResultState(combined?: CombinedMergeConfig): Extension {
 	const cards = combined && mergeCards(combined);

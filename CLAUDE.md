@@ -6,7 +6,7 @@ An Obsidian community plugin that syncs a vault between devices, end-to-end encr
 |---|---|
 | `packages/plugin` | `mdsync`: the plugin, bundled to `main.js` and `styles.css` by esbuild. Feature slices under `src/features/`, shared infra in `src/core/`, composition root in `src/app/` |
 | `packages/relay` | `mdsync-relay`: one Cloudflare worker (Durable Objects, no PartyServer): relay hub, share broker, link storage, Google OAuth proxy. The plugin deploys it from its own bundle |
-| `packages/protocol` | `@mdsync/protocol`: wire formats shared by plugin, relay and viewer (hub frames, sealed link format) |
+| `packages/protocol` | `@mdsync/protocol`: wire formats and signing shared by plugin, relay and viewer (hub frames, sealed link format, SigV4 helpers) |
 | `packages/viewer` | `mdsync-viewer`: the page a share link opens, built and served by the relay |
 | `tests/e2e/` | end-to-end scenarios against real Obsidian, `wrangler dev` and in-memory S3/WebDAV: `tests/e2e/README.md` |
 

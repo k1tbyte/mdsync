@@ -1,4 +1,5 @@
-import { Notice, Platform, setIcon } from "obsidian";
+import { Platform, setIcon } from "obsidian";
+import { tapTooltip } from "@/core/ui";
 import { openManageLinks } from "@/features/links";
 import { describePeople, renderAvatarStack } from "@/features/presence";
 import { lastEditLabel, openShareWindow } from "@/features/spaces";
@@ -28,7 +29,6 @@ const SHARE_BADGE = ".mdsync-share-badge";
 const PUBLISHED_BADGE = ".mdsync-published-badge";
 const TAP_BADGES =
 	".mdsync-people-badge, .mdsync-unseen-dot, .mdsync-skip-badge, .mdsync-ignore-badge, .mdsync-change-mark";
-const TIP_MS = 4000;
 
 /** Read here, not while computing marks: a pass runs on every sync event. */
 export function renderPresenceMarks(
@@ -60,7 +60,7 @@ export function renderPresenceMarks(
 export function badgeActivation(
 	plugin: ExplorerHost,
 ): (event: MouseEvent | KeyboardEvent) => void {
-	let tip: Notice | null = null;
+	const showTip = tapTooltip();
 	return (event) => {
 		if ("key" in event && event.key !== "Enter" && event.key !== " ") return;
 		if (!(event.target instanceof Element)) return;
@@ -74,8 +74,7 @@ export function badgeActivation(
 		event.preventDefault();
 		event.stopPropagation();
 		if (mark) {
-			tip?.hide();
-			tip = new Notice(mark.getAttribute("aria-label") ?? "", TIP_MS);
+			showTip(mark);
 			return;
 		}
 		if (published) {

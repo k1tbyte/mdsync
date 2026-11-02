@@ -9,7 +9,7 @@ import {
 	isRelayConfigured,
 } from "@/core/settings";
 import { relayBase } from "@/core/shared";
-import { runWithNotice } from "@/core/ui";
+import { copyText } from "@/core/ui";
 import { forgetCloudflare } from "@/features/storage";
 import type { RelayHost } from "../host";
 import { testRelay } from "../relay-test";
@@ -70,12 +70,7 @@ export function relaySection(
 							await plugin.saveSettings();
 							ctx.rerender();
 						}
-						const { relaySecret } = plugin.settings;
-						await runWithNotice(
-							() => navigator.clipboard.writeText(relaySecret),
-							"Relay secret copied.",
-							"Could not copy the relay secret",
-						);
+						await copyText("Relay secret", plugin.settings.relaySecret);
 					});
 				});
 			},

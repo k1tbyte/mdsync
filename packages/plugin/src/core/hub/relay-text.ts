@@ -1,7 +1,4 @@
 import { MAX_SLOTS } from "@mdsync/protocol";
-import type { App } from "obsidian";
-
-import { PLUGIN_ID } from "@/core/constants";
 import { isConnected, type LinkState, type RelayStatus } from "./status";
 
 export const RELAY_TEXT: Record<RelayStatus, string> = {
@@ -55,20 +52,4 @@ export type RelayFix = "reconnect" | "settings";
 export function relayFixOf(status: RelayStatus): RelayFix | null {
 	if (status === "offline") return "reconnect";
 	return status === "unauthorized" ? "settings" : null;
-}
-
-interface SettingsDialog {
-	open(): void;
-	close(): void;
-	openTabById(id: string): void;
-}
-
-export function openPluginSettings(app: App): void {
-	const { setting } = app as App & { setting?: SettingsDialog };
-	setting?.open();
-	setting?.openTabById(PLUGIN_ID);
-}
-
-export function closePluginSettings(app: App): void {
-	(app as App & { setting?: SettingsDialog }).setting?.close();
 }

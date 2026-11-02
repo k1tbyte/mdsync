@@ -32,7 +32,7 @@ export interface ShareOptions {
 }
 
 export const TOO_LARGE = "This note is too large to share as a link.";
-export const NO_RELAY = "Set up the relay under Connection to share links.";
+const NO_RELAY = "Set up the relay under Connection to share links.";
 const OTHER_RELAY =
 	"This link was made through another relay: set that relay again to manage it.";
 /** Ids of the links being updated now. */

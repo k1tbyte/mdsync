@@ -9,7 +9,7 @@ import type { MergeActions } from "./merge-actions";
 export type MergeTone = "conflict" | EMergeSide | "base" | "shared";
 
 /** On the strips an open conflict is only taken: it is settled from its head in Result. */
-export function sideActions(
+function sideActions(
 	change: MergeChange,
 	side: EMergeSide,
 	handlers: MergeActions,

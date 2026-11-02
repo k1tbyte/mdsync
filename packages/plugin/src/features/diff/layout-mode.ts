@@ -1,7 +1,19 @@
+import { StateEffect, StateField } from "@codemirror/state";
 import { randomId } from "@/core/crypto";
 import { observeResize, renderSegments, type Segments } from "@/core/ui";
 
 const COMBINED_BELOW_PX = 900;
+
+export const setCombinedMode = StateEffect.define<boolean>();
+export const combinedModeField = StateField.define<boolean>({
+	create: () => false,
+	update: (combined, transaction) => {
+		for (const effect of transaction.effects) {
+			if (effect.is(setCombinedMode)) return effect.value;
+		}
+		return combined;
+	},
+});
 
 /** Automatic below a width, or forced from a toolbar button while there is room for both layouts. */
 export class LayoutMode {
