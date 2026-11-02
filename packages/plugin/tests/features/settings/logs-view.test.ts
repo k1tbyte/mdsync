@@ -6,23 +6,6 @@ import { ESyncLogLevel, ESyncLogOperation } from "@/core/logs/store";
 import { copyText } from "@/core/ui/controls/copyable";
 import { renderLogEntry } from "@/features/settings/logs-view";
 
-const copy = vi.hoisted(() => ({ clicks: [] as Array<() => void> }));
-
-vi.mock("obsidian", async (importOriginal) => ({
-	...(await importOriginal<object>()),
-	ExtraButtonComponent: class {
-		setIcon() {
-			return this;
-		}
-		setTooltip() {
-			return this;
-		}
-		onClick(fn: () => void) {
-			copy.clicks.push(fn);
-			return this;
-		}
-	},
-}));
 vi.mock("@/core/ui/controls/copyable", () => ({
 	copyText: vi.fn(() => Promise.resolve(true)),
 }));
@@ -57,10 +40,10 @@ describe("renderLogEntry", () => {
 	});
 
 	it("copies the whole entry while the details are still closed", () => {
-		copy.clicks.length = 0;
-		renderLogEntry(document.createElement("div"), entry);
+		const parent = document.createElement("div");
+		renderLogEntry(parent, entry);
 
-		copy.clicks[0]?.();
+		parent.querySelector<HTMLElement>(".extra-setting-button")?.click();
 
 		expect(copyText).toHaveBeenCalledWith(
 			"Log entry",

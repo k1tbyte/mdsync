@@ -1,8 +1,13 @@
 import type { LinkStatus } from "@mdsync/protocol";
+import { linkRecord } from "@tests/helpers/shared-links";
+import type {
+	ButtonComponent,
+	ExtraButtonComponent,
+	Setting,
+} from "@tests/stubs/obsidian";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PluginHost } from "@/app/host";
 import { linkStatusOf } from "@/features/links/publish";
-import type { LinkRecord } from "@/features/links/record";
 import { SharedLinks } from "@/features/links/shared-links";
 import { updateSharedLinks } from "@/features/links/ui/link-actions";
 import { ManageLinksModal } from "@/features/links/ui/manage-links-modal";
@@ -25,92 +30,35 @@ vi.mock("@/core/ui/modal-frame", () => ({
 	modalHint: vi.fn(),
 	modalCard: vi.fn(),
 }));
-vi.mock("obsidian", () => ({
-	Modal: class {
-		modalEl = { addClass: () => {} };
-		contentEl = {
-			empty: () => {
-				rows.length = 0;
-			},
-			createEl: () => {},
-		};
-		constructor(readonly app: object) {}
-	},
-	ButtonComponent: class {
-		setButtonText() {
-			return this;
-		}
-		onClick() {
-			return this;
-		}
-	},
-	Setting: class {
-		name = "";
-		desc = "";
-		descEl = { createDiv: () => {} };
-		buttons: Button[] = [];
-		constructor() {
-			rows.push(this);
-		}
-		setName(name: string) {
-			this.name = name;
-			return this;
-		}
-		setDesc(desc: string) {
-			this.desc = desc;
-			return this;
-		}
-		addButton(build: (button: Button) => void) {
-			const button = new Button();
-			build(button);
-			this.buttons.push(button);
-			return this;
-		}
-		addExtraButton(build: (button: Button) => void) {
-			return this.addButton(build);
-		}
-	},
-}));
+vi.mock("obsidian", async (original) => {
+	const actual = await original<typeof import("@tests/stubs/obsidian")>();
+	return {
+		...actual,
+		Modal: class extends actual.Modal {
+			constructor(app: unknown) {
+				super(app);
+				// A redraw empties the list: the rows drawn before it are gone.
+				this.contentEl.empty = () => {
+					rows.length = 0;
+				};
+			}
+		},
+		Setting: class extends actual.Setting {
+			constructor(containerEl?: unknown) {
+				super(containerEl);
+				rows.push(this);
+			}
+		},
+	};
+});
 
-class Button {
-	text = "";
-	click: () => Promise<void> = async () => {};
-	setButtonText(text: string) {
-		this.text = text;
-		return this;
-	}
-	setTooltip(text: string) {
-		this.text = text;
-		return this;
-	}
-	setIcon() {
-		return this;
-	}
-	setDisabled() {
-		return this;
-	}
-	onClick(click: () => Promise<void>) {
-		this.click = click;
-		return this;
-	}
-}
-
-const rows: { name: string; desc: string; buttons: Button[] }[] = [];
-const RECORD: LinkRecord = {
-	id: "one",
-	url: "https://relay.example/one",
-	rev: 0,
-	author: "",
-	path: "note.md",
-	showTitle: true,
-	detached: false,
-	createdAt: 1,
-	publishedAt: 1,
-	expires: null,
-	maxViews: null,
-	salt: null,
-	images: false,
-};
+const rows: Setting[] = [];
+const RECORD = linkRecord();
+const labelOf = (button: ButtonComponent | ExtraButtonComponent) =>
+	"text" in button ? button.text : button.tooltip;
+const labels = (row: Setting | undefined) => row?.buttons.map(labelOf);
+const press = (row: Setting | undefined, label: string) =>
+	row?.buttons.find((button) => labelOf(button) === label)?.click();
 const LIVE: LinkStatus = {
 	views: 0,
 	maxViews: null,
@@ -164,18 +112,13 @@ describe("ManageLinksModal", () => {
 		await vi.waitFor(() => expect(rows[0]?.desc).toContain("never expires"));
 		expect(rows[0]?.name).toBe("note");
 		expect(rows[0]?.desc).toBe("The note was deleted. 0 views · never expires");
-		expect(rows[0]?.buttons.map(({ text }) => text)).toEqual([
-			"Copy link",
-			"Stop sharing",
-		]);
+		expect(labels(rows[0])).toEqual(["Copy link", "Stop sharing"]);
 	});
 	it("draws a record with a damaged address and still offers its removal", () => {
 		host(null, [{ ...RECORD, url: "not a URL" }, RECORD]);
 		expect(rows).toHaveLength(2);
 		expect(rows[0]?.desc).toContain("address is damaged");
-		expect(rows[0]?.buttons.map(({ text }) => text)).toEqual([
-			"Remove from the list",
-		]);
+		expect(labels(rows[0])).toEqual(["Remove from the list"]);
 	});
 
 	it("starts changed notes with the stale line and keeps the status copy", async () => {
@@ -207,7 +150,7 @@ describe("ManageLinksModal", () => {
 		vi.mocked(updateSharedLinks).mockImplementationOnce(async () => {
 			expect(linkStatusOf).not.toHaveBeenCalled();
 		});
-		await rows[0]?.buttons.find(({ text }) => text === "Update")?.click();
+		await press(rows[0], "Update");
 		expect(updateSharedLinks).toHaveBeenCalledExactlyOnceWith(plugin, [RECORD]);
 		expect(linkStatusOf).toHaveBeenCalledExactlyOnceWith(plugin, RECORD);
 	});
@@ -217,7 +160,7 @@ describe("ManageLinksModal", () => {
 		vi.useFakeTimers({ now, toFake: ["Date", "setTimeout", "clearTimeout"] });
 		vi.mocked(linkStatusOf).mockResolvedValue(LIVE);
 		host(1, [{ ...RECORD, expires: now / 1000 + 60 }]);
-		const actions = () => rows[0]?.buttons.map(({ text }) => text);
+		const actions = () => labels(rows[0]);
 		await vi.waitFor(() => expect(actions()).toContain("Update"));
 
 		vi.advanceTimersByTime(60_000);
@@ -233,7 +176,7 @@ describe("ManageLinksModal", () => {
 		if (note) note.path = "moved.md";
 		await sharedLinks.move(RECORD.path, "moved.md");
 		expect(rows).toHaveLength(1);
-		await rows[0]?.buttons.find(({ text }) => text === "Update")?.click();
+		await press(rows[0], "Update");
 		expect(updateSharedLinks).toHaveBeenCalledWith(plugin, [
 			{
 				...RECORD,
@@ -247,9 +190,7 @@ describe("ManageLinksModal", () => {
 	it("removes an ended link through SharedLinks", async () => {
 		const { sharedLinks } = host(1);
 		await vi.waitFor(() => expect(rows[0]?.desc).toContain("Ended:"));
-		await rows[0]?.buttons
-			.find(({ text }) => text === "Remove from the list")
-			?.click();
+		await press(rows[0], "Remove from the list");
 		expect(sharedLinks.all()).toEqual([]);
 	});
 });

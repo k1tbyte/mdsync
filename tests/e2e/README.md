@@ -7,8 +7,9 @@ Scenarios run real processes (Obsidian, `wrangler dev`, headless Chrome, in-memo
 - **Obsidian** at the default Windows path, or set `OBSIDIAN_EXE`. On macOS: `OBSIDIAN_EXE=/Applications/Obsidian.app/Contents/MacOS/Obsidian pnpm e2e:live`. Each scenario starts a throwaway Obsidian (own `--user-data-dir`, temp vault, the trust modal clicked) with the built `packages/plugin/main.js`, `packages/plugin/styles.css` and `manifest.json`.
 - **Headless Chrome** for `links-obsidian` (`links` falls back to an installed Chrome): `pnpm exec playwright-core install chromium-headless-shell` once.
 - Each Obsidian turns native menus off once the plugin loads: macOS defaults to them, and they never reach the DOM the scenarios read.
-- **Ports** 8799 (relay), 8801 (WebDAV), 8802 (S3), 9223 and 9224 (CDP) must be free; a few scenarios use their own (listed below). A run killed midway can leave `wrangler dev` holding 8799 or an Obsidian holding its CDP port, and the next run attaches to the stale one: kill that tree.
-- The relay keeps its storage in `packages/relay/.wrangler/e2e-state`, wiped when a run starts it first: tables an older build left would break the hub.
+- **Ports** 8799 (relay), 8801 (WebDAV), 8802 (S3), 9223 and 9224 (CDP) must be free; a few scenarios use their own (listed below). A run killed midway can leave `wrangler dev` holding 8799 or an Obsidian holding its CDP port; `startRelay` and `launchObsidian` refuse to start on a taken port and name it (otherwise the run would drive the stale process): kill that tree.
+- The relay keeps its storage in a fresh temp dir per run (`wrangler dev --persist-to`), shared by the restarts inside the run and removed when the run ends, so no Durable Object or KV state of an earlier run or build reaches the next.
+- When a scenario or a start fails, the full error stack is printed with the last 50 lines of stdout and stderr of each child started through `spawnLogged` (`tests/e2e/harness.ts`: `wrangler dev`, Obsidian).
 - Several Obsidians need distinct CDP ports. On Windows they run on a desktop of their own (`tests/e2e/hidden-desktop.ps1`) and never take focus; `E2E_VISIBLE=1` shows them. `E2E_SHOTS=1` saves screenshots under `artifacts/e2e-shots/`.
 
 ## Scenarios
@@ -35,7 +36,7 @@ Scenarios run real processes (Obsidian, `wrangler dev`, headless Chrome, in-memo
 
 ## Writing a scenario
 
-- Reuse `launchObsidian` (`tests/e2e/obsidian.ts`), `startRelay` (`tests/e2e/relay.ts`), `startWebDav` (`tests/e2e/webdav.ts`), `startS3` (`tests/e2e/s3.ts`) and `connectPeer` (`tests/e2e/peer.ts`); `runScenario`, `check` and `poll` are in `tests/e2e/harness.ts`.
+- Reuse `launchObsidian` (`tests/e2e/obsidian.ts`), `startRelay` (`tests/e2e/relay.ts`), `startWebDav` (`tests/e2e/webdav.ts`), `startS3` (`tests/e2e/s3.ts`) and `connectPeer` (`tests/e2e/peer.ts`); `runScenario`, `check`, `poll` and `spawnLogged` (spawn a child whose output tail is printed on failure) are in `tests/e2e/harness.ts`.
 - `tests/e2e/device.ts` drives a device (sync, files, folder menus, modals), `tests/e2e/sharing.ts` holds the owner-and-participant setup and share steps, `tests/e2e/editor.ts` opens, types into and reads an editor.
 - Obsidian 1.13 mounts modals in `activeDocument`, not `document`, and keeps protocol handlers in `app.workspace.protocolHandler.handlers`. Never open an `obsidian://` URL through the OS: it would reach the user's own Obsidian.
 - Settings stay open under later modals, so helpers search the topmost first. Close buttons ignore synthetic clicks; `closeModals` sends Escape.

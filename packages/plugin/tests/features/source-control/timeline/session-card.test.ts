@@ -11,12 +11,6 @@ import { buildSessionRows } from "@/features/source-control/timeline/session-row
 import type { SnapshotSummary } from "@/features/sync";
 import type { EFileKind } from "@/features/sync/types";
 
-vi.mock("obsidian", async (importOriginal) => ({
-	...(await importOriginal<object>()),
-	ButtonComponent: (await import("@tests/helpers/button-component"))
-		.DomButtonComponent,
-}));
-
 installElementMethods();
 
 const NOW = new Date(2026, 9, 28, 18, 0).getTime();

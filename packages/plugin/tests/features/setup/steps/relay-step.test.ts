@@ -19,62 +19,6 @@ import type { StepView, Wizard } from "@/features/setup/wizard";
 
 installElementMethods();
 
-const buttons: Array<{ label: string; click: () => void }> = [];
-
-vi.mock("obsidian", async (original) => {
-	class Setting {
-		readonly settingEl: HTMLElement;
-		constructor(parent: HTMLElement) {
-			this.settingEl = parent.createDiv();
-		}
-		setName() {
-			return this;
-		}
-		setDesc() {
-			return this;
-		}
-		addText(build: (text: unknown) => void) {
-			const inputEl = this.settingEl.createEl("input");
-			const text = {
-				inputEl,
-				setPlaceholder: () => text,
-				setValue: (v: string) => {
-					inputEl.value = v;
-					return text;
-				},
-				onChange: (cb: (v: string) => void) => {
-					inputEl.addEventListener("input", () => cb(inputEl.value));
-					return text;
-				},
-			};
-			build(text);
-			return this;
-		}
-		addButton(build: (button: unknown) => void) {
-			const entry = { label: "", click: () => {} };
-			const button = {
-				buttonEl: this.settingEl.createEl("button"),
-				setButtonText: (label: string) => {
-					entry.label = label;
-					return button;
-				},
-				setCta: () => button,
-				setDisabled: () => button,
-				onClick: (cb: () => void) => {
-					entry.click = cb;
-					return button;
-				},
-			};
-			build(button);
-			buttons.push(entry);
-			return this;
-		}
-	}
-	return {
-		...(await original<typeof import("obsidian")>()),
-		Setting,
-	};
-});
 vi.mock("@/features/relay/relay-test", () => ({
 	testRelay: vi.fn(),
 }));
@@ -126,7 +70,6 @@ function setup() {
 		moveOn: () => {},
 		redraw: () => {
 			el.replaceChildren();
-			buttons.length = 0;
 			if (open) view?.render(el);
 		},
 		next: vi.fn(),
@@ -141,9 +84,7 @@ function setup() {
 		[...el.querySelectorAll<HTMLButtonElement>(".mdsync-choice")]
 			.find((c) => c.textContent?.includes(title))
 			?.click();
-	const press = (label: string) =>
-		buttons.find((b) => b.label === label)?.click();
-	return { plugin, wizard, view, el, card, press };
+	return { plugin, wizard, view, el, card };
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));

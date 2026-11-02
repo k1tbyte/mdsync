@@ -10,26 +10,6 @@ import type { SnapshotListResult, SnapshotSummary } from "@/features/sync";
 import type { EFileKind, ManifestEntry } from "@/features/sync/types";
 import { buildCalendar } from "@/features/sync/ui/history/calendar";
 
-const search = vi.hoisted(() => ({ change: (_value: string) => {} }));
-
-vi.mock("obsidian", async (importOriginal) => ({
-	...(await importOriginal<object>()),
-	SearchComponent: class {
-		inputEl = document.createElement("input");
-		setPlaceholder() {
-			return this;
-		}
-		setValue() {
-			return this;
-		}
-		onChange(fn: (value: string) => void) {
-			search.change = fn;
-			return this;
-		}
-	},
-	ButtonComponent: (await import("@tests/helpers/button-component"))
-		.DomButtonComponent,
-}));
 vi.mock("@/features/sync/ui/history/calendar", async (importOriginal) => {
 	const actual = await importOriginal<object>();
 	return {
@@ -427,7 +407,12 @@ describe("TimelineTab paging", () => {
 		vi.mocked(renderSessionCard).mockClear();
 
 		// Every path ends in .md, so all 150 still match and only the query changed.
-		search.change(".md");
+		const filter = pane().querySelector<HTMLInputElement>(
+			".mdsync-timeline-filter input",
+		);
+		if (!filter) throw new Error("no filter input");
+		filter.value = ".md";
+		filter.dispatchEvent(new Event("input"));
 
 		expect(lastDrawn().rows).toHaveLength(100);
 		expect(lastDrawn().rows[0]?.key).toBe("s0");

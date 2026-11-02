@@ -1,28 +1,14 @@
+import { linkRecord } from "@tests/helpers/shared-links";
 import { FileView, type Plugin } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import type { PluginHost } from "@/app/host";
-import type { LinkRecord } from "@/features/links/record";
 import { SharedLinks } from "@/features/links/shared-links";
 import { openManageLinks } from "@/features/links/ui/link-menu";
 import { registerNoteLinkActions } from "@/features/links/ui/note-link-action";
 
 vi.mock("@/features/links/ui/link-menu", () => ({ openManageLinks: vi.fn() }));
 
-const RECORD: LinkRecord = {
-	id: "one",
-	url: "https://relay.example/one",
-	rev: 0,
-	author: "",
-	path: "note.md",
-	showTitle: true,
-	detached: false,
-	createdAt: 1,
-	publishedAt: 1,
-	expires: null,
-	maxViews: null,
-	salt: null,
-	images: false,
-};
+const RECORD = linkRecord();
 
 class Action {
 	parentElement: object | null = {};

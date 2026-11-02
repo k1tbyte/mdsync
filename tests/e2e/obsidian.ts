@@ -3,7 +3,6 @@
  * `pnpm build` first.
  */
 
-import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import {
@@ -14,13 +13,14 @@ import {
 	rmSync,
 	writeFileSync,
 } from "node:fs";
+import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { chromium, type Page } from "playwright-core";
 
-import { killTree, OWN_GROUP, poll } from "./harness";
+import { killTree, OWN_GROUP, poll, spawnLogged } from "./harness";
 
 const REPO = fileURLToPath(new URL("../..", import.meta.url));
 const PLUGIN_FILES = [
@@ -56,6 +56,12 @@ export async function launchObsidian(options: {
 	/** Other community plugins' folders, each named by its plugin id. */
 	plugins?: string[];
 }): Promise<Obsidian> {
+	// attach() would drive whatever answers on the port: another Obsidian or a leftover run.
+	if (await listening(options.port)) {
+		throw new Error(
+			`CDP port ${options.port} is already in use: close the Obsidian or process holding it`,
+		);
+	}
 	const root = mkdtempSync(join(tmpdir(), "mdsync-e2e-"));
 	const userData = join(root, "userdata");
 	const vault = join(root, "vault");
@@ -92,7 +98,7 @@ export async function launchObsidian(options: {
 		writeFileSync(join(vault, path), text);
 	}
 
-	const child = spawnObsidian([
+	const child = spawnObsidian(options.port, [
 		`--remote-debugging-port=${options.port}`,
 		`--user-data-dir=${userData}`,
 	]);
@@ -165,12 +171,25 @@ async function attach(port: number) {
 	return undefined;
 }
 
+function listening(port: number): Promise<boolean> {
+	return new Promise((resolve) => {
+		const socket = connect(port, "127.0.0.1");
+		socket.once("connect", () => {
+			socket.destroy();
+			resolve(true);
+		});
+		socket.once("error", () => resolve(false));
+	});
+}
+
 /** On Windows off screen, so it never takes focus; `E2E_VISIBLE` shows it. */
-function spawnObsidian(args: string[]) {
+function spawnObsidian(port: number, args: string[]) {
+	const label = `obsidian :${port}`;
 	if (process.platform !== "win32" || process.env.E2E_VISIBLE) {
-		return spawn(EXE, args, { stdio: "ignore", ...OWN_GROUP });
+		return spawnLogged(label, EXE, args, OWN_GROUP);
 	}
-	return spawn(
+	return spawnLogged(
+		label,
 		"powershell.exe",
 		[
 			"-NoProfile",
@@ -182,7 +201,7 @@ function spawnObsidian(args: string[]) {
 			EXE,
 			...args,
 		],
-		{ stdio: "ignore", windowsHide: true, ...OWN_GROUP },
+		{ windowsHide: true, ...OWN_GROUP },
 	);
 }
 

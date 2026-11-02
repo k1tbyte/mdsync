@@ -1,3 +1,4 @@
+import { linkRecord } from "@tests/helpers/shared-links";
 import type { Command, Plugin } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -45,21 +46,7 @@ vi.mock("@/features/sync/ui/maintenance-actions", () => ({
 	verifyRemoteIntegrity: vi.fn(),
 }));
 
-const RECORD: LinkRecord = {
-	id: "one",
-	url: "https://relay.example/one",
-	rev: 0,
-	author: "",
-	path: "note.md",
-	showTitle: true,
-	detached: false,
-	createdAt: 1,
-	publishedAt: 1,
-	expires: null,
-	maxViews: null,
-	salt: null,
-	images: false,
-};
+const RECORD = linkRecord();
 
 function host(records: LinkRecord[] = [RECORD]) {
 	let file: { path: string } | null = { path: RECORD.path };

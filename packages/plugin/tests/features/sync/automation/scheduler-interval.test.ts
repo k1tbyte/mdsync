@@ -1,176 +1,20 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_SETTINGS } from "@/app/settings";
-
 import {
-	registerScheduler,
-	SCHEDULER_HEARTBEAT_MS,
-	type SchedulerHost,
-} from "@/features/sync/automation/scheduler";
-import { SlowFiles } from "@/features/sync/automation/slow-files";
-import type { SyncController } from "@/features/sync/controller";
-import { VAULT_SPACE } from "@/features/sync/remote/space";
+	type SchedulerHarness,
+	schedulerHarness,
+} from "@tests/helpers/scheduler";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { MdsyncSettings } from "@/core/settings";
+import { SCHEDULER_HEARTBEAT_MS } from "@/features/sync/automation/scheduler";
 
 const MINUTE_MS = 60_000;
 
-interface Harness {
-	host: SchedulerHost;
-	syncs: () => number;
-	pushFlags: () => ReadonlyArray<boolean>;
-	manualSync: () => void;
-	setSyncError: (error: string | null) => void;
-	/** The storage is unreachable while the browser still reports a connection. */
-	setUnreachable: (unreachable: boolean) => void;
-	/** Only a shared folder's storage is unreachable; the vault's is fine. */
-	setShareUnreachable: (unreachable: boolean) => void;
-	/** Whether a comparison has landed yet. */
-	setCompared: (compared: boolean) => void;
-	/** Syncs stay in flight until the returned release runs. */
-	holdSyncs: () => () => void;
-	fire: (event: "online" | "offline") => void;
-	refreshes: () => number;
-	connectivityChanges: () => number;
-	edit: (path: string) => void;
-	pushes: () => number;
-}
-
-function harness(settings: {
-	autoSyncIntervalMinutes: number;
-	autoSyncEnabled?: boolean;
-	autoPushAfterSync?: boolean;
-}): Harness {
-	let syncs = 0;
-	let pushes = 0;
-	let refreshes = 0;
-	let connectivityChanges = 0;
-	const vaultListeners = new Map<string, (file: { path: string }) => void>();
-	const domListeners = new Map<string, () => void>();
-	const pushFlags: Array<boolean> = [];
-	let snapshotError: string | null = null;
-	let snapshotOffline = false;
-	let shareUnreachable = false;
-	let compared = true;
-	let gate: Promise<void> | null = null;
-	const current = () => ({
-		error: snapshotError,
-		offline: snapshotOffline,
-		spaceErrors: shareUnreachable
-			? [{ root: "Team", message: "No connection", offline: true }]
-			: [],
-		result: compared ? {} : null,
+function harness(
+	settings: Pick<MdsyncSettings, "autoSyncIntervalMinutes"> &
+		Partial<MdsyncSettings>,
+) {
+	return schedulerHarness({
+		settings: { autoSyncEnabled: true, autoPushAfterChange: true, ...settings },
 	});
-	const statusListeners: Array<
-		(snapshot: ReturnType<typeof current> & { busy: boolean }) => void
-	> = [];
-	const host = {
-		settings: {
-			...DEFAULT_SETTINGS,
-			autoSyncEnabled: settings.autoSyncEnabled ?? true,
-			autoSyncIntervalMinutes: settings.autoSyncIntervalMinutes,
-			autoPushAfterSync: settings.autoPushAfterSync ?? true,
-			autoPushAfterChange: true,
-			storageConfigs: {
-				[DEFAULT_SETTINGS.activeStorageKind]: {
-					...DEFAULT_SETTINGS.storageConfigs[
-						DEFAULT_SETTINGS.activeStorageKind
-					],
-					bucket: "b",
-					accessKeyId: "k",
-					secretAccessKey: "s",
-				},
-			},
-		},
-		app: {
-			workspace: {
-				layoutReady: true,
-				on: () => ({}),
-				getActiveFile: () => null,
-			},
-			metadataCache: {
-				initialized: true,
-				on: () => ({}),
-			},
-			vault: {
-				on: (event: string, listener: (file: { path: string }) => void) => {
-					vaultListeners.set(event, listener);
-					return {};
-				},
-			},
-		},
-		spaces: { partition: () => [VAULT_SPACE] },
-		register: () => undefined,
-		registerInterval: () => undefined,
-		registerDomEvent: (_target: unknown, event: string, fn: () => void) => {
-			domListeners.set(event, fn);
-		},
-		registerEvent: () => undefined,
-	} as unknown as SchedulerHost;
-	const controller = {
-		refreshAndAutoSync: async (push: boolean) => {
-			syncs++;
-			pushFlags.push(push);
-			await gate;
-		},
-		refresh: async () => {
-			refreshes++;
-		},
-		connectivityChanged: () => {
-			connectivityChanges++;
-		},
-		refreshAndAutoPush: async () => {
-			pushes++;
-		},
-		noteLocalChange: () => undefined,
-		refreshSaved: () => undefined,
-		getSnapshot: current,
-		subscribe: (
-			listener: (
-				snapshot: ReturnType<typeof current> & { busy: boolean },
-			) => void,
-		) => {
-			statusListeners.push(listener);
-			return () => undefined;
-		},
-		slowFiles: new SlowFiles(),
-	} as unknown as SyncController;
-	registerScheduler(host, controller);
-	return {
-		host,
-		syncs: () => syncs,
-		pushFlags: () => pushFlags,
-		manualSync: () => {
-			for (const listener of statusListeners)
-				listener({ ...current(), busy: true });
-			for (const listener of statusListeners)
-				listener({ ...current(), busy: false });
-		},
-		setSyncError: (error: string | null) => {
-			snapshotError = error;
-		},
-		setUnreachable: (unreachable) => {
-			snapshotOffline = unreachable;
-		},
-		setShareUnreachable: (unreachable) => {
-			shareUnreachable = unreachable;
-		},
-		setCompared: (value) => {
-			compared = value;
-		},
-		holdSyncs: () => {
-			let release = () => {};
-			gate = new Promise<void>((resolve) => {
-				release = resolve;
-			});
-			return () => {
-				gate = null;
-				release();
-			};
-		},
-		fire: (event) => domListeners.get(event)?.(),
-		refreshes: () => refreshes,
-		connectivityChanges: () => connectivityChanges,
-		edit: (path) => vaultListeners.get("modify")?.({ path }),
-		pushes: () => pushes,
-	};
 }
 
 describe("auto-sync intervals", () => {
@@ -281,18 +125,18 @@ describe("auto-sync intervals", () => {
 		h.setSyncError("backend down");
 		// Failures at 3s, 60s and 120s arm the backoff until 240s.
 		await vi.advanceTimersByTimeAsync(120_000);
-		h.edit("a.md");
+		h.emit("modify", "a.md");
 		await vi.advanceTimersByTimeAsync(settle);
-		expect(h.pushes()).toBe(0);
+		expect(h.pushes()).toHaveLength(0);
 
 		h.setSyncError(null);
 		h.manualSync();
 		await vi.advanceTimersByTimeAsync(settle);
-		expect(h.pushes()).toBe(1);
+		expect(h.pushes()).toHaveLength(1);
 	});
 
 	describe("when the connection returns", () => {
-		const dropAndRestore = async (h: Harness): Promise<void> => {
+		const dropAndRestore = async (h: SchedulerHarness): Promise<void> => {
 			vi.stubGlobal("navigator", { onLine: false });
 			h.fire("offline");
 			await vi.advanceTimersByTimeAsync(5_000);
@@ -320,7 +164,7 @@ describe("auto-sync intervals", () => {
 
 			await dropAndRestore(h);
 
-			expect(h.refreshes()).toBe(1);
+			expect(h.compares()).toBe(1);
 			expect(h.syncs()).toBe(0);
 		});
 
@@ -331,7 +175,7 @@ describe("auto-sync intervals", () => {
 			});
 			h.fire("online");
 			await vi.advanceTimersByTimeAsync(0);
-			expect(h.refreshes()).toBe(0);
+			expect(h.compares()).toBe(0);
 		});
 
 		it("compares after a failure the browser never announced", async () => {
@@ -342,7 +186,7 @@ describe("auto-sync intervals", () => {
 			h.setUnreachable(true);
 			h.fire("online");
 			await vi.advanceTimersByTimeAsync(0);
-			expect(h.refreshes()).toBe(1);
+			expect(h.compares()).toBe(1);
 		});
 
 		it("keeps a startup-only schedule to its one sync", async () => {
@@ -353,7 +197,7 @@ describe("auto-sync intervals", () => {
 			await dropAndRestore(h);
 
 			expect(h.syncs()).toBe(1);
-			expect(h.refreshes()).toBe(1);
+			expect(h.compares()).toBe(1);
 		});
 
 		it("still owes a startup-only schedule the sync it missed offline", async () => {
@@ -427,7 +271,7 @@ describe("auto-sync intervals", () => {
 		h.setShareUnreachable(true);
 		h.fire("online");
 		await vi.advanceTimersByTimeAsync(0);
-		expect(h.refreshes()).toBe(1);
+		expect(h.compares()).toBe(1);
 	});
 
 	it("does not queue a second cycle behind a retry that is still running", async () => {

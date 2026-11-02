@@ -5,12 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { SettingsHost } from "@/core/settings";
 import { renderHistoryOff } from "@/features/source-control/tab-states";
 
-vi.mock("obsidian", async (importOriginal) => ({
-	...(await importOriginal<object>()),
-	ButtonComponent: (await import("@tests/helpers/button-component"))
-		.DomButtonComponent,
-}));
-
 installElementMethods();
 
 describe("renderHistoryOff", () => {

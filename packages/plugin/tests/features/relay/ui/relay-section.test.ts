@@ -4,23 +4,6 @@ import { type FieldContext, fieldRow } from "@/core/settings/fields";
 import type { RelayHost } from "@/features/relay";
 import { relaySection } from "@/features/relay/ui/relay-section";
 
-vi.mock("obsidian", async (importOriginal) => ({
-	...(await importOriginal<typeof import("obsidian")>()),
-	Setting: class {
-		setName() {
-			return this;
-		}
-		setHeading() {
-			return this;
-		}
-		setDesc() {
-			return this;
-		}
-		addButton() {
-			return this;
-		}
-	},
-}));
 vi.mock("@/core/settings/fields", async (importOriginal) => ({
 	...(await importOriginal<Record<string, unknown>>()),
 	fieldRow: vi.fn(),

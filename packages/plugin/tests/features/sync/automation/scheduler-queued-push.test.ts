@@ -1,33 +1,15 @@
+import {
+	type SchedulerHarness,
+	schedulerHarness,
+} from "@tests/helpers/scheduler";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "@/app/settings";
-
-import {
-	registerScheduler,
-	type SchedulerHost,
-} from "@/features/sync/automation/scheduler";
-import {
-	SLOW_FILE_CAP_MS,
-	SlowFiles,
-} from "@/features/sync/automation/slow-files";
-import type { SyncController } from "@/features/sync/controller";
+import { SLOW_FILE_CAP_MS } from "@/features/sync/automation/slow-files";
 import { type Space, VAULT_SPACE } from "@/features/sync/remote/space";
 
 const SETTLE_MS = DEFAULT_SETTINGS.autoPushSettleSeconds * 1000;
 const SLOW_MS = DEFAULT_SETTINGS.slowFileSettleSeconds * 1000;
 const DRAWING = "d.excalidraw.md";
-
-interface Harness {
-	host: SchedulerHost;
-	emit: (event: string, path: string, oldPath?: string) => void;
-	refreshes: () => number;
-	pushes: () => ReadonlyArray<ReadonlySet<string> | undefined>;
-	sharePushes: () => ReadonlyArray<ReadonlySet<string>>;
-	goOnline: () => void;
-	saved: () => readonly string[];
-	/** Shows `path` in the active view. */
-	open: (path: string | null) => void;
-	slow: SlowFiles;
-}
 
 const SHARES: Record<string, Space> = {
 	Team: { id: "team", root: "Team" },
@@ -40,114 +22,18 @@ function harness(options: {
 	enabled: boolean;
 	queuedOnly: boolean;
 	settleSeconds?: number;
-}): Harness {
-	let refreshes = 0;
-	const pushes: Array<ReadonlySet<string> | undefined> = [];
-	const onlineListeners: Array<() => void> = [];
-	const listeners = new Map<
-		string,
-		(file: { path: string }, oldPath?: string) => void
-	>();
-	const workspaceListeners: Array<() => void> = [];
-	let active: string | null = null;
-	const host = {
+}) {
+	return schedulerHarness({
+		spaces: [VAULT_SPACE, ...Object.values(SHARES)],
 		settings: {
-			...DEFAULT_SETTINGS,
 			autoSyncIntervalMinutes: 0,
 			autoPushAfterChange: options.enabled,
-			autoPushSettleSeconds:
-				options.settleSeconds ?? DEFAULT_SETTINGS.autoPushSettleSeconds,
 			autoPushChangedFilesOnly: options.queuedOnly,
-			storageConfigs: {
-				[DEFAULT_SETTINGS.activeStorageKind]: {
-					...DEFAULT_SETTINGS.storageConfigs[
-						DEFAULT_SETTINGS.activeStorageKind
-					],
-					bucket: "b",
-					accessKeyId: "k",
-					secretAccessKey: "s",
-				},
-			},
+			...(options.settleSeconds !== undefined && {
+				autoPushSettleSeconds: options.settleSeconds,
+			}),
 		},
-		app: {
-			workspace: {
-				layoutReady: true,
-				getActiveFile: () => (active === null ? null : { path: active }),
-				on: (_event: string, listener: () => void) => {
-					workspaceListeners.push(listener);
-					return {};
-				},
-			},
-			metadataCache: {
-				initialized: true,
-				on: () => ({}),
-				getCache: (path: string) =>
-					path === "Sketch.md"
-						? { frontmatter: { "excalidraw-plugin": "parsed" } }
-						: null,
-			},
-			vault: {
-				on: (
-					event: string,
-					listener: (file: { path: string }, oldPath?: string) => void,
-				) => {
-					listeners.set(event, listener);
-					return {};
-				},
-			},
-		},
-		spaces: { partition: () => [VAULT_SPACE, ...Object.values(SHARES)] },
-		register: () => undefined,
-		registerInterval: () => undefined,
-		registerDomEvent: (_target: unknown, event: string, fn: () => void) => {
-			if (event === "online") onlineListeners.push(fn);
-		},
-		registerEvent: () => undefined,
-	} as unknown as SchedulerHost;
-	const sharePushes: ReadonlySet<string>[] = [];
-	const saved: string[] = [];
-	const controller = {
-		noteLocalChange: vi.fn(),
-		refreshSaved: (path: string) => saved.push(path),
-		refreshAndAutoPush: async (paths?: ReadonlySet<string>) => {
-			refreshes++;
-			pushes.push(paths);
-		},
-		autoPushShares: async (paths: ReadonlySet<string>) => {
-			sharePushes.push(paths);
-		},
-		slowFiles: new SlowFiles(),
-		subscribe: () => () => undefined,
-		connectivityChanged: () => undefined,
-		getSnapshot: () => ({
-			offline: false,
-			error: null,
-			spaceErrors: [],
-			result: {},
-		}),
-	} as unknown as SyncController;
-	registerScheduler(host, controller);
-	return {
-		host,
-		sharePushes: () => sharePushes,
-		emit: (event, path, oldPath) => {
-			const listener = listeners.get(event);
-			if (!listener) throw new Error(`Missing ${event} listener`);
-			listener({ path }, oldPath);
-		},
-		refreshes: () => refreshes,
-		pushes: () => pushes,
-		saved: () => saved,
-		goOnline: () => {
-			vi.stubGlobal("navigator", { onLine: true });
-			for (const fn of onlineListeners) fn();
-		},
-		open: (path) => {
-			active = path;
-			for (const fn of workspaceListeners) fn();
-		},
-		slow: controller.slowFiles,
-	};
+	});
 }
 
 describe("queued push after changes settle", () => {
@@ -176,7 +62,7 @@ describe("queued push after changes settle", () => {
 		vi.stubGlobal("navigator", { onLine: false });
 		h.emit("modify", "a.md");
 		await vi.advanceTimersByTimeAsync(SETTLE_MS * 3);
-		expect(h.refreshes()).toBe(0);
+		expect(h.pushes()).toHaveLength(0);
 
 		// Only the heartbeat interval is left: no quiet timer polls while offline.
 		expect(vi.getTimerCount()).toBe(1);
@@ -190,7 +76,6 @@ describe("queued push after changes settle", () => {
 		const h = harness({ enabled: false, queuedOnly: true });
 		h.emit("modify", "a.md");
 		await vi.advanceTimersByTimeAsync(SETTLE_MS * 2);
-		expect(h.refreshes()).toBe(0);
 		expect(h.pushes()).toHaveLength(0);
 	});
 
@@ -200,10 +85,9 @@ describe("queued push after changes settle", () => {
 		await vi.advanceTimersByTimeAsync(SETTLE_MS / 2);
 		h.emit("create", "b.md");
 		await vi.advanceTimersByTimeAsync(SETTLE_MS - 1);
-		expect(h.refreshes()).toBe(0);
+		expect(h.pushes()).toHaveLength(0);
 
 		await vi.advanceTimersByTimeAsync(1);
-		expect(h.refreshes()).toBe(1);
 		expect(h.pushes()).toHaveLength(1);
 		expect([...(h.pushes()[0] ?? [])]).toEqual(["a.md", "b.md"]);
 	});
@@ -226,9 +110,9 @@ describe("queued push after changes settle", () => {
 		const h = harness({ enabled: true, queuedOnly: true, settleSeconds: 5 });
 		h.emit("modify", "a.md");
 		await vi.advanceTimersByTimeAsync(4_999);
-		expect(h.refreshes()).toBe(0);
+		expect(h.pushes()).toHaveLength(0);
 		await vi.advanceTimersByTimeAsync(1);
-		expect(h.refreshes()).toBe(1);
+		expect(h.pushes()).toHaveLength(1);
 	});
 
 	it("pushes a shared folder's changes on their own, two quiet seconds later", async () => {
@@ -297,7 +181,6 @@ describe("queued push after changes settle", () => {
 		h.emit("modify", "a.md");
 		h.host.settings.autoPushAfterChange = false;
 		await vi.advanceTimersByTimeAsync(SETTLE_MS);
-		expect(h.refreshes()).toBe(0);
 		expect(h.pushes()).toHaveLength(0);
 	});
 });
@@ -313,11 +196,15 @@ describe("slow files", () => {
 		vi.unstubAllGlobals();
 	});
 
-	const pushed = (h: Harness): string[][] =>
+	const pushed = (h: SchedulerHarness): string[][] =>
 		h.pushes().map((paths) => [...(paths ?? [])]);
 
 	/** Saves `path` every 5 s for `ms`, as Excalidraw does while someone draws. */
-	async function drawFor(h: Harness, path: string, ms: number): Promise<void> {
+	async function drawFor(
+		h: SchedulerHarness,
+		path: string,
+		ms: number,
+	): Promise<void> {
 		for (let at = 0; at < ms; at += 5_000) {
 			h.emit("modify", path);
 			await vi.advanceTimersByTimeAsync(5_000);

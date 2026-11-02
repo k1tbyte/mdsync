@@ -1,10 +1,10 @@
 import { deviceKey, FakeSecretStorage } from "@tests/helpers/device-key";
 import { InMemoryAdapter } from "@tests/helpers/in-memory-adapter";
+import { linkRecord } from "@tests/helpers/shared-links";
 import type { App } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import { mergeSettings } from "@/app/settings";
 import type { MdsyncSettings } from "@/core/settings/model";
-import type { LinkRecord } from "@/features/links/record";
 import { defaultS3Config } from "@/features/storage/backends/s3";
 import { PassphraseManager } from "@/features/sync/remote/passphrase-manager";
 import {
@@ -97,21 +97,7 @@ describe("settings import", () => {
 			settings,
 			deviceKey(new FakeSecretStorage(), adapter),
 		);
-		const link: LinkRecord = {
-			id: "one",
-			url: "https://relay.example/s/one",
-			rev: 0,
-			author: "",
-			path: "note.md",
-			showTitle: true,
-			detached: false,
-			createdAt: 1,
-			publishedAt: 1,
-			expires: null,
-			maxViews: null,
-			salt: null,
-			images: false,
-		};
+		const link = linkRecord({ url: "https://relay.example/s/one" });
 		vi.mocked(confirmSettingsTransferImport).mockImplementationOnce(
 			async () => {
 				settings.links = [link];
