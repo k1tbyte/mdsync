@@ -46,9 +46,9 @@ await runDemo("merge", {
 async function scene(page: Page): Promise<void> {
 	await sleep(800);
 	await click(page, ".mdsync-file-row:has-text('Lisbon trip')");
-	await page.locator("button:has-text('Merge…')").waitFor();
+	await page.locator("button.mod-cta:has-text('Merge…')").waitFor();
 	await sleep(1200);
-	await click(page, "button:has-text('Merge…')");
+	await click(page, "button.mod-cta:has-text('Merge…')");
 	await page.locator(".mdsync-merge-panel").waitFor();
 	await sleep(1000);
 	// Room for the three panes side by side.
@@ -59,42 +59,16 @@ async function scene(page: Page): Promise<void> {
 	);
 	await sleep(600);
 
-	const [local, remote] = (await centersOf(dividers)).sort((a, b) => a.x - b.x);
-	const conflict = await centersOf(
-		page.locator(".cm-line:has-text('Back: 23 March, 18:15')"),
-	);
-	const y = conflict[0]?.y ?? 0;
-	await resolve(page, { x: remote?.x ?? 0, y }, "Accept change");
-	await sleep(1200);
-	await resolve(page, { x: local?.x ?? 0, y }, "Reject change");
-	await sleep(1500);
-	await glide(page, "[aria-label='Save and push']", 900);
+	// An open conflict is settled from its head in Result; the strips only take a side.
+	const settle = ".mdsync-merge-panel [aria-label='Take remote']";
+	await page.locator(settle).waitFor();
+	await sleep(1000);
+	await click(page, settle, 900);
+	await sleep(1800);
+	const save = ".mdsync-diff-resolution button:has-text('Save and push')";
+	await glide(page, save, 900);
 	await sleep(500);
-	await click(page, "[aria-label='Save and push']", 100);
+	await click(page, save, 100);
 	await page.locator(".mdsync-merge-panel").waitFor({ state: "detached" });
 	await sleep(1000);
-}
-
-/** Opens a connector's actions and picks one. */
-async function resolve(
-	page: Page,
-	connector: { x: number; y: number },
-	action: string,
-): Promise<void> {
-	await click(page, connector, 900);
-	const button = `.mdsync-divider-action.is-popup [aria-label='${action}']`;
-	await page.locator(button).waitFor();
-	await sleep(600);
-	await click(page, button, 500);
-}
-
-async function centersOf(
-	elements: ReturnType<Page["locator"]>,
-): Promise<{ x: number; y: number }[]> {
-	const boxes = await Promise.all(
-		(await elements.all()).map((element) => element.boundingBox()),
-	);
-	return boxes.flatMap((box) =>
-		box ? [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] : [],
-	);
 }
