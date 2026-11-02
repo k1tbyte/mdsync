@@ -25,14 +25,15 @@ MDSync syncs your vault through an S3 bucket, a WebDAV server or Google Drive. T
 - Manual push and pull, or [automatic sync](#automatic-sync) on a timer and after edits.
 - [Conflict resolution](#conflicts): automatic merge, a three-way merge editor, or pick a side.
 - Renames and moves sync as moves.
+- Big files go up in parts, so a small edit to one moves only the parts that changed.
 - [Change marks in the editor](#change-marks-in-the-editor) for lines changed since the last sync.
 - [Ignore rules](#ignore-rules): a shared `syncignore.md`, patterns per device, symlinks and a size limit.
 - [Obsidian settings sync](#obsidian-settings-sync): hotkeys, plugins, snippets and themes, per device.
 
 **History**
 
-- [File history](#file-history): every saved version of a note, diffed against the current one.
-- [Timeline](#timeline): every push, and putting the whole vault back to one of them.
+- [File history](#file-history): the versions of a note, grouped by age and diffed against the current one.
+- [Timeline](#timeline): every push, with a calendar of your activity, and putting the whole vault back to one of them.
 - [Deleted files](#deleted-files): restore anything history still holds.
 
 **Real time** (needs the [relay](#self-hosting-the-relay))
@@ -152,7 +153,7 @@ README.md
 
 Ignoring never deletes anything: a matching file stops syncing, and copies on the remote and other devices stay. To remove a file everywhere, delete it first and then ignore it.
 
-**Ignore symlinks** (on by default, desktop only) skips symbolic links and Windows junctions, which Obsidian shows as ordinary folders. **Max file size** skips anything larger.
+**Ignore symlinks** (on by default, desktop only) skips symbolic links and Windows junctions, which Obsidian shows as ordinary folders. **Max file size** (25 MB by default) skips anything larger. A file of 256 KB or more is stored in parts: editing it uploads only the parts that changed, and a pull downloads only the parts the copy on disk lacks.
 
 ### Obsidian settings sync
 
@@ -162,9 +163,11 @@ Under **Obsidian configuration scope** you choose what else to sync: core settin
 
 Every push records what it changed (history is on for a new install; turn it off with **Keep history** in **Settings → MDSync → History**). History keeps every push for an hour, then fewer as they age: one per 10 minutes, hour, day and then week. **Keep history for** (3 months by default) sets how long versions stay; past it only how busy each day was remains. Pinned versions are kept until you unpin them. Every device thins the same history, so the shortest choice among your devices applies.
 
+The **History** page in **Settings → MDSync** draws pushes per day across your devices as a calendar, with the steps a version goes through as it ages. Select a day to open it in the Timeline. Changes to Obsidian's configuration folder are not kept in history. Restoring changes only this device, and a restored file stays out of automatic pushes until you edit, push or pull it.
+
 ### File history
 
-The **History** tab lists the open file's past versions. Click one to diff it against the current file, or use its menu to restore it, compare it with the version before, or pin it under a name. A restore always shows the diff first.
+The **History** tab lists the open file's past versions, grouped by age and dated by the push that saved them. Each group says how often versions are kept in it. Click one to diff it against the current file, or use its menu to restore it, compare it with the version before, or pin it under a name. Pinned versions sit under their own heading. A restore always shows what it will change first.
 
 <details>
 <summary>Demo</summary>
@@ -175,7 +178,7 @@ The **History** tab lists the open file's past versions. Click one to diff it ag
 
 ### Timeline
 
-The **Timeline** tab lists every push to the vault with the files it changed. From any of them you can see its changes or put the whole vault back to that point.
+The **Timeline** tab lists every push to the vault, grouped by age, with the files each one changed. Pushes from one device that come close together form a session. The **Activity** card at the top shows pushes per day as a calendar: select a day to see only that day, or filter by path or folder. From any push you can compare a file with its current version, see what the push changed, or put the whole vault back to that point. Before the vault is restored, MDSync lists the files it will move to the trash and the ones it will write, and nothing is pushed until you say so.
 
 <details>
 <summary>Demo</summary>
@@ -186,7 +189,7 @@ The **Timeline** tab lists every push to the vault with the files it changed. Fr
 
 ### Deleted files
 
-The **Deleted** tab (or **MDSync: Restore deleted files**) lists files gone from the vault that history still holds: when each went, which device removed it, and how many more pushes the record survives. **Restore** puts a file back where it was, **Restore to…** somewhere else. Pin a version to keep a deleted file for good.
+The **Deleted** tab (or **MDSync: Restore deleted files**) lists files gone from the vault that history still holds: when each went, its size, which device removed it and until when history keeps it. Filter by path or folder. **Restore** puts a file back where it was, **Restore to…** somewhere else, and you can tick several files and restore them together. Pin a version to keep a deleted file for good.
 
 <details>
 <summary>Demo</summary>
@@ -273,7 +276,7 @@ Publish one note as a link anyone can open in a browser with nothing installed, 
 
 - **Expires** (5 minutes to 30 days, an exact date, or never), **Views** and an optional **passphrase** limit who can read it and for how long. Once the time or the views run out, the relay erases the note.
 - The note is drawn as Obsidian's reading view draws it, then encrypted on your device.
-- The page has an outline, folding headings, copyable code, wide text and **Copy as Markdown**.
+- The page has an outline, folding headings, copyable code, wide text and **Copy as Markdown**. A reader can tick **Remember on this browser** at the passphrase prompt to skip it next time on that browser.
 - Left out: properties, comments, links to other notes (their text stays) and embedded notes. Vault images are embedded and shrunk; **Include images** turns that off. The window lists what was left out before you create the link.
 - **Manage share links**, on any of your devices, shows the views left. From there you can copy a link, **Update** it to the note as it is now (the link stays the same) or stop it at once. A globe in the file tree and in the note's header marks a shared note; a dot means it changed since.
 
@@ -344,7 +347,9 @@ Storage credentials, share keys, share links, the relay secret and the Cloudflar
 <prefix>/history/...              encrypted change records, one per push, thinned over time
 <prefix>/salt.bin
 <prefix>/keys.json                vault key wrapped by your passphrase
-<prefix>/objects/<sha256>.enc     encrypted file contents
+<prefix>/objects/<sha256>         encrypted file contents
+<prefix>/recipes/<sha256>         how a big file is put together from its parts
+<prefix>/chunks/<id>              encrypted parts of big files
 <prefix>/pins/<id>.json.enc       full file list of a pinned version
 <prefix>/spaces/<id>.json.enc     shared folder records
 <prefix>/links/<id>.json.enc      share links, with their keys
@@ -382,7 +387,7 @@ While the OAuth consent screen is in testing mode, Google expires refresh tokens
 
 What comes next, in this order:
 
-1. **Big files.** Today a file is read whole into memory, so anything over **Max file size** (25 MB by default) is skipped. Large files will stream in parts, so videos and big PDFs go through without holding the whole file in memory.
+1. **Bigger files.** Files are stored in parts already, but each one is still read whole into memory, so anything over **Max file size** (25 MB by default) is skipped. Large files will stream part by part, so videos and big PDFs go through without holding the whole file in memory.
 2. **Canvas sync.** Obsidian Canvas boards merge card by card and edit live, as Excalidraw drawings do.
 3. **Relay on your own server.** The relay will run outside Cloudflare too, for when the Workers free tier runs short, and as a home for features that need more than it gives.
 
@@ -397,7 +402,7 @@ pnpm typecheck
 pnpm test
 ```
 
-The plugin lives in `packages/plugin`, the relay in `packages/relay`, the page share links open in `packages/viewer` (built into the relay's static assets), and the format both share in `packages/protocol`.
+The plugin lives in `packages/plugin`, the relay in `packages/relay`, the page share links open in `packages/viewer` (built into the relay's static assets), and the format both share in `packages/protocol`. `tools/demo` records the demos in this README from real Obsidian windows; see [its README](tools/demo/README.md).
 
 ## License
 

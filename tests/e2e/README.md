@@ -36,7 +36,7 @@ Scenarios run real processes (Obsidian, `wrangler dev`, headless Chrome, in-memo
 
 ## Writing a scenario
 
-- Reuse `launchObsidian` (`tests/e2e/obsidian.ts`), `startRelay` (`tests/e2e/relay.ts`), `startWebDav` (`tests/e2e/webdav.ts`), `startS3` (`tests/e2e/s3.ts`) and `connectPeer` (`tests/e2e/peer.ts`); `runScenario`, `check`, `poll` and `spawnLogged` (spawn a child whose output tail is printed on failure) are in `tests/e2e/harness.ts`.
+- Reuse `launchObsidian` (`tests/e2e/obsidian.ts`), `startRelay` (`tests/e2e/relay.ts`), `startWebDav` (`tests/e2e/webdav.ts`), `startS3` (`tests/e2e/s3.ts`; give it a clock and listings carry `LastModified`, which history dates versions by) and `connectPeer` (`tests/e2e/peer.ts`); `runScenario`, `check`, `poll` and `spawnLogged` (spawn a child whose output tail is printed on failure) are in `tests/e2e/harness.ts`.
 - `tests/e2e/device.ts` drives a device (sync, files, folder menus, modals), `tests/e2e/sharing.ts` holds the owner-and-participant setup and share steps, `tests/e2e/editor.ts` opens, types into and reads an editor.
 - Obsidian 1.13 mounts modals in `activeDocument`, not `document`, and keeps protocol handlers in `app.workspace.protocolHandler.handlers`. Never open an `obsidian://` URL through the OS: it would reach the user's own Obsidian.
 - Settings stay open under later modals, so helpers search the topmost first. Close buttons ignore synthetic clicks; `closeModals` sends Escape.

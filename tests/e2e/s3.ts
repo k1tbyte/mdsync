@@ -19,12 +19,14 @@ export interface S3 {
 interface Stored {
 	body: Buffer;
 	etag: string;
+	modified: number;
 }
 
 const BUCKET = "e2e";
 const NO_SUCH_KEY = "<Error><Code>NoSuchKey</Code></Error>";
 
-export async function startS3(port: number): Promise<S3> {
+/** With a `clock`, listings carry each object's `LastModified`, the time it was stored: history dates versions by it. */
+export async function startS3(port: number, clock?: () => number): Promise<S3> {
 	const objects = new Map<string, Stored>();
 	const revoked = new Set<string>();
 
@@ -57,7 +59,7 @@ export async function startS3(port: number): Promise<S3> {
 				}
 				const body = await read(req);
 				const etag = `"${createHash("sha1").update(body).digest("hex")}"`;
-				objects.set(key, { body, etag });
+				objects.set(key, { body, etag, modified: clock?.() ?? 0 });
 				res.writeHead(200, { ETag: etag }).end();
 			},
 			DELETE: () => {
@@ -76,7 +78,14 @@ export async function startS3(port: number): Promise<S3> {
 			const page = keys.slice(from, from + max);
 			const next = from + max < keys.length ? String(from + max) : null;
 			const contents = page
-				.map((name) => `<Contents><Key>${escapeXml(name)}</Key></Contents>`)
+				.map((name) => {
+					const modified = objects.get(name)?.modified;
+					const stamp =
+						clock && modified !== undefined
+							? `<LastModified>${new Date(modified).toISOString()}</LastModified>`
+							: "";
+					return `<Contents><Key>${escapeXml(name)}</Key>${stamp}</Contents>`;
+				})
 				.join("");
 			const token =
 				next === null
