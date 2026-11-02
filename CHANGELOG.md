@@ -3,7 +3,7 @@
 This file is the source of truth for release notes: the section of a version becomes the notes of its GitHub release.
 The newest section must match `version` in `manifest.json`. Headings are `## [x.y.z] - YYYY-MM-DD`, then `### Important`, `### Features`, `### Improvements` and `### Fixes` as needed. Write for users, in plain sentences, not commit titles.
 
-## Unreleased
+## [1.5.0] - 2026-11-02
 
 ### Important
 
