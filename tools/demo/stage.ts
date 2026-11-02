@@ -18,6 +18,9 @@ const LAPTOP_PORT = 9223;
 const PHONE_PORT = 9224;
 const OUT_DIR = "artifacts/demos";
 
+/** How long ago the storage stamps what it receives: history dates its versions by that, not by the device clock. */
+let storageAge = 0;
+
 export const MINUTE = 60_000;
 export const HOUR = 60 * MINUTE;
 export const DAY = 24 * HOUR;
@@ -53,7 +56,7 @@ export interface Demo {
 /** Records `name`.webp; with DEMO_HOLD=1 stages the take and leaves Obsidian open instead. */
 export function runDemo(name: string, demo: Demo): Promise<never> {
 	return runScenario(`${name} demo`, async () => {
-		const s3 = await startS3(S3_PORT);
+		const s3 = await startS3(S3_PORT, () => Date.now() - storageAge);
 		const devices: Obsidian[] = [];
 		try {
 			const settings = { ...s3Vault(s3, "demo"), fileHistoryEnabled: true };
@@ -198,8 +201,9 @@ export function remove(device: Obsidian, path: string): Promise<void> {
 	);
 }
 
-/** Shifts the clock `device` stamps snapshots with, so versions read as written over days. */
+/** Shifts the clock `device` and the storage stamp snapshots with, so versions read as written over days. */
 export function backdate(device: Obsidian, ms: number): Promise<void> {
+	storageAge = ms;
 	return device.evaluate((offset) => {
 		const clock = window as unknown as { realNow?: () => number };
 		clock.realNow ??= Date.now.bind(Date);
