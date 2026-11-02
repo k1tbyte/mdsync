@@ -154,16 +154,39 @@ export function editorLine(text: string): string {
 
 /** Clicks just past the line's text, where a person would, and puts the caret at its end. */
 export async function clickLineEnd(page: Page, text: string): Promise<void> {
-	const end = await page.locator(editorLine(text)).evaluate((el) => {
-		const range = document.createRange();
-		range.selectNodeContents(el);
-		const rects = range.getClientRects();
-		const last = rects[rects.length - 1];
-		return last && { x: last.right, y: last.top + last.height / 2 };
-	});
-	if (!end) throw new Error(`no line with ${text}`);
-	await click(page, { x: end.x + 6, y: end.y });
-	await page.keyboard.press("End");
+	// A click can be lost to a redraw while the other person types: try again once, as a person would.
+	for (let attempt = 0; ; attempt++) {
+		const end = await page.locator(editorLine(text)).evaluate((el) => {
+			// Another person's caret sits in the line with its name flag drawn above it: measuring it would aim at the line above.
+			const words = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+				acceptNode: (node) =>
+					node.parentElement?.closest(".cm-ySelectionCaret") || !node.nodeValue
+						? NodeFilter.FILTER_REJECT
+						: NodeFilter.FILTER_ACCEPT,
+			});
+			let last: Node | null = null;
+			for (let node = words.nextNode(); node; node = words.nextNode()) {
+				last = node;
+			}
+			if (!last) return null;
+			const range = document.createRange();
+			range.selectNodeContents(last);
+			const rects = range.getClientRects();
+			const tail = rects[rects.length - 1];
+			return tail && { x: tail.right, y: tail.top + tail.height / 2 };
+		});
+		if (!end) throw new Error(`no line with ${text}`);
+		await click(page, { x: end.x + 6, y: end.y });
+		await page.keyboard.press("End");
+		const active = await page
+			.locator(".markdown-source-view .cm-active")
+			.first()
+			.innerText();
+		if (active.includes(text)) return;
+		if (attempt > 0) {
+			throw new Error(`the caret landed on "${active}", not on "${text}"`);
+		}
+	}
 }
 
 /** Opens every collapsed folder of the change list, one visible click each, as each click redraws it. */

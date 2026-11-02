@@ -16,13 +16,15 @@ import { installCursor } from "./cursor";
 
 const APP_URL = "app://obsidian.md";
 const OUT_DIR = "artifacts/demos";
-/** Every take is this wide, however many windows share it. */
-const OUT_WIDTH = 1280;
+/** Every take is this wide, however many windows share it (`DEMO_WIDTH`). */
+const OUT_WIDTH = Number(process.env.DEMO_WIDTH ?? 1280);
 /** Rendered sharper than shown, then scaled down. */
 const SCALE = 1.5;
 const FRAME_MS = 16;
-/** Playback speed-up: scenes are paced for a live viewer, a looping demo can move faster. */
-const SPEED = 1.5;
+/** Playback speed-up: scenes are paced for a live viewer, a looping demo can move faster (`DEMO_SPEED`). */
+const SPEED = Number(process.env.DEMO_SPEED ?? 1.5);
+/** `DEMO_VIDEO=1` writes an H.264 MP4 at 30 fps, for cutting into a video, instead of the README's WebP. */
+const VIDEO = Boolean(process.env.DEMO_VIDEO);
 
 /** A window's content size and where it sits on screen. */
 export interface Pane {
@@ -32,6 +34,8 @@ export interface Pane {
 	y: number;
 	/** Believes it has focus while another window holds it, so editors in both show remote cursors. */
 	focused?: boolean;
+	/** Capture pixels per content pixel; a small window can still be filmed at full width. */
+	scale?: number;
 }
 
 export const SOLO: Pane = { width: 1280, height: 800, x: 40, y: 40 };
@@ -103,7 +107,7 @@ export async function frameWindow(
 	await cdp.send("Emulation.setDeviceMetricsOverride", {
 		width: pane.width,
 		height: pane.height,
-		deviceScaleFactor: SCALE,
+		deviceScaleFactor: pane.scale ?? SCALE,
 		mobile: false,
 	});
 	if (pane.focused) {
@@ -165,14 +169,14 @@ export function encode(name: string, ...takes: Frame[][]): string {
 	const width = Math.round(OUT_WIDTH / takes.length);
 	const scaled = lists.map(
 		(_, take) =>
-			`[${take}:v]setpts=PTS/${SPEED},fps=20,scale=${width}:-2:flags=lanczos[v${take}]`,
+			`[${take}:v]setpts=PTS/${SPEED},fps=${VIDEO ? 30 : 20},scale=${width}:-2:flags=lanczos[v${take}]`,
 	);
 	const labels = lists.map((_, take) => `[v${take}]`).join("");
 	const stacked =
 		lists.length === 1
 			? "[v0]null[out]"
 			: `${labels}hstack=inputs=${lists.length}[out]`;
-	const out = join(OUT_DIR, `${name}.webp`);
+	const out = join(OUT_DIR, `${name}.${VIDEO ? "mp4" : "webp"}`);
 	const graph = [
 		...lists.flatMap((list) => ["-f", "concat", "-safe", "0", "-i", list]),
 		"-filter_complex",
@@ -180,6 +184,21 @@ export function encode(name: string, ...takes: Frame[][]): string {
 		"-map",
 		"[out]",
 	];
+	if (VIDEO) {
+		ffmpeg([
+			...graph,
+			"-c:v",
+			"libx264",
+			"-crf",
+			"14",
+			"-preset",
+			"slow",
+			"-pix_fmt",
+			"yuv420p",
+			out,
+		]);
+		return out;
+	}
 	if (ffmpegHasWebp()) {
 		ffmpeg([
 			...graph,
