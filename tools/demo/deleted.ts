@@ -4,7 +4,7 @@ import type { Page } from "playwright-core";
 
 import { CLEAN, sync } from "../../tests/e2e/device";
 import { check, sleep } from "../../tests/e2e/harness";
-import { click, openTab } from "./recorder";
+import { click, glide, openTab } from "./recorder";
 import {
 	backdate,
 	DAY,
@@ -47,17 +47,24 @@ await runDemo("deleted", {
 });
 
 async function scene(page: Page): Promise<void> {
-	const rows = page.locator(".mdsync-history-row");
-	const restore = ".modal .mdsync-modal-buttons button:has-text('Restore')";
+	const rows = page.locator(".mdsync-deleted-row");
+	// A row's actions show on hover only, so the pointer visits the row first.
+	// The row names the file and its folder apart, so only the file name is in its text.
+	const hover = (path: string) =>
+		glide(page, rows.filter({ hasText: path.split("/").pop() ?? path }), 600);
+	const restore =
+		".modal .mdsync-modal-footer button:has-text('Restore'):not([disabled])";
 	await sleep(600);
 	await openTab(page, "Deleted");
 	await rows.nth(2).waitFor();
 	await sleep(1800);
 
+	await hover(DAILY);
 	await click(page, `[aria-label='Preview ${DAILY}']`);
 	await page.locator(".mdsync-compare-panel").waitFor();
 	await sleep(2200);
 
+	await hover(DAILY);
 	await click(page, `[aria-label='Restore ${DAILY}']`);
 	await page.locator(restore).waitFor();
 	await sleep(2000);
@@ -72,10 +79,11 @@ async function scene(page: Page): Promise<void> {
 	);
 	await sleep(600);
 
+	await hover(LISBON);
 	await click(page, `[aria-label='Restore ${LISBON} to another path']`);
 	await page.locator(".modal input").waitFor();
 	await sleep(500);
-	await page.keyboard.press("Control+A");
+	await page.keyboard.press("ControlOrMeta+A");
 	await page.keyboard.type(MOVED, TYPING);
 	await sleep(500);
 	await click(page, restore, 600);
