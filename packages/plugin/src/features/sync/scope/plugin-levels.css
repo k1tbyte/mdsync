@@ -1,0 +1,40 @@
+.mdsync-plugin-levels {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+}
+
+.mdsync-plugin-levels .search-input-container {
+	width: 100%;
+	margin: 0;
+}
+
+/* Equal columns would shrink to nothing beside a name. */
+.mdsync-plugin-level {
+	flex: none;
+}
+
+.mdsync-stacked-setting .mdsync-plugin-level {
+	flex: 1 1 auto;
+}
+
+/* Rows line up only while a checked label is no wider than the others. */
+.mdsync-plugin-level .mdsync-segment.is-checked {
+	font-weight: inherit;
+}
+
+.mdsync-plugin-level-custom {
+	margin-inline-start: var(--size-4-2);
+	color: var(--text-accent);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-normal);
+}
+
+/* Four segments and a name do not fit one phone line. */
+.is-phone .mdsync-plugin-level-row {
+	flex-wrap: wrap;
+}
+
+.is-phone .mdsync-plugin-level-row .mdsync-plugin-level {
+	flex: 1 1 100%;
+}

@@ -10,7 +10,8 @@
 		"dev": "node esbuild.config.mjs",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"typecheck": "tsc -noEmit"
+		"typecheck": "tsc -noEmit",
+		"arch": "depcruise src --config .dependency-cruiser.cjs"
 	},
 	"dependencies": {
 		"@jest/diff-sequences": "^30.5.0",
@@ -25,8 +26,10 @@
 	},
 	"devDependencies": {
 		"@codemirror/commands": "^6.8.1",
+		"@codemirror/search": "^6.7.2",
 		"@types/node": "^22.20.1",
 		"@types/qrcode": "^1.5.6",
+		"dependency-cruiser": "^18.7.0",
 		"esbuild": "^0.25.12",
 		"jsdom": "^30.1.2",
 		"mdsync-relay": "workspace:*",
@@ -34,6 +37,7 @@
 	},
 	"peerDependencies": {
 		"@codemirror/commands": "^6.8.1",
+		"@codemirror/search": "^6.5.0",
 		"@codemirror/state": "^6.5.0",
 		"@codemirror/view": "^6.38.6"
 	}

@@ -1,0 +1,65 @@
+import { StateEffect, StateField } from "@codemirror/state";
+import { randomId } from "@/core/crypto";
+import { observeResize, renderSegments, type Segments } from "@/core/ui";
+
+const COMBINED_BELOW_PX = 900;
+
+export const setCombinedMode = StateEffect.define<boolean>();
+export const combinedModeField = StateField.define<boolean>({
+	create: () => false,
+	update: (combined, transaction) => {
+		for (const effect of transaction.effects) {
+			if (effect.is(setCombinedMode)) return effect.value;
+		}
+		return combined;
+	},
+});
+
+/** Automatic below a width, or forced from a toolbar button while there is room for both layouts. */
+export class LayoutMode {
+	private readonly control: Segments;
+	private readonly stopResize: () => void;
+	private forceCombined = false;
+	private current = false;
+
+	constructor(
+		private readonly root: HTMLElement,
+		toolbar: HTMLElement,
+		private readonly onLayout: (combined: boolean, changed: boolean) => void,
+	) {
+		this.control = renderSegments(
+			toolbar,
+			`layout-${randomId()}`,
+			[
+				{ value: false, text: "Side by side" },
+				{ value: true, text: "Inline" },
+			],
+			() => this.current,
+			(combined) => {
+				this.forceCombined = combined;
+				this.refresh();
+			},
+		);
+		this.control.el.addClasses(["is-compact", "mdsync-layout-btn"]);
+		this.stopResize = observeResize(root, () => this.refresh());
+	}
+
+	get combined(): boolean {
+		return this.current;
+	}
+
+	refresh(): void {
+		const auto = this.root.clientWidth < COMBINED_BELOW_PX;
+		const combined = this.forceCombined || auto;
+		this.root.toggleClass("is-combined", combined);
+		this.control.el.hidden = auto;
+		const changed = combined !== this.current;
+		this.current = combined;
+		this.control.refresh();
+		this.onLayout(combined, changed);
+	}
+
+	destroy(): void {
+		this.stopResize();
+	}
+}

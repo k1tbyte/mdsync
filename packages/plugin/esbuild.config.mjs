@@ -57,7 +57,7 @@ const cssContext = await esbuild.context({
 	banner: {
 		css: banner,
 	},
-	entryPoints: ["src/styles/index.css"],
+	entryPoints: ["src/styles.css"],
 	bundle: true,
 	target: ["chrome111", "safari16.4"],
 	logLevel: "info",

@@ -1,0 +1,177 @@
+import { ESyncLogOperation } from "@/core/logs";
+import { withEolOf } from "@/core/utils";
+import { trashPath } from "@/core/vault";
+import { textToBytes, writeLocalFile } from "../changes/content";
+import {
+	type CompareResult,
+	type EngineDependencies,
+	publishFileMap,
+	pushSingleFile,
+} from "../engine";
+import {
+	applyHunks,
+	complementSelection,
+	computeHunks,
+	type HunkSelection,
+	isFullSelection,
+	selectionSize,
+} from "../hunks/hunks";
+import { mergeWrittenIntoCache, stateAfterWrites } from "../remote/baseline";
+import type { Manifest, ManifestEntry } from "../types";
+import {
+	assertSidesUnchanged,
+	EHunkPair,
+	type HunkSidesHash,
+	loadHunkSides,
+} from "./text-loaders";
+import type { Operation } from "./types";
+
+export interface LocalHunksArgs {
+	path: string;
+	/** Segments published to the remote; the local file is left alone. */
+	push: HunkSelection;
+	/** Segments put back to the baseline in the local file. */
+	revert: HunkSelection;
+	/** sha256 of the two sides the view computed its hunk indices from. */
+	expected?: HunkSidesHash;
+}
+
+/**
+ * Push and revert in one operation: both derive from the same Baseline/Local pair, so a revert cannot shift
+ * the push's indices.
+ */
+export const localHunksOp: Operation<LocalHunksArgs> = async (
+	deps,
+	result,
+	args,
+	ctx,
+) => {
+	const { path, push, revert } = args;
+	const pushing = selectionSize(push);
+	const reverting = selectionSize(revert);
+	if (pushing === 0 && reverting === 0) throw new Error("No hunks selected");
+	if (pushing > 0) {
+		// Like pushPathsOp, hunk push publishes manifest and must not overwrite remote edit.
+		if (result.diff.conflicts.some((c) => c.path === path)) {
+			throw new Error("Cannot push: resolve the conflict on this file first");
+		}
+		if (result.diff.remoteChanges.some((c) => c.path === path)) {
+			throw new Error(
+				"Cannot push: this file changed on the remote; pull first",
+			);
+		}
+	}
+
+	const sides = await loadHunkSides(deps, result, path, EHunkPair.Local);
+	await assertSidesUnchanged(sides, args.expected);
+	const { hunks } = computeHunks(sides.left, sides.right);
+
+	let localEntry: ManifestEntry | null = result.snapshot.files[path] ?? null;
+	if (reverting > 0) {
+		const kept = withEolOf(
+			sides.left,
+			applyHunks(sides.left, hunks, complementSelection(hunks, revert)),
+		);
+		// Reverting a local add leaves nothing; remove file instead of leaving it empty.
+		if (kept === "" && !deps.state.baseline?.files[path]) {
+			await trashPath(deps.adapter, path);
+			localEntry = null;
+		} else {
+			localEntry = await writeLocalFile(deps, path, textToBytes(kept));
+		}
+	}
+	// Only a revert wrote the file; otherwise the scanned cache already holds it.
+	const written = new Map<string, ManifestEntry | null>(
+		reverting > 0 ? [[path, localEntry]] : [],
+	);
+
+	let manifest = result.remote;
+	if (pushing > 0) {
+		const merged = withEolOf(sides.left, applyHunks(sides.left, hunks, push));
+		// Empty result means local deletion, not zero-byte file. Publish without path.
+		const deleted = merged === "" && !(await deps.adapter.exists(path));
+		manifest = deleted
+			? await publishWithoutPath(deps, result, path)
+			: await pushSingleFile(deps, result, path, textToBytes(merged));
+		await ctx.persistState(
+			stateAfterWrites(deps, result, manifest, new Set([path]), written),
+		);
+	} else {
+		// A revert moves no baseline; only the hash cache learns the written file.
+		const hashCache = mergeWrittenIntoCache(written, result.updatedCache);
+		await ctx.persistState({ ...ctx.getFreshState(), hashCache });
+	}
+	const parts = [
+		pushing > 0 ? `pushed ${pushing}` : "",
+		reverting > 0 ? `reverted ${reverting}` : "",
+	].filter(Boolean);
+	await ctx.logInfo(
+		pushing > 0 ? ESyncLogOperation.Push : ESyncLogOperation.Compare,
+		`Hunks of ${path}: ${parts.join(", ")}.`,
+	);
+	return {
+		newRemote: manifest,
+		touchedPaths: new Set([path]),
+		localEntries: new Map([[path, localEntry]]),
+	};
+};
+
+export interface PullHunksArgs {
+	path: string;
+	selected: HunkSelection;
+	/** sha256 of the two sides the view computed its hunk indices from. */
+	expected?: HunkSidesHash;
+}
+
+export const pullHunksOp: Operation<PullHunksArgs> = async (
+	deps,
+	result,
+	args,
+	ctx,
+) => {
+	const { path, selected } = args;
+	const pulling = selectionSize(selected);
+	if (pulling === 0) throw new Error("No hunks selected");
+	if (!result.remote) {
+		throw new Error("Cannot pull: remote manifest is missing");
+	}
+	const remoteEntry = result.remote.files[path];
+	if (!remoteEntry) throw new Error(`Remote entry missing for ${path}`);
+
+	const sides = await loadHunkSides(deps, result, path, EHunkPair.Remote);
+	await assertSidesUnchanged(sides, args.expected);
+	const { hunks } = computeHunks(sides.left, sides.right);
+	const merged = withEolOf(sides.left, applyHunks(sides.left, hunks, selected));
+	const written = new Map([
+		[path, await writeLocalFile(deps, path, textToBytes(merged))],
+	]);
+
+	// Only a pull taking every segment acknowledges the remote; a partial pull's baseline would hide
+	// left-behind segments and let the next push overwrite them.
+	const acknowledged = isFullSelection(hunks, selected)
+		? new Set([path])
+		: new Set<string>();
+	await ctx.persistState(
+		stateAfterWrites(deps, result, result.remote, acknowledged, written),
+	);
+	await ctx.logInfo(
+		ESyncLogOperation.Pull,
+		`Pulled ${pulling} hunk(s) of ${path}.`,
+	);
+	return {
+		newRemote: result.remote,
+		touchedPaths: new Set([path]),
+		localEntries: written,
+	};
+};
+
+/** Republishes the remote file map with one path removed. */
+async function publishWithoutPath(
+	deps: EngineDependencies,
+	result: CompareResult,
+	path: string,
+): Promise<Manifest> {
+	const files = { ...(result.remote?.files ?? {}) };
+	delete files[path];
+	return publishFileMap(deps, result, files);
+}

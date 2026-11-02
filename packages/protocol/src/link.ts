@@ -14,6 +14,8 @@ const utf8 = (text: string) => new Uint8Array(encoder.encode(text));
 const LINK_ID_PATTERN = /^[A-Za-z0-9_-]{22}$/;
 export const LINK_KEY_BYTES = 16;
 export const LINK_SALT_BYTES = 16;
+/** The salt as it travels: base64url of {@link LINK_SALT_BYTES}. */
+export const LINK_SALT_PATTERN = /^[A-Za-z0-9_-]{22}$/;
 export const LINK_GATE_BYTES = 32;
 /** The gate as it travels: base64url of {@link LINK_GATE_BYTES}. */
 export const LINK_GATE_PATTERN = /^[A-Za-z0-9_-]{43}$/;

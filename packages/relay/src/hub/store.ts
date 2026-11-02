@@ -3,7 +3,8 @@
  * deltas, each after its 4-byte length; the head is the last chunk's last seq.
  */
 
-import type { DocState, DocStore, Pointer } from "./docs";
+import type { DocStore } from "./docs";
+import type { DocState, Pointer } from "./frames";
 
 /** `SqlStorageValue`, spelled out so code without workers-types can import this. */
 export type SqlValue = ArrayBuffer | string | number | null;

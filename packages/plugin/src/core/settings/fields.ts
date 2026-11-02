@@ -1,0 +1,315 @@
+import {
+	debounce,
+	Setting,
+	type SettingDefinitionGroup,
+	type SettingDefinitionRender,
+	type SettingGroupItem,
+} from "obsidian";
+
+import { notifyError } from "@/core/ui";
+
+import type { MdsyncSettings } from "./model";
+
+export const EFieldKind = {
+	Text: "text",
+	Password: "password",
+	Toggle: "toggle",
+	Number: "number",
+	Slider: "slider",
+	Choice: "choice",
+} as const;
+export type EFieldKind = (typeof EFieldKind)[keyof typeof EFieldKind];
+
+/** What a Test button reports in its row. */
+export interface CheckResult {
+	ok: boolean;
+	message: string;
+}
+
+export const SUB_SETTING_CLASS = "mdsync-sub-setting";
+const ERROR_DESC_CLASS = "mdsync-settings-error";
+/** A relay URL typed letter by letter must not open a socket, or send a grant, per prefix. */
+const TYPING_SETTLE_MS = 800;
+const WHOLE_NUMBER = /^\s*\d+\s*$/;
+
+/** Typed edits still settling: closing the settings applies them instead of dropping them. */
+const settling = new Set<() => void>();
+
+/** Applies once typing settles, or when the settings close. */
+export function onSettled<T extends unknown[]>(
+	apply: (...args: T) => void,
+): (...args: T) => void {
+	const later = debounce<T, void>(
+		(...args) => {
+			settling.delete(flush);
+			apply(...args);
+		},
+		TYPING_SETTLE_MS,
+		true,
+	);
+	const flush = (): void => void later.run();
+	return (...args) => {
+		settling.add(flush);
+		later(...args);
+	};
+}
+
+export function settleTyping(): void {
+	for (const flush of [...settling]) flush();
+}
+
+/** What a settings row needs from the plugin; a section that needs more widens it. */
+export interface SettingsHost {
+	settings: MdsyncSettings;
+	saveSettings(): Promise<void>;
+	scheduleScopeRefresh(reason?: string): void;
+}
+
+export interface FieldContext<H extends SettingsHost = SettingsHost> {
+	plugin: H;
+	rerender: () => void;
+}
+
+interface FieldBase<H> {
+	name: string;
+	desc?: string;
+	when?: (settings: MdsyncSettings) => boolean;
+	sub?: boolean;
+	/** For scope-affecting settings. */
+	refreshScope?: boolean;
+	rerender?: boolean;
+	after?: (plugin: H) => void;
+}
+
+export interface ToggleField<H = SettingsHost> extends FieldBase<H> {
+	kind: typeof EFieldKind.Toggle;
+	get: (settings: MdsyncSettings) => boolean;
+	set: (value: boolean, plugin: H) => Partial<MdsyncSettings>;
+}
+
+export interface TextField<H = SettingsHost> extends FieldBase<H> {
+	kind: typeof EFieldKind.Text | typeof EFieldKind.Password;
+	placeholder?: string;
+	get: (settings: MdsyncSettings) => string;
+	set: (value: string, plugin: H) => Partial<MdsyncSettings>;
+}
+
+export interface NumberField<H = SettingsHost> extends FieldBase<H> {
+	kind: typeof EFieldKind.Number;
+	/** Native bounds: either one makes the input a number input. */
+	min?: number;
+	max?: number;
+	get: (settings: MdsyncSettings) => string;
+	parse: (raw: string) => number;
+	set: (value: number, plugin: H) => Partial<MdsyncSettings>;
+}
+
+export interface SliderField<H = SettingsHost> extends FieldBase<H> {
+	kind: typeof EFieldKind.Slider;
+	min: number;
+	max: number;
+	step?: number;
+	get: (settings: MdsyncSettings) => number;
+	set: (value: number, plugin: H) => Partial<MdsyncSettings>;
+}
+
+export interface ChoiceField<H = SettingsHost> extends FieldBase<H> {
+	kind: typeof EFieldKind.Choice;
+	/** Value to label; a function when the list depends on the current value. */
+	options:
+		| Record<string, string>
+		| ((settings: MdsyncSettings) => Record<string, string>);
+	get: (settings: MdsyncSettings) => string;
+	set: (value: string, plugin: H) => Partial<MdsyncSettings>;
+}
+
+export type SettingsField<H = SettingsHost> =
+	| ToggleField<H>
+	| TextField<H>
+	| NumberField<H>
+	| SliderField<H>
+	| ChoiceField<H>;
+
+/** The get/set pair of a setting stored as is; spread it into a field, whose value type must match the key's. */
+export function bind<K extends keyof MdsyncSettings>(
+	key: K,
+): {
+	get: (settings: MdsyncSettings) => MdsyncSettings[K];
+	set: (value: MdsyncSettings[K]) => Pick<MdsyncSettings, K>;
+} {
+	return {
+		get: (s) => s[key],
+		set: (v) => ({ [key]: v }) as Pick<MdsyncSettings, K>,
+	};
+}
+
+export type SettingsRow = Omit<SettingDefinitionRender, "render"> & {
+	render: (setting: Setting) => ReturnType<SettingDefinitionRender["render"]>;
+};
+
+export function fieldRow<H extends SettingsHost>(
+	ctx: FieldContext<H>,
+	field: SettingsField<H>,
+): SettingsRow {
+	const { when } = field;
+	return {
+		name: field.name,
+		desc: field.desc,
+		visible: when ? () => when(ctx.plugin.settings) : undefined,
+		render: (setting) => {
+			applyControl(setting, ctx, field);
+		},
+	};
+}
+
+function applyControl<H extends SettingsHost>(
+	setting: Setting,
+	ctx: FieldContext<H>,
+	field: SettingsField<H>,
+): Setting {
+	if (field.sub) setting.settingEl.addClass(SUB_SETTING_CLASS);
+
+	const apply = (patch: Partial<MdsyncSettings>): void => {
+		Object.assign(ctx.plugin.settings, patch);
+		persist(ctx, field);
+	};
+	// Typed edits are in the settings at once: a patch replayed later could revert another field's.
+	const persistTyped = onSettled(() => persist(ctx, field));
+	const type = (patch: Partial<MdsyncSettings>): void => {
+		Object.assign(ctx.plugin.settings, patch);
+		persistTyped();
+	};
+
+	if (field.kind === EFieldKind.Toggle) {
+		return setting.addToggle((toggle) =>
+			toggle
+				.setValue(field.get(ctx.plugin.settings))
+				.onChange((value) => apply(field.set(value, ctx.plugin))),
+		);
+	}
+
+	if (field.kind === EFieldKind.Choice) {
+		return setting.addDropdown((dropdown) =>
+			dropdown
+				.addOptions(
+					typeof field.options === "function"
+						? field.options(ctx.plugin.settings)
+						: field.options,
+				)
+				.setValue(field.get(ctx.plugin.settings))
+				.onChange((value) => apply(field.set(value, ctx.plugin))),
+		);
+	}
+
+	if (field.kind === EFieldKind.Number) {
+		return setting.addText((text) => {
+			if (field.min !== undefined || field.max !== undefined) {
+				text.inputEl.type = "number";
+				if (field.min !== undefined) text.inputEl.min = String(field.min);
+				if (field.max !== undefined) text.inputEl.max = String(field.max);
+			}
+			text.setValue(field.get(ctx.plugin.settings)).onChange((raw) => {
+				if (!WHOLE_NUMBER.test(raw)) return;
+				type(field.set(field.parse(raw), ctx.plugin));
+			});
+		});
+	}
+
+	if (field.kind === EFieldKind.Slider) {
+		return setting.addSlider((slider) =>
+			slider
+				.setLimits(field.min, field.max, field.step ?? 1)
+				.setValue(field.get(ctx.plugin.settings))
+				.onChange((value) => apply(field.set(value, ctx.plugin))),
+		);
+	}
+
+	return setting.addText((text) => {
+		if (field.kind === EFieldKind.Password) text.inputEl.type = "password";
+		if (field.placeholder) text.setPlaceholder(field.placeholder);
+		text
+			.setValue(field.get(ctx.plugin.settings))
+			.onChange((value) => type(field.set(value, ctx.plugin)));
+	});
+}
+
+/** A Test button whose outcome replaces the row description. */
+export function checkRow(
+	name: string,
+	desc: string,
+	run: () => Promise<CheckResult>,
+): SettingsRow {
+	return {
+		name,
+		desc,
+		render: (setting) => {
+			setting.addButton((button) => {
+				button.setButtonText("Test").onClick(async () => {
+					button.setDisabled(true);
+					button.setButtonText("Testing…");
+					const result = await run();
+					setting.setDesc(result.message);
+					setting.descEl.toggleClass(ERROR_DESC_CLASS, !result.ok);
+					button.setDisabled(false);
+					button.setButtonText("Test");
+				});
+			});
+		},
+	};
+}
+
+export function group(
+	heading: string | undefined,
+	items: SettingGroupItem[],
+): SettingDefinitionGroup {
+	return { type: "group", heading, cls: "mdsync-settings", items };
+}
+
+export function introRow(text: string): SettingsRow {
+	return {
+		name: text,
+		desc: text,
+		searchable: false,
+		render: (setting) => {
+			setting.setName("");
+		},
+	};
+}
+
+export function renderDefinitions(
+	parent: HTMLElement,
+	items: ReadonlyArray<SettingsRow | SettingDefinitionGroup>,
+): void {
+	for (const item of items) {
+		if (
+			typeof item.visible === "function"
+				? !item.visible()
+				: item.visible === false
+		)
+			continue;
+		if ("type" in item) {
+			if (item.heading) new Setting(parent).setName(item.heading).setHeading();
+			renderDefinitions(parent, (item.items ?? []) as SettingsRow[]);
+		} else {
+			const setting = new Setting(parent).setName(item.name);
+			if (item.desc !== undefined) setting.setDesc(item.desc);
+			item.render(setting);
+		}
+	}
+}
+
+function persist<H extends SettingsHost>(
+	ctx: FieldContext<H>,
+	field: SettingsField<H>,
+): void {
+	void ctx.plugin.saveSettings().then(
+		() => {
+			if (field.refreshScope) {
+				ctx.plugin.scheduleScopeRefresh("Sync scope settings changed.");
+			}
+			field.after?.(ctx.plugin);
+			if (field.rerender) ctx.rerender();
+		},
+		(err: unknown) => notifyError("Could not save settings", err),
+	);
+}

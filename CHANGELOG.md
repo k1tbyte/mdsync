@@ -3,6 +3,66 @@
 This file is the source of truth for release notes: the section of a version becomes the notes of its GitHub release.
 The newest section must match `version` in `manifest.json`. Headings are `## [x.y.z] - YYYY-MM-DD`, then `### Important`, `### Features`, `### Improvements` and `### Fixes` as needed. Write for users, in plain sentences, not commit titles.
 
+## Unreleased
+
+### Important
+
+- **Update MDSync on every device.** Once a device with this version pushes, devices still on an older version stop syncing with that storage until they are updated.
+- **File history starts over.** History from earlier versions is not carried over: after the first push, its versions and pinned versions are deleted.
+- **Plugins sync only their settings by default.** Each plugin's settings (`data.json`) sync, existing setups included, and nothing is deleted. Install and update plugins on each device yourself, or choose **Code** or **All** for **Plugins** in **Settings → MDSync → Sync** to sync the plugin itself too.
+
+### Features
+
+- **New file history.** Every push is kept for an hour, then one version per 10 minutes, hour, day and week. Past that, only how busy each day was remains. Pinned versions stay. **Keep history for** in **Settings → MDSync → History** replaces **Versions to keep**; with several devices, the shortest choice among them applies.
+- **Timeline** groups pushes into sessions, with an activity calendar and a filter by path and day. **History** lists a file's versions by age, dated by their push. **Deleted** has a path filter and says until when each file is kept.
+- **What history holds** in **Settings → MDSync → History** shows pushes per day across your devices; select a day to open it in Timeline. An **Activity** card on the settings page shows the same at a glance.
+- **Big files sync in parts.** Only the parts that changed are uploaded, and a pull downloads only the parts the copy on disk lacks.
+- **Slow files.** Drawings and canvases save every few seconds while you work on them, so an automatic push waits until you stop or leave the file, at most 10 minutes. Set the list and its quiet period under **Slow files** in **Settings → MDSync → Sync**. Pushing by hand sends them at once.
+- **Search in compare and merge.** Each pane has a search icon in its header, and Ctrl/Cmd+F opens and closes search in the pane you are in. Find works with match case, whole word and regular expressions, folded lines included, and Result also replaces. Ctrl/Cmd+Alt+G goes to a line.
+- **Merge from the keyboard.** **Take local in merge**, **Take remote in merge**, **Take both in merge, local first**, **Go to next merge conflict** and **Save merge result** act on the change at the cursor; give them hotkeys in **Settings → Hotkeys**.
+- **Choose per plugin.** Under **Plugins** in **Settings → MDSync → Sync**, **Per plugin** sets a level for single plugins on this device: **Off**, **Settings**, **Code** (also the plugin itself) or **All** (also the rest of its folder, such as caches). Plugins that only your other devices have are listed too. A plugin set on its own also syncs while **Plugins** is off, so you can sync just one private plugin. The choice is not shared between devices, but it travels with a device transfer link.
+- **Restart notice.** When a sync brings plugin code or the list of enabled plugins from another device, MDSync says "Plugins changed on another device. Restart Obsidian to load them.", because Obsidian reads them only at startup.
+- **Settings merge by key.** When two devices change different settings of Obsidian or of a plugin, autosync merges the settings file instead of leaving a conflict.
+- **Setup asks what you want.** A new step in the setup wizard chooses when to sync (**Manual**, **Automatic** or **Instant** with a relay), whether to keep history, and which parts of Obsidian sync, plugins one by one included. On a device joining by a setup link it shows what the link brought, to change for this device.
+- **First sync shows what it will do.** The last step of the wizard compares first and lists what would be uploaded, downloaded or is in conflict, before **Sync N files** moves anything. When it is done, a short guide says where the status bar, panel, file tree marks and editor margin are.
+
+### Improvements
+
+- The setup wizard rises as a bottom sheet on a phone, with its buttons always in reach.
+- A new install keeps file history from the start. Sync stays manual until you choose otherwise.
+- With manual sync, MDSync compares once after startup, so the file tree, status bar and **Changes** show what waits right away. Nothing moves until you push or pull, and it never asks for the passphrase on launch.
+- **History** has its own page in **Settings → MDSync**. On the **Sync** page, **Automatic sync** and **Real time** are separate groups, and **Interval** is a list of choices.
+- **Turn on history** in the History, Timeline and Deleted tabs, where history is off, instead of a pointer to settings.
+- While a conflict is open, Push and Pull in the Changes panel look disabled, and pushing a file says which conflict to resolve first instead of failing.
+- A conflict with no earlier version to merge from (a file added on two devices, or a binary file) offers **Compare…** instead of **Merge…**, and its card says it was added on both sides.
+- Compare in a narrow pane keeps the file name and its buttons in view: the hint gets its own line and the buttons wrap.
+- The status bar menu no longer says nobody is in a shared note when no shared folder is connected.
+- The status bar menu groups the vault and shared folders under the relay that carries them, since folders on one relay share one connection. A folder whose state differs from its relay's says so, one with no room left on its relay too, and selecting a shared folder opens its window.
+- On a phone, settings that do nothing there (**Status bar indicator**, **Ignore symlinks**) are hidden.
+- Autosync merges conflicts on its own only in notes (`.md`) and in settings files. Everything else, plugin code and other JSON included, waits for you: a merge by lines can break such files.
+- In a JSON file written by Obsidian or a plugin, keys that only moved show no change in merge, and a merged result that is not valid JSON is not saved.
+- Unsaved merge edits come back when you close the tab and open **Merge…** again, as long as neither version changed.
+- **Merge…** says why it is unavailable, refuses a file changed since the compare, and the merge bar says when the file changed while you merge.
+- The tab menu of compare and merge copies the file's path or the whole text of either side.
+- Change cards show how many lines each change adds and removes.
+- Leaving a file with picked but unapplied changes asks first.
+- A restored version stays out of automatic pushes until you edit, push or pull it.
+- Changes to the configuration folder are kept out of file history and Timeline.
+- Files are compressed in storage when that makes them smaller. Excalidraw drawings saved compressed are stored unpacked, so they compress better and sync in parts, and they come back exactly as saved.
+- History, Timeline and Deleted load faster, and old versions are cleaned up in the background after pushes.
+- The default **Max file size** is now 25 MB.
+
+### Fixes
+
+- **Keep both versions** no longer creates a copy that would never sync, such as a plugin code file while only plugin settings sync.
+- On a phone, the back arrow in a diff keeps the sidebar open.
+- A deleted file opened from the Timeline shows the same diff as in **Deleted**, not a plain text view.
+- The activity calendar in settings opens scrolled to today.
+- A diff or source control tab moved to its own window follows that window's size: the diff turns Inline when narrow, long lists fill as the pane grows.
+- A diff or merge moved to its own window keeps line numbers beside the text.
+- Stepping through changes rings the change at once, without a flash at the top, and Inline rings a removed line's card.
+- In merge, the connectors of a conflict where both sides added lines reach its whole card instead of a thin tail hidden behind **Take**.
+
 ## [1.4.1] - 2026-10-27
 
 ### Improvements

@@ -49,15 +49,23 @@ await runScenario("setup wizard e2e", async () => {
 		await fill(first, "Confirm passphrase", PASSPHRASE);
 		await press(first, "Set passphrase");
 
+		await settled(first, "setup-features");
+		check(
+			"a new install starts manual, with history on",
+			await first.evaluate(() => {
+				const { settings } = app.plugins.plugins.mdsync;
+				return [settings.autoSyncEnabled, settings.fileHistoryEnabled];
+			}),
+			[false, true],
+		);
+		await press(first, "Next");
 		await settled(first, "setup-relay");
 		await press(first, "Skip");
 		await settled(first, "setup-ready");
-		await press(first, "Sync now");
-		await first.waitFor(
-			"the first sync",
-			() => activeDocument.querySelector(".mdsync-setup-body")?.textContent,
-			(text) => text?.includes("In sync.") ?? false,
-		);
+		// The preview compares first and moves nothing until asked.
+		await press(first, "Sync 1 file");
+		await doneTour(first, "the first sync");
+		await settled(first, "setup-done");
 		check(
 			"the first device keeps its passphrase unlocked",
 			await first.evaluate(() =>
@@ -129,13 +137,16 @@ await runScenario("setup wizard e2e", async () => {
 		);
 		await fill(second, "Passphrase", PASSPHRASE);
 		await press(second, "Import");
-		await press(second, "Skip");
-		await press(second, "Sync now");
+		// Waits for the Features step, which says the values came with the link.
 		await second.waitFor(
-			"the joining sync",
+			"the joining device reviews what the link brought",
 			() => activeDocument.querySelector(".mdsync-setup-body")?.textContent,
-			(text) => text?.includes("In sync.") ?? false,
+			(text) => text?.includes("These came with the setup link") ?? false,
 		);
+		await press(second, "Next");
+		await press(second, "Skip");
+		await press(second, "Sync 1 file");
+		await doneTour(second, "the joining sync");
 		check(
 			"the joining device pulled the note",
 			await read(second, NOTE),
@@ -146,6 +157,15 @@ await runScenario("setup wizard e2e", async () => {
 		s3.stop();
 	}
 });
+
+/** A sync with nothing left ends on the guide to where things are. */
+function doneTour(device: Obsidian, what: string): Promise<unknown> {
+	return device.waitFor(
+		what,
+		() => activeDocument.querySelector(".mdsync-setup-body")?.textContent,
+		(text) => text?.includes("You're all set") ?? false,
+	);
+}
 
 /** With `E2E_SHOTS`, waits out the stepper's transitions before the shot. */
 async function settled(device: Obsidian, name: string): Promise<void> {

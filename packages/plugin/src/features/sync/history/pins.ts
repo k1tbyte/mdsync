@@ -1,0 +1,222 @@
+import { DEFAULT_CONCURRENCY } from "@/core/constants";
+import { decryptJson, type EncryptionKey, encryptJson } from "@/core/crypto";
+import { reportWarning } from "@/core/shared";
+import { runWithConcurrency } from "@/core/utils";
+import { listEntries, type ObjectStorage } from "@/features/storage";
+import { REMOTE_PINS_PREFIX } from "../constants";
+import { trimOldest } from "../hunks/bounded-map";
+import { manifestToSpace, manifestToVault } from "../remote/space-paths";
+import type { Manifest } from "../types";
+
+/** A pin is its own full manifest, so it outlives the records it was replayed from. */
+export interface Pin {
+	id: string;
+	manifest: Manifest;
+	label?: string;
+	pinnedAt: number;
+}
+
+interface StoredPin {
+	v: 1;
+	manifest: Manifest;
+	label?: string;
+	pinnedAt: number;
+}
+
+/** A pin without its manifest: what a row shows. */
+export interface PinInfo {
+	id: string;
+	label?: string;
+	createdAt: number;
+	deviceId: string;
+	deviceName?: string;
+}
+
+export interface PinsRead<T> {
+	/** Newest snapshot first, each as `pick` reduced it. */
+	pins: { info: PinInfo; picked: T }[];
+	/** Listed pins that could not be read: what they hold is unknown. */
+	unreadable: string[];
+}
+
+/** Manifests are big, so the cache holds this many file entries at most (four 50k-file manifests), oldest read first out. */
+const PIN_CACHE_ENTRIES = 200_000;
+
+interface CachedPin {
+	etag: string;
+	pin: Pin;
+	/** Files in the manifest: what the cache is bounded by. */
+	entries: number;
+}
+
+// A relabel rewrites the object, and only its etag proves it unchanged: a timestamp may not move within its resolution.
+// Infos are a few strings each, so every listed pin keeps one and a warm Timeline refresh downloads no manifest.
+const pinCache = new WeakMap<
+	ObjectStorage,
+	{
+		key: EncryptionKey;
+		root: string;
+		pins: Map<string, CachedPin>;
+		infos: Map<string, { etag: string; info: PinInfo }>;
+	}
+>();
+
+export function pinKey(snapshotId: string): string {
+	return `${REMOTE_PINS_PREFIX}${snapshotId}.json.enc`;
+}
+
+export async function writePin(
+	storage: ObjectStorage,
+	key: EncryptionKey,
+	root: string,
+	pin: Pin,
+): Promise<void> {
+	const stored: StoredPin = {
+		v: 1,
+		manifest: manifestToSpace(pin.manifest, root),
+		label: pin.label,
+		pinnedAt: pin.pinnedAt,
+	};
+	await storage.put(
+		pinKey(pin.id),
+		await encryptJson(key, stored),
+		"application/octet-stream",
+	);
+}
+
+export function deletePin(
+	storage: ObjectStorage,
+	snapshotId: string,
+): Promise<void> {
+	return storage.delete(pinKey(snapshotId));
+}
+
+/** Every listed pin, reduced by `pick` as it is read so no more than the cache's manifests are held at once. */
+export function readPins<T>(
+	storage: ObjectStorage,
+	key: EncryptionKey,
+	root: string,
+	pick: (pin: Pin, info: PinInfo) => T,
+): Promise<PinsRead<T>> {
+	return scanPins(storage, key, root, pick);
+}
+
+/** Every listed pin's info, newest first; a pin whose etag is unchanged costs no GET. */
+export async function readPinInfos(
+	storage: ObjectStorage,
+	key: EncryptionKey,
+	root: string,
+): Promise<{ pins: PinInfo[]; unreadable: string[] }> {
+	const read = await scanPins(
+		storage,
+		key,
+		root,
+		() => null,
+		() => null,
+	);
+	return {
+		pins: read.pins.map(({ info }) => info),
+		unreadable: read.unreadable,
+	};
+}
+
+/** `fromInfo` answers a pin whose cached info is current, so it is not read at all. */
+async function scanPins<T>(
+	storage: ObjectStorage,
+	key: EncryptionKey,
+	root: string,
+	pick: (pin: Pin, info: PinInfo) => T,
+	fromInfo?: (info: PinInfo) => T,
+): Promise<PinsRead<T>> {
+	let cache = pinCache.get(storage);
+	if (cache?.key !== key || cache.root !== root) {
+		cache = { key, root, pins: new Map(), infos: new Map() };
+		pinCache.set(storage, cache);
+	}
+	const { pins, infos } = cache;
+	const listed = await listEntries(storage, REMOTE_PINS_PREFIX);
+	const listedKeys = new Set(listed.map((object) => object.key));
+	for (const cached of [pins, infos]) {
+		for (const storageKey of cached.keys()) {
+			if (!listedKeys.has(storageKey)) cached.delete(storageKey);
+		}
+	}
+	const read: PinsRead<T>["pins"] = [];
+	const unreadable: string[] = [];
+	await runWithConcurrency(listed, DEFAULT_CONCURRENCY, async (object) => {
+		const { etag } = object;
+		const known = infos.get(object.key);
+		if (fromInfo && etag !== null && known?.etag === etag) {
+			read.push({ info: known.info, picked: fromInfo(known.info) });
+			return;
+		}
+		const hit = pins.get(object.key);
+		let pin: Pin | null | undefined =
+			etag !== null && hit?.etag === etag ? hit.pin : null;
+		if (!pin) {
+			pin = await readPin(storage, key, root, object.key);
+			// Unpinned since the listing: it holds nothing now.
+			if (pin === undefined) return;
+			if (!pin) {
+				unreadable.push(object.key);
+				return;
+			}
+			if (etag !== null) {
+				const entries = Object.keys(pin.manifest.files).length;
+				remember(pins, object.key, { etag, pin, entries });
+			}
+		}
+		const { id, label, manifest } = pin;
+		const { createdAt, deviceId, deviceName } = manifest;
+		const info = { id, label, createdAt, deviceId, deviceName };
+		if (etag !== null) infos.set(object.key, { etag, info });
+		read.push({ info, picked: pick(pin, info) });
+	});
+	read.sort((a, b) => b.info.createdAt - a.info.createdAt);
+	return { pins: read, unreadable };
+}
+
+/** One pin, null when absent or unreadable. */
+export async function readPinById(
+	storage: ObjectStorage,
+	key: EncryptionKey,
+	root: string,
+	snapshotId: string,
+): Promise<Pin | null> {
+	return (await readPin(storage, key, root, pinKey(snapshotId))) ?? null;
+}
+
+/** Undefined when absent, null when unreadable. */
+async function readPin(
+	storage: ObjectStorage,
+	key: EncryptionKey,
+	root: string,
+	storageKey: string,
+): Promise<Pin | null | undefined> {
+	const blob = await storage.get(storageKey);
+	if (!blob) return undefined;
+	const id = storageKey.slice(REMOTE_PINS_PREFIX.length, -".json.enc".length);
+	try {
+		const stored = await decryptJson<StoredPin>(key, blob);
+		if (stored.v !== 1 || stored.manifest?.snapshotId !== id) return null;
+		return {
+			id,
+			manifest: manifestToVault(stored.manifest, root),
+			label: stored.label,
+			pinnedAt: stored.pinnedAt,
+		};
+	} catch (err) {
+		reportWarning(`Pinned snapshot "${id}" is unreadable.`, err);
+		return null;
+	}
+}
+
+function remember(
+	pins: Map<string, CachedPin>,
+	storageKey: string,
+	entry: CachedPin,
+): void {
+	pins.delete(storageKey);
+	pins.set(storageKey, entry);
+	trimOldest(pins, PIN_CACHE_ENTRIES, ({ entries }) => entries);
+}

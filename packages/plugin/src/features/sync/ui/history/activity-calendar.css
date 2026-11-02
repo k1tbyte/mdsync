@@ -1,0 +1,147 @@
+.mdsync-calendar {
+	position: relative;
+	--mdsync-cal-cell: 10px;
+	--mdsync-cal-gap: 3px;
+	overflow-x: auto;
+	/* Room for an overlay scrollbar under the strip. */
+	padding: 2px 2px var(--size-4-2);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}
+
+/* Too small for a finger either way; larger cells and the tap notice make up for it. */
+body.is-phone .mdsync-calendar {
+	--mdsync-cal-cell: 16px;
+	--mdsync-cal-gap: 4px;
+}
+
+.mdsync-calendar-months,
+.mdsync-calendar-grid,
+.mdsync-calendar-bands {
+	display: flex;
+	gap: var(--mdsync-cal-gap);
+	width: max-content;
+}
+
+.mdsync-calendar-month {
+	width: var(--mdsync-cal-cell);
+	overflow: visible;
+	white-space: nowrap;
+	line-height: 1.6;
+}
+
+.mdsync-calendar-week {
+	display: flex;
+	flex-direction: column;
+	gap: var(--mdsync-cal-gap);
+}
+
+.mdsync-calendar-day {
+	width: var(--mdsync-cal-cell);
+	height: var(--mdsync-cal-cell);
+	border-radius: 2px;
+	background: var(--background-modifier-border);
+}
+
+.mdsync-calendar-day.is-level-1 {
+	background: color-mix(
+		in srgb,
+		var(--interactive-accent) 32%,
+		var(--background-modifier-border)
+	);
+}
+
+.mdsync-calendar-day.is-level-2 {
+	background: color-mix(
+		in srgb,
+		var(--interactive-accent) 55%,
+		var(--background-modifier-border)
+	);
+}
+
+.mdsync-calendar-day.is-level-3 {
+	background: color-mix(
+		in srgb,
+		var(--interactive-accent) 78%,
+		var(--background-modifier-border)
+	);
+}
+
+.mdsync-calendar-day.is-level-4 {
+	background: var(--interactive-accent);
+}
+
+/* Only counts remain: no version to open. */
+.mdsync-calendar-day.is-counts:not(.is-level-0) {
+	opacity: 0.45;
+}
+
+.mdsync-calendar-grid.is-pickable .mdsync-calendar-day {
+	cursor: pointer;
+}
+
+.mdsync-calendar-grid.is-pickable .mdsync-calendar-day:hover {
+	outline: 1px solid var(--text-muted);
+}
+
+.mdsync-calendar-day.is-picked {
+	outline: 1.5px solid var(--text-normal);
+}
+
+.mdsync-calendar-day:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+}
+
+.mdsync-calendar-bands {
+	margin-top: var(--size-4-1);
+}
+
+.mdsync-calendar-band {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	width: calc(
+		var(--mdsync-weeks) *
+		(var(--mdsync-cal-cell) + var(--mdsync-cal-gap)) -
+		var(--mdsync-cal-gap)
+	);
+	min-width: 0;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.mdsync-calendar-band::before {
+	content: "";
+	height: 2px;
+	border-radius: 1px;
+	background: var(--background-modifier-border-hover);
+}
+
+.mdsync-calendar-band[data-res="push"]::before,
+.mdsync-calendar-band[data-res="10m"]::before {
+	background: var(--interactive-accent);
+}
+
+.mdsync-calendar-band[data-res="1h"]::before {
+	background: color-mix(
+		in srgb,
+		var(--interactive-accent) 75%,
+		var(--background-modifier-border)
+	);
+}
+
+.mdsync-calendar-band[data-res="1d"]::before {
+	background: color-mix(
+		in srgb,
+		var(--interactive-accent) 55%,
+		var(--background-modifier-border)
+	);
+}
+
+.mdsync-calendar-band[data-res="1w"]::before {
+	background: color-mix(
+		in srgb,
+		var(--interactive-accent) 35%,
+		var(--background-modifier-border)
+	);
+}

@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 
-import type { StoredLink } from "@/links/record";
-import { SharedLinks } from "@/links/shared-links";
+import type { LinkRecord, StoredLink } from "@/features/links/record";
+import { SharedLinks } from "@/features/links/shared-links";
 
 const PUBLISHED = 1_760_000_000_000;
 
@@ -31,6 +31,26 @@ export function link(
 		salt: null,
 		images: true,
 		...extra,
+	};
+}
+
+/** A record as a test names it: one note, no expiry, no passphrase. */
+export function linkRecord(overrides: Partial<LinkRecord> = {}): LinkRecord {
+	return {
+		id: "one",
+		url: "https://relay.example/one",
+		rev: 0,
+		author: "",
+		path: "note.md",
+		showTitle: true,
+		detached: false,
+		createdAt: 1,
+		publishedAt: 1,
+		expires: null,
+		maxViews: null,
+		salt: null,
+		images: false,
+		...overrides,
 	};
 }
 

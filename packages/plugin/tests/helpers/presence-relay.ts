@@ -1,9 +1,8 @@
 import { EFrame, OWNER, type ServerFrame } from "@mdsync/protocol";
-
-import { deriveLiveKeys, type LiveKeys } from "@/crypto/live-keys";
-import type { SpaceFrame, SpaceListener } from "@/hub/connection";
-import { People, type PresenceAccess } from "@/presence/people";
-import { type Space, VAULT_SPACE } from "@/sync/space";
+import { deriveLiveKeys, type LiveKeys } from "@/core/crypto/live-keys";
+import type { SpaceFrame, SpaceListener } from "@/core/hub";
+import { People, type PresenceAccess } from "@/features/presence/people";
+import { type Space, VAULT_SPACE } from "@/features/sync/remote/space";
 
 /** Who the hub knows a socket as on a space's channel. */
 export type Vouch = (space: string) => { who: string; name: string };

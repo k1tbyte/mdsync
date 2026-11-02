@@ -1,9 +1,18 @@
 /** Scenario plumbing shared by the end-to-end checks. */
 
-import { type ChildProcess, spawnSync } from "node:child_process";
+import {
+	type ChildProcess,
+	type SpawnOptions,
+	spawn,
+	spawnSync,
+} from "node:child_process";
 
 const POLL_MS = 200;
 const POLL_TIMEOUT_MS = 30_000;
+const TAIL_LINES = 50;
+
+/** Last output of each child by label; a restart under the same label replaces it. */
+const tails = new Map<string, () => string>();
 
 /** Throws on the first broken expectation: later steps build on earlier ones. */
 export function check(name: string, actual: unknown, expected: unknown): void {
@@ -58,6 +67,31 @@ export function killTree(child: ChildProcess): void {
 	}
 }
 
+export function lastLines(text: string): string {
+	return text.split("\n").slice(-TAIL_LINES).join("\n");
+}
+
+/** Spawns a child whose stdout and stderr tail is printed by `runScenario` when the scenario fails. */
+export function spawnLogged(
+	label: string,
+	command: string,
+	args: string[],
+	options: SpawnOptions,
+): ChildProcess {
+	const child = spawn(command, args, {
+		...options,
+		stdio: ["ignore", "pipe", "pipe"],
+	});
+	let tail = "";
+	tails.set(label, () => tail);
+	for (const stream of [child.stdout, child.stderr]) {
+		stream?.on("data", (chunk) => {
+			tail = lastLines(tail + chunk);
+		});
+	}
+	return child;
+}
+
 /** Open sockets and child processes would keep node alive, so this exits. */
 export async function runScenario(
 	name: string,
@@ -67,8 +101,13 @@ export async function runScenario(
 		await body();
 	} catch (error) {
 		console.error(
-			`\n${name} failed: ${error instanceof Error ? error.message : error}`,
+			`\n${name} failed: ${error instanceof Error ? (error.stack ?? error) : error}`,
 		);
+		for (const [label, tail] of tails) {
+			console.error(
+				`\n--- ${label}, last ${TAIL_LINES} lines ---\n${tail().trim()}`,
+			);
+		}
 		process.exit(1);
 	}
 	console.log(`\n${name} passed`);

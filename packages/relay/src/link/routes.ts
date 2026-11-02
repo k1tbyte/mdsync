@@ -10,6 +10,7 @@ import {
 	LINK_MAX_SEALED_BYTES,
 	LINK_MAX_TTL_S,
 	LINK_MAX_VIEWS,
+	LINK_SALT_PATTERN,
 } from "@mdsync/protocol";
 
 import { fingerprint, isAdmin, type SecretEnv } from "../secret";
@@ -28,7 +29,6 @@ import { type LinkEnv, linkStub } from "./stub";
 export interface LinkRouteEnv extends SecretEnv, LinkEnv {}
 
 const ROUTE = /^\/link\/([^/]+)(?:\/(meta|status|open))?$/;
-const SALT_PATTERN = /^[A-Za-z0-9_-]{22}$/;
 /** The open route is public and its body is one gate, so anything bigger is not parsed. */
 const MAX_OPEN_BODY_BYTES = 1024;
 const GONE_TEXT = "This link has expired or reached its view limit.";
@@ -187,7 +187,8 @@ async function readSettings(
 	if (gate === null || !LINK_GATE_PATTERN.test(gate)) {
 		return refused("Invalid gate");
 	}
-	if (salt !== null && !SALT_PATTERN.test(salt)) return refused("Invalid salt");
+	if (salt !== null && !LINK_SALT_PATTERN.test(salt))
+		return refused("Invalid salt");
 	return {
 		ok: true,
 		ttl,

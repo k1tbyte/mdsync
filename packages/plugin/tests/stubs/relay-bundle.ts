@@ -1,4 +1,4 @@
-import type { RelayBundle } from "@/cloudflare/bundle";
+import type { RelayBundle } from "@/features/relay/deploy/bundle";
 
 const bundle: RelayBundle = {
 	name: "mdsync-relay",

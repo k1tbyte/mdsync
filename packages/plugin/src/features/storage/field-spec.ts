@@ -1,0 +1,44 @@
+import { DEFAULT_CONCURRENCY } from "@/core/constants";
+import { EFieldKind } from "@/core/settings";
+
+export interface BaseFieldSpec {
+	key: string;
+	name: string;
+	desc?: string;
+	placeholder?: string;
+}
+
+export interface TextFieldSpec extends BaseFieldSpec {
+	kind: typeof EFieldKind.Text;
+}
+
+export interface PasswordFieldSpec extends BaseFieldSpec {
+	kind: typeof EFieldKind.Password;
+}
+
+export interface ToggleFieldSpec extends BaseFieldSpec {
+	kind: typeof EFieldKind.Toggle;
+}
+
+export interface NumberFieldSpec extends BaseFieldSpec {
+	kind: typeof EFieldKind.Number;
+	min: number;
+	max: number;
+	fallback: number;
+}
+
+export type SettingsFieldSpec =
+	| TextFieldSpec
+	| PasswordFieldSpec
+	| ToggleFieldSpec
+	| NumberFieldSpec;
+
+export const CONCURRENCY_FIELD: NumberFieldSpec = {
+	kind: EFieldKind.Number,
+	key: "concurrency",
+	name: "Concurrency",
+	desc: "Parallel uploads/downloads for this backend. Higher is faster but heavier on the remote.",
+	min: 1,
+	max: 32,
+	fallback: DEFAULT_CONCURRENCY,
+};

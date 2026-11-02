@@ -4,7 +4,7 @@
  */
 
 import { excalidrawPlugin } from "./excalidraw";
-import { check, runScenario, sleep } from "./harness";
+import { check, poll, runScenario, sleep } from "./harness";
 import { launchObsidian, type Obsidian } from "./obsidian";
 import { type Relay, startRelay } from "./relay";
 import { startWebDav } from "./webdav";
@@ -409,9 +409,18 @@ async function openDrawing(
 		() => Boolean(app.plugins.plugins["obsidian-excalidraw-plugin"]),
 		Boolean,
 	);
-	await device.evaluate(async (path) => {
-		await app.workspace.getLeaf(false).openFile(app.vault.getFileByPath(path));
-	}, path);
+	// Excalidraw turns a markdown open into a drawing only once fully loaded, a moment after it appears.
+	await poll("drawing opened", () =>
+		device.evaluate(async (path) => {
+			const leaf = app.workspace.getLeaf(false);
+			const { view } = leaf;
+			if (view.getViewType() === "excalidraw" && view.file?.path === path) {
+				return true;
+			}
+			await leaf.openFile(app.vault.getFileByPath(path));
+			return undefined;
+		}, path),
+	);
 	try {
 		await device.waitFor(
 			"drawing bound",

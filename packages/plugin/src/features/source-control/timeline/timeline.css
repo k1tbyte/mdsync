@@ -1,0 +1,367 @@
+.mdsync-timeline-files {
+	display: flex;
+	flex-direction: column;
+	margin: 0 var(--size-4-2) var(--size-4-2) 15px;
+	padding-left: 6px;
+	border-left: 1px solid var(--background-modifier-border);
+}
+
+/* Not sticky: this view also opens in the main area, where no one background
+   colour would sit flush behind it. */
+.mdsync-timeline-day {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-2-1) var(--size-4-1) 0;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.mdsync-timeline-day::after {
+	content: "";
+	flex: 1 1 auto;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.mdsync-timeline-day:not(:first-child) {
+	margin-top: var(--size-4-2);
+}
+
+/* The last card scrolls clear of the list's end and of the status bar over it. */
+.mdsync-timeline-list {
+	gap: var(--size-2-2);
+	padding-bottom: calc(var(--size-4-2) + var(--mdsync-status-bar-clearance));
+}
+
+.mdsync-timeline-card {
+	flex: 0 0 auto;
+	min-width: 0;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary);
+}
+
+.mdsync-timeline-head {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-4-2) 6px var(--size-4-2) var(--size-4-2);
+	border-radius: var(--radius-m);
+	cursor: pointer;
+}
+
+.mdsync-timeline-head:hover {
+	background: var(--background-modifier-hover);
+}
+
+.mdsync-timeline-head:focus-visible {
+	outline: 1px solid var(--interactive-accent);
+	outline-offset: -1px;
+}
+
+.mdsync-timeline-copy {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.mdsync-timeline-head .mdsync-timeline-copy {
+	gap: var(--size-2-2);
+}
+
+.mdsync-timeline-title {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.mdsync-timeline-icon {
+	display: inline-flex;
+	flex: 0 0 auto;
+	color: var(--text-muted);
+}
+
+.mdsync-timeline-icon svg {
+	width: var(--mdsync-icon);
+	height: var(--mdsync-icon);
+}
+
+/* Who pushed, a chip per kind of change, the net size at the end. */
+.mdsync-timeline-meta {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.mdsync-timeline-device {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.mdsync-timeline-chips {
+	display: inline-flex;
+	flex: 0 0 auto;
+	gap: var(--size-2-2);
+}
+
+.mdsync-count-chip {
+	display: inline-flex;
+	align-items: center;
+	height: 16px;
+	padding: 0 5px;
+	border-radius: var(--radius-s);
+	background: color-mix(in srgb, currentColor 16%, transparent);
+	font-family: var(--font-monospace);
+	font-size: 10px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.mdsync-timeline-net {
+	flex: 0 0 auto;
+	margin-left: auto;
+	font-variant-numeric: tabular-nums;
+}
+
+.mdsync-timeline-file {
+	font-size: var(--font-ui-smaller);
+}
+
+/* Cards hover as one, so a row inside one uses the same tint as its head. */
+.mdsync-timeline-file:hover {
+	background: var(--background-modifier-hover);
+}
+
+.mdsync-timeline-size {
+	flex: 0 0 auto;
+	margin-left: auto;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+}
+
+.mdsync-timeline-file .mdsync-file-status {
+	margin-left: 0;
+}
+
+/* A card keeps its menu in the layout, so it is reachable without hovering. */
+.mdsync-timeline-actions {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: var(--size-2-1);
+}
+
+.mdsync-timeline-actions .mdsync-icon-btn {
+	border-radius: var(--radius-s);
+	color: var(--text-muted);
+	background: transparent;
+	box-shadow: none;
+}
+
+.mdsync-timeline-actions .mdsync-icon-btn:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+
+.mdsync-timeline-actions .mdsync-icon-btn:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: -2px;
+}
+
+/* A file row has no spare column: its menu floats over the right edge on hover and paints its own background. */
+.mdsync-timeline-file .mdsync-timeline-actions {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	align-items: stretch;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.mdsync-timeline-file:focus-within .mdsync-timeline-actions {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+@media (hover: hover) {
+	.mdsync-timeline-file:hover .mdsync-timeline-actions {
+		opacity: 1;
+		pointer-events: auto;
+	}
+}
+
+/* Base card colour plus the row's hover tint: opaque, so it masks cleanly. */
+.mdsync-timeline-file .mdsync-timeline-actions .mdsync-icon-btn {
+	/* Clamped, so the wide hit area never grows the row it floats over. */
+	padding: var(--size-4-3);
+	max-height: 100%;
+	background-color: var(--background-primary);
+	background-image: linear-gradient(
+		var(--background-modifier-hover),
+		var(--background-modifier-hover)
+	);
+}
+
+/* Its own hover stacks a second tint over the row's. */
+.mdsync-timeline-file .mdsync-timeline-actions .mdsync-icon-btn:hover {
+	background-color: var(--background-primary);
+	background-image:
+		linear-gradient(
+			var(--background-modifier-hover),
+			var(--background-modifier-hover)
+		),
+		linear-gradient(
+			var(--background-modifier-hover),
+			var(--background-modifier-hover)
+		);
+}
+
+.mdsync-timeline-actions svg {
+	width: var(--mdsync-icon);
+	height: var(--mdsync-icon);
+}
+
+/* The resolution chip sits after the rule that fills the header. */
+.mdsync-timeline-res {
+	order: 2;
+	padding: 0 var(--size-4-1);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--mdsync-radius-pill);
+	font-weight: var(--font-normal);
+	text-transform: none;
+	letter-spacing: 0;
+}
+
+.mdsync-timeline-day::after {
+	order: 1;
+}
+
+.mdsync-timeline-activity {
+	flex: 0 0 auto;
+	padding: var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary);
+}
+
+.mdsync-timeline-activity-head {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-1);
+	margin-bottom: var(--size-4-1);
+	cursor: pointer;
+}
+
+.mdsync-timeline-activity-title {
+	font-weight: var(--font-semibold);
+}
+
+.mdsync-timeline-activity-sum {
+	margin-left: auto;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.mdsync-timeline-filter {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.mdsync-timeline-filter .search-input-container {
+	flex: 1;
+	min-width: 0;
+}
+
+.mdsync-timeline-day-chip {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: var(--size-2-1);
+	padding-left: var(--size-4-2);
+	border-radius: var(--mdsync-radius-pill);
+	background: var(--background-modifier-hover);
+	font-size: var(--font-ui-smaller);
+}
+
+.mdsync-timeline-sessions {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-2);
+}
+
+.mdsync-timeline-caption {
+	padding: var(--size-2-2) 0;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+/* A version inside a session: a lighter card head, its files under it. */
+.mdsync-timeline-version .mdsync-timeline-head {
+	padding: var(--size-2-1) 6px var(--size-2-1) var(--size-2-2);
+}
+
+/* One line: time, chips, size. */
+.mdsync-timeline-version .mdsync-timeline-head .mdsync-timeline-copy {
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+}
+
+.mdsync-timeline-version .mdsync-timeline-meta {
+	flex: 1;
+	min-width: 0;
+}
+
+.mdsync-timeline-version .mdsync-history-row-title {
+	font-size: var(--font-ui-small);
+}
+
+body:not(.is-phone)
+	.mdsync-timeline-version
+	.mdsync-timeline-actions
+	.clickable-icon {
+	padding: var(--size-2-1) var(--size-2-2);
+}
+
+/* A link, not a button: it only unfolds the list. */
+.mdsync-timeline-more.mdsync-labeled-btn {
+	align-self: flex-start;
+	margin: var(--size-2-2) 0;
+	padding: 0;
+	color: var(--text-accent);
+	background: transparent;
+	box-shadow: none;
+}
+
+.mdsync-timeline-counts {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--size-4-2);
+	padding: var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+}
+
+.mdsync-timeline-counts-title {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	font-weight: var(--font-semibold);
+}
+
+.mdsync-timeline-more.mdsync-labeled-btn:hover {
+	text-decoration: underline;
+}

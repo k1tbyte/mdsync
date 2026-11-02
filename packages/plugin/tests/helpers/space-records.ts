@@ -1,5 +1,5 @@
-import type { SpaceRecord } from "@/spaces/record";
-import { SpaceRecords } from "@/spaces/records";
+import type { SpaceRecord } from "@/features/spaces/record";
+import { SpaceRecords } from "@/features/spaces/records";
 
 export function record(
 	id: string,

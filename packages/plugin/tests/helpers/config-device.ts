@@ -1,11 +1,17 @@
-import type { SettingsSyncCategories } from "@/settings/model";
-import { SyncController } from "@/sync/controller";
-import { pullPathsOp } from "@/sync/operations/pull";
-import { pushPathsOp } from "@/sync/operations/push";
-import { mergeSessionIntoLocal, projectSession } from "@/sync/session-state";
-import { VAULT_SPACE } from "@/sync/space";
-import type { LocalState } from "@/sync/types";
-import { createScopePolicy } from "@/vault/scope";
+import {
+	EPluginLevel,
+	type SettingsSyncCategories,
+} from "@/core/settings/model";
+import { SyncController } from "@/features/sync/controller";
+import { pullPathsOp } from "@/features/sync/operations/pull";
+import { pushPathsOp } from "@/features/sync/operations/push";
+import { VAULT_SPACE } from "@/features/sync/remote/space";
+import { createScopePolicy } from "@/features/sync/scope/scope";
+import {
+	mergeSessionIntoLocal,
+	projectSession,
+} from "@/features/sync/session-state";
+import type { LocalState } from "@/features/sync/types";
 import { TestSession } from "./session";
 export const disabled: SettingsSyncCategories = {
 	coreSettings: false,
@@ -29,11 +35,16 @@ export const enabled = Object.fromEntries(
 
 export class Device extends TestSession {
 	settingsSync = { ...disabled };
+	/** Whole plugin folders, so `enabled` means everything. */
+	pluginLevel: EPluginLevel = EPluginLevel.Data;
+	pluginLevels: Record<string, EPluginLevel> = {};
 	override deps() {
 		return {
 			...super.deps(),
 			scope: createScopePolicy({
 				settingsSync: this.settingsSync,
+				pluginLevel: this.pluginLevel,
+				pluginLevels: this.pluginLevels,
 				configDir: ".obsidian",
 			}),
 		};

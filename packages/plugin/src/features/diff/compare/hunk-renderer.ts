@@ -1,0 +1,39 @@
+import type { SyncHunk } from "@/features/sync";
+import { renderCodeLine } from "../lines/code-lines";
+import { renderCounters } from "../lines/source-widget";
+
+/** Read-only hunk preview for restore confirmations; lines are numbered by the side they belong to. */
+export function renderHunkPreview(
+	parent: HTMLElement,
+	hunk: SyncHunk,
+): HTMLElement {
+	const card = parent.createDiv({ cls: "mdsync-hunk-preview" });
+	const head = card.createDiv({ cls: "mdsync-source-head" });
+	const last = hunk.newStart + Math.max(hunk.newLines, 1) - 1;
+	head.createSpan({
+		cls: "mdsync-source-label",
+		text: `Lines ${hunk.newStart}-${last}`,
+	});
+	renderCounters(head, { added: hunk.added, removed: hunk.removed });
+	const lines = card.createDiv({ cls: "mdsync-hunk-preview-lines" });
+	let left = Math.max(1, hunk.oldStart);
+	let right = Math.max(1, hunk.newStart);
+	for (const line of hunk.lines) {
+		const prefix = line[0];
+		// "\ No newline at end of file" annotates the previous line; not content.
+		if (prefix === "\\") continue;
+		const text = line.slice(1);
+		if (prefix === "-") {
+			renderCodeLine(lines, { number: left, text }, "removed");
+			left++;
+		} else if (prefix === "+") {
+			renderCodeLine(lines, { number: right, text }, "added");
+			right++;
+		} else {
+			renderCodeLine(lines, { number: right, text });
+			left++;
+			right++;
+		}
+	}
+	return card;
+}

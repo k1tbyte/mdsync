@@ -1,0 +1,20 @@
+.mdsync-status-spinner {
+	display: inline-block;
+	width: 0.75rem;
+	height: 0.75rem;
+	border: 2px solid var(--background-modifier-border);
+	border-top-color: var(--interactive-accent);
+	border-radius: 50%;
+	animation: mdsync-spin 0.65s linear infinite;
+}
+
+@keyframes mdsync-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.mdsync-status-spinner.mdsync-hidden,
+.mdsync-hidden {
+	display: none;
+}

@@ -1,8 +1,6 @@
 /** The one deployment secret: admin auth for shares and the root of every hub channel grant. */
 
-import { toHex } from "@mdsync/protocol";
-
-export const ADMIN_HEADER = "X-Mdsync-Admin";
+import { ADMIN_HEADER, toHex } from "@mdsync/protocol";
 
 export interface SecretEnv {
 	RELAY_SECRET?: string;

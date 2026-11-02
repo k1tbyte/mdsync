@@ -1,0 +1,109 @@
+import type { DataAdapter } from "obsidian";
+import { PLUGIN_ID } from "@/core/constants";
+import { randomId } from "@/core/crypto";
+import { reportWarning } from "@/core/shared";
+import { ensureParent, writeAtomic } from "@/core/vault";
+import { defaultDeviceName } from "./identity/device";
+import type { LocalState } from "./types";
+
+const STATE_FILE_NAME = "state.json";
+
+export function stateFilePath(configDir: string): string {
+	const trimmed = configDir.endsWith("/") ? configDir.slice(0, -1) : configDir;
+	return `${trimmed}/plugins/${PLUGIN_ID}/${STATE_FILE_NAME}`;
+}
+
+/**
+ * `stored` is the state file's own text, null when the state did not come from it; `clean` that the file
+ * already holds exactly this state (nothing minted, filled in or recovered), so loading needs no write.
+ */
+export async function loadState(
+	adapter: DataAdapter,
+	configDir: string,
+): Promise<{ state: LocalState; stored: string | null; clean: boolean }> {
+	const path = stateFilePath(configDir);
+	const candidates = [path, `${path}.new`, `${path}.bak`];
+	let unreadable: string | null = null;
+	for (const candidate of candidates) {
+		if (!(await adapter.exists(candidate))) continue;
+		let raw: string | null = null;
+		try {
+			raw = await adapter.read(candidate);
+			const parsed = JSON.parse(raw) as Partial<LocalState>;
+			const state = normalizeState(parsed);
+			const complete =
+				parsed.deviceId !== undefined &&
+				parsed.deviceName !== undefined &&
+				parsed.storages !== undefined &&
+				parsed.hashCache !== undefined;
+			const primary = candidate === path;
+			return {
+				state,
+				stored: primary ? raw : null,
+				clean: primary && complete,
+			};
+		} catch {
+			unreadable ??= raw;
+		}
+	}
+	if (unreadable !== null) await keepUnreadable(adapter, path, unreadable);
+	return { state: createEmptyState(), stored: null, clean: false };
+}
+
+/** The fresh state about to be written would replace it: every baseline is compared again from scratch. */
+async function keepUnreadable(
+	adapter: DataAdapter,
+	path: string,
+	raw: string,
+): Promise<void> {
+	reportWarning(
+		`Sync state was unreadable and starts fresh; kept as ${path}.unreadable.`,
+	);
+	await adapter.write(`${path}.unreadable`, raw).catch(() => undefined);
+}
+
+/**
+ * Split from the write so callers can skip identical payloads. Compact: indenting a 20k-file hash cache adds
+ * 0.74 MB per rewrite.
+ */
+export function serializeState(state: LocalState): string {
+	return JSON.stringify(state);
+}
+
+export async function saveState(
+	adapter: DataAdapter,
+	configDir: string,
+	serialized: string,
+): Promise<void> {
+	const path = stateFilePath(configDir);
+	await ensureParent(adapter, path);
+	await writeAtomic(adapter, path, serialized);
+}
+
+export async function resetState(
+	adapter: DataAdapter,
+	configDir: string,
+	previous: LocalState | null,
+): Promise<LocalState> {
+	const next = createEmptyState(previous ?? undefined);
+	await saveState(adapter, configDir, serializeState(next));
+	return next;
+}
+
+function createEmptyState(previous?: Partial<LocalState>): LocalState {
+	return {
+		deviceId: previous?.deviceId ?? randomId(),
+		deviceName: previous?.deviceName ?? defaultDeviceName(),
+		storages: {},
+		hashCache: {},
+	};
+}
+
+function normalizeState(parsed: Partial<LocalState>): LocalState {
+	return {
+		deviceId: parsed.deviceId ?? randomId(),
+		deviceName: parsed.deviceName ?? defaultDeviceName(),
+		storages: parsed.storages ?? {},
+		hashCache: parsed.hashCache ?? {},
+	};
+}

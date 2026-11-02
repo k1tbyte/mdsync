@@ -1,7 +1,7 @@
-import { type EncryptionKey, encryptJson } from "@/crypto";
-import type { ObjectStorage } from "@/storage/types";
-import { REMOTE_MANIFEST_KEY } from "@/sync/constants";
-import type { Manifest } from "@/sync/types";
+import { REMOTE_MANIFEST_KEY } from "@/core/constants";
+import { type EncryptionKey, encryptJson } from "@/core/crypto/cipher";
+import type { ObjectStorage } from "@/features/storage/types";
+import type { Manifest } from "@/features/sync/types";
 
 export async function publishManifest(
 	storage: ObjectStorage,

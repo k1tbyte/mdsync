@@ -1,0 +1,65 @@
+import { isRelayConfigured } from "@/core/settings";
+import { isStorageConfigured } from "@/features/storage";
+import { canSync } from "@/features/sync";
+import type { SetupHost } from "./host";
+
+export const ESetupStep = {
+	Start: "start",
+	Storage: "storage",
+	Passphrase: "passphrase",
+	Import: "import",
+	/** Presets for what syncs and when; always done, its values are the settings. */
+	Features: "features",
+	Relay: "relay",
+	Ready: "ready",
+} as const;
+export type ESetupStep = (typeof ESetupStep)[keyof typeof ESetupStep];
+
+export const ESetupPath = {
+	/** The first device: storage and passphrase made here. */
+	New: "new",
+	/** Another device already syncs: its setup link brings both. */
+	Join: "join",
+} as const;
+export type ESetupPath = (typeof ESetupPath)[keyof typeof ESetupPath];
+
+export const PATH_STEPS: Record<ESetupPath, readonly ESetupStep[]> = {
+	[ESetupPath.New]: [
+		ESetupStep.Storage,
+		ESetupStep.Passphrase,
+		ESetupStep.Features,
+		ESetupStep.Relay,
+		ESetupStep.Ready,
+	],
+	[ESetupPath.Join]: [
+		ESetupStep.Import,
+		ESetupStep.Features,
+		ESetupStep.Relay,
+		ESetupStep.Ready,
+	],
+};
+
+/** Computed, never stored, so the wizard always agrees with the settings. */
+export function isStepDone(plugin: SetupHost, step: ESetupStep): boolean {
+	switch (step) {
+		case ESetupStep.Storage:
+			return isStorageConfigured(plugin.settings);
+		case ESetupStep.Passphrase:
+			return plugin.passphrase.isUnlocked();
+		case ESetupStep.Import:
+			return canSync(plugin.settings) && plugin.passphrase.has();
+		case ESetupStep.Relay:
+			return isRelayConfigured(plugin.settings);
+		default:
+			return true;
+	}
+}
+
+/** Where the wizard opens: the first step this device still lacks. */
+export function firstStep(plugin: SetupHost): ESetupStep {
+	if (!isStorageConfigured(plugin.settings)) return ESetupStep.Start;
+	return (
+		PATH_STEPS[ESetupPath.New].find((step) => !isStepDone(plugin, step)) ??
+		ESetupStep.Ready
+	);
+}

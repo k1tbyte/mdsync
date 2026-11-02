@@ -53,7 +53,7 @@ MDSync syncs your vault through an S3 bucket, a WebDAV server or Google Drive. T
 ## Quick start
 
 1. Install [MDSync](https://community.obsidian.md/plugins/mdsync) from **Settings → Community plugins** and enable it. The setup wizard opens on its own; later, run **MDSync: Set up sync**.
-2. On the first device, choose **Start syncing this vault**: pick a storage, choose a passphrase (12 characters or more) and, if you want real time, deploy the relay. **Sync now** on the last step does the first upload.
+2. On the first device, choose **Start syncing this vault**: pick a storage, choose a passphrase (12 characters or more), choose when to sync and what of Obsidian syncs and, if you want real time, deploy the relay. The last step shows what the first sync would move; **Sync N files** runs it.
 3. On every other device, choose **Connect to a vault set up on another device** and paste a [setup link](#device-transfer) from the first one.
 
 Give each vault its own bucket prefix. MDSync refuses a prefix that already holds another vault.
@@ -91,7 +91,7 @@ Set up the first device alone and let its first sync finish. That sync creates t
 
 The panel has four tabs: **Changes**, **History**, **Timeline** and **Deleted**.
 
-**Changes** lists local changes, remote changes and conflicts, with a path filter. Open any file for a side-by-side diff (combined on narrow screens or on request). In a text file you can revert a single local change or accept a single remote one, then apply your choices. Binary files show the size change instead, with **Show differences anyway** where the file can be read as text.
+**Changes** lists local changes, remote changes and conflicts, with a path filter. Open any file for a side-by-side diff (combined on narrow screens or on request). In a text file you can revert a single local change or accept a single remote one, then apply your choices; leaving the file before you apply them asks first. The search icon on each pane (in the toolbar when combined), or Ctrl/Cmd+F, toggles a find bar over the text of a diff or merge, folded lines included, with match case, whole word and regular expressions; in a merge's result it also replaces. Ctrl/Cmd+Alt+G goes to a line. The tab's menu copies the file's path or the whole text of either side. Binary files show the size change instead, with **Show differences anyway** where the file can be read as text.
 
 <details open>
 <summary>Demo</summary>
@@ -102,17 +102,22 @@ The panel has four tabs: **Changes**, **History**, **Timeline** and **Deleted**.
 
 ### Automatic sync
 
-In **Settings → MDSync → Sync** you can turn on:
+With everything here off, sync is manual: after startup MDSync only compares, so the file tree, the status bar and **Changes** show what waits, and nothing moves until you push or pull. It skips that compare when it would have to ask for your passphrase.
 
-- **Autosync**: compare, pull and push every few minutes.
+Under **Automatic sync** in **Settings → MDSync → Sync** you can turn on:
+
+- **Autosync**: compare, pull and push after startup and then at the **Interval** you choose.
 - **Push after changes settle**: push once the vault has been quiet for a set delay. It never pulls, so conflicts and incoming changes wait for you.
+- **Slow files**: drawings and canvases save every few seconds while you work. A push after changes leaves them until you pause, leave the file or 10 minutes pass, so your notes still go out on time. A push by hand sends them at once.
 - **Push after successful pull**.
 
 ### Conflicts
 
-A conflict is a file changed both here and on the remote. For each one you can **Keep local**, **Accept remote**, **Keep both versions** (the remote copy lands next to yours as `todo (conflict from Phone 2026-07-05).md`) or **Merge…**.
+A conflict is a file changed both here and on the remote. For each one you can **Keep local**, **Accept remote**, **Keep both versions** (the remote copy lands next to yours as `todo (conflict from Phone 2026-07-05).md`) or **Merge…**. A file added on both devices with different contents has no earlier version to merge from, nor has a binary file: **Compare…** shows the two side by side to keep one, or both. While a conflict is open, nothing else in the vault (or in that shared folder) pushes or pulls.
 
-**Merge…** opens a three-way editor: your version, the result and the remote version side by side. Changes that do not overlap are merged up front, and you review and save. Autosync merges such conflicts on its own and leaves the rest to you.
+**Merge…** opens a three-way editor: your version, the result and the remote version side by side. Changes that do not overlap are merged up front, and you review and save. Autosync merges such conflicts in notes (`.md`) on its own, and in Obsidian's and plugins' settings when each device changed different settings. It leaves the rest to you, plugin code and other JSON included: a merge by lines can break them. In a JSON file written by Obsidian or a plugin, keys that only moved show no change, and a result that is not valid JSON is not saved. Unsaved merge edits come back when you close the tab and open **Merge…** again, as long as neither version changed.
+
+From the keyboard, **Take local in merge**, **Take remote in merge**, **Take both in merge, local first**, **Go to next merge conflict** and **Save merge result** act on the change at the cursor; give them hotkeys in **Settings → Hotkeys**.
 
 <details open>
 <summary>Demo</summary>
@@ -147,15 +152,15 @@ README.md
 
 Ignoring never deletes anything: a matching file stops syncing, and copies on the remote and other devices stay. To remove a file everywhere, delete it first and then ignore it.
 
-**Ignore symlinks** (on by default) skips symbolic links and Windows junctions, which Obsidian shows as ordinary folders. **Max file size** skips anything larger.
+**Ignore symlinks** (on by default, desktop only) skips symbolic links and Windows junctions, which Obsidian shows as ordinary folders. **Max file size** skips anything larger.
 
 ### Obsidian settings sync
 
-Under **Obsidian configuration scope** you choose what else to sync: core settings, hotkeys, the list of enabled plugins, plugins with their settings, CSS snippets and themes. Every category is off by default and chosen per device. Turning one off deletes nothing. **Clear on remote** removes a category from the remote without touching local files. MDSync's own plugin folder never syncs.
+Under **Obsidian configuration scope** you choose what else to sync: core settings, hotkeys, the list of enabled plugins, plugins, CSS snippets and themes. Every category is off by default and chosen per device. **Plugins** syncs each plugin's settings by default; choose **Code** to sync the plugins themselves (install and update everywhere) or **All** for the rest of their folders too, such as caches. **Per plugin** sets a level for single plugins on this device, and one set that way syncs even while **Plugins** is off. After a sync brings plugin code or the enabled list from another device, restart Obsidian to load it. Turning one off deletes nothing. **Clear on remote** removes a category from the remote without touching local files. MDSync's own plugin folder never syncs.
 
 ## History
 
-Every push records what it changed. **Versions to keep** sets how many pushes history holds; pinned versions are kept until you unpin them.
+Every push records what it changed (history is on for a new install; turn it off with **Keep history** in **Settings → MDSync → History**). History keeps every push for an hour, then fewer as they age: one per 10 minutes, hour, day and then week. **Keep history for** (3 months by default) sets how long versions stay; past it only how busy each day was remains. Pinned versions are kept until you unpin them. Every device thins the same history, so the shortest choice among your devices applies.
 
 ### File history
 
@@ -216,7 +221,7 @@ A note open on two devices edits together, keystroke by keystroke, with the othe
 
 ### Presence
 
-The note header shows who else has the note open, as coloured initials. Click one, or **Follow** in the shared folder's window, to follow that person: your tab opens the notes they open and keeps their cursor in view, with a banner to stop. The file explorer colours changed files with a mark for each (a dot for your changes, an arrow for ones to pull, an alert for conflicts), shows headcounts on shared folders and a dot on files others changed that you have not opened yet. On desktop, one status bar item shows where sync stands and the relay state; select it for a menu with Push, Pull and Compare.
+The note header shows who else has the note open, as coloured initials. Click one, or **Follow** in the shared folder's window, to follow that person: your tab opens the notes they open and keeps their cursor in view, with a banner to stop. The file explorer colours changed files with a mark for each (a dot for your changes, an arrow for ones to pull, an alert for conflicts), shows headcounts on shared folders and a dot on files others changed that you have not opened yet. On desktop, one status bar item shows where sync stands and the relay state; select it for a menu with Push, Pull and Compare, and each relay with the folders it carries over its one connection. Select a shared folder there to open its window.
 
 Turn off **Show my open note to others** to stay online without showing where you are.
 
@@ -336,7 +341,7 @@ Storage credentials, share keys, share links, the relay secret and the Cloudflar
 
 ```text
 <prefix>/manifest.json.enc        encrypted file list
-<prefix>/history.json.enc         encrypted change log, one entry per push
+<prefix>/history/...              encrypted change records, one per push, thinned over time
 <prefix>/salt.bin
 <prefix>/keys.json                vault key wrapped by your passphrase
 <prefix>/objects/<sha256>.enc     encrypted file contents
@@ -377,10 +382,9 @@ While the OAuth consent screen is in testing mode, Google expires refresh tokens
 
 What comes next, in this order:
 
-1. **Big files.** Today a file is read and encrypted whole, so anything over **Max file size** (100 MB by default) is skipped. Large files will sync in parts, so videos and big PDFs go through without holding the whole file in memory.
-2. **History that thins out.** **Versions to keep** holds the last pushes, so a busy afternoon of pushes drops last week. History will keep every recent push and fewer as they age, down to one a day and then one a week, so older days stay reachable.
-3. **Canvas sync.** Obsidian Canvas boards merge card by card and edit live, as Excalidraw drawings do.
-4. **Relay on your own server.** The relay will run outside Cloudflare too, for when the Workers free tier runs short, and as a home for features that need more than it gives.
+1. **Big files.** Today a file is read whole into memory, so anything over **Max file size** (25 MB by default) is skipped. Large files will stream in parts, so videos and big PDFs go through without holding the whole file in memory.
+2. **Canvas sync.** Obsidian Canvas boards merge card by card and edit live, as Excalidraw drawings do.
+3. **Relay on your own server.** The relay will run outside Cloudflare too, for when the Workers free tier runs short, and as a home for features that need more than it gives.
 
 ## Development
 

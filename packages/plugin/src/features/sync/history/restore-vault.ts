@@ -1,0 +1,75 @@
+import { entryAt } from "../changes/records";
+import type { LocalSnapshot, Manifest, ManifestEntry } from "../types";
+
+export interface VaultRestoreWrite {
+	path: string;
+	entry: ManifestEntry;
+}
+
+export interface VaultRestorePlan {
+	/** Target files missing from the vault or holding different content. */
+	write: VaultRestoreWrite[];
+	/** Vault files the target snapshot does not have. */
+	remove: string[];
+	unchanged: number;
+	/** Paths the sync scope excludes or the scan skipped: left untouched in either direction, so history never overrides an ignore rule. */
+	ignored: string[];
+}
+
+/**
+ * Pure, so the confirmation modal and the operation act on the same numbers.
+ * Only files the scan read can be removed: an unlistable directory's contents are unknown, not absent.
+ */
+export function planVaultRestore(
+	target: Manifest,
+	local: LocalSnapshot,
+	inScope: (path: string) => boolean = () => true,
+	/** Paths history keeps: the rest is neither written, removed nor counted. */
+	tracks: (path: string) => boolean = () => true,
+): VaultRestorePlan {
+	// A skipped path (unreadable, or a name this disk cannot hold) is unknown here: left alone like an ignored one.
+	const ignored = new Set([
+		...local.ignoredPaths,
+		...local.skipped.map(({ path }) => path),
+	]);
+	const plan: VaultRestorePlan = {
+		write: [],
+		remove: [],
+		unchanged: 0,
+		ignored: [],
+	};
+	for (const [path, entry] of Object.entries(target.files)) {
+		if (!tracks(path)) continue;
+		if (ignored.has(path) || !inScope(path)) {
+			plan.ignored.push(path);
+			continue;
+		}
+		const current = entryAt(local.files, path);
+		if (current?.hash === entry.hash) {
+			plan.unchanged++;
+			continue;
+		}
+		plan.write.push({ path, entry });
+	}
+	const written = new Set(plan.write.map(({ path }) => path.toLowerCase()));
+	for (const path of Object.keys(local.files)) {
+		if (!tracks(path) || ignored.has(path) || entryAt(target.files, path))
+			continue;
+		if (written.has(path.toLowerCase())) continue;
+		plan.remove.push(path);
+	}
+	return plan;
+}
+
+/** Same files to write, with the same content, and the same files to remove. */
+export function sameRestorePlan(
+	a: VaultRestorePlan,
+	b: VaultRestorePlan,
+): boolean {
+	return planKey(a) === planKey(b);
+}
+
+function planKey(plan: VaultRestorePlan): string {
+	const writes = plan.write.map(({ path, entry }) => `${path}\0${entry.hash}`);
+	return JSON.stringify([writes.sort(), [...plan.remove].sort()]);
+}

@@ -15,6 +15,15 @@ import { follows, type Grant, type HubPeer, slotOf } from "./peer";
 type Unaddressed<F> = F extends ServerFrame ? Omit<F, "slot" | "doc"> : never;
 export type ServerBody = Unaddressed<ServerFrame>;
 
+type Body<T extends ServerBody["type"]> = Omit<
+	Extract<ServerBody, { type: T }>,
+	"type"
+>;
+/** What a State frame carries. */
+export type DocState = Body<typeof EFrame.State>;
+/** Where a moved document continued, and the sealed note its mover left there. */
+export type Pointer = Body<typeof EFrame.Moved>;
+
 export const signalFrame = (from: number): ServerBody => ({
 	type: EFrame.Signal,
 	from,
@@ -31,10 +40,10 @@ export const peerFrame = (from: number, payload: Uint8Array): ServerBody => ({
 	payload,
 });
 
-export const movedFrame = (pointer: {
-	target: string;
-	note: Uint8Array;
-}): ServerBody => ({ type: EFrame.Moved, ...pointer });
+export const movedFrame = (pointer: Pointer): ServerBody => ({
+	type: EFrame.Moved,
+	...pointer,
+});
 
 export function vouchedFrame(
 	type: typeof EFrame.Join | typeof EFrame.Here,

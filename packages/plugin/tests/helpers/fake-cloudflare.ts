@@ -2,7 +2,7 @@ import {
 	type CloudflareApi,
 	cloudflareApi,
 	type HttpRequest,
-} from "@/cloudflare";
+} from "@/core/cloudflare/api";
 
 const BASE = "https://api.cloudflare.com/client/v4";
 

@@ -8,7 +8,7 @@ const jiti = createJiti(import.meta.url, {
 	},
 });
 const { computeHunks } = await jiti.import(
-	"../../packages/plugin/src/sync/hunks.ts",
+	"../../packages/plugin/src/features/sync/hunks/hunks.ts",
 );
 
 // Synthetic models exercise the real renderer; controller calls are captured, never sent.

@@ -1,6 +1,6 @@
 import type { DataAdapter, SecretStorage } from "obsidian";
 
-import { DeviceKey } from "@/crypto/device-key";
+import { DeviceKey } from "@/core/crypto/device-key";
 
 import { InMemoryAdapter } from "./in-memory-adapter";
 

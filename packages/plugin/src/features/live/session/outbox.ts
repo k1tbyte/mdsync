@@ -1,0 +1,149 @@
+import * as Y from "yjs";
+
+import { reportWarning } from "@/core/shared";
+
+/** Silent this long, the hub dropped the last update and no later echo will tell. */
+const ACK_PATIENCE_MS = 15_000;
+
+interface OutboxIo {
+	enqueue(step: () => unknown): void;
+	ship(update: Uint8Array): Promise<void>;
+	settle(): Promise<void>;
+	/** How long edits wait after a send (ms). */
+	every(): number;
+	online(): boolean;
+}
+
+export class Outbox {
+	private readonly pending: Uint8Array[] = [];
+	/** By the counter each went out under: its echo names it. */
+	private readonly unacked = new Map<number, Uint8Array>();
+	private sent = 0;
+	private readonly staged = new Set<() => void>();
+	private timer: number | null = null;
+	/** Monotonic, as a clock set back would read as a burst. */
+	private flushedAt = Number.NEGATIVE_INFINITY;
+	private ackTimer: number | null = null;
+
+	constructor(private readonly io: OutboxIo) {}
+
+	get idle(): boolean {
+		return (
+			this.staged.size === 0 &&
+			this.pending.length === 0 &&
+			this.unacked.size === 0
+		);
+	}
+
+	addPending(update: Uint8Array): void {
+		this.pending.push(update);
+		this.armFlush();
+	}
+
+	stage(drain: () => void): void {
+		this.staged.add(drain);
+		this.armFlush();
+	}
+
+	/** Each drain once; one that throws leaves the rest to run. */
+	drainStaged(): void {
+		for (const drain of [...this.staged]) {
+			this.staged.delete(drain);
+			try {
+				drain();
+			} catch (err) {
+				reportWarning("A live document fell out of step.", err);
+			}
+		}
+	}
+
+	takePending(): Uint8Array | null {
+		return takeMerged(this.pending);
+	}
+
+	addUnacked(update: Uint8Array): number {
+		this.unacked.set(++this.sent, update);
+		this.ackTimer ??= window.setTimeout(
+			() => this.ackTimedOut(),
+			ACK_PATIENCE_MS,
+		);
+		return this.sent;
+	}
+
+	/**
+	 * The hub answers a socket's frames in order: one sent before `n` and still unacked was dropped past
+	 * its rate, returned merged to go out again.
+	 */
+	ack(n: number): Uint8Array | null {
+		// Merged into a resend since: that one carries it too.
+		if (!this.unacked.delete(n)) return null;
+		const dropped: Uint8Array[] = [];
+		for (const [at, update] of this.unacked) {
+			if (at > n) break;
+			dropped.push(update);
+			this.unacked.delete(at);
+		}
+		this.stopAckTimer();
+		if (this.unacked.size > 0) {
+			this.ackTimer = window.setTimeout(
+				() => this.ackTimedOut(),
+				ACK_PATIENCE_MS,
+			);
+		}
+		return takeMerged(dropped);
+	}
+
+	takeUnacked(): Uint8Array | null {
+		this.stopAckTimer();
+		const merged = takeMerged([...this.unacked.values()]);
+		this.unacked.clear();
+		return merged;
+	}
+
+	stopTimer(): void {
+		if (this.timer !== null) window.clearTimeout(this.timer);
+		this.stopAckTimer();
+	}
+
+	/** A change goes at once, then at most once an interval: each update is a hub row. */
+	private armFlush(): void {
+		const wait = this.flushedAt + this.io.every() - performance.now();
+		this.timer ??= window.setTimeout(() => this.flush(), Math.max(0, wait));
+	}
+
+	private flush(): void {
+		this.drainStaged();
+		this.timer = null;
+		// A drain that changed nothing sent nothing: no interval to wait.
+		if (this.pending.length > 0) this.flushedAt = performance.now();
+		if (this.staged.size > 0) this.armFlush();
+		// Taken inside the step: early, an echo queued before it would see nothing pending and agree on
+		// text the room lacks.
+		this.io.enqueue(() => {
+			const merged = this.takePending();
+			return merged ? this.io.ship(merged) : this.io.settle();
+		});
+	}
+
+	/** Offline it waits: going online resends everything unacked. */
+	private ackTimedOut(): void {
+		this.ackTimer = null;
+		this.io.enqueue(() => {
+			if (!this.io.online()) return;
+			const all = this.takeUnacked();
+			return all ? this.io.ship(all) : undefined;
+		});
+	}
+
+	private stopAckTimer(): void {
+		if (this.ackTimer !== null) window.clearTimeout(this.ackTimer);
+		this.ackTimer = null;
+	}
+}
+
+function takeMerged(updates: Uint8Array[]): Uint8Array | null {
+	if (updates.length === 0) return null;
+	const merged = Y.mergeUpdates(updates);
+	updates.length = 0;
+	return merged;
+}
