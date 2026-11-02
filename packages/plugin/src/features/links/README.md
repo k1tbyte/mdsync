@@ -64,7 +64,7 @@ Images: JPEGs are always redrawn (drops EXIF and GPS); other flat images over 30
 
 ## Records and trading
 
-`settings.links` holds `StoredLink`s: the published `LinkRecord` (`id`, `url` with key, `path`, `showTitle`, `createdAt`, `publishedAt`, `expires` as the relay set it, `maxViews`, `salt`, `images`, `detached`, `rev`, `author`) plus local-only `vault` (storage identity last traded with) and `removed`. In the plugin data file they sit in the device-key envelope (`app/settings-envelope.ts`); in the vault storage each is sealed under the vault key.
+`settings.links` holds `StoredLink`s: the published `LinkRecord` (`id`, `url` with key, `path`, `showTitle`, `createdAt`, `publishedAt`, `expires` as the relay set it, `maxViews`, `salt`, `images`, `detached`, `rev`, `author`) plus local-only `vault` (storage identity last traded with) and `removed`. In the plugin data file they sit in the device-key envelope (`app/settings/envelope.ts`); in the vault storage each is sealed under the vault key.
 
 `SharedLinks.sync` runs from the `spaces()` hook in `app/bootstrap.ts` after the space records, only with vault storage; a write or delete there signals the person's other devices. `add` and `remove` ask for a refresh (`announce`). `tradeLinks` (`features/links/remote.ts`) per local link:
 

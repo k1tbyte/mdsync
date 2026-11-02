@@ -50,7 +50,7 @@ One modal stepper takes a fresh install to a syncing vault: storage (Cloudflare 
 ## Recovery
 
 - No storage when sync runs: notice **Set up** (`onNoStorage` from `app/bootstrap.ts`), never a modal from a background sync.
-- Saved connection unreadable (vault copied, keychain reset): notice **Set up** on layout ready; the sealed envelope is kept untouched until storage is set up again (`app/settings-envelope.ts`).
+- Saved connection unreadable (vault copied, keychain reset): notice **Set up** on layout ready; the sealed envelope is kept untouched until storage is set up again (`app/settings/envelope.ts`).
 - Storage refused the keys: Passphrase step **Update keys**, or the settings storage fields for other backends. R2 keys derive from the Cloudflare token, so a rolled token needs `rekeyR2`; the saved login is replaced when it was that token.
 - Relay refused or lost: the Relay step, or **Settings → MDSync → Connection → Update relay**, which opens the wizard at Relay and updates in place.
 

@@ -23,4 +23,5 @@ jobs:
             - run: pnpm -r --if-present run build
             - run: pnpm run lint
             - run: pnpm run typecheck
+            - run: pnpm run arch
             - run: pnpm -r --if-present run test
