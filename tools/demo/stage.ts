@@ -123,12 +123,12 @@ export async function openAndCompare(
 
 /** Runs a command from the palette, typed as a person would. */
 export function runCommand(page: Page, name: string): Promise<void> {
-	return prompt(page, "Control+P", name);
+	return prompt(page, "ControlOrMeta+P", name);
 }
 
 /** Opens a note through the quick switcher. */
 export function quickOpen(page: Page, name: string): Promise<void> {
-	return prompt(page, "Control+O", name);
+	return prompt(page, "ControlOrMeta+O", name);
 }
 
 async function prompt(

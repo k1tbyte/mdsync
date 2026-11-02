@@ -1,7 +1,7 @@
 /** Records an Obsidian window over CDP into an animated WebP, drawing a cursor for synthetic input. */
 
 import { spawnSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
@@ -173,23 +173,62 @@ export function encode(name: string, ...takes: Frame[][]): string {
 			? "[v0]null[out]"
 			: `${labels}hstack=inputs=${lists.length}[out]`;
 	const out = join(OUT_DIR, `${name}.webp`);
-	ffmpeg([
+	const graph = [
 		...lists.flatMap((list) => ["-f", "concat", "-safe", "0", "-i", list]),
 		"-filter_complex",
 		`${scaled.join(";")};${stacked}`,
 		"-map",
 		"[out]",
-		"-c:v",
-		"libwebp_anim",
-		"-quality",
-		"80",
-		"-compression_level",
-		"6",
-		"-loop",
-		"0",
-		out,
-	]);
+	];
+	if (ffmpegHasWebp()) {
+		ffmpeg([
+			...graph,
+			"-c:v",
+			"libwebp_anim",
+			"-quality",
+			"80",
+			"-compression_level",
+			"6",
+			"-loop",
+			"0",
+			out,
+		]);
+		return out;
+	}
+	// Homebrew's ffmpeg has no libwebp: the frames go through img2webp instead.
+	const pngs = join(dir, "png");
+	mkdirSync(pngs, { recursive: true });
+	ffmpeg([...graph, join(pngs, "%05d.png")]);
+	const files = readdirSync(pngs)
+		.sort()
+		.map((file) => join(pngs, file));
+	const packed = spawnSync(
+		"img2webp",
+		[
+			"-loop",
+			"0",
+			"-lossy",
+			"-q",
+			"80",
+			"-m",
+			"6",
+			"-d",
+			"50",
+			...files,
+			"-o",
+			out,
+		],
+		{ stdio: "inherit" },
+	);
+	if (packed.status !== 0) throw new Error(`img2webp exited ${packed.status}`);
 	return out;
+}
+
+function ffmpegHasWebp(): boolean {
+	const { stdout } = spawnSync("ffmpeg", ["-hide_banner", "-encoders"], {
+		encoding: "utf8",
+	});
+	return stdout.includes("libwebp_anim");
 }
 
 /** Every window's frames cover the same span, or side by side they would drift apart. */
