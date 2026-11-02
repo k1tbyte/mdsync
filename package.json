@@ -12,7 +12,7 @@
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"lint:prerelease": "eslint . --max-warnings 0 && stylelint \"**/*.css\" --max-warnings 0",
-		"typecheck": "pnpm -r --if-present run typecheck && tsc -p tests && tsc -p tools/measure-history",
+		"typecheck": "pnpm -r --if-present run typecheck && tsc -p tests && tsc -p tools/measure-history && tsc -p tools/demo",
 		"arch": "pnpm --filter mdsync run arch",
 		"version": "node version-bump.mjs",
 		"obsidian": "node tools/obsidian.mjs",

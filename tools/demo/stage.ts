@@ -187,7 +187,7 @@ export async function create(
 			}
 			await app.vault.create(target, content);
 		},
-		[path, text],
+		[path, text] as const,
 	);
 }
 
