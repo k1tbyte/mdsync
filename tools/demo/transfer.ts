@@ -2,8 +2,8 @@
 
 import type { Page } from "playwright-core";
 
-import { unlock } from "../../tests/e2e/device";
-import { runScenario, sleep } from "../../tests/e2e/harness";
+import { closeSettings, openSettings, unlock } from "../../tests/e2e/device";
+import { poll, runScenario, sleep } from "../../tests/e2e/harness";
 import { launchObsidian, type Obsidian } from "../../tests/e2e/obsidian";
 import { startS3 } from "../../tests/e2e/s3";
 import { s3Vault } from "../../tests/e2e/sharing";
@@ -79,7 +79,7 @@ await runScenario("transfer demo", async () => {
 		const take = async () => {
 			await sleep(1000);
 			const onLaptop = await record(laptopPage);
-			const link = await exportSetup(laptopPage);
+			const link = await exportSetup(laptop, laptopPage);
 			const exporting = await onLaptop.stop();
 
 			await coverWhite(phonePage);
@@ -112,15 +112,11 @@ function showNote(device: Obsidian): Promise<void> {
 }
 
 /** Export, generate, and the QR scanned away; returns the link the QR carries. */
-async function exportSetup(page: Page): Promise<string> {
+async function exportSetup(device: Obsidian, page: Page): Promise<string> {
 	await sleep(800);
-	// The settings window opens apart from the main one, out of this recording's reach: the modal its Export button opens is opened directly.
-	await page.evaluate(() =>
-		app.setting.pluginTabs
-			.find((tab: { id: string }) => tab.id === "mdsync")
-			.handleExportSettings(),
-	);
+	await openExportModal(device, page);
 	await page.locator(GENERATE).waitFor();
+	await closeSettings(device);
 	await sleep(1100);
 	await scrollToMiddle(page, GENERATE);
 	await click(page, GENERATE, 700);
@@ -131,6 +127,42 @@ async function exportSetup(page: Page): Promise<string> {
 	const link = await page.locator(".modal textarea").inputValue();
 	await scanThrough(page, QR);
 	return link;
+}
+
+/** Presses Export on the Connection page; the settings usually sit in a window out of this recording's reach. */
+async function openExportModal(device: Obsidian, page: Page): Promise<void> {
+	await openSettings(device, "Connection");
+	const settings = await poll("the settings window", async () => {
+		for (const candidate of page.context().pages()) {
+			if ((await candidate.locator(".mod-settings").count()) > 0)
+				return candidate;
+		}
+		return undefined;
+	});
+	const button = settings
+		.locator(".mod-settings .vertical-tab-content:visible .setting-item")
+		.filter({
+			has: settings.locator(".setting-item-name", {
+				hasText: /^Export setup$/,
+			}),
+		})
+		.getByRole("button", { name: "Export", exact: true });
+	if (settings === page) {
+		await click(page, button, 900);
+		return;
+	}
+	// A modal opens in the active window, which Obsidian follows by the window's focus event.
+	await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+	await poll("the main window active", async () =>
+		(await page.evaluate(
+			() =>
+				(window as unknown as { activeDocument: Document }).activeDocument ===
+				document,
+		))
+			? true
+			: undefined,
+	);
+	await button.evaluate((el) => (el as HTMLElement).click());
 }
 
 /** The modal is taller than the window: scrolls it, in view, until `selector` is in the middle. */
