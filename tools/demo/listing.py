@@ -17,11 +17,11 @@ CHROME = os.environ.get("CHROME", "C:/Program Files/Google/Chrome/Application/ch
 
 # (file, demo, frame, title, subtitle)
 SHOTS = [
-    ("1-source-control", "changes", 24, "Source control for your vault", "Local and remote changes in one panel, with a diff for every file."),
-    ("2-merge", "merge", 99, "Merge conflicts in three panes", "Edits that do not overlap merge on their own. Resolve the rest side by side."),
-    ("3-history", "history", 114, "Every version of a note", "Compare saved versions, pin the ones that matter, restore any of them."),
-    ("4-timeline", "timeline", 90, "Put the whole vault back", "A timeline of every push, with a restore to any point in it."),
-    ("5-live", "live", 112, "Edit together in real time", "Two devices work on the same note live, through your own relay."),
+    ("1-source-control", "changes", 28, "Source control for your vault", "Local and remote changes in one panel, with a diff for every file."),
+    ("2-merge", "merge", 112, "Merge conflicts in three panes", "Edits that do not overlap merge on their own. Resolve the rest side by side."),
+    ("3-history", "history", 180, "Every version of a note", "Compare saved versions, pin the ones that matter, restore any of them."),
+    ("4-timeline", "timeline", 128, "Put the whole vault back", "A timeline of every push, with a restore to any point in it."),
+    ("5-live", "live", 126, "Edit together in real time", "Two devices work on the same note live, through your own relay."),
 ]
 
 
