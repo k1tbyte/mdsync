@@ -64,27 +64,50 @@ async function scene(page: Page): Promise<void> {
 	await page.locator(row(READING)).waitFor({ state: "detached" });
 	await sleep(1000);
 
-	await click(page, "[aria-label='Show flat list']");
+	await toggleLayout(page, "Show flat list", "Show folder tree");
 	await sleep(1400);
-	await click(page, "[aria-label='Show folder tree']");
+	await toggleLayout(page, "Show folder tree", "Show flat list");
 	await sleep(900);
 	await click(page, "[aria-label='Filter changed files by path']");
 	await page.keyboard.type("garden", { delay: 110 });
 	await sleep(1200);
-	await page.keyboard.press("Control+A");
+	await page.keyboard.press("ControlOrMeta+A");
 	await page.keyboard.press("Backspace");
 	await sleep(800);
 
 	await click(page, `${row("Ideas.md")} .mdsync-file-checkbox`);
 	await click(page, `${row(GARDEN)} .mdsync-file-checkbox`);
 	await sleep(500);
-	await click(page, "button:has-text('Push selected')");
+	await click(page, ".mdsync-selection-buttons button:has-text('Push 2')");
 	await page.locator(row("Ideas.md")).waitFor({ state: "detached" });
 	await sleep(1500);
 	await click(page, "[aria-label^='Pull all']");
 	await page.locator(row(RECIPE)).waitFor({ state: "detached" });
 	await glide(page, { x: 1130, y: 560 }, 600);
 	await sleep(600);
+}
+
+/** A refresh can redraw the tools between press and release and drop the click: press again until the layout flips. */
+async function toggleLayout(
+	page: Page,
+	from: string,
+	to: string,
+): Promise<void> {
+	for (let attempt = 0; attempt < 3; attempt++) {
+		await click(page, `[aria-label='${from}']`);
+		const flipped = await page
+			.locator(`[aria-label='${to}']`)
+			.waitFor({ timeout: 2000 })
+			.then(
+				() => true,
+				() => false,
+			);
+		console.log(
+			`toggle ${from}: attempt ${attempt + 1} ${flipped ? "ok" : "lost"}`,
+		);
+		if (flipped) return;
+	}
+	throw new Error(`the layout never changed to ${to}`);
 }
 
 /** Picks the added line on the diff's connector, then applies it. */
@@ -103,12 +126,16 @@ async function pullOneChange(page: Page): Promise<void> {
 		800,
 	);
 	const pull =
-		".mdsync-divider-action.is-popup [aria-label='Pull this change from the remote']";
+		".mdsync-divider-action [aria-label='Pull this change from the remote']";
 	await page.locator(pull).waitFor();
 	await sleep(500);
 	await click(page, pull, 500);
 	await sleep(700);
-	await click(page, ".mdsync-compare-panel [aria-label^='Apply']", 800);
+	await click(
+		page,
+		".mdsync-compare-pending button:has-text('Apply 1 change')",
+		800,
+	);
 }
 
 /** Folders start collapsed; one click each, as each click redraws the list. */
