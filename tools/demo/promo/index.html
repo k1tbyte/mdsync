@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MDSync promo</title>
+<style>
+	@font-face { font-family: "InterV"; font-weight: 500; src: url("fonts/inter-500.woff2") format("woff2"); }
+	@font-face { font-family: "InterV"; font-weight: 600; src: url("fonts/inter-600.woff2") format("woff2"); }
+	@font-face { font-family: "InterV"; font-weight: 700; src: url("fonts/inter-700.woff2") format("woff2"); }
+	@font-face { font-family: "InterV"; font-weight: 800; src: url("fonts/inter-800.woff2") format("woff2"); }
+
+	* { box-sizing: border-box; margin: 0; }
+
+	html, body {
+		width: 1920px;
+		height: 1080px;
+		overflow: hidden;
+		background: #0b0b0e;
+		font-family: "InterV", Inter, system-ui, sans-serif;
+		color: #f4f3fa;
+	}
+
+	#stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #0b0b0e; }
+
+	/* The graphite grid, strongest behind the footage and gone at the edges. */
+	#grid {
+		position: absolute;
+		inset: 0;
+		background-image:
+			linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+			linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+		background-size: 60px 60px;
+		background-position: 30px 22px;
+		-webkit-mask-image: radial-gradient(ellipse 72% 68% at 50% 60%, #000 25%, transparent 100%);
+		mask-image: radial-gradient(ellipse 72% 68% at 50% 60%, #000 25%, transparent 100%);
+	}
+
+	.brand {
+		position: absolute;
+		right: 90px;
+		top: 62px;
+		font-size: 32px;
+		font-weight: 700;
+		letter-spacing: -0.03em;
+		line-height: 1;
+	}
+
+	.win { position: absolute; will-change: transform, opacity, filter; }
+
+	.clip {
+		position: relative;
+		width: 100%;
+		height: 100%;
+		overflow: hidden;
+		border-radius: 14px;
+		background: #1e1e1e;
+		box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16), 0 40px 100px rgba(0, 0, 0, 0.7);
+	}
+
+	.clip img { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+
+	.tag {
+		position: absolute;
+		left: 0;
+		top: -50px;
+		padding: 7px 16px;
+		border-radius: 999px;
+		background: #a78bfa;
+		color: #0b0b0e;
+		font-size: 22px;
+		font-weight: 700;
+		letter-spacing: 0.01em;
+		white-space: nowrap;
+	}
+
+	.caption { position: absolute; left: 90px; top: 54px; width: 1500px; }
+
+	.kicker {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		font-size: 22px;
+		font-weight: 700;
+		letter-spacing: 0.16em;
+		text-transform: uppercase;
+		color: #a78bfa;
+	}
+
+	.kicker::before { content: ""; width: 34px; height: 3px; border-radius: 2px; background: #a78bfa; }
+
+	.headline {
+		margin-top: 12px;
+		font-size: 58px;
+		font-weight: 700;
+		line-height: 1.08;
+		letter-spacing: -0.02em;
+		white-space: nowrap;
+	}
+
+	.headline b { font-weight: 700; color: #b9a3fb; }
+
+	/* The end card's lockup. */
+	.lockup { position: absolute; left: 90px; top: 360px; display: flex; flex-direction: column; gap: 26px; }
+	.lockup .mark { font-size: 210px; font-weight: 800; letter-spacing: -0.045em; line-height: 0.95; }
+	.lockup .what { font-size: 44px; font-weight: 500; color: #a3a0b5; }
+	.lockup .url { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 36px; color: #b9a3fb; }
+</style>
+</head>
+<body>
+<div id="stage">
+	<div id="grid"></div>
+	<div class="brand" id="brand">MDSync</div>
+</div>
+
+<script src="scenes.js"></script>
+<script>
+	const FPS_SRC = 30;
+		// extract.py writes the frames there, out of git.
+		const FRAMES = "../../../artifacts/promo/frames";
+	const AREA = { x: 160, y: 190, w: 1600, h: 850 };
+	const TR = 0.6;
+
+	const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
+	const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+
+	function pick(points, t) {
+		if (t <= points[0][0]) return points[0].slice(1);
+		for (let i = 1; i < points.length; i++) {
+			if (t <= points[i][0]) {
+				const [t0, ...a] = points[i - 1];
+				const [t1, ...b] = points[i];
+				const k = ease((t - t0) / (t1 - t0));
+				return a.map((v, j) => v + (b[j] - v) * k);
+			}
+		}
+		return points.at(-1).slice(1);
+	}
+
+	/** Source seconds for output time `t`: each segment plays [src0, src1] over [out0, out1]; outside them the nearest edge holds. */
+	function srcAt(segs, t) {
+		if (t <= segs[0][0]) return segs[0][2];
+		for (const [o0, o1, s0, s1] of segs) {
+			if (t <= o1) return s0 + (s1 - s0) * clamp((t - o0) / (o1 - o0));
+		}
+		return segs.at(-1)[3];
+	}
+
+	const stage = document.getElementById("stage");
+	const brand = document.getElementById("brand");
+
+	for (const scene of SCENES) {
+		scene.caption = document.createElement("div");
+		scene.caption.className = "caption";
+		scene.caption.innerHTML = '<div class="kicker"></div><div class="headline"></div>';
+		scene.caption.querySelector(".kicker").textContent = scene.kicker;
+		scene.caption.querySelector(".headline").innerHTML = scene.headline;
+		stage.append(scene.caption);
+
+		scene.wins = [];
+		for (const layer of scene.layers ?? []) {
+			const [sw, sh] = layer.size;
+			const [aw, ah] = layer.aspect ?? layer.size;
+			const area = layer.area ?? AREA;
+			const width = Math.min(area.w, area.h * (aw / ah));
+			const height = width / (aw / ah);
+			layer.box = { width, height };
+			layer.win = document.createElement("div");
+			layer.win.className = "win";
+			layer.win.style.cssText = `width:${width}px;height:${height}px;left:${area.x + (area.w - width) / 2}px;top:${area.y + (area.h - height) / 2}px`;
+			layer.win.innerHTML = '<div class="clip"><img alt=""></div><div class="tag"></div>';
+			layer.win.querySelector(".tag").textContent = layer.label ?? "";
+			layer.win.querySelector(".tag").style.display = layer.label ? "" : "none";
+			layer.img = layer.win.querySelector("img");
+			layer.img.style.width = `${sw}px`;
+			layer.img.style.height = `${sh}px`;
+			layer.shown = -1;
+			stage.append(layer.win);
+		}
+
+		if (scene.lockup) {
+			scene.lockupEl = document.createElement("div");
+			scene.lockupEl.className = "lockup";
+			scene.lockupEl.innerHTML = `<div class="mark">MDSync</div><div class="what"></div><div class="url"></div>`;
+			scene.lockupEl.querySelector(".what").textContent = scene.lockup.what;
+			scene.lockupEl.querySelector(".url").textContent = scene.lockup.url;
+			stage.append(scene.lockupEl);
+		}
+	}
+
+	/** Loads a frame; a take's last frame of a range can be missing, so it falls back a few frames. */
+	async function show(layer, index) {
+		for (let i = 0; i < 4; i++) {
+			layer.img.src = `${FRAMES}/${layer.name}/${String(index - i).padStart(4, "0")}.jpg`;
+			try {
+				await layer.img.decode();
+				return;
+			} catch {}
+		}
+	}
+
+	/** Positions everything for output time `t` and resolves once the frame images are decoded. */
+	window.setTime = async (t) => {
+		const decoded = [];
+		let brandOn = 1;
+		for (const scene of SCENES) {
+			const live = t >= scene.start - 0.001 && t <= scene.end + 0.001;
+			scene.caption.style.display = live ? "" : "none";
+			for (const layer of scene.layers ?? []) layer.win.style.display = live ? "" : "none";
+			if (scene.lockupEl) scene.lockupEl.style.display = live ? "" : "none";
+			if (!live) continue;
+
+			const local = t - scene.start;
+			const length = scene.end - scene.start;
+			const first = scene === SCENES[0];
+			const last = scene === SCENES.at(-1);
+			const into = first ? 1 : ease(clamp((local / TR - 0.3) / 0.7));
+			const away = last ? 0 : ease(clamp((local - (length - TR)) / TR / 0.7));
+			const shift = `translateX(${(1 - into) * 140 - away * 140}px) scale(${1 - (1 - into) * 0.04 - away * 0.04})`;
+			const alpha = into * (1 - away);
+			const blur = away > 0 ? `blur(${away * 8}px)` : "none";
+
+			for (const layer of scene.layers ?? []) {
+				// A layer can come later in its scene: an inset that pops in over the main footage.
+				const lt = layer.from ? ease(clamp((local - layer.from) / 0.5)) : 1;
+				layer.win.style.opacity = alpha * lt;
+				layer.win.style.transform = `${shift} translateY(${(1 - lt) * 30}px)`;
+				layer.win.style.filter = blur;
+				const index = Math.round(srcAt(layer.segs, t) * FPS_SRC);
+				if (index !== layer.shown) {
+					layer.shown = index;
+					decoded.push(show(layer, index));
+				}
+				const [zx, zy, zw] = pick(layer.zoom, t);
+				const zs = layer.box.width / zw;
+				layer.img.style.transform = `translate(${-zx * zs}px, ${-zy * zs}px) scale(${zs})`;
+			}
+			if (scene.lockupEl) {
+				const lin = ease(clamp((local - 0.3) / 0.8));
+				scene.lockupEl.style.opacity = lin * (1 - away);
+				scene.lockupEl.style.transform = `translateY(${(1 - lin) * 40}px)`;
+			}
+			if (scene.noBrand) brandOn = Math.min(brandOn, 1 - into);
+
+			const cin = ease(clamp((local - (first ? 0.15 : 0.4)) / 0.55));
+			const cout = last ? 0 : ease(clamp((local - (length - TR)) / 0.35));
+			scene.caption.style.opacity = cin * (1 - cout);
+			scene.caption.style.transform = `translateY(${(1 - cin) * 26 - cout * 18}px)`;
+			scene.caption.style.filter = cout > 0 ? `blur(${cout * 4}px)` : "none";
+		}
+		brand.style.opacity = brandOn;
+		await Promise.all(decoded);
+		await document.fonts.ready;
+	};
+
+	window.TOTAL = Math.max(...SCENES.map((s) => s.end));
+	window.setTime(0);
+</script>
+</body>
+</html>

@@ -20,3 +20,19 @@ DEMO_HOLD=1 pnpm exec jiti tools/demo/readonly.ts   # stage the scene and keep O
 - `DEMO_VIDEO=1 DEMO_WIDTH=1920 DEMO_SPEED=1` records `artifacts/demos/<name>.mp4` at full size and real speed, for cutting into a video, instead of the README's WebP (`DEMO_WIDTH` and `DEMO_SPEED` also apply to the WebP).
 - `hero.html` is the README banner. Take its frames from the demos with `uv run --with pillow python tools/demo/frames.py save merge 112` (also `changes 28`, `live 126`), render it with headless Chrome (`--window-size=1280,640 --force-device-scale-factor=2 --screenshot=hero.png`) and encode to `docs/hero.webp` with ffmpeg (`-c:v libwebp -quality 90`) or `cwebp -q 90`.
 - `listing.py` renders the five listing screenshots (1200x800, `listing.html` is the template) from the frames of `docs/demos` into `artifacts/listing/`: `uv run --with pillow python tools/demo/listing.py` (`CHROME` overrides the browser path). Frame picks and captions are its `SHOTS` list. Upload them under Edit listing at community.obsidian.md.
+
+## Promo video
+
+`promo/` cuts the full-size takes into a captioned 1920x1080 video (30 fps, muted: the captions carry it).
+
+```bash
+tools/demo/take.sh wizard changes merge timeline live share links status   # artifacts/demos/<name>.mp4
+python3 tools/demo/promo/extract.py                                         # artifacts/promo/frames/<name>/NNNN.jpg
+node tools/demo/promo/render.mjs artifacts/promo.mp4                        # needs ffmpeg; CHROME=<path> for another browser
+node tools/demo/promo/render.mjs - 30 4,16,23.5                             # stills at those seconds, in artifacts/promo/stills
+```
+
+- `promo/scenes.js` is the plan: per scene a kicker and headline, the take it shows, which seconds of it (`segs`, `[out0, out1, src0, src1]`) and where the camera crops (`zoom`, `[t, x, y, w]` in the take's pixels). `promo/index.html` is the look (graphite grid, Inter, cross-fades) and exposes `window.setTime(t)`, which `promo/render.mjs` screenshots frame by frame.
+- `promo/extract.py` keeps only the source seconds `scenes.js` reads (its `RANGES`): widen a range there when a seg reaches past it, and re-run it after a take changes.
+- `take.sh` runs the takes in the video mode below and runs a failed one again: Obsidian's trust dialog now and then swallows the first click. On headless Linux start `Xvfb :99 -screen 0 2560x1440x24 -nolisten tcp` first; `obsidian-xvfb.sh` is the `OBSIDIAN_EXE` it uses (`OBSIDIAN_BIN` for another install path).
+- `promo/fonts/` holds Inter 500-800 (SIL OFL 1.1).
