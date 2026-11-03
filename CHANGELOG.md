@@ -3,6 +3,17 @@
 This file is the source of truth for release notes: the section of a version becomes the notes of its GitHub release.
 The newest section must match `version` in `manifest.json`. Headings are `## [x.y.z] - YYYY-MM-DD`, then `### Important`, `### Features`, `### Improvements` and `### Fixes` as needed. Write for users, in plain sentences, not commit titles.
 
+## [1.5.1] - 2026-11-03
+
+### Improvements
+
+- **Reset remote storage** and importing settings now ask for confirmation in the same window as other MDSync confirmations: type the word shown, then confirm.
+
+### Fixes
+
+- Opening a file from **Changes**, a file list or the excluded files in settings now opens it in the main editor area, never in a pinned tab or another window.
+- Settings rows inside MDSync windows keep their padding again.
+
 ## [1.5.0] - 2026-11-02
 
 ### Important
