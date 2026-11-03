@@ -1,5 +1,5 @@
 import { MarkdownView, type Plugin, setIcon } from "obsidian";
-import { makeActivatable, revealInFileExplorer } from "@/core/ui";
+import { frameTask, makeActivatable, revealInFileExplorer } from "@/core/ui";
 import { createSymlinkDetector, type SymlinkDetector } from "@/core/vault";
 import type { ExplorerHost } from "./host";
 import type { IndicatorHandle } from "./indicator-handle";
@@ -16,7 +16,6 @@ export function registerFileContextIndicators(
 	let detectorEnabled = plugin.settings.ignoreSymlinks;
 	let enabled = false;
 	let disposed = false;
-	let renderFrame: number | null = null;
 
 	makeActivatable(root, null, () => {
 		if (revealPath) void revealInFileExplorer(plugin.app, revealPath);
@@ -103,13 +102,13 @@ export function registerFileContextIndicators(
 		}
 	};
 
+	const frame = frameTask(() => {
+		if (!enabled || disposed) return;
+		render();
+	});
 	const schedule = (): void => {
-		if (!enabled || disposed || renderFrame !== null) return;
-		renderFrame = window.requestAnimationFrame(() => {
-			renderFrame = null;
-			if (!enabled || disposed) return;
-			render();
-		});
+		if (!enabled || disposed) return;
+		frame.schedule();
 	};
 
 	const resetDetector = (): void => {
@@ -128,7 +127,7 @@ export function registerFileContextIndicators(
 	plugin.register(plugin.ignoreState.subscribe(schedule));
 	plugin.register(() => {
 		disposed = true;
-		if (renderFrame !== null) window.cancelAnimationFrame(renderFrame);
+		frame.cancel();
 		clearActions();
 		root.remove();
 	});
@@ -138,8 +137,7 @@ export function registerFileContextIndicators(
 		refresh(nextEnabled) {
 			enabled = nextEnabled;
 			if (!enabled) {
-				if (renderFrame !== null) window.cancelAnimationFrame(renderFrame);
-				renderFrame = null;
+				frame.cancel();
 				clearActions();
 				root.empty();
 				root.addClass("mdsync-hidden");

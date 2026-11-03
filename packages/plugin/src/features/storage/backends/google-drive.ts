@@ -37,7 +37,6 @@ interface GoogleDriveListResponse {
 	nextPageToken?: string;
 }
 
-/** Escapes value for Google Drive 'q' literal to prevent query breakage. */
 function escapeDriveQueryValue(value: string): string {
 	return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }

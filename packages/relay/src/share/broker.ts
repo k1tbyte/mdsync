@@ -5,13 +5,6 @@
 
 import { SIGN_BATCH_MAX } from "@mdsync/protocol";
 import {
-	endShare,
-	issueToken,
-	listTokens,
-	registerShare,
-	revokeToken,
-} from "./admin";
-import {
 	badRequest,
 	bearerOf,
 	type JsonObject,
@@ -19,7 +12,14 @@ import {
 	jsonError,
 	methodNotAllowed,
 	readJsonObject,
-} from "./http";
+} from "../http";
+import {
+	endShare,
+	issueToken,
+	listTokens,
+	registerShare,
+	revokeToken,
+} from "./admin";
 import {
 	InvalidShareKeyError,
 	shareBasePrefix,

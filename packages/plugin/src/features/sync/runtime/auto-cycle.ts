@@ -38,10 +38,9 @@ export async function runRefreshCycle(
 			const result = runtime.resultOf(space);
 			if (!result || runtime.currentEpoch() !== epoch) return false;
 			return (
-				await operations.runOperationNow(space, operation, fn, true, {
-					result,
-					epoch,
-					revision,
+				await operations.runOperationNow(space, operation, fn, {
+					cancellable: true,
+					comparison: { result, epoch, revision },
 				})
 			).ok;
 		};

@@ -12,7 +12,7 @@ import {
 	type ViewUpdate,
 } from "@codemirror/view";
 import type * as Y from "yjs";
-import { personTint } from "@/core/shared";
+import { personTint } from "@/core/ui";
 import { type Author, authorRanges } from "../authors";
 
 /** Typing and scrolling recompute the tint at most this often; in between it is only mapped. */

@@ -1,9 +1,9 @@
 import { parseLinkLocation } from "@mdsync/protocol";
 
-import { createApi } from "./api";
-import { sessionCache } from "./cache";
-import { browserKeys } from "./keys";
-import { LinkSession } from "./session";
+import { createApi } from "./link/api";
+import { sessionCache } from "./link/cache";
+import { browserKeys } from "./link/keys";
+import { LinkSession } from "./link/session";
 import { createView } from "./view";
 
 const root = document.getElementById("app");

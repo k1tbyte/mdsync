@@ -7,6 +7,14 @@ export interface RefreshRequest {
 	only?: ReadonlySet<string>;
 }
 
+/** No `spaces`, or the vault among them: every space. */
+export interface RefreshAsk {
+	spaces?: ReadonlySet<string>;
+	pull?: boolean;
+	push?: boolean;
+	only?: ReadonlySet<string>;
+}
+
 export class RefreshQueue {
 	private pending: { request: RefreshRequest; done: Promise<void> } | null =
 		null;
@@ -16,12 +24,12 @@ export class RefreshQueue {
 		private readonly run: (request: RefreshRequest) => Promise<void>,
 	) {}
 
-	request(
-		spaces?: ReadonlySet<string>,
+	request({
+		spaces,
 		pull = false,
 		push = false,
-		only?: ReadonlySet<string>,
-	): Promise<void> {
+		only,
+	}: RefreshAsk = {}): Promise<void> {
 		const targets =
 			spaces && !spaces.has(VAULT_SPACE.id) ? new Set(spaces) : null;
 		const pending = this.pending;

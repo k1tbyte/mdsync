@@ -54,7 +54,7 @@ export function ordered(value: Json, template: Json): Json {
 		? Object.keys(template).filter((key) => own.has(key))
 		: [];
 	// Null prototype: a "__proto__" key stays a key.
-	const out: Record<string, Json> = Object.create(null);
+	const out = Object.create(null) as Record<string, Json>;
 	for (const key of new Set([...first, ...own])) {
 		out[key] = ordered(
 			value[key],

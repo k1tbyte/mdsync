@@ -3,7 +3,7 @@ import { canonical, isRecord, type Json, ordered } from "./json-align";
 /** A key one side does not have: absent is not `null`. */
 const ABSENT = Symbol("absent");
 const CLASH = Symbol("clash");
-type Slot = Json | typeof ABSENT;
+type Slot = unknown;
 
 /**
  * Settings JSON merged three-way by key: a key changed on one side takes that side, equal edits converge, and
@@ -27,16 +27,12 @@ export function mergeJsonByKey(
 	);
 }
 
-function mergeValue(
-	base: Slot,
-	local: Slot,
-	remote: Slot,
-): Slot | typeof CLASH {
+function mergeValue(base: Slot, local: Slot, remote: Slot): Slot {
 	if (same(local, remote) || same(base, remote)) return local;
 	if (same(base, local)) return remote;
 	if (!isRecord(base) || !isRecord(local) || !isRecord(remote)) return CLASH;
 	// Null prototype: a "__proto__" key stays a key.
-	const out: Record<string, Json> = Object.create(null);
+	const out = Object.create(null) as Record<string, Json>;
 	for (const key of new Set([...Object.keys(local), ...Object.keys(remote)])) {
 		const value = mergeValue(
 			slot(base, key),

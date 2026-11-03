@@ -15,7 +15,13 @@ import {
 	onSettled,
 	type SettingsField,
 } from "@/core/settings";
-import { notifyError, notifyInfo, openInEditor, reportError } from "@/core/ui";
+import {
+	closePluginSettings,
+	notifyError,
+	notifyInfo,
+	openNote,
+	reportError,
+} from "@/core/ui";
 import type { SyncHost } from "../host";
 
 const SCOPE_CHANGED = "Sync scope settings changed.";
@@ -109,7 +115,6 @@ async function openSharedIgnore(app: App): Promise<void> {
 		await app.vault.create(IGNORE_FILE_NAME, "");
 		notifyInfo(`${IGNORE_FILE_NAME} created.`);
 	}
-	await openInEditor(app, IGNORE_FILE_NAME);
-	const { setting } = app as App & { setting?: { close(): void } };
-	setting?.close();
+	await openNote(app, IGNORE_FILE_NAME);
+	closePluginSettings(app);
 }

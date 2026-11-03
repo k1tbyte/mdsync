@@ -1,4 +1,5 @@
-import { personColor, withDevices } from "@/core/shared";
+import { withDevices } from "@/core/shared";
+import { personColor } from "@/core/ui";
 import type { Person } from "../views";
 
 /** More faces than this collapse into a "+N". */

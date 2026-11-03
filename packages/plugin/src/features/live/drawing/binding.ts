@@ -1,6 +1,7 @@
 import type * as Y from "yjs";
 
 import { type SceneElement, wins } from "@/core/drawing";
+import { frameTask } from "@/core/ui";
 
 import type { BoundEditor } from "../model";
 import { LOCAL_AWARENESS } from "../session/room-awareness";
@@ -115,22 +116,20 @@ export function bindDrawing(
 	const onPeers = (_: unknown, origin: unknown) => {
 		if (origin !== LOCAL_AWARENESS && alive()) showPointers();
 	};
-	let frame: number | null = null;
 	let latest: PointerEvent;
+	const frame = frameTask(() =>
+		awareness.setLocalStateField(
+			"pointer",
+			lib.viewportCoordsToSceneCoords(latest, api.getAppState()),
+		),
+	);
 	const onMove = (event: PointerEvent) => {
 		if (!alive()) return;
 		latest = event;
-		frame ??= window.requestAnimationFrame(() => {
-			frame = null;
-			awareness.setLocalStateField(
-				"pointer",
-				lib.viewportCoordsToSceneCoords(latest, api.getAppState()),
-			);
-		});
+		frame.schedule();
 	};
 	const onLeave = () => {
-		if (frame !== null) window.cancelAnimationFrame(frame);
-		frame = null;
+		frame.cancel();
 		awareness.setLocalStateField("pointer", null);
 	};
 

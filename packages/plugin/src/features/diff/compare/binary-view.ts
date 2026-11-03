@@ -1,4 +1,5 @@
 import { formatBytes } from "@/core/shared";
+import { textButton } from "@/core/ui";
 import type { FileDiffModel } from "@/features/sync";
 
 export function renderBinaryDiff(
@@ -16,10 +17,7 @@ export function renderBinaryDiff(
 		text: `Not shown as a text diff — ${formatBytes(model.leftSize)} → ${formatBytes(model.rightSize)} (${deltaText})`,
 	});
 	if (model.forceTextAvailable && !forceText) {
-		const button = wrap.createEl("button", {
-			text: "Show differences anyway",
-		});
-		button.addEventListener("click", onForceText);
+		textButton(wrap, "Show differences anyway").onClick(onForceText);
 	} else if (forceText) {
 		wrap.createDiv({
 			cls: "mdsync-diff-hint",

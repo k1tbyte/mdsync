@@ -6,6 +6,7 @@ import {
 	relaySummary,
 	UNREADABLE_TEXT,
 } from "@/core/hub";
+import { frameTask } from "@/core/ui";
 import type { Person } from "@/features/presence";
 import { describePeople, renderAvatarStack } from "@/features/presence";
 import type { StatusHost } from "./host";
@@ -18,12 +19,10 @@ export function mountRelayStatus(
 	onChange: () => void,
 ): void {
 	const { people } = plugin.realtime;
-	let frame: number | null = null;
 	/** What it shows: presence emits on every announcement, most change nothing here. */
 	let shown: string | null = null;
 
 	const render = (): void => {
-		frame = null;
 		const spaces = carried(plugin);
 		const statuses = spaces.map(({ status }) => status);
 		const unreadable = spaces.some(({ id }) => people.unreadable(id));
@@ -36,15 +35,11 @@ export function mountRelayStatus(
 		if (spaces.length > 0) draw(el, statuses, unreadable, here);
 		onChange();
 	};
-	const schedule = (): void => {
-		frame ??= window.requestAnimationFrame(render);
-	};
+	const frame = frameTask(render);
 
-	plugin.register(people.subscribe(schedule));
-	plugin.register(() => {
-		if (frame !== null) window.cancelAnimationFrame(frame);
-	});
-	schedule();
+	plugin.register(people.subscribe(() => frame.schedule()));
+	plugin.register(() => frame.cancel());
+	frame.schedule();
 }
 
 function draw(

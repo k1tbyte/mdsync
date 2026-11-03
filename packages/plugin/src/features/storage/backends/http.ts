@@ -3,6 +3,7 @@ import {
 	StorageHttpError,
 	StorageTimeoutError,
 } from "@/core/shared";
+import type { ConditionalRead } from "../types";
 
 const RETRY_DELAYS_MS: ReadonlyArray<number> = [500, 2_000, 5_000];
 
@@ -112,6 +113,36 @@ export function assertOk(
 		res.status,
 		`Failed to ${action} "${key}" (HTTP ${res.status})${detail}`,
 	);
+}
+
+/**
+ * The answer to a GET that sent `etag` as its validator, or none. A 304 only answers that validator: to a
+ * plain read it describes nothing, and its caller would take it for an absent object.
+ */
+export function conditionalRead(
+	res: {
+		status: number;
+		arrayBuffer: ArrayBuffer;
+		headers?: Record<string, string>;
+		text?: string;
+	},
+	key: string,
+	etag: string | null,
+	absent: boolean,
+): ConditionalRead {
+	if (res.status === 304) {
+		if (!etag) {
+			throw new Error(`The storage answered 304 to a plain read of "${key}".`);
+		}
+		return { status: "unchanged" };
+	}
+	if (absent) return { status: "absent" };
+	assertOk(res, "read", key);
+	return {
+		status: "found",
+		body: new Uint8Array(res.arrayBuffer),
+		etag: headerValue(res.headers, "etag"),
+	};
 }
 
 /** The `error` code of a relay's JSON refusal; null for anything else. */

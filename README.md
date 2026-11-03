@@ -402,7 +402,7 @@ pnpm typecheck
 pnpm test
 ```
 
-The plugin lives in `packages/plugin`, the relay in `packages/relay`, the page share links open in `packages/viewer` (built into the relay's static assets), and the format both share in `packages/protocol`. `tools/demo` records the demos in this README from real Obsidian windows; see [its README](tools/demo/README.md).
+The plugin lives in `packages/plugin`, the relay in `packages/relay`, the page share links open in `packages/viewer` (built into the relay's static assets), and the format both share in `packages/protocol`. The demos in this README are recorded from real Obsidian windows by `tools/demo` on the [`demo/harness`](https://github.com/k1tbyte/mdsync/tree/demo/harness/tools/demo) branch.
 
 ## License
 

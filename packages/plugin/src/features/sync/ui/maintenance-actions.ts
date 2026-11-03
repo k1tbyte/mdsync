@@ -7,7 +7,6 @@ import {
 import { activeStorage, describeStorageTarget } from "@/features/storage";
 import type { SyncHost } from "../host";
 import { cleanSummary } from "../runtime/maintenance";
-import { confirmRemoteReset } from "./reset-modal";
 
 const NO_STORAGE = "Configure a storage backend first.";
 
@@ -78,8 +77,15 @@ export async function resetLocalState(plugin: SyncHost): Promise<void> {
 
 /** Returns true when the remote was reset, so callers can follow up. */
 export async function resetRemoteStorage(plugin: SyncHost): Promise<boolean> {
-	const confirmed = await confirmRemoteReset(plugin.app, {
-		description: describeStorageTarget(activeStorage(plugin.settings)),
+	const confirmed = await openConfirmModal({
+		app: plugin.app,
+		title: "Reset remote storage",
+		warning:
+			"This deletes the remote MDSync manifest, file contents, version history and pins on the configured backend. Local vault files are not deleted.",
+		body: [describeStorageTarget(activeStorage(plugin.settings))],
+		typed: "RESET",
+		confirmLabel: "Reset remote",
+		confirmClass: "mod-warning",
 	});
 	if (!confirmed) return false;
 	const ok = await plugin.controller.resetRemoteStorage();

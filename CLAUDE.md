@@ -16,6 +16,7 @@ An Obsidian community plugin that syncs a vault between devices, end-to-end encr
 - `pnpm dev` - esbuild watch of the plugin
 - `pnpm build` - typecheck, then the production bundle (`main.js`, `styles.css`; the relay is bundled into it)
 - `pnpm lint` / `pnpm lint:fix` - Biome over the repo
+- `pnpm lint:prerelease` - the Obsidian community scanner's ESLint and CSS checks; must pass before a release (`.claude/rules/releasing.md`)
 - `pnpm typecheck` - `tsc` in every package, in `tests/` and in `tools/`
 - `pnpm test` - every vitest suite (`pnpm --filter mdsync test:watch` while iterating)
 - `pnpm arch` - plugin dependency boundaries (`packages/plugin/.dependency-cruiser.cjs`); the folder cap runs in `pnpm test`

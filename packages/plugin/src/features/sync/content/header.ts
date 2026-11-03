@@ -33,11 +33,12 @@ export function readHeader(header: unknown, recipe: boolean): ContentHeader {
 
 function isChunkRef(value: unknown): value is ChunkRef {
 	if (!Array.isArray(value) || value.length !== 2) return false;
-	const [id, size] = value;
+	const [id, size] = value as unknown[];
 	return (
 		typeof id === "string" &&
 		id.length > 0 &&
 		!id.includes("/") &&
+		typeof size === "number" &&
 		Number.isInteger(size) &&
 		size >= 0
 	);

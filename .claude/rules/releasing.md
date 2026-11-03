@@ -7,6 +7,8 @@ paths:
   - '.github/workflows/**'
   - 'packages/plugin/package.json'
   - 'packages/plugin/esbuild*.mjs'
+  - 'eslint.config.mjs'
+  - 'stylelint.config.mjs'
 ---
 
 # Releasing
@@ -26,6 +28,7 @@ paths:
 - The relay ships inside the plugin: `packages/plugin/esbuild.relay-bundle.mjs` bundles `packages/relay` as `mdsync:relay-bundle`, version `<plugin version>+<hash>`. It is built in the same run, so a release deploys the relay of its own commit, and relay versions order releases (an older plugin never offers a downgrade).
 - `.github/workflows/deploy-relay.yml` is a manual deploy of the relay to a Cloudflare account from repository secrets (`CLOUDFLARE_*`, `RELAY_SECRET`, optional `GDRIVE_*`); it does not touch the plugin release.
 - Plugins are submitted at community.obsidian.md (sign in, connect GitHub, Plugins, New plugin); its scan checks the manifest, the release assets, the source and that the build matches it. Fix findings with a new, higher version.
+- The scan lints every `.ts`, `.js` and `.css` in the repo but tests, scripts, docs and builds, not only the plugin. `pnpm lint:prerelease` runs its rules locally (`eslint.config.mjs`: `eslint-plugin-obsidianmd`'s `recommended`; `stylelint.config.mjs`: `:has`, `!important`, features Chromium 142 only partly supports) and fails on any finding; `release.yml` runs it before the build, CI on `main`. Each config lists the findings accepted while the scanner still reports them: grow that list only by decision, never to pass. Tools that are not the plugin's live on their own branch (`demo/harness`).
 
 ## References
 

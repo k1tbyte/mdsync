@@ -22,6 +22,8 @@ jobs:
             - run: pnpm install --frozen-lockfile
             - run: pnpm -r --if-present run build
             - run: pnpm run lint
+            - if: github.ref == 'refs/heads/main'
+              run: pnpm run lint:prerelease
             - run: pnpm run typecheck
             - run: pnpm run arch
             - run: pnpm -r --if-present run test

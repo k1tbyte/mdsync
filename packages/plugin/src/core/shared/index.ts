@@ -1,4 +1,3 @@
-export { personColor, personTint } from "./colors";
 export { reportWarning, setDiagnosticsSink } from "./diagnostics";
 export { asError, errorMessage } from "./errors";
 export {
@@ -23,10 +22,9 @@ export {
 	folderName,
 	hasDotSegment,
 	hasReservedChar,
-	isCleartextRemote,
 	normalizeKeyPrefix,
 	normalizePath,
-	relayBase,
 	stripTrailingSlash,
 } from "./path";
 export { StorageHttpError, StorageTimeoutError } from "./transport-errors";
+export { isCleartextRemote, relayBase } from "./url";

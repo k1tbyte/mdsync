@@ -1,6 +1,7 @@
 import type { EditorView } from "@codemirror/view";
 import type { MarkdownView } from "obsidian";
 
+import { frameTask } from "@/core/ui";
 import type { LiveSession } from "@/features/live";
 import { watchCursor } from "@/features/live";
 
@@ -15,23 +16,19 @@ export function trackCursor(
 ): () => void {
 	const { editor } = markdown;
 	const cursor = watchCursor(session, key);
-	let frame: number | null = null;
 	const show = (): void => {
-		frame = null;
 		const at = cursor.at();
 		if (at === null || isCalm(markdown, at)) return;
 		const pos = editor.offsetToPos(at);
 		editor.scrollIntoView({ from: pos, to: pos }, true);
 	};
 	// Out of the event: y-codemirror changes awareness inside an editor update, where a scroll throws.
-	const changed = (): void => {
-		frame ??= window.requestAnimationFrame(show);
-	};
-	const unwatch = cursor.watch(changed);
-	changed();
+	const frame = frameTask(show);
+	const unwatch = cursor.watch(() => frame.schedule());
+	frame.schedule();
 	return () => {
 		unwatch();
-		if (frame !== null) window.cancelAnimationFrame(frame);
+		frame.cancel();
 	};
 }
 

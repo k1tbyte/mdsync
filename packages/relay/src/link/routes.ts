@@ -12,16 +12,15 @@ import {
 	LINK_MAX_VIEWS,
 	LINK_SALT_PATTERN,
 } from "@mdsync/protocol";
-
-import { fingerprint, isAdmin, type SecretEnv } from "../secret";
 import {
-	adminUnauthorized,
+	adminOnly,
 	badRequest,
 	json,
 	jsonError,
 	methodNotAllowed,
 	readJsonObject,
-} from "../share/http";
+} from "../http";
+import { fingerprint, type SecretEnv } from "../secret";
 import { clientOf } from "./client";
 import type { LinkSettings } from "./store";
 import { type LinkEnv, linkStub } from "./stub";
@@ -64,63 +63,66 @@ export async function handleLinkRequest(
 	}
 }
 
-async function storeLink(
-	request: Request,
-	env: LinkRouteEnv,
-	id: string,
-	url: URL,
-): Promise<Response> {
-	if (!(await isAdmin(request, env))) return adminUnauthorized();
-	const parsed = await readSettings(request, url);
-	if (!parsed.ok) return badRequest(parsed.reason);
-	if (Number(request.headers.get("Content-Length")) > LINK_MAX_SEALED_BYTES) {
-		return tooLarge();
-	}
-	const blob = await request.arrayBuffer();
-	if (blob.byteLength > LINK_MAX_SEALED_BYTES) return tooLarge();
-	if (blob.byteLength === 0) return badRequest("The body is empty");
-	const mode = url.searchParams.get("update") === "1" ? "update" : "create";
-	// On the relay's clock, so a device with the wrong time cannot misdate it, and after a slow upload.
-	const expires =
-		parsed.ttl === null ? null : Math.floor(Date.now() / 1000) + parsed.ttl;
-	const settings = { ...parsed.settings, expires };
-	const stored = await linkStub(env, id).put(blob, settings, mode);
-	if (stored === "gone") return gone();
-	if (stored === "mismatch") return fresh(wrongGate());
-	if (stored === "exists") {
+const storeLink = adminOnly(
+	async (
+		request: Request,
+		env: LinkRouteEnv,
+		id: string,
+		url: URL,
+	): Promise<Response> => {
+		const parsed = await readSettings(request, url);
+		if (!parsed.ok) return badRequest(parsed.reason);
+		if (Number(request.headers.get("Content-Length")) > LINK_MAX_SEALED_BYTES) {
+			return tooLarge();
+		}
+		const blob = await request.arrayBuffer();
+		if (blob.byteLength > LINK_MAX_SEALED_BYTES) return tooLarge();
+		if (blob.byteLength === 0) return badRequest("The body is empty");
+		const mode = url.searchParams.get("update") === "1" ? "update" : "create";
+		// On the relay's clock, so a device with the wrong time cannot misdate it, and after a slow upload.
+		const expires =
+			parsed.ttl === null ? null : Math.floor(Date.now() / 1000) + parsed.ttl;
+		const settings = { ...parsed.settings, expires };
+		const stored = await linkStub(env, id).put(blob, settings, mode);
+		if (stored === "gone") return gone();
+		if (stored === "mismatch") return fresh(wrongGate());
+		if (stored === "exists") {
+			return fresh(
+				jsonError(409, "exists", "A link with this id already exists"),
+			);
+		}
+		// An update keeps the limits it was created with, so only a creation has an expiry to report.
 		return fresh(
-			jsonError(409, "exists", "A link with this id already exists"),
+			json({
+				stored: true,
+				size: blob.byteLength,
+				...(mode === "create" && { expires: settings.expires }),
+			}),
 		);
-	}
-	// An update keeps the limits it was created with, so only a creation has an expiry to report.
-	return fresh(
-		json({
-			stored: true,
-			size: blob.byteLength,
-			...(mode === "create" && { expires: settings.expires }),
-		}),
-	);
-}
+	},
+);
 
-async function revokeLink(
-	request: Request,
-	env: LinkRouteEnv,
-	id: string,
-): Promise<Response> {
-	if (!(await isAdmin(request, env))) return adminUnauthorized();
-	await linkStub(env, id).revoke();
-	return fresh(json({ revoked: true }));
-}
+const revokeLink = adminOnly(
+	async (
+		_request: Request,
+		env: LinkRouteEnv,
+		id: string,
+	): Promise<Response> => {
+		await linkStub(env, id).revoke();
+		return fresh(json({ revoked: true }));
+	},
+);
 
-async function linkStatus(
-	request: Request,
-	env: LinkRouteEnv,
-	id: string,
-): Promise<Response> {
-	if (!(await isAdmin(request, env))) return adminUnauthorized();
-	const status = await linkStub(env, id).status();
-	return status ? fresh(json(status)) : gone();
-}
+const linkStatus = adminOnly(
+	async (
+		_request: Request,
+		env: LinkRouteEnv,
+		id: string,
+	): Promise<Response> => {
+		const status = await linkStub(env, id).status();
+		return status ? fresh(json(status)) : gone();
+	},
+);
 
 /** Counts nothing, so the viewer can learn whether to ask for a passphrase without spending a view. */
 async function linkMeta(env: LinkRouteEnv, id: string): Promise<Response> {

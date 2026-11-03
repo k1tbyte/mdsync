@@ -79,7 +79,7 @@
 	padding: 0;
 }
 
-.mdsync-source-tabs .mdsync-settings-tab-button {
+.mdsync-source-tabs .mdsync-source-tab-button {
 	display: flex;
 	flex: 0 0 auto;
 	align-items: center;
@@ -95,17 +95,17 @@
 	font-size: var(--font-ui-smaller);
 }
 
-.mdsync-source-tabs .mdsync-settings-tab-button:focus-visible {
+.mdsync-source-tabs .mdsync-source-tab-button:focus-visible {
 	outline: 2px solid var(--interactive-accent);
 	outline-offset: 1px;
 }
 
-.mdsync-source-tabs .mdsync-settings-tab-button:hover {
+.mdsync-source-tabs .mdsync-source-tab-button:hover {
 	background: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
 
-.mdsync-source-tabs .mdsync-settings-tab-button.is-active {
+.mdsync-source-tabs .mdsync-source-tab-button.is-active {
 	background: var(--background-modifier-hover);
 	color: var(--text-accent);
 }
@@ -129,11 +129,11 @@
 }
 
 /* The active tab says where you are, even where the others are icons only. */
-.mdsync-source-tabs .mdsync-settings-tab-button.is-active {
+.mdsync-source-tabs .mdsync-source-tab-button.is-active {
 	flex-shrink: 1;
 }
 
-.mdsync-settings-tab-button.is-active .mdsync-source-tab-label {
+.mdsync-source-tab-button.is-active .mdsync-source-tab-label {
 	display: inline;
 }
 

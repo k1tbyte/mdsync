@@ -5,7 +5,6 @@ import {
 	compare,
 	type EngineDependencies,
 } from "../engine";
-import { untrackedDir } from "../history/changes";
 import { publishManifestWithHistory } from "../history/publish";
 import { reconcileBaselineResetGenerations } from "../remote/config-reset";
 import { buildManifest } from "../remote/manifest";
@@ -48,16 +47,7 @@ export async function runCategoryResetFlow(
 		[categoryKey]: (remote.resetGenerations?.[categoryKey] ?? 0) + 1,
 	};
 	ctx.setProgress("Clearing category on remote…");
-	await publishManifestWithHistory(
-		deps.storage,
-		deps.key,
-		deps.space.root,
-		manifest,
-		remote,
-		deps.history,
-		deps.state.baseline,
-		untrackedDir(deps),
-	);
+	await publishManifestWithHistory(deps, manifest, remote);
 	const state = {
 		...deps.state,
 		vaultId: remote.vaultId,

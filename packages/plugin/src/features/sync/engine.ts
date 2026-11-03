@@ -14,7 +14,6 @@ import { skipUnholdableNames } from "./changes/remote-names";
 import { REMOTE_OBJECTS_PREFIX, REMOTE_RECIPES_PREFIX } from "./constants";
 import { readOrder, rootHash } from "./content/keys";
 import { isStored, storeContent } from "./content/store";
-import { untrackedDir } from "./history/changes";
 import { publishManifestWithHistory } from "./history/publish";
 import type { HistoryConfig } from "./history/types";
 import { attribute, publisher } from "./identity/authors";
@@ -279,16 +278,7 @@ export async function publishFileMap(
 		},
 	);
 	manifest.authors = attributed.authors;
-	await publishManifestWithHistory(
-		deps.storage,
-		deps.key,
-		deps.space.root,
-		manifest,
-		compareResult.remote,
-		deps.history,
-		deps.state.baseline,
-		untrackedDir(deps),
-	);
+	await publishManifestWithHistory(deps, manifest, compareResult.remote);
 	forgetUploads(
 		deps.storage,
 		Object.values(manifest.files).map((entry) => entry.hash),

@@ -4,9 +4,13 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { REMOTE_MANIFEST_KEY } from "@/core/constants";
 import { deriveKey, type EncryptionKey } from "@/core/crypto/cipher";
 import { objectKey, recipeKey } from "@/features/sync/content/keys";
-import { publishManifestWithHistory } from "@/features/sync/history/publish";
+import {
+	type PublishSession,
+	publishManifestWithHistory,
+} from "@/features/sync/history/publish";
 import { pushKey, readHistory } from "@/features/sync/history/remote";
 import { resetRemoteStorage } from "@/features/sync/remote/reset";
+import type { Manifest } from "@/features/sync/types";
 
 let key: EncryptionKey;
 beforeAll(async () => {
@@ -14,6 +18,28 @@ beforeAll(async () => {
 });
 
 const history = { horizon: null };
+
+/** A vault session over `storage`; `extra` replaces any part of it. */
+function publish(
+	storage: FakeStorage,
+	manifest: Manifest,
+	parent: Manifest | null,
+	extra: Partial<PublishSession> = {},
+): Promise<void> {
+	return publishManifestWithHistory(
+		{
+			storage,
+			key,
+			space: { root: "" },
+			scope: {},
+			state: { baseline: null },
+			history,
+			...extra,
+		},
+		manifest,
+		parent,
+	);
+}
 
 const s1 = manifestOf("s1", null, { "a.md": "A1" });
 const s2 = manifestOf("s2", "s1", { "a.md": "A2" });
@@ -39,10 +65,10 @@ function failPutOnce(storage: FakeStorage, failing: string): void {
 describe("publishManifestWithHistory", () => {
 	it("writes the push record, with the diff from its parent, before the manifest", async () => {
 		const storage = await stored();
-		await publishManifestWithHistory(storage, key, "", s1, null, history);
+		await publish(storage, s1, null);
 		const put = vi.spyOn(storage, "put");
 
-		await publishManifestWithHistory(storage, key, "", s2, s1, history);
+		await publish(storage, s2, s1);
 
 		expect(put.mock.calls.map(([objectKey]) => objectKey)).toEqual([
 			pushKey("s2"),
@@ -59,11 +85,11 @@ describe("publishManifestWithHistory", () => {
 		vi.spyOn(console, "warn").mockImplementation(() => {});
 		failPutOnce(storage, pushKey("s1"));
 
-		await publishManifestWithHistory(storage, key, "", s1, null, history);
+		await publish(storage, s1, null);
 		expect(await storage.exists(pushKey("s1"))).toBe(false);
 		vi.mocked(storage.put).mockRestore();
 
-		await publishManifestWithHistory(storage, key, "", s2, s1, history);
+		await publish(storage, s2, s1);
 		expect(await storage.exists(pushKey("s1"))).toBe(true);
 		expect(await storage.exists(pushKey("s2"))).toBe(true);
 	});
@@ -71,22 +97,15 @@ describe("publishManifestWithHistory", () => {
 	it("keeps the record of a failed publish waiting: its manifest may have landed", async () => {
 		const storage = await stored();
 		vi.spyOn(console, "warn").mockImplementation(() => {});
-		await publishManifestWithHistory(storage, key, "", s1, null, history);
+		await publish(storage, s1, null);
 		failPutOnce(storage, pushKey("lost"));
 		const lost = manifestOf("lost", "x", { "a.md": "L" });
 
 		await expect(
-			publishManifestWithHistory(
-				storage,
-				key,
-				"",
-				lost,
-				manifestOf("x", null, { "a.md": "X" }),
-				history,
-			),
+			publish(storage, lost, manifestOf("x", null, { "a.md": "X" })),
 		).rejects.toThrow(/changed since the last compare/);
 		vi.mocked(storage.put).mockRestore();
-		await publishManifestWithHistory(storage, key, "", s2, s1, history);
+		await publish(storage, s2, s1);
 
 		expect(await storage.exists(pushKey("lost"))).toBe(true);
 		expect(await storage.exists(pushKey("s2"))).toBe(true);
@@ -96,12 +115,12 @@ describe("publishManifestWithHistory", () => {
 		const storage = await stored();
 		vi.spyOn(console, "warn").mockImplementation(() => {});
 		failPutOnce(storage, pushKey("s1"));
-		await publishManifestWithHistory(storage, key, "", s1, null, history);
+		await publish(storage, s1, null);
 		vi.mocked(storage.put).mockRestore();
 
 		// A share move or a token refresh: a new adapter over the same objects.
 		const rebuilt = Object.create(storage) as FakeStorage;
-		await publishManifestWithHistory(rebuilt, key, "", s2, s1, history);
+		await publish(rebuilt, s2, s1);
 		expect(await storage.exists(pushKey("s1"))).toBe(true);
 	});
 
@@ -109,11 +128,11 @@ describe("publishManifestWithHistory", () => {
 		const storage = await stored();
 		vi.spyOn(console, "warn").mockImplementation(() => {});
 		failPutOnce(storage, pushKey("s1"));
-		await publishManifestWithHistory(storage, key, "", s1, null, history);
+		await publish(storage, s1, null);
 		vi.mocked(storage.put).mockRestore();
 
 		await storage.delete(objectKey("A1"));
-		await publishManifestWithHistory(storage, key, "", s2, s1, history);
+		await publish(storage, s2, s1);
 		expect(await storage.list("history/")).toEqual([pushKey("s2")]);
 	});
 
@@ -121,12 +140,12 @@ describe("publishManifestWithHistory", () => {
 		const storage = await stored();
 		vi.spyOn(console, "warn").mockImplementation(() => {});
 		failPutOnce(storage, pushKey("s1"));
-		await publishManifestWithHistory(storage, key, "", s1, null, history);
+		await publish(storage, s1, null);
 		vi.mocked(storage.put).mockRestore();
 
 		await storage.delete(objectKey("A1"));
 		await storage.put(recipeKey("A1"), new Uint8Array([1]));
-		await publishManifestWithHistory(storage, key, "", s2, s1, history);
+		await publish(storage, s2, s1);
 		expect(await storage.exists(pushKey("s1"))).toBe(true);
 	});
 
@@ -146,12 +165,12 @@ describe("publishManifestWithHistory", () => {
 		);
 		const next = manifestOf("big2", "big1", { "a.md": "A2" });
 		failPutOnce(storage, pushKey("big1"));
-		await publishManifestWithHistory(storage, key, "", big, null, history);
+		await publish(storage, big, null);
 		vi.mocked(storage.put).mockRestore();
 		storage.existsCalls = 0;
 		storage.listCalls = 0;
 
-		await publishManifestWithHistory(storage, key, "", next, big, history);
+		await publish(storage, next, big);
 
 		expect(storage.existsCalls).toBe(0);
 		expect(storage.listCalls).toBe(2);
@@ -173,11 +192,11 @@ describe("publishManifestWithHistory", () => {
 		);
 		const next = manifestOf("big2", "big1", { "a.md": "A2" });
 		failPutOnce(storage, pushKey("big1"));
-		await publishManifestWithHistory(storage, key, "", big, null, history);
+		await publish(storage, big, null);
 		vi.mocked(storage.put).mockRestore();
 
 		await storage.delete(objectKey("h500"));
-		await publishManifestWithHistory(storage, key, "", next, big, history);
+		await publish(storage, next, big);
 
 		expect(await storage.list("history/")).toEqual([pushKey("big2")]);
 	});
@@ -186,13 +205,13 @@ describe("publishManifestWithHistory", () => {
 		const storage = await stored();
 		vi.spyOn(console, "warn").mockImplementation(() => {});
 		failPutOnce(storage, pushKey("s1"));
-		await publishManifestWithHistory(storage, key, "", s1, null, history);
+		await publish(storage, s1, null);
 		vi.mocked(storage.put).mockRestore();
 
 		// Reset elsewhere, its blobs still there: only the vault tells the record apart.
 		await storage.delete(REMOTE_MANIFEST_KEY);
 		const adopted = { ...manifestOf("w1", null, {}), vaultId: "w" };
-		await publishManifestWithHistory(storage, key, "", adopted, null, history);
+		await publish(storage, adopted, null);
 		expect(await storage.list("history/")).toEqual([pushKey("w1")]);
 	});
 
@@ -200,11 +219,11 @@ describe("publishManifestWithHistory", () => {
 		const storage = await stored();
 		vi.spyOn(console, "warn").mockImplementation(() => {});
 		failPutOnce(storage, pushKey("s1"));
-		await publishManifestWithHistory(storage, key, "", s1, null, history);
+		await publish(storage, s1, null);
 		vi.mocked(storage.put).mockRestore();
 
 		const unlocked = await deriveKey("pw", new Uint8Array(16));
-		await publishManifestWithHistory(storage, unlocked, "", s2, s1, history);
+		await publish(storage, s2, s1, { key: unlocked });
 		expect(await storage.list("history/")).toEqual([
 			pushKey("s1"),
 			pushKey("s2"),
@@ -215,11 +234,11 @@ describe("publishManifestWithHistory", () => {
 		const storage = await stored();
 		vi.spyOn(console, "warn").mockImplementation(() => {});
 		failPutOnce(storage, pushKey("s1"));
-		await publishManifestWithHistory(storage, key, "", s1, null, history);
+		await publish(storage, s1, null);
 		vi.mocked(storage.put).mockRestore();
 
 		await resetRemoteStorage(storage);
-		await publishManifestWithHistory(storage, key, "", s2, null, history);
+		await publish(storage, s2, null);
 		expect(await storage.list("history/")).toEqual([pushKey("s2")]);
 	});
 
@@ -233,18 +252,11 @@ describe("publishManifestWithHistory", () => {
 			"a.md": "A2",
 			".obsidian/plugins/x/main.js": "M2",
 		});
-		await publishManifestWithHistory(storage, key, "", before, null, history);
+		await publish(storage, before, null);
 
-		await publishManifestWithHistory(
-			storage,
-			key,
-			"",
-			after,
-			before,
-			history,
-			null,
-			".obsidian",
-		);
+		await publish(storage, after, before, {
+			scope: { configDir: ".obsidian" },
+		});
 
 		const { view } = await readHistory(storage, key, "");
 		const push = view.pushes.get(pushKey("c2"))?.push;
@@ -259,18 +271,11 @@ describe("publishManifestWithHistory", () => {
 		const config = { ".obsidian/app.json": "J1" };
 		const before = manifestOf("c1", null, { "a.md": "A1", ...config });
 		const after = manifestOf("c2", "c1", { "a.md": "A2", ...config });
-		await publishManifestWithHistory(storage, key, "", before, null, history);
+		await publish(storage, before, null);
 
-		await publishManifestWithHistory(
-			storage,
-			key,
-			"",
-			after,
-			before,
-			history,
-			null,
-			".obsidian",
-		);
+		await publish(storage, after, before, {
+			scope: { configDir: ".obsidian" },
+		});
 
 		const { view } = await readHistory(storage, key, "");
 		const push = view.pushes.get(pushKey("c2"))?.push;
@@ -280,7 +285,7 @@ describe("publishManifestWithHistory", () => {
 
 	it("writes no record with history off", async () => {
 		const storage = await stored();
-		await publishManifestWithHistory(storage, key, "", s1, null, undefined);
+		await publish(storage, s1, null, { history: undefined });
 		expect(await storage.list("history/")).toEqual([]);
 	});
 });

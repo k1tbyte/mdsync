@@ -10,7 +10,7 @@ import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { setIcon } from "obsidian";
 import { randomId } from "@/core/crypto";
-import { notifyError, notifyInfo } from "@/core/ui";
+import { frameTask, notifyError, notifyInfo } from "@/core/ui";
 import { eolOf } from "@/core/utils";
 import {
 	buildMergeSession,
@@ -68,7 +68,12 @@ export class MergeEditorPanel {
 	private dividers: Partial<Record<EMergeSide, Divider>> = {};
 	private scrollSync: PaneScrollSync | null = null;
 	private toolbar: MergeToolbar | null = null;
-	private layoutFrame: number | null = null;
+	private readonly layoutFrame = frameTask(() => {
+		for (const view of [...Object.values(this.sideViews), this.resultView]) {
+			if (view) updatePaneViewportWidth(view);
+		}
+		for (const side of MERGE_SIDES) this.dividers[side]?.layout();
+	});
 	private layoutMode: LayoutMode | null = null;
 	private wrapping: LineWrappingControl | null = null;
 	/** New per render: its toggles are the heads and toolbar drawn with it. */
@@ -395,14 +400,7 @@ export class MergeEditorPanel {
 	}
 
 	private scheduleLayout(): void {
-		if (this.layoutFrame !== null) return;
-		this.layoutFrame = window.requestAnimationFrame(() => {
-			this.layoutFrame = null;
-			for (const view of [...Object.values(this.sideViews), this.resultView]) {
-				if (view) updatePaneViewportWidth(view);
-			}
-			for (const side of MERGE_SIDES) this.dividers[side]?.layout();
-		});
+		this.layoutFrame.schedule();
 	}
 
 	private updateStatus(): void {
@@ -440,10 +438,7 @@ export class MergeEditorPanel {
 	}
 
 	destroy(): void {
-		if (this.layoutFrame !== null) {
-			window.cancelAnimationFrame(this.layoutFrame);
-			this.layoutFrame = null;
-		}
+		this.layoutFrame.cancel();
 		this.layoutMode?.destroy();
 		this.layoutMode = null;
 		this.scrollSync?.destroy();

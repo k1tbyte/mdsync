@@ -9,7 +9,7 @@ import {
 } from "../types";
 import {
 	assertOk,
-	headerValue,
+	conditionalRead,
 	isRetryableError,
 	isRetryableStatus,
 	transferBytes,
@@ -20,7 +20,6 @@ import type { S3RequestInput, S3Signer } from "./s3-signer";
 import { parseErrorCode, parseListObjects } from "./s3-xml";
 
 const HTTP_NOT_FOUND = 404;
-const HTTP_NOT_MODIFIED = 304;
 const HTTP_PRECONDITION_FAILED = 412;
 const HTTP_CONFLICT = 409;
 const OBJECT_CACHE_CONTROL = "no-cache, no-store, must-revalidate";
@@ -57,23 +56,7 @@ export function createS3Store(transport: S3Transport): StorageAdapter {
 			undefined,
 			size,
 		);
-		if (res.status === HTTP_NOT_MODIFIED) {
-			// Only ever an answer about the validator we sent: unsolicited it describes nothing, and a
-			// plain read's caller would take it for an absent object.
-			if (!etag) {
-				throw new Error(
-					`S3 answered 304 to an unconditional read of "${key}".`,
-				);
-			}
-			return { status: "unchanged" };
-		}
-		if (isAbsent(res)) return { status: "absent" };
-		assertOk(res, "read", key);
-		return {
-			status: "found",
-			body: new Uint8Array(res.arrayBuffer),
-			etag: headerValue(res.headers, "etag"),
-		};
+		return conditionalRead(res, key, etag, isAbsent(res));
 	};
 
 	const listObjects = async (keyPrefix: string): Promise<ListedObject[]> => {

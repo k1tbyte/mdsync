@@ -14,7 +14,7 @@ body.is-phone .mdsync-diff-view .mdsync-diff-title .mdsync-diff-path {
 	flex: 1 1 0;
 	grid-template-columns: minmax(0, auto) minmax(0, auto);
 	justify-content: start;
-	column-gap: var(--size-2-2);
+	gap: var(--size-4-2) var(--size-2-2);
 }
 
 body.is-phone .mdsync-diff-view .mdsync-diff-path .mdsync-file-name {

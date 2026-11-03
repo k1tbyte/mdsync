@@ -1,5 +1,6 @@
 import { EditorState } from "@codemirror/state";
 import { EditorView, lineNumbers } from "@codemirror/view";
+import { frameTask } from "@/core/ui";
 import { EDiffDirection, type FileDiffModel } from "@/features/sync";
 import { choiceActions, type EChoiceKind, HunkChoices } from "../choices";
 import type { PanelHosts } from "../header";
@@ -87,7 +88,15 @@ export class ComparePanel {
 	private scrollSync: PaneScrollSync | null = null;
 	private layoutMode: LayoutMode | null = null;
 	private controls: CompareControls | null = null;
-	private layoutFrame: number | null = null;
+	private readonly layoutFrame = frameTask(() => {
+		for (const view of [this.leftView, this.rightView]) {
+			if (view) updatePaneViewportWidth(view);
+		}
+		this.divider?.layout();
+		for (const overlay of this.overlays) {
+			overlay.layout(this.segments, this.folded);
+		}
+	});
 	private readonly wrapping: LineWrappingControl;
 	private pinChosen: boolean;
 	private current = -1;
@@ -180,10 +189,7 @@ export class ComparePanel {
 	}
 
 	destroy(): void {
-		if (this.layoutFrame !== null) {
-			window.cancelAnimationFrame(this.layoutFrame);
-			this.layoutFrame = null;
-		}
+		this.layoutFrame.cancel();
 		this.layoutMode?.destroy();
 		this.layoutMode = null;
 		this.scrollSync?.destroy();
@@ -484,16 +490,6 @@ export class ComparePanel {
 	}
 
 	private scheduleLayout(): void {
-		if (this.layoutFrame !== null) return;
-		this.layoutFrame = window.requestAnimationFrame(() => {
-			this.layoutFrame = null;
-			for (const view of [this.leftView, this.rightView]) {
-				if (view) updatePaneViewportWidth(view);
-			}
-			this.divider?.layout();
-			for (const overlay of this.overlays) {
-				overlay.layout(this.segments, this.folded);
-			}
-		});
+		this.layoutFrame.schedule();
 	}
 }

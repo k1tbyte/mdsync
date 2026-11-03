@@ -30,7 +30,7 @@ const prefetched = new WeakMap<ObjectStorage, Map<string, Uint8Array>>();
 
 /** A copy of the file on this disk, an older version, whose unchanged chunks need no download. */
 export interface LocalCopy {
-	read(): Promise<Uint8Array | null>;
+	read: () => Promise<Uint8Array | null>;
 	/** The remote file's bytes: they pick the chunk sizes. */
 	size: number;
 }
@@ -158,7 +158,7 @@ async function readChunks(
 					new Set(chunks.map(([id]) => id)),
 				)
 			: new Map<string, Uint8Array>();
-	const parts: Uint8Array[] = new Array(chunks.length);
+	const parts = new Array<Uint8Array>(chunks.length);
 	await runWithConcurrency(chunks, CHUNK_READS, async ([id, size], index) => {
 		const kept = onDisk.get(id);
 		if (kept) {

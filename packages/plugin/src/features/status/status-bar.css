@@ -71,33 +71,33 @@
 }
 
 /* The rail overshoots and the item clips it, so stacked items join whatever padding a platform gives them. */
-.menu-item:has(.mdsync-relay-member) {
+.menu-item.mdsync-relay-member-item {
 	overflow: hidden;
 }
 
 /* A share is a button, the vault a label: both set like the relay above them, the title unclipped for the rail. */
-.menu .menu-item:has(.mdsync-relay-member) .menu-item-title {
+.menu .menu-item.mdsync-relay-member-item .menu-item-title {
 	display: block;
 	overflow: visible;
 	white-space: normal;
 	-webkit-line-clamp: none;
 }
 
-body:not(.is-phone) .menu-item:has(.mdsync-relay-member) {
+body:not(.is-phone) .menu-item.mdsync-relay-member-item {
 	font-size: var(--font-ui-small);
 }
 
 /* A phone sets tappable items in a card with dividers, which would cut the rail into pieces. */
-body.is-phone .menu-item:has(.mdsync-relay-member) {
+body.is-phone .menu-item.mdsync-relay-member-item {
 	border-radius: 0;
 	background-color: transparent;
 }
 
-body.is-phone .menu-item:has(.mdsync-relay-member):active {
+body.is-phone .menu-item.mdsync-relay-member-item:active {
 	background-color: var(--background-modifier-hover);
 }
 
-body.is-phone .menu-group .menu-item:has(.mdsync-relay-member)::after {
+body.is-phone .menu-group .menu-item.mdsync-relay-member-item::after {
 	display: none;
 }
 

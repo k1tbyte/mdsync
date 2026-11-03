@@ -181,8 +181,10 @@
 	overflow-wrap: anywhere;
 }
 
-/* Native form rows listed in a card. */
-.mdsync-modal-card > .setting-item {
+/* Native form rows listed in a card. Obsidian pads a modal's rows `y 0` and strips the first row's top and the last row's bottom padding with a selector this long: match it, load later. */
+.modal:not(.mod-settings)
+	.mdsync-modal-card
+	> .setting-item:not(.setting-item-heading) {
 	padding: var(--size-4-2) var(--size-4-3);
 }
 

@@ -53,7 +53,7 @@ Flows, snapshot table, trade cases and accepted limits: `features/links/README.m
 ## Viewer (`packages/viewer/src/`)
 
 - Payload HTML is attached only through `sanitizeNote` (DOMPurify, `LINK_HREF_ALLOWED`, `LINK_IMAGE_SRC_ALLOWED`); other payload text (the title) goes in as a text node, never as HTML. Buttons and forms are forbidden in notes; the viewer adds its own after sanitizing.
-- Never set `location.hash` to a bare `#x`: it replaces the key and kills the link. In-page jumps use `linkUrl(...)` with `replaceState` (`addressOf` in `packages/viewer/src/anchors.ts`) and `preventDefault`.
+- Never set `location.hash` to a bare `#x`: it replaces the key and kills the link. In-page jumps use `linkUrl(...)` with `replaceState` (`addressOf` in `packages/viewer/src/note/anchors.ts`) and `preventDefault`.
 - Own requests go only to the relay's link routes (`connect-src 'self'`); no analytics, no third-party assets.
 - `sessionStorage` holds sealed bytes only, so a reload costs no view; keys and passphrase are never written there. Remembered keys (IndexedDB) expire with the link and are dropped when the relay says gone or refuses the gate.
 - Copy as Markdown converts the sanitized page, never the author's file: nothing the snapshot dropped can come back.

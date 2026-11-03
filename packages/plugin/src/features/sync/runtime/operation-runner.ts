@@ -39,6 +39,12 @@ import type {
 } from "./controller-state";
 import { ScanCycle } from "./scan-cycle";
 
+/** `cancellable` only for operations that read `deps.signal` (`sync/cancel.ts`); `comparison` is the cycle's own, reused while current. */
+export interface RunOptions {
+	cancellable?: boolean;
+	comparison?: { result: CompareResult; epoch: number; revision?: number };
+}
+
 /** An operation with its arguments bound, run against one space. */
 export type SpaceOperation = (
 	deps: EngineDependencies,
@@ -326,11 +332,10 @@ export class OperationRunner {
 		space: Space,
 		operation: ESyncLogOperation,
 		fn: SpaceOperation,
-		/** Only for operations that read `deps.signal`; see `sync/cancel.ts`. */
-		cancellable = false,
+		{ cancellable }: Pick<RunOptions, "cancellable"> = {},
 	): Promise<SyncOperationResult> {
 		return this.deps.runtimeState.enqueue(() =>
-			this.runOperationNow(space, operation, fn, cancellable),
+			this.runOperationNow(space, operation, fn, { cancellable }),
 		);
 	}
 
@@ -338,8 +343,7 @@ export class OperationRunner {
 		space: Space,
 		operation: ESyncLogOperation,
 		fn: SpaceOperation,
-		cancellable = false,
-		comparison?: { result: CompareResult; epoch: number; revision?: number },
+		{ cancellable = false, comparison }: RunOptions = {},
 	): Promise<SyncOperationResult> {
 		this.deps.runtimeState.clearError();
 		// Routed when it was asked for: a refresh since may have moved or closed its space.
@@ -362,33 +366,14 @@ export class OperationRunner {
 			journal = session.journal;
 			if (comparison && this.invalidatedSince(comparison.epoch))
 				return { ok: false };
-			const current =
-				comparison && comparison.revision === this.deps.localRevision?.();
-			const configDir = session.scope.configDir;
-			// Hidden configuration writes do not emit vault file events.
-			const indexedOnly =
-				configDir === undefined || !session.scope.canDescend(configDir);
-			const result =
-				current && indexedOnly
-					? { ...comparison.result, updatedCache: session.state.hashCache }
-					: await compare(
-							session,
-							current ? comparison.result.remote : undefined,
-						);
+			const result = await this.compareFor(session, comparison);
 			if (this.invalidatedSince(epoch)) return { ok: false };
-			session = await this.saveLanded(session);
-			if (result.remote) {
-				const baseline = reconcileBaselineResetGenerations(
-					session.state.baseline,
-					result.remote,
-					session.scope,
-				);
-				if (baseline !== session.state.baseline) {
-					session = { ...session, state: { ...session.state, baseline } };
-					await this.buildContext(session).persistState(session.state);
-				}
-			}
-			this.applyResult(space, result, epoch, session.storage.identity());
+			session = await this.reconcileResets(
+				await this.saveLanded(session),
+				result,
+			);
+			const identity = session.storage.identity();
+			this.applyResult(space, result, epoch, identity);
 			if (cancellable) scope = this.deps.runtimeState.beginCancellable();
 			const ctx = this.buildContext(session, () => !ended);
 			const outcome = await fn(
@@ -398,41 +383,19 @@ export class OperationRunner {
 			);
 			const freshState = projectSession(
 				this.deps.host.getState(),
-				session.storage.identity(),
+				identity,
 				space.root,
 			);
-			const recomputed = recomputeAfterWrite(
-				result,
-				freshState,
-				outcome,
-				session.scope,
+			this.applyResult(
+				space,
+				recomputeAfterWrite(result, freshState, outcome, session.scope),
+				epoch,
+				identity,
 			);
-			this.applyResult(space, recomputed, epoch, session.storage.identity());
-			// A first sync brings everything: none of it is news.
-			if (operation === ESyncLogOperation.Pull && session.state.baseline) {
-				const theirs = publishedByOthers(
-					outcome.newRemote,
-					outcome.touchedPaths,
-					publisher(session.state, session.author).key,
-				);
-				if (theirs.length > 0) this.deps.host.onTheirsPulled?.(space, theirs);
+			if (operation === ESyncLogOperation.Pull) {
+				this.announcePulled(space, session, outcome);
 			}
-			if (
-				operation === ESyncLogOperation.Pull &&
-				[...outcome.touchedPaths].some((path) =>
-					session.scope.loadsOnStartup(path),
-				)
-			) {
-				this.deps.host.onPluginsPulled?.();
-			}
-			if (outcome.cancelled) {
-				this.deps.runtimeState.setStaleReason(
-					outcome.touchedPaths.size === 0
-						? "Stopped before anything changed."
-						: `Stopped after ${outcome.touchedPaths.size} file(s). Compare again to see where things stand.`,
-				);
-				return { ok: false };
-			}
+			if (outcome.cancelled) return this.stopped(outcome.touchedPaths.size);
 			// Only a published manifest is news for the others.
 			if (
 				operation === ESyncLogOperation.Push &&
@@ -443,29 +406,8 @@ export class OperationRunner {
 			}
 			return { ok: true };
 		} catch (err) {
-			if (isCancellation(err)) {
-				// Not a failure: nothing was published, and saying so beats a red error.
-				this.deps.runtimeState.setError(null);
-				this.deps.runtimeState.setStaleReason(
-					"Stopped before publishing. Nothing on the remote changed.",
-				);
-				await this.deps.host.logWarn(operation, "Cancelled by the user.");
-				return { ok: false };
-			}
-			if (err instanceof ConcurrentPushError) {
-				this.deps.runtimeState.setError(null);
-				this.deps.runtimeState.setStaleReason(
-					"Remote changed concurrently — re-comparing…",
-				);
-				this.deps.runtimeState.clearResult();
-				this.deps.clearFileDiffs();
-				this.deps.runtimeState.broadcast();
-				await this.refreshNow();
-				await this.deps.host.logWarn(operation, err.message);
-				return { ok: false, error: err.message };
-			}
-			const message = await this.reportError(operation, err, space);
-			return { ok: false, error: message };
+			// Awaited: the cleanup below runs after the failure is handled, re-compare included.
+			return await this.failed(operation, err, space);
 		} finally {
 			ended = true;
 			scope?.end();
@@ -475,6 +417,100 @@ export class OperationRunner {
 			// zero, so nothing else would repaint away a stale "Cancelling…".
 			this.deps.runtimeState.publishProgress(null);
 		}
+	}
+
+	/** The refresh's comparison while no file changed since; hidden configuration writes emit no vault events. */
+	private async compareFor(
+		session: EngineDependencies,
+		comparison: RunOptions["comparison"],
+	): Promise<CompareResult> {
+		const current =
+			comparison && comparison.revision === this.deps.localRevision?.();
+		const { configDir } = session.scope;
+		const indexedOnly =
+			configDir === undefined || !session.scope.canDescend(configDir);
+		if (current && indexedOnly) {
+			return { ...comparison.result, updatedCache: session.state.hashCache };
+		}
+		return compare(session, current ? comparison.result.remote : undefined);
+	}
+
+	/** A newer configuration reset on the remote: the baseline forgets that category before the operation reads it. */
+	private async reconcileResets(
+		session: EngineDependencies,
+		result: CompareResult,
+	): Promise<EngineDependencies> {
+		if (!result.remote) return session;
+		const baseline = reconcileBaselineResetGenerations(
+			session.state.baseline,
+			result.remote,
+			session.scope,
+		);
+		if (baseline === session.state.baseline) return session;
+		const reconciled = { ...session, state: { ...session.state, baseline } };
+		await this.buildContext(reconciled).persistState(reconciled.state);
+		return reconciled;
+	}
+
+	private announcePulled(
+		space: Space,
+		session: EngineDependencies,
+		outcome: OperationOutcome,
+	): void {
+		// A first sync brings everything: none of it is news.
+		if (session.state.baseline) {
+			const theirs = publishedByOthers(
+				outcome.newRemote,
+				outcome.touchedPaths,
+				publisher(session.state, session.author).key,
+			);
+			if (theirs.length > 0) this.deps.host.onTheirsPulled?.(space, theirs);
+		}
+		if (
+			[...outcome.touchedPaths].some((path) =>
+				session.scope.loadsOnStartup(path),
+			)
+		) {
+			this.deps.host.onPluginsPulled?.();
+		}
+	}
+
+	private stopped(touched: number): SyncOperationResult {
+		this.deps.runtimeState.setStaleReason(
+			touched === 0
+				? "Stopped before anything changed."
+				: `Stopped after ${touched} file(s). Compare again to see where things stand.`,
+		);
+		return { ok: false };
+	}
+
+	private async failed(
+		operation: ESyncLogOperation,
+		err: unknown,
+		space: Space,
+	): Promise<SyncOperationResult> {
+		if (isCancellation(err)) {
+			// Not a failure: nothing was published, and saying so beats a red error.
+			this.deps.runtimeState.setError(null);
+			this.deps.runtimeState.setStaleReason(
+				"Stopped before publishing. Nothing on the remote changed.",
+			);
+			await this.deps.host.logWarn(operation, "Cancelled by the user.");
+			return { ok: false };
+		}
+		if (err instanceof ConcurrentPushError) {
+			this.deps.runtimeState.setError(null);
+			this.deps.runtimeState.setStaleReason(
+				"Remote changed concurrently — re-comparing…",
+			);
+			this.deps.runtimeState.clearResult();
+			this.deps.clearFileDiffs();
+			this.deps.runtimeState.broadcast();
+			await this.refreshNow();
+			await this.deps.host.logWarn(operation, err.message);
+			return { ok: false, error: err.message };
+		}
+		return { ok: false, error: await this.reportError(operation, err, space) };
 	}
 
 	private saveLanded(session: EngineDependencies): Promise<EngineDependencies> {

@@ -28,7 +28,7 @@ export interface SchedulerOptions {
 export interface SchedulerHarness {
 	host: SchedulerHost;
 	slow: SlowFiles;
-	/** Full cycles (`refreshAndAutoSync`). */
+	/** Full cycles (`refreshAndAutoSync`, or `refreshAndAutoPull` with push after sync off). */
 	syncs: () => number;
 	pushFlags: () => ReadonlyArray<boolean>;
 	/** Plain compares: no pull, no push. */
@@ -150,12 +150,14 @@ export function schedulerHarness(
 		},
 		registerEvent: () => undefined,
 	} as unknown as SchedulerHost;
+	const cycle = async (push: boolean): Promise<void> => {
+		syncs++;
+		pushFlags.push(push);
+		await gate;
+	};
 	const controller = {
-		refreshAndAutoSync: async (push: boolean) => {
-			syncs++;
-			pushFlags.push(push);
-			await gate;
-		},
+		refreshAndAutoSync: () => cycle(true),
+		refreshAndAutoPull: () => cycle(false),
 		refresh: async () => {
 			compares++;
 		},

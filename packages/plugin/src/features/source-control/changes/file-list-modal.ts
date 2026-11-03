@@ -16,7 +16,7 @@ import {
 	modalFooter,
 	modalHint,
 	modalSection,
-	openInEditor,
+	openNote,
 	renderModalHead,
 	renderPath,
 	revealInFileExplorer,
@@ -162,7 +162,7 @@ export class FileListModal extends Modal {
 							.setTitle("Open")
 							.setIcon("file-text")
 							.onClick(() => {
-								void openInEditor(this.app, path);
+								void openNote(this.app, path);
 								this.close();
 							}),
 					);

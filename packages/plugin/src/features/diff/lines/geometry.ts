@@ -1,5 +1,5 @@
 import type { Text } from "@codemirror/state";
-import type { EditorView } from "@codemirror/view";
+import type { BlockInfo, EditorView } from "@codemirror/view";
 import type { LineRange, Span } from "@/features/sync";
 import { firstIndex } from "./search";
 import { SourceBlockWidget } from "./source-widget";
@@ -41,7 +41,7 @@ export function spanBounds(view: EditorView, span: Span): Bounds {
 	// Lines this side lacks show as a card at that very place (Inline, a conflict in Result): the change is
 	// the card. The line block holds any card on its line, one closing the file at its end too.
 	const cards = Array.isArray(block.type)
-		? block.type.filter(
+		? (block.type as readonly BlockInfo[]).filter(
 				(part) =>
 					part.from === span.from && part.widget instanceof SourceBlockWidget,
 			)

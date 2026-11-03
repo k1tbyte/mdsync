@@ -8,8 +8,8 @@ import { CONCURRENCY_FIELD, type SettingsFieldSpec } from "../field-spec";
 import type { ConditionalRead, ListedObject, StorageAdapter } from "../types";
 import {
 	assertOk,
+	conditionalRead,
 	dateOf,
-	headerValue,
 	isRetryableStatus,
 	transferBytes,
 	withDeadline,
@@ -21,7 +21,6 @@ const PROPFIND_BODY =
 const HTTP_OK_MIN = 200;
 const HTTP_OK_MAX = 299;
 const HTTP_NOT_FOUND = 404;
-const HTTP_NOT_MODIFIED = 304;
 const HTTP_METHOD_NOT_ALLOWED = 405;
 const HTTP_MULTI_STATUS = 207;
 const HTTP_PRECONDITION_FAILED = 412;
@@ -106,23 +105,8 @@ export function createWebDAVAdapter(
 			},
 			size,
 		);
-		// A server ignoring the precondition answers 200: an unconditional read. A 304 to a read with no
-		// validator describes nothing, and a plain read's caller would take it for an absent object.
-		if (res.status === HTTP_NOT_MODIFIED) {
-			if (!etag) {
-				throw new Error(
-					`WebDAV answered 304 to an unconditional read of "${key}".`,
-				);
-			}
-			return { status: "unchanged" };
-		}
-		if (res.status === HTTP_NOT_FOUND) return { status: "absent" };
-		assertOk(res, "read", key);
-		return {
-			status: "found",
-			body: new Uint8Array(res.arrayBuffer),
-			etag: headerValue(res.headers, "etag"),
-		};
+		// A server ignoring the precondition answers 200: an unconditional read.
+		return conditionalRead(res, key, etag, res.status === HTTP_NOT_FOUND);
 	};
 
 	async function ensureParentDir(key: string): Promise<void> {

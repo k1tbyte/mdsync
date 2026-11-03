@@ -1,4 +1,4 @@
-import { observeResize } from "@/core/ui";
+import { frameTask, observeResize } from "@/core/ui";
 
 /**
  * Windows a long list against a scroll container that is not the list itself: the whole pane scrolls.
@@ -39,7 +39,6 @@ export function mountVirtualList(
 	if (!measured) pitch = FALLBACK_PITCH_PX;
 	applyPitch(container, pitch, measured);
 	const mounted = new Map<number, HTMLElement>();
-	let frame = 0;
 
 	const remount = (): void => {
 		for (const el of mounted.values()) el.remove();
@@ -48,7 +47,6 @@ export function mountVirtualList(
 	};
 
 	const update = (): void => {
-		frame = 0;
 		const box = container.getBoundingClientRect();
 		// A collapsed section is display:none, where every rect reads zero and
 		// the window would be computed from nonsense.
@@ -85,10 +83,8 @@ export function mountVirtualList(
 		update();
 	};
 
-	const schedule = (): void => {
-		if (frame) return;
-		frame = window.requestAnimationFrame(update);
-	};
+	const frame = frameTask(update);
+	const schedule = (): void => frame.schedule();
 
 	scroller.addEventListener("scroll", schedule, { passive: true });
 	const stopResize = observeResize(scroller, schedule);
@@ -101,8 +97,7 @@ export function mountVirtualList(
 		 * for the old position.
 		 */
 		refresh(): void {
-			if (frame) window.cancelAnimationFrame(frame);
-			frame = 0;
+			frame.cancel();
 			update();
 		},
 		setCount(next: number): void {
@@ -111,7 +106,7 @@ export function mountVirtualList(
 			update();
 		},
 		destroy(): void {
-			if (frame) window.cancelAnimationFrame(frame);
+			frame.cancel();
 			scroller.removeEventListener("scroll", schedule);
 			stopResize();
 			container.removeClass("is-virtual");

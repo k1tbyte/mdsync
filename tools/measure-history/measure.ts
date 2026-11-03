@@ -87,18 +87,39 @@ interface Pair {
 	to: string;
 }
 
+/** The plugin internals a run reaches; absent pieces mean not set up or locked. */
+interface MeasuredWindow {
+	app: {
+		plugins: {
+			plugins: {
+				mdsync?: {
+					controller?: {
+						history?: {
+							deps?: {
+								openSession(): Promise<{
+									storage: ObjectStorage;
+									key: EncryptionKey;
+								} | null>;
+							};
+						};
+					};
+				};
+			};
+		};
+	};
+}
+
 interface Version {
 	stored: number;
 	plain: Uint8Array;
 }
 
 export async function run(options: Options = {}): Promise<Report> {
-	// biome-ignore lint/suspicious/noExplicitAny: plugin internals, reached at run time in any version.
-	const plugin = (window as any).app.plugins.plugins.mdsync;
+	const plugin = (window as unknown as MeasuredWindow).app.plugins.plugins
+		.mdsync;
 	const session = await plugin?.controller?.history?.deps?.openSession();
 	if (!session) throw new Error("MDSync is not set up or is locked here.");
-	const storage: ObjectStorage = session.storage;
-	const key: EncryptionKey = session.key;
+	const { storage, key } = session;
 	const source = await historyOf(storage, key);
 	const pairs = source.pairs.slice(0, options.maxPairs ?? source.pairs.length);
 	const limit = options.maxBytes ?? 64 * MB;
@@ -149,7 +170,7 @@ export async function run(options: Options = {}): Promise<Report> {
 				const cost = await versionCost(key, before, after.bytes, SCHEMES.A);
 				group.decoded = (group.decoded ?? 0) + cost;
 			}
-			if (++done % 50 === 0) console.log(`measured ${done}/${pairs.length}`);
+			if (++done % 50 === 0) console.debug(`measured ${done}/${pairs.length}`);
 		}
 	});
 	const days = perDay(source.pushes);

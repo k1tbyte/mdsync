@@ -1,3 +1,4 @@
+export { personColor, personTint } from "./colors";
 export { actionButton, textButton } from "./controls/action-button";
 export { alertLine } from "./controls/alert-line";
 export { callout } from "./controls/callout";
@@ -6,6 +7,7 @@ export { renderPath } from "./controls/file-path";
 export { appendIconButton, appendLabeledButton } from "./controls/icon-button";
 export { measureSlide, slideWhenCut } from "./controls/marquee";
 export { renderSegments, type Segments } from "./controls/segments";
+export { frameTask } from "./frame-task";
 export { makeActivatable } from "./input/activatable";
 export { onEnter } from "./input/enter-key";
 export { focusKey, renderKeepingFocus } from "./input/focus";
@@ -37,7 +39,6 @@ export {
 export { observeResize } from "./observe-resize";
 export {
 	closePluginSettings,
-	openInEditor,
 	openPluginSettings,
 	revealInFileExplorer,
 } from "./obsidian-helpers";

@@ -1,16 +1,16 @@
-import { addAnchors, currentAnchor } from "./anchors";
-import { addCopyButtons } from "./code";
+import { factChips } from "./chrome/facts";
+import { createSidebar } from "./chrome/sidebar";
+import { createTopbar } from "./chrome/topbar";
 import { el as create } from "./dom";
-import { factChips } from "./facts";
 import { credit, type IconName, icon, tile } from "./icons";
-import { markLoneImages } from "./images";
-import { noteMarkdown } from "./markdown";
-import { createOutline } from "./outline";
-import { sanitizeNote } from "./sanitize";
-import { foldSections } from "./sections";
-import type { ViewState } from "./session";
-import { createSidebar } from "./sidebar";
-import { createTopbar } from "./topbar";
+import type { ViewState } from "./link/session";
+import { addAnchors, currentAnchor } from "./note/anchors";
+import { addCopyButtons } from "./note/code";
+import { markLoneImages } from "./note/images";
+import { noteMarkdown } from "./note/markdown";
+import { createOutline } from "./note/outline";
+import { sanitizeNote } from "./note/sanitize";
+import { foldSections } from "./note/sections";
 
 export interface View {
 	show: (state: ViewState) => void;

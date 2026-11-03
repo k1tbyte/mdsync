@@ -1,43 +1,10 @@
 import { Setting, setIcon } from "obsidian";
-import { randomSecret } from "@/core/crypto";
-import { isRelayConfigured } from "@/core/settings";
-import { alertLine, callout, focusKey, serial } from "@/core/ui";
-import {
-	type AccountRelays,
-	accountRelays,
-	activateRelay,
-	deployOwnRelay,
-	ERelayDeployStep,
-	failedRelay,
-	freeRelayName,
-	planRelay,
-	RELAY_NAME,
-	type RelayTarget,
-	relayNameError,
-	relayUrlOf,
-	runningRelayDeploy,
-	testRelay,
-} from "@/features/relay";
-import {
-	cloudflareErrorMessage,
-	cloudflareOf,
-	forgetCloudflare,
-} from "@/features/storage";
-import { enablesRealtime } from "../feature-choices";
+import { alertLine, callout, focusKey } from "@/core/ui";
+import { ERelayDeployStep } from "@/features/relay";
 import { actionRow, busyLine } from "../form";
 import type { Wizard } from "../wizard";
 import { renderTokenForm, tokenForm } from "./cloudflare-token";
-
-type Phase =
-	| "token"
-	| "attaching"
-	| "checking"
-	| "taken"
-	| "deploying"
-	| "waiting"
-	| "silent"
-	| "failed"
-	| "done";
+import { DEPLOY_STEPS, relayDeployFlow } from "./relay-deploy-flow";
 
 const STEP_LABELS: Record<ERelayDeployStep, string> = {
 	[ERelayDeployStep.Subdomain]: "Workers address",
@@ -46,7 +13,6 @@ const STEP_LABELS: Record<ERelayDeployStep, string> = {
 	[ERelayDeployStep.Worker]: "Relay code",
 	[ERelayDeployStep.Route]: "Public address",
 };
-const DEPLOY_STEPS = Object.values(ERelayDeployStep);
 
 export interface RelayDeployView {
 	start(): void;
@@ -62,139 +28,11 @@ export function relayDeployView(
 ): RelayDeployView {
 	const { plugin } = wizard;
 	const token = tokenForm();
-	let phase: Phase = "checking";
-	let error = "";
-	let relays: AccountRelays | null = null;
-	/** The worker to update with a secret typed here; null when this device's relay is not on the account. */
-	let existing: string | null = RELAY_NAME;
-	let secret = "";
-	let newName = "";
-	let reached = 0;
-	/** The deploy that went last: "Try again" repeats it with the secret it chose. */
-	let attempted: RelayTarget | null = null;
-	const fail = (err: unknown): void => {
-		phase = "failed";
-		error = cloudflareErrorMessage(err);
-		wizard.redraw();
-	};
-
-	/** The deploy goes on after Back or a closed wizard; a second one must not start beside it. */
-	const run = serial((task: () => Promise<void>) => task().catch(fail));
-
-	const plan = async (retry = false): Promise<void> => {
-		const login = cloudflareOf(plugin.settings);
-		if (!login) {
-			phase = "token";
-			wizard.redraw();
-			return;
-		}
-		const running = runningRelayDeploy();
-		if (running) return attach(running, login.accountId);
-		phase = "checking";
-		reached = 0;
-		error = "";
-		wizard.redraw();
-		relays = await accountRelays(login.api, login.accountId);
-		newName = freeRelayName(relays.taken);
-		const next = await planRelay(
-			relays,
-			plugin.settings,
-			(retry ? attempted : null) ??
-				// Only while no relay is set: its secret exists nowhere else. Otherwise a stale one could replace a working relay.
-				(isRelayConfigured(plugin.settings)
-					? null
-					: failedRelay(login.accountId)),
-		);
-		if ("deploy" in next) return deploy(next.deploy);
-		existing = next.ask;
-		phase = "taken";
-		wizard.redraw();
-	};
-
-	const deploy = async (target: RelayTarget): Promise<void> => {
-		const login = cloudflareOf(plugin.settings);
-		if (!login) return plan();
-		const running = runningRelayDeploy();
-		if (running) return attach(running, login.accountId);
-		attempted = target;
-		phase = "deploying";
-		reached = 0;
-		error = "";
-		wizard.redraw();
-		await deployOwnRelay(plugin, login, target, (step) => {
-			reached = DEPLOY_STEPS.indexOf(step);
-			wizard.redraw();
-		});
-		reached = DEPLOY_STEPS.length;
-		await wait();
-	};
-
-	/** A wizard closed mid-deploy left it running: this one follows it instead of starting another. */
-	const attach = async (
-		running: Promise<void>,
-		accountId: string,
-	): Promise<void> => {
-		phase = "attaching";
-		wizard.redraw();
-		try {
-			await running;
-		} catch (err) {
-			attempted = failedRelay(accountId);
-			throw err;
-		}
-		reached = DEPLOY_STEPS.length;
-		await wait();
-	};
-
-	const wait = async (): Promise<void> => {
-		phase = "waiting";
-		wizard.redraw();
-		const realtime = () => enablesRealtime(wizard.syncMode, plugin.settings);
-		if (!(await activateRelay(plugin, realtime))) {
-			phase = "silent";
-			wizard.redraw();
-			return;
-		}
-		phase = "done";
-		reached = DEPLOY_STEPS.length + 1;
-		if (!wizard.isLive()) return;
-		wizard.redraw();
-		online();
-	};
-
-	const updateExisting = async (): Promise<void> => {
-		// What was checked is what goes out, even if the field changes meanwhile.
-		const target = { name: existing, secret };
-		const relayUrl =
-			target.name && relays ? relayUrlOf(relays, target.name) : null;
-		if (!target.name || !relayUrl || !target.secret) return;
-		const checked = await testRelay({ relayUrl, relaySecret: target.secret });
-		if (!checked.ok) {
-			error = checked.message;
-			wizard.redraw();
-			return;
-		}
-		await deploy({ name: target.name, secret: target.secret });
-	};
-
-	const anotherToken = (): void =>
-		void run(async () => {
-			await forgetCloudflare(plugin);
-			attempted = null;
-			await plan();
-		});
-
-	const deployNew = async (): Promise<void> => {
-		error = relayNameError(newName, relays?.taken ?? []) ?? "";
-		if (error) {
-			wizard.redraw();
-			return;
-		}
-		await deploy({ name: newName, secret: randomSecret() });
-	};
+	const flow = relayDeployFlow(wizard, online);
+	const { state } = flow;
 
 	const renderExisting = (el: HTMLElement): void => {
-		if (!existing) {
+		if (!state.existing) {
 			callout(
 				el,
 				"warning",
@@ -204,10 +42,10 @@ export function relayDeployView(
 				.setName("Update it")
 				.setDesc("Connect the Cloudflare account that runs it.")
 				.addButton((b) =>
-					b.setButtonText("Use another token").onClick(anotherToken),
+					b.setButtonText("Use another token").onClick(flow.anotherToken),
 				);
 		} else {
-			renderUpdate(el, existing);
+			renderUpdate(el, state.existing);
 		}
 		new Setting(el)
 			.setName("Deploy a new relay")
@@ -217,14 +55,10 @@ export function relayDeployView(
 			.addText((t) => {
 				t.inputEl.setAttr("aria-label", "Relay name");
 				focusKey(t.inputEl, "name");
-				t.setValue(newName).onChange((v) => {
-					newName = v.trim();
-				});
+				t.setValue(state.newName).onChange(flow.setNewName);
 			})
-			.addButton((b) =>
-				b.setButtonText("Deploy new").onClick(() => void run(deployNew)),
-			);
-		if (error) alertLine(el).setText(error);
+			.addButton((b) => b.setButtonText("Deploy new").onClick(flow.deployNew));
+		if (state.error) alertLine(el).setText(state.error);
 	};
 
 	const renderUpdate = (el: HTMLElement, name: string): void => {
@@ -242,13 +76,9 @@ export function relayDeployView(
 				t.inputEl.type = "password";
 				t.inputEl.setAttr("aria-label", "Relay secret");
 				focusKey(t.inputEl, "secret");
-				t.setValue(secret).onChange((v) => {
-					secret = v.trim();
-				});
+				t.setValue(state.secret).onChange(flow.setSecret);
 			})
-			.addButton((b) =>
-				b.setButtonText("Update").onClick(() => void run(updateExisting)),
-			);
+			.addButton((b) => b.setButtonText("Update").onClick(flow.updateExisting));
 	};
 
 	const renderProgress = (el: HTMLElement): void => {
@@ -258,79 +88,72 @@ export function relayDeployView(
 			const item = list.createEl("li", { cls: "mdsync-progress-step" });
 			const dot = item.createSpan({ cls: "mdsync-progress-dot" });
 			item.createSpan({ text: label });
-			if (at < reached) {
+			if (at < state.reached) {
 				item.addClass("is-done");
 				setIcon(dot, "check");
-			} else if (at === reached) {
-				const failed = phase === "failed";
+			} else if (at === state.reached) {
+				const failed = state.phase === "failed";
 				item.addClass(failed ? "is-failed" : "is-running");
 				if (failed) setIcon(dot, "x");
 			}
 		});
-		if (phase === "waiting") {
+		if (state.phase === "waiting") {
 			callout(
 				el,
 				"info",
 				"Waiting for the relay to answer. A new workers.dev address can take a few minutes.",
 			);
 		}
-		if (phase === "silent") {
+		if (state.phase === "silent") {
 			callout(
 				el,
 				"warning",
 				"The relay is deployed but does not answer yet. Check again in a minute.",
 			);
 			actionRow(el).addButton((b) =>
-				b
-					.setButtonText("Check again")
-					.setCta()
-					.onClick(() => void run(wait)),
+				b.setButtonText("Check again").setCta().onClick(flow.checkAgain),
 			);
 		}
 	};
 
 	return {
-		start: () => void run(plan),
-		busy: () =>
-			phase === "attaching" || phase === "deploying" || phase === "waiting",
+		start: flow.start,
+		busy: flow.busy,
 		render(el) {
-			if (phase === "token") {
+			if (state.phase === "token") {
 				callout(
 					el,
 					"info",
 					"MDSync deploys the relay with a Cloudflare token. It runs on the free Workers plan; no payment method needed.",
 				);
-				renderTokenForm(el, wizard, token, () => void run(plan));
+				renderTokenForm(el, wizard, token, flow.start);
 				return;
 			}
-			if (phase === "attaching") {
+			if (state.phase === "attaching") {
 				busyLine(el, "The relay is still deploying from earlier…");
 				return;
 			}
-			if (phase === "checking") {
+			if (state.phase === "checking") {
 				busyLine(el, "Looking at your Cloudflare account…");
 				return;
 			}
-			if (phase === "taken") {
+			if (state.phase === "taken") {
 				renderExisting(el);
 				return;
 			}
-			if (phase === "failed" && reached === 0) {
-				alertLine(el).setText(error);
+			if (state.phase === "failed" && state.reached === 0) {
+				alertLine(el).setText(state.error);
 			} else {
 				renderProgress(el);
-				if (phase === "failed") alertLine(el).setText(error);
+				if (state.phase === "failed") alertLine(el).setText(state.error);
 			}
-			if (phase === "failed") {
+			if (state.phase === "failed") {
 				actionRow(el)
 					.addButton((b) =>
-						b.setButtonText("Use another token").onClick(anotherToken),
+						b.setButtonText("Use another token").onClick(flow.anotherToken),
 					)
 					.addButton((b) =>
-						b
-							.setButtonText("Try again")
-							.setCta()
-							.onClick(() => void run(() => plan(true))),
+						b.setButtonText("Try again").setCta().onClick(flow.retry),
 					);
 			}
 		},

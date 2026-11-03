@@ -6,7 +6,7 @@ Vanilla TypeScript, no framework. `packages/viewer/build.mjs` bundles `packages/
 
 ## Visit
 
-`main.ts` parses the address with `parseLinkLocation`; a missing or cut-short key shows `invalid`. `LinkSession` (`packages/viewer/src/session.ts`) drives one visit and tells the view what to show (`ViewState`: `loading`, `passphrase`, `content`, `gone`, `invalid`, `error`):
+`main.ts` parses the address with `parseLinkLocation`; a missing or cut-short key shows `invalid`. `LinkSession` (`packages/viewer/src/link/session.ts`) drives one visit and tells the view what to show (`ViewState`: `loading`, `passphrase`, `content`, `gone`, `invalid`, `error`):
 
 1. `cache.get(id)` (this tab's sealed copy), else `GET /link/<id>/meta`. 404 means `gone`, and any remembered keys for the id are dropped.
 2. Unprotected: derive the keys from the fragment key alone. Protected: use remembered keys if the browser has them, else show the passphrase form.
@@ -17,15 +17,15 @@ The passphrase is trimmed and normalized before it is stretched (`packages/proto
 
 ## Cache and remembered keys
 
-- `packages/viewer/src/cache.ts`: the sealed bytes, views left and expiry in `sessionStorage` per id. A reload decrypts locally and costs no view; the key and the passphrase are never written. Storage the browser blocks, or a note past the quota, just costs a view on reload.
-- `packages/viewer/src/keys.ts`: **Remember on this browser** (passphrase form, off by default: a shared computer must not keep a note by accident) stores the derived non-extractable AES `CryptoKey` and the gate in IndexedDB (`idb-keyval`, database `mdsync-viewer`), never the passphrase. It is kept until the link's expiry (each visit sweeps every expired entry) or until the relay says the link is gone. Kept keys the relay refuses are dropped. A link with no expiry keeps them until the relay says gone.
+- `packages/viewer/src/link/cache.ts`: the sealed bytes, views left and expiry in `sessionStorage` per id. A reload decrypts locally and costs no view; the key and the passphrase are never written. Storage the browser blocks, or a note past the quota, just costs a view on reload.
+- `packages/viewer/src/link/keys.ts`: **Remember on this browser** (passphrase form, off by default: a shared computer must not keep a note by accident) stores the derived non-extractable AES `CryptoKey` and the gate in IndexedDB (`idb-keyval`, database `mdsync-viewer`), never the passphrase. It is kept until the link's expiry (each visit sweeps every expired entry) or until the relay says the link is gone. Kept keys the relay refuses are dropped. A link with no expiry keeps them until the relay says gone.
 
 ## Rendering
 
-- `packages/viewer/src/sanitize.ts` is the only way payload HTML reaches the page: DOMPurify with HTML, SVG and MathML profiles; forms, buttons, `style`, `link`, `meta`, `base` and `srcset` forbidden; links limited to `LINK_HREF_ALLOWED` (http(s) ones get `target=_blank` and `rel="noopener noreferrer nofollow"`), images to `LINK_IMAGE_SRC_ALLOWED`, inputs to disabled checkboxes. A browser DOMPurify does not support shows an error rather than raw markup.
+- `packages/viewer/src/note/sanitize.ts` is the only way payload HTML reaches the page: DOMPurify with HTML, SVG and MathML profiles; forms, buttons, `style`, `link`, `meta`, `base` and `srcset` forbidden; links limited to `LINK_HREF_ALLOWED` (http(s) ones get `target=_blank` and `rel="noopener noreferrer nofollow"`), images to `LINK_IMAGE_SRC_ALLOWED`, inputs to disabled checkboxes. A browser DOMPurify does not support shows an error rather than raw markup.
 - The viewer's own controls (code **Copy**, heading `#`, fold chevrons) are added after sanitizing, since the snapshot carries no script.
-- `packages/viewer/src/sections.ts` nests the renderer's flat blocks under their headings (footnotes stay outside every section); a click on the heading or its chevron folds it, unless text is selected or a link or button was hit. `reveal` unfolds every section and callout around an element.
-- Callouts fold on a click of their title. `packages/viewer/src/code.ts` adds a **Copy** button per code block. `packages/viewer/src/images.ts` marks a paragraph holding only an image (`lone-image`).
+- `packages/viewer/src/note/sections.ts` nests the renderer's flat blocks under their headings (footnotes stay outside every section); a click on the heading or its chevron folds it, unless text is selected or a link or button was hit. `reveal` unfolds every section and callout around an element.
+- Callouts fold on a click of their title. `packages/viewer/src/note/code.ts` adds a **Copy** button per code block. `packages/viewer/src/note/images.ts` marks a paragraph holding only an image (`lone-image`).
 - A note whose first element is an H1 equal to its name shows the name once; the document title is the name, or "Shared note".
 - Tab icon: an inline SVG data URI in `packages/viewer/src/index.html`, since the CSP allows images from `data:` and `https:` only. The viewer itself requests only the two link routes (a note's own external images load from their hosts); the footer credit is a plain link to the project.
 
@@ -33,17 +33,17 @@ The passphrase is trimmed and normalized before it is stretched (`packages/proto
 
 An address is `/s/<id>#<key>/<anchor>`; the anchor is a heading's slug (`uniqueSlug`: Unicode letters and digits, deduplicated) or an element id such as a footnote's.
 
-- Each heading gets a `#` button (`packages/viewer/src/anchors.ts`): it copies the address, puts it in the bar with `history.replaceState` (key kept) and scrolls there.
+- Each heading gets a `#` button (`packages/viewer/src/note/anchors.ts`): it copies the address, puts it in the bar with `history.replaceState` (key kept) and scrolls there.
 - A load or `hashchange` with an anchor jumps to it, unfolding what hides it (`currentAnchor`).
 - In-note `a[href^="#"]` links are rewritten to the full address: the bare `#fn-1` would replace the key, and a copy or a new tab would be dead. Clicks `preventDefault` and call the same jump.
 
 ## Page chrome
 
-- `packages/viewer/src/sidebar.ts`: a column left of the note from 66rem; below it a panel behind a menu button (Escape or an outside click closes it, Tab stays inside while open). It holds the link card (`packages/viewer/src/facts.ts`: views left and the expiry, counting down every 30 s; a warning once the note lives only in this tab), the outline and the credit.
-- `packages/viewer/src/outline.ts`: the headings as a list (three or more) that marks the one being read.
-- `packages/viewer/src/topbar.ts`: name, fact chips, **Wide text** and **Copy as Markdown**. Wide text is kept in `localStorage` (`mdsync-viewer-wide`) and only applies from 66rem up (below it the toggle is hidden); a lone image is centered while wide.
-- **Copy as Markdown** (`packages/viewer/src/markdown.ts`, turndown + GFM) converts the sanitized page, not the author's file, so nothing the snapshot dropped can come back. Callouts become `> [!type]` blocks (fold mark kept), tasks `- [x]`, tables GFM, a formula is written back as TeX from `data-tex` on its `<math>`; vault images (`data:`) and SVG drawings are left out.
-- CSS is written once: `packages/viewer/src/viewer.css` (variables, page, layout) imports `packages/viewer/src/note.css`, `packages/viewer/src/sidebar.css`, `packages/viewer/src/topbar.css` and `packages/viewer/src/gate.css`. It uses Obsidian's variable names (`--h2-size`, `--code-keyword`, `--color-blue-rgb`...) because the note's SVG reads them and a theme could set them. Light and dark follow `prefers-color-scheme`; print styles are included.
+- `packages/viewer/src/chrome/sidebar.ts`: a column left of the note from 66rem; below it a panel behind a menu button (Escape or an outside click closes it, Tab stays inside while open). It holds the link card (`packages/viewer/src/chrome/facts.ts`: views left and the expiry, counting down every 30 s; a warning once the note lives only in this tab), the outline and the credit.
+- `packages/viewer/src/note/outline.ts`: the headings as a list (three or more) that marks the one being read.
+- `packages/viewer/src/chrome/topbar.ts`: name, fact chips, **Wide text** and **Copy as Markdown**. Wide text is kept in `localStorage` (`mdsync-viewer-wide`) and only applies from 66rem up (below it the toggle is hidden); a lone image is centered while wide.
+- **Copy as Markdown** (`packages/viewer/src/note/markdown.ts`, turndown + GFM) converts the sanitized page, not the author's file, so nothing the snapshot dropped can come back. Callouts become `> [!type]` blocks (fold mark kept), tasks `- [x]`, tables GFM, a formula is written back as TeX from `data-tex` on its `<math>`; vault images (`data:`) and SVG drawings are left out.
+- CSS is written once: `packages/viewer/src/viewer.css` (variables, page, layout) imports `packages/viewer/src/note/note.css`, `packages/viewer/src/chrome/sidebar.css`, `packages/viewer/src/chrome/topbar.css` and `packages/viewer/src/chrome/gate.css`. It uses Obsidian's variable names (`--h2-size`, `--code-keyword`, `--color-blue-rgb`...) because the note's SVG reads them and a theme could set them. Light and dark follow `prefers-color-scheme`; print styles are included.
 - Every listener of a shown state is tied to its `AbortSignal` (`createView`'s `show` aborts the previous one); timers stop with it.
 
 ## Tests

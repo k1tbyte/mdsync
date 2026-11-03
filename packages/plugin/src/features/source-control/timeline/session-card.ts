@@ -29,7 +29,7 @@ export interface CardContext {
 	isOpen(key: string): boolean;
 	toggle(key: string): void;
 	pager(key: string): RowPager;
-	rerender(): void;
+	rerender: () => void;
 	sessionMenu(event: MouseEvent, row: SessionRow): void;
 	versionMenu(event: MouseEvent, row: TimelineRow): void;
 	fileMenu(event: MouseEvent, owner: string, file: TimelineFileRow): void;

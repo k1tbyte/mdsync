@@ -1,5 +1,5 @@
 import { type Plugin, setIcon, type WorkspaceLeaf } from "obsidian";
-import { makeActivatable } from "@/core/ui";
+import { frameTask, makeActivatable } from "@/core/ui";
 import { STATE_TEXT } from "@/features/live";
 import { describePeople, renderAvatarStack } from "@/features/presence";
 import { watchReadOnlyRoots } from "@/features/spaces";
@@ -29,11 +29,9 @@ export function registerNotePresence(
 	const { workspace } = plugin.app;
 	const { people, live } = plugin.realtime;
 	const shown = new Map<WorkspaceLeaf, Shown>();
-	let frame: number | null = null;
 	let settle: number | null = null;
 
 	const render = (): void => {
-		frame = null;
 		const now = Date.now();
 		const seen = new Set<WorkspaceLeaf>();
 		let settleAt = Number.POSITIVE_INFINITY;
@@ -81,9 +79,8 @@ export function registerNotePresence(
 			schedule();
 		}, settleAt - now);
 	};
-	const schedule = (): void => {
-		frame ??= window.requestAnimationFrame(render);
-	};
+	const frame = frameTask(render);
+	const schedule = (): void => frame.schedule();
 
 	plugin.register(people.subscribe(schedule));
 	plugin.register(live.subscribe(schedule));
@@ -95,7 +92,7 @@ export function registerNotePresence(
 	plugin.registerEvent(workspace.on("file-open", schedule));
 	workspace.onLayoutReady(schedule);
 	plugin.register(() => {
-		if (frame !== null) window.cancelAnimationFrame(frame);
+		frame.cancel();
 		if (settle !== null) window.clearTimeout(settle);
 		for (const { el } of shown.values()) el.remove();
 		shown.clear();

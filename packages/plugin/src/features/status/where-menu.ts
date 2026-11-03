@@ -96,6 +96,7 @@ function addGroup(menu: Menu, plugin: StatusHost, group: RelayGroup): void {
 		const record = id === VAULT_SPACE.id ? undefined : plugin.spaces.get(id);
 		menu.addItem((item) => {
 			item.setTitle(title);
+			row.closest(".menu-item")?.addClass("mdsync-relay-member-item");
 			if (record) item.onClick(() => openShareWindow(plugin, record));
 			else item.setIsLabel(true);
 		});

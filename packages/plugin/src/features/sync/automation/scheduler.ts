@@ -5,6 +5,7 @@ import type { SyncController, SyncStatusSnapshot } from "../controller";
 import type { PassphraseManager } from "../remote/passphrase-manager";
 import { type Space, spaceOf, VAULT_SPACE } from "../remote/space";
 import { canSync } from "../settings";
+import { Backoff } from "./backoff";
 import { isSlowFile, type QueueEdit } from "./slow-files";
 
 const AUTO_PULL_STARTUP_DELAY_MS = 3_000;
@@ -20,12 +21,6 @@ const SHARE_PUSH_QUIET_MS = 2_000;
 /** How often the auto-sync timer wakes up to check what is due. */
 export const SCHEDULER_HEARTBEAT_MS = 30_000;
 
-const SCHEDULER_BACKOFF_THRESHOLD = 3;
-
-const SCHEDULER_BACKOFF_BASE_MS = 2 * 60_000;
-
-const SCHEDULER_BACKOFF_MAX_MS = 60 * 60_000;
-
 export interface SchedulerHost extends Plugin {
 	settings: MdsyncSettings;
 	/** The records' partition: known from launch, before any refresh partitions. */
@@ -38,8 +33,7 @@ export function registerScheduler(
 	controller: SyncController,
 ): void {
 	let lastRun = 0;
-	let consecutiveFailures = 0;
-	let backoffUntil = 0;
+	const backoff = new Backoff();
 	// Interval 0 means one sync after startup: until one lands cleanly, a reconnect still owes it.
 	let startupOwed = true;
 	const mayAutoSync = (): boolean =>
@@ -54,31 +48,24 @@ export function registerScheduler(
 		if (!canSync(host.settings)) return;
 		const now = Date.now();
 		if (now - lastRun < AUTO_SYNC_BUSY_COOLDOWN_MS) return;
-		if (now < backoffUntil) return;
+		if (backoff.blocks(now)) return;
 		lastRun = now;
 		ticking = true;
 		try {
-			await controller.refreshAndAutoSync(host.settings.autoPushAfterSync);
+			await (host.settings.autoPushAfterSync
+				? controller.refreshAndAutoSync()
+				: controller.refreshAndAutoPull());
 		} finally {
 			ticking = false;
 		}
 		// The flows report failures via error state, not throws. Read it for backoff.
 		const snapshot = controller.getSnapshot();
 		if (!snapshot.error && !cannotReach(snapshot)) {
-			consecutiveFailures = 0;
-			backoffUntil = 0;
+			backoff.succeed();
 			startupOwed = false;
 			return;
 		}
-		consecutiveFailures++;
-		if (consecutiveFailures >= SCHEDULER_BACKOFF_THRESHOLD) {
-			const exp = consecutiveFailures - SCHEDULER_BACKOFF_THRESHOLD;
-			const delay = Math.min(
-				SCHEDULER_BACKOFF_BASE_MS * 2 ** exp,
-				SCHEDULER_BACKOFF_MAX_MS,
-			);
-			backoffUntil = Date.now() + delay;
-		}
+		backoff.fail();
 	};
 
 	// Any finished cycle (manual, realtime-signal, settle push) counts as a fresh sync, so a due tick never
@@ -91,10 +78,7 @@ export function registerScheduler(
 				wasBusy = false;
 				lastRun = Date.now();
 				// A clean finish, manual included, proves the backend works again.
-				if (!snapshot.error && !cannotReach(snapshot)) {
-					consecutiveFailures = 0;
-					backoffUntil = 0;
-				}
+				if (!snapshot.error && !cannotReach(snapshot)) backoff.succeed();
 			}
 		}),
 	);
@@ -149,8 +133,7 @@ export function registerScheduler(
 			!snapshot.result;
 		droppedOffline = false;
 		controller.connectivityChanged();
-		consecutiveFailures = 0;
-		backoffUntil = 0;
+		backoff.succeed();
 		for (const resume of resumers) resume();
 		if (!recover || !canSync(host.settings)) return;
 		if (mayAutoSync()) {
@@ -160,7 +143,7 @@ export function registerScheduler(
 			void controller.refresh();
 		}
 	});
-	const backingOff = (): boolean => Date.now() < backoffUntil;
+	const backingOff = (): boolean => backoff.blocks();
 	const slow = controller.slowFiles;
 	host.register(() => slow.clear());
 	const slowQuietMs = (): number => host.settings.slowFileSettleSeconds * 1000;

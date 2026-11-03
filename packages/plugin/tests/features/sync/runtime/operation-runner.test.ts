@@ -164,7 +164,7 @@ describe("OperationRunner.runOperation", () => {
 			async () => {
 				throw new SyncCancelledError();
 			},
-			true,
+			{ cancellable: true },
 		);
 		expect(result).toEqual({ ok: false });
 		expect(runtimeState.getSnapshot()).toMatchObject({
@@ -190,7 +190,7 @@ describe("OperationRunner.runOperation", () => {
 				touchedPaths: new Set(["note.md"]),
 				cancelled: true,
 			}),
-			true,
+			{ cancellable: true },
 		);
 		expect(result).toEqual({ ok: false });
 		expect(runtimeState.getSnapshot()).toMatchObject({

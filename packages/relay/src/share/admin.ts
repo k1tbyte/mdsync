@@ -4,15 +4,14 @@
  */
 
 import { shareChannel } from "@mdsync/protocol";
-import { hubStub } from "../hub/stub";
-import { isAdmin } from "../secret";
 import {
-	adminUnauthorized,
+	adminOnly,
 	badRequest,
 	type JsonObject,
 	json,
 	readJsonObject,
-} from "./http";
+} from "../http";
+import { hubStub } from "../hub/stub";
 import { isShareId } from "./key";
 import {
 	EShareRole,
@@ -34,92 +33,94 @@ const REQUIRED_STORAGE_FIELDS = [
 	"secretAccessKey",
 ] as const;
 
-export async function registerShare(
-	request: Request,
-	env: ShareEnv,
-	shareId: string,
-): Promise<Response> {
-	if (!(await isAdmin(request, env))) return adminUnauthorized();
-	if (!isShareId(shareId)) return badRequest("Invalid shareId");
-	const storage = readShareStorage(await readJsonObject(request));
-	if (!storage) return badRequest("Invalid share storage");
-	await saveStorage(env, shareId, storage);
-	return json({ registered: true });
-}
+export const registerShare = adminOnly(
+	async (
+		request: Request,
+		env: ShareEnv,
+		shareId: string,
+	): Promise<Response> => {
+		if (!isShareId(shareId)) return badRequest("Invalid shareId");
+		const storage = readShareStorage(await readJsonObject(request));
+		if (!storage) return badRequest("Invalid share storage");
+		await saveStorage(env, shareId, storage);
+		return json({ registered: true });
+	},
+);
 
-export async function endShare(
-	request: Request,
-	env: ShareEnv,
-	shareId: string,
-): Promise<Response> {
-	if (!(await isAdmin(request, env))) return adminUnauthorized();
-	if (!isShareId(shareId)) return badRequest("Invalid shareId");
-	const revoked = await revokeShare(env, shareId);
-	await hubStub(env).purgeChannel(shareChannel(shareId));
-	return json({ revoked });
-}
+export const endShare = adminOnly(
+	async (
+		_request: Request,
+		env: ShareEnv,
+		shareId: string,
+	): Promise<Response> => {
+		if (!isShareId(shareId)) return badRequest("Invalid shareId");
+		const revoked = await revokeShare(env, shareId);
+		await hubStub(env).purgeChannel(shareChannel(shareId));
+		return json({ revoked });
+	},
+);
 
-export async function issueToken(
-	request: Request,
-	env: ShareEnv,
-): Promise<Response> {
-	if (!(await isAdmin(request, env))) return adminUnauthorized();
-	const body = await readJsonObject(request);
-	if (!body) return badRequest("Invalid JSON body");
-	const { shareId, participantId } = body;
-	if (typeof shareId !== "string" || typeof participantId !== "string") {
-		return badRequest("shareId and participantId required");
-	}
-	if (
-		!participantId ||
-		participantId.length > MAX_PARTICIPANT_ID_LENGTH ||
-		!isShareId(shareId)
-	) {
-		return badRequest("Invalid shareId or participantId");
-	}
-	return json(
-		await saveToken(env, {
-			shareId,
-			participantId,
-			role:
-				body.role === EShareRole.ReadOnly
-					? EShareRole.ReadOnly
-					: EShareRole.ReadWrite,
-			label: typeof body.label === "string" ? body.label : undefined,
-		}),
-	);
-}
+export const issueToken = adminOnly(
+	async (request: Request, env: ShareEnv): Promise<Response> => {
+		const body = await readJsonObject(request);
+		if (!body) return badRequest("Invalid JSON body");
+		const { shareId, participantId } = body;
+		if (typeof shareId !== "string" || typeof participantId !== "string") {
+			return badRequest("shareId and participantId required");
+		}
+		if (
+			!participantId ||
+			participantId.length > MAX_PARTICIPANT_ID_LENGTH ||
+			!isShareId(shareId)
+		) {
+			return badRequest("Invalid shareId or participantId");
+		}
+		return json(
+			await saveToken(env, {
+				shareId,
+				participantId,
+				role:
+					body.role === EShareRole.ReadOnly
+						? EShareRole.ReadOnly
+						: EShareRole.ReadWrite,
+				label: typeof body.label === "string" ? body.label : undefined,
+			}),
+		);
+	},
+);
 
-export async function listTokens(
-	request: Request,
-	env: ShareEnv,
-	shareId: string,
-): Promise<Response> {
-	if (!(await isAdmin(request, env))) return adminUnauthorized();
-	if (!isShareId(shareId)) return badRequest("Invalid shareId");
-	return json({ participants: await listParticipants(env, shareId) });
-}
+export const listTokens = adminOnly(
+	async (
+		_request: Request,
+		env: ShareEnv,
+		shareId: string,
+	): Promise<Response> => {
+		if (!isShareId(shareId)) return badRequest("Invalid shareId");
+		return json({ participants: await listParticipants(env, shareId) });
+	},
+);
 
-export async function revokeToken(
-	request: Request,
-	env: ShareEnv,
-	encodedParticipantId: string,
-	shareId: string,
-): Promise<Response> {
-	if (!(await isAdmin(request, env))) return adminUnauthorized();
-	let participantId: string;
-	try {
-		participantId = decodeURIComponent(encodedParticipantId);
-	} catch {
-		return badRequest("Invalid participantId");
-	}
-	if (!participantId || !isShareId(shareId)) {
-		return badRequest("Valid shareId and participantId required");
-	}
-	return json({
-		revoked: await revokeParticipant(env, shareId, participantId),
-	});
-}
+export const revokeToken = adminOnly(
+	async (
+		_request: Request,
+		env: ShareEnv,
+		encodedParticipantId: string,
+		shareId: string,
+	): Promise<Response> => {
+		let participantId: string;
+		try {
+			participantId = decodeURIComponent(encodedParticipantId);
+		} catch {
+			return badRequest("Invalid participantId");
+		}
+		if (!participantId || !isShareId(shareId)) {
+			return badRequest("Valid shareId and participantId required");
+		}
+		return json({
+			revoked: await revokeParticipant(env, shareId, participantId),
+		});
+	},
+);
 
 /** Extra fields are dropped, so a registration stores exactly what signing reads. */
 function readShareStorage(body: JsonObject | null): ShareStorage | null {

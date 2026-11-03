@@ -84,7 +84,9 @@ export class RestoredFiles {
 function parse(value: unknown): Holds {
 	const holds: Holds = new Map();
 	if (typeof value !== "object" || value === null) return holds;
-	for (const [space, paths] of Object.entries(value)) {
+	for (const [space, paths] of Object.entries(
+		value as Record<string, unknown>,
+	)) {
 		if (typeof paths !== "object" || paths === null) continue;
 		const valid = Object.entries(paths).filter(
 			(entry): entry is [string, (string | null)[]] =>

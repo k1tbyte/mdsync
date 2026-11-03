@@ -4,13 +4,13 @@ import {
 	handleAuthCallback,
 	handleTokenRefresh,
 } from "./google-oauth";
+import { adminOnly, json } from "./http";
 import { handleHubRequest } from "./hub/access";
 import { Hub } from "./hub/durable-object";
 import { Link } from "./link/durable-object";
 import { handleLinkRequest } from "./link/routes";
 import { handleShellRequest, type ShellEnv } from "./link/shell";
 import type { LinkEnv } from "./link/stub";
-import { isAdmin } from "./secret";
 import { handleShareRequest } from "./share/broker";
 import type { ShareEnv } from "./share/kv";
 
@@ -64,12 +64,6 @@ export default {
 };
 
 /** Lets the plugin tell a wrong URL (no answer) from a wrong secret (401). */
-async function status(request: Request, env: Env): Promise<Response> {
-	if (!(await isAdmin(request, env))) {
-		return Response.json(
-			{ error: "unauthorized", message: "Invalid relay secret" },
-			{ status: 401 },
-		);
-	}
-	return Response.json({ ok: true, version: env.RELAY_VERSION ?? null });
-}
+const status = adminOnly(async (_request: Request, env: Env) =>
+	json({ ok: true, version: env.RELAY_VERSION ?? null }),
+);

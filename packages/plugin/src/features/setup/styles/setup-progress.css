@@ -239,7 +239,7 @@
 	display: grid;
 	grid-template-areas: "value label" "value hint";
 	grid-template-columns: 4em minmax(0, 1fr);
-	column-gap: var(--size-4-2);
+	gap: var(--size-2-1) var(--size-4-2);
 	align-items: center;
 	padding: var(--size-4-2) var(--size-4-3);
 	border: 0;

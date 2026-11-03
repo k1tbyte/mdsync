@@ -1,7 +1,7 @@
-@import "./note.css";
-@import "./sidebar.css";
-@import "./topbar.css";
-@import "./gate.css";
+@import "./note/note.css";
+@import "./chrome/sidebar.css";
+@import "./chrome/topbar.css";
+@import "./chrome/gate.css";
 
 /*
  * The note's HTML comes from Obsidian's own renderer, so its classes are Obsidian's, and so are the variable

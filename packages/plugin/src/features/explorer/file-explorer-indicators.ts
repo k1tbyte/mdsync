@@ -1,4 +1,5 @@
 import type { Plugin, TAbstractFile } from "obsidian";
+import { frameTask } from "@/core/ui";
 import type { SyncController } from "@/features/sync";
 import {
 	readFileExplorer,
@@ -17,7 +18,6 @@ export function registerFileExplorerIndicators(
 	const decorator = new RowDecorator(plugin, controller);
 	let indicators = false;
 	let disposed = false;
-	let renderFrame: number | null = null;
 	/** A setting changed how rows look: every row redraws. */
 	let repaint = false;
 	let rowsChanged = false;
@@ -43,19 +43,18 @@ export function registerFileExplorerIndicators(
 		decorator.apply(explorer, links.links, indicators, rowsChanged);
 	};
 
+	const frame = frameTask(() => {
+		if (disposed) return;
+		apply();
+		if (rowsChanged) {
+			rowsChanged = false;
+			links.scan();
+		}
+	});
 	const schedule = (scanLinks = false): void => {
 		if (disposed) return;
 		rowsChanged ||= scanLinks;
-		if (renderFrame !== null) return;
-		renderFrame = window.requestAnimationFrame(() => {
-			renderFrame = null;
-			if (disposed) return;
-			apply();
-			if (rowsChanged) {
-				rowsChanged = false;
-				links.scan();
-			}
-		});
+		frame.schedule();
 	};
 
 	const observeExplorer = (): void => {
@@ -73,7 +72,7 @@ export function registerFileExplorerIndicators(
 
 	plugin.register(() => {
 		disposed = true;
-		if (renderFrame !== null) window.cancelAnimationFrame(renderFrame);
+		frame.cancel();
 		links.stop();
 		observer?.disconnect();
 		decorator.clear();

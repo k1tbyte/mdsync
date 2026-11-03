@@ -74,12 +74,16 @@ class Device {
 			Date.now(),
 		);
 		await publishManifestWithHistory(
-			this.storage,
-			key,
-			"",
+			{
+				storage: this.storage,
+				key,
+				space: { root: "" },
+				scope: {},
+				state: { baseline: null },
+				history: this.history,
+			},
 			manifest,
 			this.head,
-			this.history,
 		);
 		this.head = manifest;
 		this.published.set(id, manifest);

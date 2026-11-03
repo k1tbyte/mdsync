@@ -13,7 +13,7 @@
 @import "./features/sync/ui/history/holds-row.css";
 @import "./features/sync/scope/plugin-levels.css";
 
-@import "./features/settings/tabs-and-logs.css";
+@import "./features/settings/logs.css";
 
 @import "./features/source-control/styles/shell.css";
 @import "./features/source-control/styles/toolbar.css";

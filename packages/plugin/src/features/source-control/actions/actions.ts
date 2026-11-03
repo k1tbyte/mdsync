@@ -4,7 +4,7 @@ import {
 	copyText,
 	notifyError,
 	notifyInfo,
-	openInEditor,
+	openNote,
 	revealInFileExplorer,
 	runWithNotice,
 } from "@/core/ui";
@@ -83,7 +83,7 @@ export class SourceControlActions {
 			item
 				.setTitle("Open in editor")
 				.setIcon("file-text")
-				.onClick(() => void openInEditor(this.plugin.app, path)),
+				.onClick(() => void openNote(this.plugin.app, path)),
 		);
 		addLocateItems(menu, this.plugin.app, path);
 		if (this.plugin.settings.fileHistoryEnabled) {

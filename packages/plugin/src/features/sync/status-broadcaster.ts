@@ -1,3 +1,5 @@
+import { frameTask } from "@/core/ui";
+
 export type SnapshotListener<T> = (snapshot: T) => void;
 
 export interface StatusBroadcasterOptions<T> {
@@ -7,7 +9,7 @@ export interface StatusBroadcasterOptions<T> {
 export class StatusBroadcaster<T> {
 	private readonly listeners = new Set<SnapshotListener<T>>();
 	private readonly getSnapshot: () => T;
-	private frame: number | null = null;
+	private readonly frame = frameTask(() => this.emitNow());
 	private disposed = false;
 
 	constructor(options: StatusBroadcasterOptions<T>) {
@@ -31,11 +33,7 @@ export class StatusBroadcaster<T> {
 
 	broadcastSoon(): void {
 		if (this.disposed) return;
-		if (this.frame !== null) return;
-		this.frame = window.requestAnimationFrame(() => {
-			this.frame = null;
-			this.emitNow();
-		});
+		this.frame.schedule();
 	}
 
 	dispose(): void {
@@ -45,9 +43,7 @@ export class StatusBroadcaster<T> {
 	}
 
 	private cancelPending(): void {
-		if (this.frame === null) return;
-		window.cancelAnimationFrame(this.frame);
-		this.frame = null;
+		this.frame.cancel();
 	}
 
 	private emitNow(): void {

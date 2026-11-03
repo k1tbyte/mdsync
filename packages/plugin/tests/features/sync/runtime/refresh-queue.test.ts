@@ -30,12 +30,16 @@ describe("refresh request coalescing", () => {
 				}
 			},
 		);
-		const active = queue.request(new Set(["a"]), true);
+		const active = queue.request({ spaces: new Set(["a"]), pull: true });
 		await started.promise;
-		const pending = queue.request(new Set(["b"]), true);
+		const pending = queue.request({ spaces: new Set(["b"]), pull: true });
 		for (let index = 0; index < 100; index++)
-			expect(queue.request(new Set(["c"]), true)).toBe(pending);
-		expect(queue.request(new Set([VAULT_SPACE.id]), false, true)).toBe(pending);
+			expect(queue.request({ spaces: new Set(["c"]), pull: true })).toBe(
+				pending,
+			);
+		expect(
+			queue.request({ spaces: new Set([VAULT_SPACE.id]), push: true }),
+		).toBe(pending);
 		released.resolve();
 		await Promise.all([active, pending]);
 		expect(requests).toEqual([
@@ -54,8 +58,16 @@ describe("refresh request coalescing", () => {
 				requests.push(request);
 			},
 		);
-		const a = queue.request(new Set(["a"]), false, true, new Set(["a/x"]));
-		const b = queue.request(new Set(["b"]), false, true, new Set(["b/y"]));
+		const a = queue.request({
+			spaces: new Set(["a"]),
+			push: true,
+			only: new Set(["a/x"]),
+		});
+		const b = queue.request({
+			spaces: new Set(["b"]),
+			push: true,
+			only: new Set(["b/y"]),
+		});
 		expect(b).toBe(a);
 		await a;
 		expect(requests[0]).toEqual({

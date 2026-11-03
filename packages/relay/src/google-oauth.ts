@@ -4,6 +4,7 @@
  */
 
 import { toHex } from "@mdsync/protocol";
+import { json } from "./http";
 import { secretsEqual } from "./secret";
 
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
@@ -15,11 +16,6 @@ const STATE_TTL_MS = 10 * 60 * 1000;
 /** Longer than any Google refresh token. */
 const REFRESH_TOKEN_MAX = 2048;
 const NONCE = /^[0-9a-f]{32}$/;
-
-const CORS_JSON_HEADERS = {
-	"Content-Type": "application/json",
-	"Access-Control-Allow-Origin": "*",
-} as const;
 
 export interface GoogleOAuthEnv {
 	GDRIVE_CLIENT_ID: string;
@@ -39,12 +35,12 @@ export async function handleTokenRefresh(
 	env: GoogleOAuthEnv,
 ): Promise<Response> {
 	if (request.method !== "POST") {
-		return jsonResponse({ error: "method_not_allowed" }, 405);
+		return json({ error: "method_not_allowed" }, 405);
 	}
-	if (!isConfigured(env)) return jsonResponse({ error: "not_configured" }, 503);
+	if (!isConfigured(env)) return json({ error: "not_configured" }, 503);
 	const refreshToken = await readRefreshToken(request);
 	if (!refreshToken || refreshToken.length > REFRESH_TOKEN_MAX) {
-		return jsonResponse({ error: "invalid_refresh_token" }, 400);
+		return json({ error: "invalid_refresh_token" }, 400);
 	}
 
 	const token = await exchange(env, {
@@ -53,21 +49,18 @@ export async function handleTokenRefresh(
 	});
 	// Revoked or expired: only signing in again helps, so the plugin must not retry it as an outage.
 	if (token?.error === "invalid_grant") {
-		return jsonResponse({ error: "invalid_grant" }, 401);
+		return json({ error: "invalid_grant" }, 401);
 	}
 	if (!token?.access_token) {
-		return jsonResponse({ error: "token_refresh_failed" }, 502);
+		return json({ error: "token_refresh_failed" }, 502);
 	}
 	// Only what the client needs, never Google's raw reply. A rotated refresh token goes back: the device
 	// already holds the old one, and keeping it would leave the next refresh revoked.
-	return jsonResponse(
-		{
-			access_token: token.access_token,
-			expires_in: token.expires_in,
-			refresh_token: token.refresh_token,
-		},
-		200,
-	);
+	return json({
+		access_token: token.access_token,
+		expires_in: token.expires_in,
+		refresh_token: token.refresh_token,
+	});
 }
 
 export async function handleAuthCallback(
@@ -278,11 +271,4 @@ async function readRefreshToken(request: Request): Promise<string | null> {
 	} catch {
 		return null;
 	}
-}
-
-function jsonResponse(body: unknown, status: number): Response {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: CORS_JSON_HEADERS,
-	});
 }

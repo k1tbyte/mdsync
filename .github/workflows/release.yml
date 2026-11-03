@@ -33,6 +33,9 @@ jobs:
 
             - run: pnpm install --frozen-lockfile
 
+            - name: The community scanner's checks
+              run: pnpm run lint:prerelease
+
             - run: pnpm --filter mdsync run build
 
             - name: Attest the build

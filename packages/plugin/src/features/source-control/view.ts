@@ -3,7 +3,7 @@ import {
 	RELATIVE_TIME_REFRESH_MS,
 	SOURCE_CONTROL_VIEW_TYPE,
 } from "@/core/constants";
-import { redrawOnPhoneChange } from "@/core/ui";
+import { appendIconButton, redrawOnPhoneChange } from "@/core/ui";
 import { openDiffView } from "@/features/diff";
 import type { SyncStatusSnapshot } from "@/features/sync";
 import { canSync } from "@/features/sync";
@@ -279,20 +279,18 @@ export class SourceControlView extends ItemView {
 	private renderTabBar(parent: HTMLElement): HTMLElement {
 		const row = parent.createDiv({ cls: "mdsync-source-tabs-row" });
 		if (Platform.isPhone) {
-			const back = row.createEl("button", { cls: "mdsync-mobile-back" });
-			back.type = "button";
-			back.setAttr("aria-label", "Close source control");
-			setIcon(back, "arrow-left");
-			back.addEventListener("click", () => this.close());
+			appendIconButton(row, "arrow-left", "Close source control", () =>
+				this.close(),
+			).addClass("mdsync-mobile-back");
 		}
 		const bar = row.createDiv({
-			cls: "mdsync-settings-tabs mdsync-source-tabs",
+			cls: "mdsync-source-tabs",
 		});
 		bar.setAttr("role", "tablist");
 		bar.setAttr("aria-label", "Source control views");
 		const make = (tab: ESourceTab, label: string, icon: string): void => {
 			const btn = bar.createEl("button", {
-				cls: "mdsync-settings-tab-button",
+				cls: "mdsync-source-tab-button",
 			});
 			btn.type = "button";
 			btn.setAttr("role", "tab");

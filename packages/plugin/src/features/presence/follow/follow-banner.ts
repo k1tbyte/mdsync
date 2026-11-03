@@ -1,5 +1,5 @@
 import { ButtonComponent } from "obsidian";
-import { personColor } from "@/core/shared";
+import { personColor } from "@/core/ui";
 import { renderAvatar } from "../ui/avatars";
 import type { Person } from "../views";
 

@@ -47,6 +47,7 @@ import { HistoryService } from "./runtime/history-service";
 import { MaintenanceService } from "./runtime/maintenance-service";
 import {
 	OperationRunner,
+	type RunOptions,
 	type SpaceOperation,
 } from "./runtime/operation-runner";
 import { RefreshQueue } from "./runtime/refresh-queue";
@@ -115,22 +116,16 @@ export interface SyncControllerHost {
 	autoDeleteLimit?(): number | null;
 	/** An automatic push left these deletions for the person: more than `autoDeleteLimit`. */
 	onDeletionsHeld?(space: Space, paths: readonly string[]): void;
-	logInfo(
-		operation: ESyncLogOperation,
-		message: string,
-		details?: readonly string[],
-	): Promise<void>;
-	logWarn(
-		operation: ESyncLogOperation,
-		message: string,
-		details?: readonly string[],
-	): Promise<void>;
-	logError(
-		operation: ESyncLogOperation,
-		message: string,
-		details?: readonly string[],
-	): Promise<void>;
+	logInfo: SyncLog;
+	logWarn: SyncLog;
+	logError: SyncLog;
 }
+
+type SyncLog = (
+	operation: ESyncLogOperation,
+	message: string,
+	details?: readonly string[],
+) => Promise<void>;
 
 export { splitSpaceErrors } from "./runtime/controller-state";
 export type { SyncOperationResult, SyncStatusListener, SyncStatusSnapshot };
@@ -322,15 +317,15 @@ export class SyncController {
 	 * conflict.
 	 */
 	refreshAndAutoPull(spaces?: ReadonlySet<string>): Promise<void> {
-		return this.refreshes.request(spaces, true);
+		return this.refreshes.request({ spaces, pull: true });
 	}
 
-	refreshAndAutoSync(push = true): Promise<void> {
-		return this.refreshes.request(undefined, true, push);
+	refreshAndAutoSync(): Promise<void> {
+		return this.refreshes.request({ pull: true, push: true });
 	}
 
 	refreshAndAutoPush(only?: ReadonlySet<string>): Promise<void> {
-		return this.refreshes.request(undefined, false, true, only);
+		return this.refreshes.request({ push: true, only });
 	}
 
 	/** Compares and pushes only the shares containing these paths. */
@@ -413,7 +408,7 @@ export class SyncController {
 			ESyncLogOperation.Push,
 			paths,
 			(group) => (deps, result, ctx) => pushPathsOp(deps, result, group, ctx),
-			true,
+			{ cancellable: true },
 		);
 	}
 
@@ -422,7 +417,7 @@ export class SyncController {
 			ESyncLogOperation.Pull,
 			paths,
 			(group) => (deps, result, ctx) => pullPathsOp(deps, result, group, ctx),
-			true,
+			{ cancellable: true },
 		);
 	}
 
@@ -535,7 +530,7 @@ export class SyncController {
 					result.diff.localChanges.map(({ path }) => path),
 					ctx,
 				),
-			true,
+			{ cancellable: true },
 		);
 		await this.refresh();
 		return outcome;
@@ -546,7 +541,7 @@ export class SyncController {
 		operation: ESyncLogOperation,
 		paths: Iterable<string>,
 		bind: (group: string[]) => SpaceOperation,
-		cancellable = false,
+		options?: Pick<RunOptions, "cancellable">,
 	): Promise<SyncOperationResult> {
 		let outcome: SyncOperationResult = { ok: false };
 		for (const [space, group] of pathsBySpace(
@@ -557,7 +552,7 @@ export class SyncController {
 				space,
 				operation,
 				bind(group),
-				cancellable,
+				options,
 			);
 			if (!outcome.ok) break;
 		}

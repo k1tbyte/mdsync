@@ -12,7 +12,7 @@ export function slideWhenCut(el: HTMLElement): void {
 	el.addClass("mdsync-marquee");
 	el.appendChild(text);
 	// By then the rest of its row is drawn.
-	requestAnimationFrame(() => measureSlide(el));
+	window.requestAnimationFrame(() => measureSlide(el));
 }
 
 /** Again once its box may have changed: a hidden one measured nothing. */

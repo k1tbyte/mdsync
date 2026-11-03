@@ -16,7 +16,7 @@ Paths are relative to `packages/plugin/src/`. Stylesheet order, tokens and row m
 |---|---|
 | a message | `notifyInfo`, `notifyError`, `notifyAction` (one button, for what a background task cannot open a modal for), `reportError`, `runWithNotice`, `attempt`, `tapTooltip` (`core/ui/notices.ts`); copying, `copyText` (`core/ui/controls/copyable.ts`). Never `new Notice` |
 | a window | `renderModalHead` + `modalSection`, `modalCard`, `modalHint`, `modalWarning`, `modalFooter` (`core/ui/modal-frame.ts`): icon tile (red `tone: "danger"` for a destructive question), footer buttons, bottom sheet on a phone (`asDrawer`). The setup wizard keeps its own layout and is a sheet too (`asDrawer`, its sticky footer flush with the safe area) |
-| a question | `openConfirmModal`, `openChoiceModal`, `openPromptModal`, `askPassphrase`, `askNewPassphrase`; a custom modal that returns a value uses `openPromiseModal` |
+| a question | `openConfirmModal`, `openChoiceModal` (`warning` above the text; `typed` holds the destructive choice until a word is typed), `openPromptModal`, `askPassphrase`, `askNewPassphrase`; a custom modal that returns a value uses `openPromiseModal` |
 | icon button, labeled button | `appendIconButton`, `appendLabeledButton` |
 | clickable non-button | `makeActivatable` (role, tabindex, Enter and Space) |
 | one choice of a few | `renderSegments` (native radios, locks while saving) |

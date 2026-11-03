@@ -8,6 +8,7 @@ import {
 } from "obsidian";
 import {
 	copyText,
+	frameTask,
 	modalCard,
 	modalFooter,
 	modalHint,
@@ -40,7 +41,7 @@ type Known = LinkStatus | null | Error;
 export class ManageLinksModal extends Modal {
 	private readonly known = new Map<string, Known>();
 	private closed = false;
-	private frame: number | null = null;
+	private readonly frame = frameTask(() => this.draw());
 	/** Follows a rename while open, where the path would not. */
 	private note: TFile | null = null;
 	private unsubscribe: (() => void) | null = null;
@@ -76,7 +77,7 @@ export class ManageLinksModal extends Modal {
 
 	onClose(): void {
 		this.closed = true;
-		if (this.frame !== null) window.cancelAnimationFrame(this.frame);
+		this.frame.cancel();
 		this.unsubscribe?.();
 		if (this.modifyRef) this.app.vault.offref(this.modifyRef);
 		this.contentEl.empty();
@@ -112,11 +113,7 @@ export class ManageLinksModal extends Modal {
 
 	/** Answers arrive in bursts: one redraw per frame, not per answer. */
 	private drawSoon(): void {
-		if (this.closed || this.frame !== null) return;
-		this.frame = window.requestAnimationFrame(() => {
-			this.frame = null;
-			this.draw();
-		});
+		if (!this.closed) this.frame.schedule();
 	}
 
 	private draw(): void {

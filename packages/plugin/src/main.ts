@@ -60,7 +60,6 @@ import {
 } from "@/features/sync";
 import { SettingsTransferController } from "@/features/transfer";
 
-/** Runs a teardown step without letting its failure abort the rest. */
 function safely(step: () => void): void {
 	try {
 		step();

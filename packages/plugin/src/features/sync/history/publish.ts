@@ -12,6 +12,7 @@ import {
 	diffManifests,
 	historyTracks,
 	splitTracked,
+	untrackedDir,
 } from "./changes";
 import { pushKey, sealPushRecord } from "./remote";
 import type { HistoryConfig } from "./types";
@@ -30,26 +31,34 @@ const unwritten = new Map<string, Map<string, Unwritten>>();
 // One listing page: past it, listing `objects/` once takes fewer requests than a probe per blob.
 const PROBE_LIMIT = 1000;
 
+/** What a publish reads of its session. */
+export interface PublishSession {
+	storage: StorageAdapter;
+	key: EncryptionKey;
+	space: { root: string };
+	scope: { configDir?: string };
+	state: { baseline: Manifest | null };
+	history?: HistoryConfig;
+}
+
 /**
  * The record lands before the publish, so a won push always has one; a lost push leaves a sibling GC removes.
  * Best-effort: a failed write warns and never fails the push.
  */
 export async function publishManifestWithHistory(
-	storage: StorageAdapter,
-	key: EncryptionKey,
-	root: string,
+	session: PublishSession,
 	manifest: Manifest,
 	parent: Manifest | null,
-	history: HistoryConfig | undefined,
-	baseline: Manifest | null = null,
-	configDir?: string,
 ): Promise<void> {
+	const { storage, key, history } = session;
+	const { root } = session.space;
 	if (history) {
-		const waiting = unwritten.get(storage.identity()) ?? new Map();
+		const waiting =
+			unwritten.get(storage.identity()) ?? new Map<string, Unwritten>();
 		unwritten.set(storage.identity(), waiting);
 		const { changes, released } = splitTracked(
 			diffManifests(parent, manifest),
-			historyTracks(configDir),
+			historyTracks(untrackedDir(session)),
 		);
 		const own: Unwritten = {
 			blob: await sealPushRecord(key, root, {
@@ -76,7 +85,7 @@ export async function publishManifestWithHistory(
 		root,
 		manifest,
 		parent?.snapshotId ?? null,
-		baseline,
+		session.state.baseline,
 	);
 }
 

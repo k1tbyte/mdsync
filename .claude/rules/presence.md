@@ -20,7 +20,7 @@ Who is where, the note header, the file tree marks and the status surfaces. Mode
 
 ## Identity and colour
 
-- The key groups and colours: the person in a share, the device in the vault. One colour per key everywhere (`personColor` / `personTint` in `core/shared/colors.ts`): cursors, author tint, avatars. Hex, so awareness sends no tint.
+- The key groups and colours: the person in a share, the device in the vault. One colour per key everywhere (`personColor` / `personTint` in `core/ui/colors.ts`): cursors, author tint, avatars. Hex, so awareness sends no tint.
 - The author tint names a present person by their vouched label; one who left, by their own `users` entry. Attribution is advisory (each client names its own client id); never treat it as proof.
 
 ## Views and caches

@@ -50,7 +50,7 @@ export function createFirstSync(wizard: Wizard): FirstSync {
 	const sync = (): void => {
 		phase = EPhase.Syncing;
 		wizard.redraw();
-		void track(EPhase.Synced, () => controller.refreshAndAutoSync(true));
+		void track(EPhase.Synced, () => controller.refreshAndAutoSync());
 	};
 
 	const openChanges = (): void => {

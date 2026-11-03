@@ -59,7 +59,7 @@ describe("remote category reset across devices", () => {
 		}
 		const peer = controllerFor(b);
 		try {
-			await peer.refreshAndAutoSync(false);
+			await peer.refreshAndAutoPull();
 			expect(peer.getSnapshot().error).toBeNull();
 			expect(b.text(pluginPath)).toBe(`initial ${pluginPath}`);
 			expect(await b.adapter.exists(".obsidian/plugins/empty")).toBe(true);
@@ -133,7 +133,7 @@ describe("remote category reset across devices", () => {
 		try {
 			await peer.refresh();
 			expect(b.state.baseline?.files[pluginPath]).toBeUndefined();
-			await peer.refreshAndAutoSync(false);
+			await peer.refreshAndAutoPull();
 			expect(b.text(pluginPath)).toBe(`initial ${pluginPath}`);
 			expect(peer.getSnapshot().result?.diff.remoteChanges).toEqual([]);
 		} finally {
