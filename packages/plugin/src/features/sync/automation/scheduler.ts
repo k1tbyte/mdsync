@@ -235,9 +235,8 @@ export function registerScheduler(
 }
 
 /**
- * Manual sync still shows where things stand after a launch: one compare, which moves nothing. Never a
- * passphrase prompt on launch: the key is opened first from the entered or saved passphrase alone, and
- * without one that opens the vault (none, or rotated on another device) the first sync action asks.
+ * One compare after launch shows where manual sync stands, moving nothing and never prompting. Only an entered or
+ * saved passphrase is tried; if none opens the vault (missing, or rotated elsewhere), the first sync action asks.
  */
 async function compareAtStartup(
 	host: SchedulerHost,

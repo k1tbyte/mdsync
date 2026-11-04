@@ -351,7 +351,7 @@ export class ChangesSection implements SelectionSource {
 			});
 		}
 		if (scroller) scroller.scrollTop = scrollTop;
-		// This section just changed height, which moves every section under it.
+		// This section changed height, which moves every section under it.
 		this.deps.refreshLists();
 	}
 }

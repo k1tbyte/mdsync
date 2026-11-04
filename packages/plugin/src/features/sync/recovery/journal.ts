@@ -1,7 +1,6 @@
 /**
- * The engine's content writes, from before they start until they land. Obsidian truncates before it writes, so
- * one cut short leaves a prefix of the new content; its staged copy lets the next compare finish it
- * (`cut-short.ts`) instead of reading an edit there, merging it and pushing it.
+ * Engine content writes, from before they start until they land. Obsidian truncates first, so a write cut short leaves
+ * a prefix; its staged copy lets the next compare finish it (`cut-short.ts`) instead of merging and pushing an edit.
  */
 
 import type { DataAdapter } from "obsidian";

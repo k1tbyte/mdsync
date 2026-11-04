@@ -306,7 +306,6 @@ function buildPartialFileMap(input: {
 	return sortedByPath(next);
 }
 
-/** Hashes the current remote head references. */
 export function knownRemoteHashes(compareResult: CompareResult): Set<string> {
 	const hashes = new Set<string>();
 	for (const entry of Object.values(compareResult.remote?.files ?? {})) {

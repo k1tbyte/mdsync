@@ -43,7 +43,7 @@ export function sessionCache(
 					JSON.stringify({ ...link, sealed: toBase64Url(link.sealed) }),
 				);
 			} catch {
-				// A note past the storage quota just costs a view on reload.
+				// A note past the storage quota costs a view on reload.
 			}
 		},
 	};

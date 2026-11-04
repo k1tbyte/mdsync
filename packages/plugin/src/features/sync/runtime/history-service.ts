@@ -66,7 +66,6 @@ interface HistoryServiceDeps {
 	restored: (space: Space, left: ReadonlyMap<string, string | null>) => void;
 }
 
-/** Reads and restores past file versions from the snapshot history. */
 export class HistoryService {
 	constructor(private readonly deps: HistoryServiceDeps) {}
 

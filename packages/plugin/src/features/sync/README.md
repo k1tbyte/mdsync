@@ -1,103 +1,124 @@
 # Sync engine
 
-File sync of the vault and of each shared folder (a "space") against object storage. One slice, kept whole: history is called by publish and hunks by operations, so splitting them out would create cycles; the sub-areas carry the navigation. Constraints live in `.claude/rules/sync-integrity.md`, `.claude/rules/hunks.md`, `.claude/rules/history.md`, `.claude/rules/vault-io.md`; this file holds the map, the flows and the reasons behind them.
+File sync of the vault and each shared folder (a "space") against object storage. History is called by publish and hunks by operations; keeping one slice avoids cycles.
+
+Constraints: `.claude/rules/sync-integrity.md`, `.claude/rules/history.md`, `.claude/rules/hunks.md`, `.claude/rules/vault-io.md`, `.claude/rules/live.md` (`LiveNotes`).
 
 ## Map
 
 | Folder | Holds |
 |---|---|
-| `changes/` | scan -> diff: `features/sync/changes/diff.ts` (local, remote, conflict, converged), `features/sync/changes/moves.ts` (`pairMoves`), `features/sync/changes/content.ts` (load and write content), `features/sync/changes/remote-names.ts`, `features/sync/changes/binary-extensions.ts` |
-| `remote/` | the remote side: `features/sync/remote/manifest.ts` (fetch, build, guarded publish), `features/sync/remote/baseline.ts`, `features/sync/remote/space.ts`, `features/sync/remote/space-paths.ts`, `features/sync/remote/foreign.ts`, `features/sync/remote/config-reset.ts`, `features/sync/remote/uploads.ts`, `features/sync/remote/reset.ts`, `features/sync/remote/keyfile.ts`, `features/sync/remote/passphrase-manager.ts` |
-| `scope/` | what syncs: `features/sync/scope/scope.ts` (policy), `features/sync/scope/scanner.ts`, ignore matcher, rules and state, the scope and exclusions settings sections, `features/sync/scope/plugin-levels-modal.ts` (per-plugin levels) |
-| `apply/` | landing remote content: `features/sync/apply/pull.ts`, `features/sync/apply/pull-moves.ts`, `features/sync/apply/auto-merge.ts`, `features/sync/apply/conflict-merge.ts`, `features/sync/apply/conflict-copy.ts` |
-| `recovery/` | `features/sync/recovery/journal.ts`, `features/sync/recovery/cut-short.ts`, `features/sync/recovery/state-persister.ts` |
-| `hunks/` | `features/sync/hunks/hunks.ts`, `features/sync/hunks/projection.ts`, `features/sync/hunks/diff-cache.ts`, `features/sync/hunks/merge-model.ts`, `features/sync/hunks/anchored-hunks.ts` |
-| `operations/` | what a person or the auto cycle runs over one compare: push, pull, revert, resolve, hunks, config reset, flows, `features/sync/operations/text-loaders.ts` |
-| `automation/` | `features/sync/automation/scheduler.ts` (timer, backoff; with autosync off, one compare after startup when the passphrase needs no prompt), `features/sync/automation/auto-push.ts` (bulk-deletion hold), `features/sync/automation/slow-files.ts` (slow files held while edited), `features/sync/automation/restored-files.ts` (restored files held until pushed by hand) |
-| `identity/` | `features/sync/identity/authors.ts`, `features/sync/identity/device.ts`, `features/sync/identity/device-name.ts` |
-| `runtime/` | what `features/sync/controller.ts` is built from: `features/sync/runtime/operation-runner.ts`, `features/sync/runtime/refresh-queue.ts`, `features/sync/runtime/auto-cycle.ts`, `features/sync/runtime/scan-cycle.ts`, `features/sync/runtime/controller-state.ts`, `features/sync/runtime/file-diff-service.ts`, `features/sync/runtime/history-service.ts`, `features/sync/runtime/maintenance.ts`, `features/sync/runtime/saved-refresh.ts`, `features/sync/runtime/merged-result.ts` |
-| `content/` | the one owner of file content on the remote: `features/sync/content/load.ts` (`loadContent`, `openContent`, `prepareContent`), `features/sync/content/store.ts` (`storeContent`), `features/sync/content/header.ts`, `features/sync/content/keys.ts` (root and chunk keys), `features/sync/content/closure.ts` (chunks recipes name) |
-| `history/` | push records, queries, replay, pins, vault restore plan, GC and sweep |
-| `ui/` | menu items, modals, the settings sections (Automatic sync, encryption, maintenance, History) |
+| `changes/` | scan -> diff; `diff.ts`, `moves.ts` |
+| `remote/` | manifests, baselines, storage identity, keys; `manifest.ts` |
+| `scope/` | policy, scan, ignores and scope settings; `scope.ts`, `scanner.ts` |
+| `apply/` | incoming content, moves and conflicts; `pull.ts` |
+| `recovery/` | durable writes and state persistence; `journal.ts`, `cut-short.ts` |
+| `hunks/` | text projection, patches and diff cache; `projection.ts`, `hunks.ts` |
+| `operations/` | actions over one compare; `text-loaders.ts` |
+| `automation/` | scheduling and auto-push holds; `scheduler.ts` |
+| `identity/` | authors and device identity |
+| `runtime/` | controller queue, cycles, diff/history services and maintenance |
+| `content/` | remote content formats; `load.ts`, `store.ts` |
+| `history/` | records, queries, replay, pins, restore, GC and sweep |
+| `ui/` | actions, modals and settings sections |
 
-Top level: `features/sync/engine.ts` (`compare`, `pushPaths`, `publishFileMap`), `features/sync/session-state.ts`, `features/sync/state.ts` (the state file), `features/sync/types.ts`, `features/sync/constants.ts` (remote layout, size limits), `features/sync/live-notes.ts` (the seam to live editing: the file sync never imports `features/live`), `features/sync/index.ts` (facade).
+Entry points: `index.ts` (facade), `controller.ts` (runtime), `engine.ts` (`compare`, `pushPaths`, `publishFileMap`), `state.ts` (persistence), `live-notes.ts` (live port).
 
 ## One refresh
 
-1. `RefreshQueue` coalesces requests into one cycle on the single operation chain (`SyncControllerRuntimeState.enqueue`); `runRefreshCycle` (`features/sync/runtime/auto-cycle.ts`) runs `refreshNow`, then the automatic steps.
-2. A full `refreshNow` asks `host.spaces()` once (records traded with the vault storage, moves followed) and keeps that partition for the cycle; a targeted share refresh reuses the previous one. For each unpaused space it opens a session (`app/session-factory.ts`, scope built from that partition alone) and runs `compare`.
-3. `compare`: scan the disk while the remote head downloads, `finishCutShort`, take the baseline `withLanded`, check the vault id and `assertSpacePresent`, reconcile the head against the baseline, mark unholdable names skipped, then `diffWithin`. A refresh then forgets reset categories and dropped frozen entries from the baseline, advances it for `converged` paths (both sides reached equal content: no phantom conflict), and saves state and hash cache once.
-4. Automatic steps, per space: conflicts go to `autoMergeOp` (notes by line, settings JSON by key; a line merge of JSON or plugin code can be clean by lines and broken as a file), remote changes to `pullPathsOp`, local changes chosen by the auto-push selector to `pushPathsOp`. The first failing step ends the cycle.
-5. `runOperationNow` re-checks that the space is still mounted, reuses the refresh's comparison only for the same scope epoch and local revision (else compares again), runs the operation, then patches the result from what it wrote (`recomputeAfterWrite`) instead of rescanning. `ConcurrentPushError` clears the result and refreshes; a cancel says nothing on the remote changed; the journal is saved as every operation ends.
-6. `invalidate` bumps the epoch: results begun before it are dropped, so a stale partition or scope never settles state auto-push could act on.
+1. `RefreshQueue` coalesces requests on `SyncControllerRuntimeState.enqueue`; `runRefreshCycle` runs `refreshNow`, then automation.
+2. For each unpaused space, `compare` scans while the head downloads, recovers writes, takes `withLanded`, checks identity/presence, reconciles the head and runs `diffWithin`. Refresh settles resets, frozen and converged paths, then saves state and hash cache once.
+3. Automation runs `autoMergeOp` -> `pullPathsOp` -> selected `pushPathsOp`; the first failure ends the cycle.
+4. After the operation, `recomputeAfterWrite` patches the comparison without a rescan. `ConcurrentPushError` clears it and refreshes; cancellation reports no remote change.
+
+With autosync off, `automation/scheduler.ts` still requests a startup compare if unlocking needs no prompt.
 
 ## Baseline
 
-The baseline is the manifest this device last agreed with, per storage identity slot of the state file (`features/sync/state.ts`) (`LocalState.storages`; `projectSession` flattens one slot for one space and re-roots it after a share move). Local change = disk differs from baseline; remote change = head differs from baseline; both = conflict, unless equal (converged).
+Baseline = this device's last agreement, per storage identity in `LocalState.storages`; `projectSession` flattens a slot for a space. Disk vs baseline = local change; head vs baseline = remote change; both = conflict unless converged. Advancing converged paths avoids phantom conflicts. `majorityFolders` advances empty folders by majority of baseline, remote and disk.
 
-It moves only through `advanceBaselineForPaths`: converged paths at refresh, `written` after a pull, the published delta after a push, one path for a hunk operation. Adopting a whole manifest would claim files this device never downloaded; the next push would publish them as deletions. Empty folders advance by majority of baseline, remote and disk (`majorityFolders`): a folder on one side only is not agreed yet.
-
-A push publishes the remote's file map (`result.remote`) plus this push's changes, never the local snapshot: files the device has not pulled stay. Authorship (`attribute`) is stamped there and only there.
+A push starts from `result.remote` plus its delta, not the local snapshot, preserving files not pulled here.
 
 ## Publication guard
 
-`publishManifestWithGuard`: seal first (gzip after the precheck would widen the race window), precheck the head equals the expected parent, `put`, then read back. A head this push replaced is a stale read or a lost push, so it re-reads (`VERIFY_DELAYS_MS`); only our own snapshot id proves it landed. Taking the replaced head as stale would let a sibling's overwrite turn our files into remote deletions. History is recorded only for the guard's winner.
+Seal before the precheck: gzip inside the race window would widen it. History is recorded only for the guard's winner.
 
-Accepted limit: a backend hiding our own write past the retries (WebDAV behind a cache) leaves a landed push unconfirmed: peers are not pinged, a partial push shows an auto-merged conflict, that snapshot gets no history record.
+## Content
 
-Uploads: the head vouches for a blob; this device's own unpublished uploads count for 12 h (`UPLOAD_TRUST_MS`, still probed). Anything else may be swept by GC or deep clean between probe and publish. Still open, narrow: another device's reset between the probe and the publish, clock skew over 12 h.
+`engine.ts` decides which files need uploading; `storeContent` which chunks. Deep verify uses `fetchRoot` -> `openContent`. Read failures, chunks included, abort rather than become `ContentError`.
 
-A blob is gzipped when that makes it smaller (`encryptCompressible` in `core/crypto/cipher.ts`, padded like the JSON documents), else sealed as is; every release since 1.0.0 reads both. A large file is judged by its first 64 KB, so media is not compressed whole for nothing.
+`encryptCompressible` gzips only when smaller, with JSON-style padding; releases since 1.0.0 read both forms. Large files sample the first 64 KB to avoid compressing media needlessly. File blobs: 0x01/0x02; described blobs: 0x03, JSON header then payload.
 
-Every file content read and write goes through `content/`: `loadContent` (`changes/content.ts` `loadRemoteBytes` calls it; deep verify fetches the root itself (`fetchRoot`) and opens it with `openContent`, the same unseal and hash check; a failed read, a chunk's too, is no `ContentError`, so an outage aborts instead of reading as corrupt) and `storeContent` (`pushPaths`, `storeObject`); whether a file needs uploading stays in `engine.ts`, which of its chunks does in `storeContent`. `objects/<hash>` holds either the file (0x01/0x02) or a described blob (0x03): a JSON header, then a payload. A drawing whose `## Drawing` block is `compressed-json` is stored with that block decoded to plain JSON (`core/drawing/codec.ts`), because an LZString stream changes whole on every edit and so neither gzip nor chunking can share bytes between versions; the header carries the base64 wrap width and gap. It is kept only when decoding reproduces the file byte for byte at write time, and a read checks SHA-256 against the file hash again. A header this build does not know (an unknown codec, `chunks` outside a recipe) makes the content unreadable, never wrong bytes. A device without CompressionStream stores such a drawing whole.
+A drawing's `compressed-json` block is stored decoded: LZString changes wholesale on each edit, defeating sharing between versions. The header retains base64 wrap width and gap; the transform is kept only if it reproduces the original bytes at write time. Without CompressionStream, drawings stay whole.
 
-With a chunk key (`EngineDependencies.chunkIds`, HKDF of the data key: the keyfile's for the vault, the record's for a share) a file of `CHUNK_THRESHOLD` (256 KB) or more is stored in chunks, cut by FastCDC (`core/chunking`) at 16/64/256 KB, past 16 MB at 256 KB/1/4 MB, and named by HMAC so the storage never sees their plain hashes: `recipes/<hash>` is a described blob with an empty payload whose header lists `chunks: [id, size][]`, each `chunks/<id>` a 0x01/0x02 blob of that part of the stored form (a decoded drawing included). Readers look where the size says first (`readOrder`: a big file under `recipes/`, then `objects/` for one uploaded whole; an unknown size the other way). `prepareContent` hints every root a batch may read, reads its recipes once (kept for the batch's loads) and hints their chunks with the roots, since a hint replaces the one before. A write of a pulled file (`writeIncoming`) hands its copy on disk to `loadContent` (`loadLocalCopy`: only one no bigger than the remote file or below `LARGE_FILE_BYTES`, so a file that shrank does not bring large-file work into a transfer admitted as small): cut as the remote file (the size picks the chunk sizes, `content/cut.ts`) and named with the same key, its chunks the recipe names are not downloaded; the joined file is still checked against its hash. The copy, the downloaded chunks and the joined file are in memory at once, about three times the file.
+With `EngineDependencies.chunkIds` (HKDF of the vault keyfile's or share record's data key), files >= `CHUNK_THRESHOLD` (256 KB) use FastCDC: 16/64/256 KB cuts, or 256 KB/1/4 MB past 16 MB. HMAC names hide plain chunk hashes. A recipe is a described blob with empty payload and `chunks: [id, size][]`; chunks are 0x01/0x02 blobs of the stored form, including decoded drawings.
+
+`prepareContent` caches batch recipes and hints roots/chunks together: hints replace previous hints. `writeIncoming` offers the disk copy to `loadContent` only if no bigger than remote or below `LARGE_FILE_BYTES`, keeping large-file work out of small transfers. Cuts use remote sizes to reuse chunks. Copy, downloads and joined file coexist, about three times the file in memory.
 
 ## Writes and the journal
 
-Obsidian truncates before it writes (mobile drops a file whose append fails), so a killed write leaves a prefix. `features/sync/recovery/journal.ts` makes every engine content write recoverable: a durable claim, the whole content staged under the plugin folder, the write, release. Recovery (`features/sync/recovery/cut-short.ts`) runs at load (`restoreCutShort`) and in every `compare` right after the scan: a prefix of the staged copy, or a missing file in a folder that stays, is rewritten; one that landed still gives its room its merge base (judged by its bytes when the scan left it out); what cannot be finished yet (unreadable, open room) leaves the diff as unreadable. A start with one pending refreshes at once (`main.ts`).
+Flow: durable claim -> stage whole content under the plugin folder -> write -> release. `restoreCutShort` runs at load; `finishCutShort` after each scan repairs prefixes or missing files in surviving folders. Pending recovery triggers an immediate startup refresh. A landed write still supplies its room's merge base, checked by bytes if the scan omitted it; unreadable files or open rooms defer recovery.
 
-A finished download gives the baseline its entry (`BaseStep`, taken only by the storage and vault it was claimed under, only while the baseline still holds what it held then); `withLanded` applies it in the diff, because on the old baseline the write would read as this device's edit. Landed writes stay in the journal until the baseline holding their step is saved (`acknowledge`, else `settleLanded`).
+`BaseStep` -> `withLanded` lets the diff see a finished download as agreed, not a local edit; `acknowledge` / `settleLanded` retires it after baseline persistence. Live meets this flow through `coldSince`, `writeIncoming` and `LiveNotes.holds`.
 
-Live editing meets this in `features/sync/live-notes.ts` (`coldSince`, `writeIncoming`, `LiveNotes.holds`); its rules are in the live rule: a room never opens on a note under an engine write, the engine never writes a note whose room is open.
+## Spaces and moves
 
-Accepted limits: garbage that is no prefix reads as an edit; an edit since that leaves a prefix of the staged copy, or deletes the file, is undone; a pulled new file that is no room snapshot, cut short, stays a conflict and gives no step; so does a file a pull moves here and edits there; a step of a storage switched away from is dropped; a write landed in a run the app died in, edited before the next compare, loses its step; a first sync's download has none (no baseline yet), so a note deleted elsewhere before it finished comes back.
-
-## Spaces
-
-A `Space` is the vault or a shared folder with its own storage and key. The partition (`spacesOf`, built by `features/spaces/records.ts`) lists the vault first, then each open record whose root is free. Scopes own a root's subtree minus nested roots. The vault treats share roots like a local ignore: entries there are frozen in its manifest (so a share opened or closed never reads as a deletion), dropped from the next vault push, and swept from storage by history GC once no history record names them. A frozen entry the baseline forgot but whose share has no baseline yet is kept in `shareBases`, the merge base of a note that just became a share.
-
-Remote blobs hold paths relative to the space root (`features/sync/remote/space-paths.ts`), so participants mounting at different folders agree; locally everything is vault paths. A move of a share root edits the record; every device moves its folder before the next partition (`features/spaces/share-moves.ts`).
-
-Failure modes the rules guard: a share whose scan lost every file (`SpaceGoneError`) is the device's error, settled by the person; closing is a tombstone, never file deletion; pausing keeps the folder out of the vault.
-
-## Moves, folders and names
-
-`pairMoves` pairs a gone path with a new one of the same baseline hash in one space, else by file name where one to one; the empty hash pairs nothing. A pull renames locally (`features/sync/apply/pull-moves.ts`), so a local edit goes with the file. Recasing on a case-blind disk steps through a free name (`renameCaseSafe`).
-
-A folder is removed only after a listing shows it empty. Accepted limits: a file created between the listing and the removal goes too; a destination edited while its source downloads keeps both files; a recasing whose rename back fails stays under its step name, said in the error, and a push may publish it so; an open live room waits as joining, holding the move back, until the next refresh or the rename back; two files of equal size and mtime swapped while an operation runs keep each other's hashes until one is edited (the persister saves the cache its scan saw); a remote rename into a name this disk refuses reads here as the deletion of its source.
+A `Space` has its own storage and key. `spacesOf` lists the vault first, then open records with free roots. Remote paths are relative to the space root so participants mounted at different folders agree. `pairMoves` never pairs an empty hash.
 
 ## Hunks
 
-A hunk index means nothing without its two texts. The diff view, the gutter marks and the operation must agree on the pair, the order and the baseline, or "apply hunk 3" hits another region. So the operation loads sides from one function, hashes them against what the view drew, and the editor's marks are built from the same segments push and revert move (blank lines make diffs ambiguous). History restore numbers hunks version-to-current, so it inverts the selection instead of recomputing the other way. Size gates run before any read so a large video never loads into a diff.
+An index has meaning only within its two texts: "apply hunk 3" on another pair hits another region. Flow: shared side loader -> view hashes -> operation hash check -> patch in the same order. Gutter marks use those patch segments because blank lines make independent diffs ambiguous. History restore selects version-to-current hunks by inversion, not a reverse diff; size gates keep large videos out before reads.
 
 ## History
 
-Every push writes one encrypted record, `history/p/<id>.enc`, before it publishes: the diff from that snapshot's parent (`added`, `modified {from, to}`, `deleted`). History covers vault files only: the configuration folder syncs but keeps no versions (plugin updates would hold every old bundle for the whole horizon), so its hashes go to the record's `released` list, which GC frees with the record; restore and new pins leave it alone. Both sides are stored so one version restores without replaying, and a record that never landed shows as a parent/child gap the walk from HEAD stops at (`coverOf`). A failed record write is retried before the next push. Readers list `history/` once and keep what they decoded in memory (`features/sync/history/remote.ts`); every query walks from HEAD (`features/sync/history/query.ts`). Pins are their own objects under `pins/` holding a full manifest, so they outlive the records. GC (`features/sync/history/gc.ts`) runs after a push this device published, at most every 10 minutes per space: it packs aged records into one object per period (every push for the last hour, then per 10 minutes, hour, day and week, then activity counts past the horizon, **Keep history for**), planned by the pure model in `features/sync/history/model/`, and sweeps the file versions they stopped naming one to two days later (the sweep lists every blob, so it runs about once a day). The activity those reads see is kept on the device (`features/sync/history/activity-cache.ts`) for the settings overview, which never reads history itself.
+Each push writes an encrypted record before it publishes the manifest: the diff from its parent (`added`, `modified {from, to}`, `deleted`). Both sides allow file restore without replay; the HEAD walk stops at gaps. Pins hold manifests and outlive records. Configuration has no versions: retaining every plugin bundle for the horizon would be costly; `released` hashes are cleanup metadata.
 
-Every manifest carries `MANIFEST_VERSION` 3, so a 1.x client refuses the remote from the first new push and never runs its GC or deep clean over this layout. 1.x history is not imported: the first push of a session deletes `history.json.enc` and the bare-manifest pins (`features/sync/history/legacy.ts`); the versions only they named stay until a deep clean, which refuses to run until a v3 HEAD fences the old clients out.
+GC packs aged records: every push for the last hour, then 10-minute, hourly, daily and weekly periods, then activity counts beyond **Keep history for**. The pure model lives in `history/model/`. Versions named only by removed 1.x history remain until deep clean.
 
-Windows: a blob younger than `SETTLED_AFTER_MS` (24 h) is never swept, GC sweeps what it freed only a day after freeing it, deep clean deletes nothing written in the last day. Accepted limits: a re-upload landing between the listing and its delete is still lost (Drive has no conditional delete); a push by another device that re-uploaded an old hash is covered only by those windows; a cold read decodes every listed record, and a vault never thinned by GC reads all of its pushes; a push stalled between its guard's precheck and its put while another push and its GC complete (the guard race, where that other push's files already leave HEAD) may find its parent merged away, so its history starts at a gap; a push that outlasts the 10-minute GC interval can queue a second, empty run behind the first; the horizon is a device setting, so the device with the shortest one thins history for all; a 1.x client stalled mid-push across the first v3 publish can land one v2 HEAD and rewrite the old log, until the next push publishes v3 and deletes it again; a packed version's push count still includes pushes that changed only the configuration folder, which the activity calendar leaves out; a restored file in a shared folder closed elsewhere returns to the vault without its hold, so an automatic push may publish it there.
+Windows: blobs younger than `SETTLED_AFTER_MS` (24 h) are never swept; GC waits a day after freeing hashes, leaving versions one to two days. Deep clean deletes nothing written in the last day.
 
 ## Other flows
 
-- Reset and adopt (`features/sync/operations/flows.ts`): reset deletes the vault storage's manifest, history, objects and pins and clears the baseline; adopt re-aims this device at a remote vault whose id changed. Category resets (`features/sync/operations/config-reset.ts`) bump a generation in the manifest.
-- Maintenance (`features/sync/runtime/maintenance.ts`): verify checks every reachable object exists, a recipe's chunks against one listing of `chunks/` (`deep` also rebuilds and hashes it); deep clean removes unreachable settled roots and the settled chunks no remaining recipe names.
-- Saved-file refresh (`features/sync/runtime/saved-refresh.ts`): display only, patches the last compare after an editor save; nothing persists, the next refresh reconciles.
-- Credentials: `features/sync/remote/keyfile.ts` wraps one constant data key under the passphrase (rotation re-wraps only); `features/sync/remote/passphrase-manager.ts` caches keys per epoch.
-- Plugin levels (`EPluginLevel`: Off, Settings, Code, Data; each adds to the one before): Settings is a plugin's `data.json`, Code adds `manifest.json`, `main.js`, `styles.css` (what Obsidian's installer writes), Data adds the rest of the folder (caches, indexes, subfolders). `pluginLevel` (default Settings, so code stays where each device put it) is every plugin's level while **Plugins** is on; `pluginLevels` holds overrides for single plugins, set in **Choose per plugin** (`features/sync/scope/plugin-levels-modal.ts`, which also lists plugins only the remote holds, named from the local `manifest.json`). Overrides are device-local and apply with **Plugins** off, to sync one private plugin only. A plugin at Off on a device is frozen there: its remote files stay and are never read as deletions, and nothing of it is read or published. A part above its plugin's level is frozen the same way. Accepted limits: a plugin missing here gets a folder holding only its `data.json` until it is installed by hand (Obsidian's installer keeps an existing `data.json`, so the synced settings are picked up); two devices on different plugin versions trade one settings file; a plugin removed on a device whose level covers its code takes its settings off every device, while devices below Code keep the plugin and start from its defaults; **Keep both** on a `data.json` is refused, since a copy beside it is out of scope (`keepBothConflictOp` refuses any copy the scope would not publish); **Clear on remote** clears every plugin part whatever its level, and devices whose level covers it upload it again; a plugin enabled in the synced list but missing here stays in the list (Obsidian reads and writes `community-plugins.json` whole).
-- Restart notice: Obsidian 1.14.5 reads plugin manifests and the enabled list only at startup, and watches only an enabled plugin's `data.json`. So after a pull that wrote plugin code or `community-plugins.json`, first sync included, `OperationRunner` calls the host hook `onPluginsPulled` and `app/runtime-hooks.ts` shows "Plugins changed on another device. Restart Obsidian to load them." The plugin never reloads another plugin itself. Accepted limit: a pull stopped by an error shows no notice for the code it landed, as with marks of others' edits.
+- Reset removes the vault storage's manifest, history, objects and pins and clears the baseline; adopt targets a remote vault whose id changed (`operations/flows.ts`).
+- Verify checks reachable roots and recipe chunks against one chunk listing; deep verify rebuilds and hashes content.
+- Saved-file refresh patches only the displayed compare after an editor save; nothing persists, the next refresh reconciles (`runtime/saved-refresh.ts`).
+- Passphrase rotation re-wraps a constant data key; `remote/passphrase-manager.ts` caches keys per epoch.
+- Plugin level defaults to Settings so code stays as each device installed it. Per-plugin selection also lists remote-only plugins, using names from local manifests. Obsidian 1.14.5 watches only enabled plugins' settings; the sync never reloads plugins itself.
+
+## Accepted limits
+
+- Publication guard: a backend hiding our write past retries (e.g. cached WebDAV) leaves it unconfirmed: peers are not pinged, a partial push shows an auto-merged conflict, that snapshot gets no history record.
+- Open: uploads still have a narrow probe-to-publish race with another device's reset, or clock skew over 12 h.
+- Journal: non-prefix garbage reads as an edit.
+- Journal: a later edit leaving a staged-copy prefix, or deleting the file, is undone.
+- Journal: a cut-short new pull that is no room snapshot stays a conflict with no baseline step.
+- Journal: a file a pull moves here and edits there likewise stays a conflict with no step.
+- Journal: switching storage drops its step.
+- Journal: a write landed in a run that died, then edited before the next compare, loses its step.
+- Journal: first-sync downloads have no baseline step; a note deleted elsewhere before completion comes back.
+- Folders: a file created between the empty listing and removal goes too.
+- Moves: a destination edited while its source downloads keeps both files.
+- Recasing: failed rename-back strands the step name reported in the error; a push may publish it.
+- Moves: an open room waits as joining, holding the move until refresh or rename-back.
+- Hash cache: equal-size/mtime files swapped mid-operation keep each other's hashes until edited; persistence saves the scan's cache.
+- Names: a remote rename to a disk-refused name reads as deletion of its source.
+- History: re-upload between listing and delete is lost (Drive has no conditional delete).
+- History: another device pushing a re-uploaded old hash has only the stated age windows.
+- History: cold reads decode every listed record; without GC, every push is read.
+- History: a push stalled between its guard's precheck and its put while another push and its GC complete (the guard race) may find its parent merged away, so its history starts at a gap.
+- History: a push outlasting the 10-minute GC interval can queue a second, empty run.
+- History: the shortest device-local retention horizon thins history for everyone.
+- History: a 1.x push stalled across first v3 publication can land a v2 HEAD and rewrite the old log until the next v3 push deletes it again.
+- History: packed push counts include config-only pushes; the activity calendar excludes them.
+- History: a restored file in a share closed elsewhere returns to the vault without its hold; auto-push may publish it there.
+- Plugin levels: a missing plugin gets only its settings file until installed by hand; the installer keeps that file.
+- Plugin levels: different plugin versions trade one settings file.
+- Plugin levels: removing a plugin where Code is covered removes settings everywhere; devices below Code keep the plugin with defaults.
+- Plugin levels: **Keep both** refuses a settings-file copy outside scope; `keepBothConflictOp` refuses any copy scope would not publish.
+- Plugin levels: **Clear on remote** clears all parts regardless of level; devices covering them upload again.
+- Plugin levels: an enabled but locally missing plugin stays in the synced enabled list; Obsidian reads/writes the list whole.
+- Restart notice: a pull failing after landing code shows no notice for it, as with marks of others' edits.
 
 ## Tests
 
-`packages/plugin/tests/features/sync/` mirrors the folders. Two devices share one `FakeStorage` through `pairedSessions` (`packages/plugin/tests/helpers/session.ts`); faults come from `packages/plugin/tests/helpers/faults.ts`; `packages/plugin/tests/features/sync/chaos.test.ts` runs seeded rounds of edits and killed writes across three devices.
+`packages/plugin/tests/features/sync/` mirrors the folders; `chaos.test.ts` runs seeded edits and killed writes across three devices. Harness: `.claude/rules/testing.md`.

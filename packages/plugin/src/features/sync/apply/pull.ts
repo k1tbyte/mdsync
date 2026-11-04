@@ -19,7 +19,7 @@ export interface PullResult {
 	baseline: Manifest;
 	/** What each pulled path now looks like on disk (null = deleted). */
 	written: Map<string, ManifestEntry | null>;
-	/** Stopped early: `written` holds only what actually landed. */
+	/** Stopped early: `written` holds only what landed. */
 	cancelled: boolean;
 	/** What stopped it, `written` holding what landed before: the caller saves that, then throws it. */
 	failed?: Error;
@@ -67,7 +67,6 @@ export async function pullPaths(
 	return { baseline, written, cancelled, failed };
 }
 
-/** Records each path in `written` as it lands. */
 async function land(
 	deps: EngineDependencies,
 	compareResult: CompareResult,

@@ -165,7 +165,6 @@ export const pullHunksOp: Operation<PullHunksArgs> = async (
 	};
 };
 
-/** Republishes the remote file map with one path removed. */
 async function publishWithoutPath(
 	deps: EngineDependencies,
 	result: CompareResult,

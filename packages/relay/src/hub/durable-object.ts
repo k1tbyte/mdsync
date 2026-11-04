@@ -100,9 +100,8 @@ export class Hub extends DurableObject<HubEnv> {
 	}
 
 	/**
-	 * Keepalives never wake the hub, so missing pings are the only sign of a half-open socket; sweeping
-	 * twice per window bounds a ghost's life at 1.5 windows. Each sweep is a request and a row, so it runs
-	 * only while someone could see a ghost.
+	 * Keepalives never wake the hub, so only missing pings reveal a half-open socket; sweeping twice per window caps a
+	 * ghost's life at 1.5 windows. Each sweep costs a request and a row, so it runs only while someone could see a ghost.
 	 */
 	async alarm(): Promise<void> {
 		this.sweep();
@@ -169,8 +168,7 @@ interface Attached {
 }
 
 /**
- * One object per socket: reading a 16 KB attachment and rebuilding its peer for every socket on every frame
- * was the hub's hot path.
+ * One object per socket avoids reading a 16 KB attachment and rebuilding its peer on every frame.
  */
 const attached = new WeakMap<WebSocket, Attached>();
 

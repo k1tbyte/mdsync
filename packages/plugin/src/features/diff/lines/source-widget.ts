@@ -185,7 +185,7 @@ export class SourceBlockWidget extends WidgetType {
 
 	constructor(private readonly block: SourceBlock) {
 		super();
-		// Lines are compared in `eq`: joining them here copied every change on each redraw.
+		// Lines are compared in `eq`: joining here would copy every change per redraw.
 		this.signature = [
 			block.key,
 			block.tone,

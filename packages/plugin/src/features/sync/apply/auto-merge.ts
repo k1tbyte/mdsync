@@ -83,7 +83,7 @@ export async function autoMergeOp(
 		newRemote: result.remote,
 		touchedPaths: new Set(mergedPaths),
 		cancelled,
-		// Merged text is new: localEntries ensures the snapshot does not adopt the remote hash and drop the push.
+		// Merged text is new: localEntries keeps the snapshot from adopting the remote hash and dropping the push.
 		localEntries,
 	};
 }

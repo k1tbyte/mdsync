@@ -83,7 +83,7 @@ function readIfChanged(
 		);
 }
 
-// Only a complete head actually published by this session can replace a stale read.
+// Only a complete head published by this session can replace a stale read.
 export function reconcileRemoteAgainstBaseline(
 	remote: Manifest | null,
 	baseline: Manifest | null,

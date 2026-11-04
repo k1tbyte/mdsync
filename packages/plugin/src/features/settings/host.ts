@@ -10,7 +10,6 @@ import type {
 } from "@/features/sync";
 import type { TransferHost } from "@/features/transfer";
 
-/** What the settings tab needs from the plugin: every section's host. */
 export interface SettingsTabHost
 	extends HistorySectionHost,
 		SpacesHost,

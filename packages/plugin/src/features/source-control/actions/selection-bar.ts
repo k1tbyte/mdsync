@@ -11,7 +11,6 @@ export interface SelectionCommand {
 	run: () => unknown;
 }
 
-/** A list whose rows can be ticked. */
 export interface SelectionSource {
 	readonly selectedCount: number;
 	selectionCommands(): SelectionCommand[];

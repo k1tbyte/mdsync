@@ -111,8 +111,8 @@ async function sealBytes(
 }
 
 /**
- * The version byte sits outside the ciphertext, so bind it to stop a blob being relabelled compressed. Only
- * the new version: {@link BLOB_VERSION} blobs were sealed without it.
+ * The version byte sits outside the ciphertext, so bind it to stop a blob being relabelled compressed.
+ * Except {@link BLOB_VERSION}: its blobs were sealed without it.
  */
 function versionAad(version: number): Uint8Array | undefined {
 	return version === BLOB_VERSION ? undefined : new Uint8Array([version]);

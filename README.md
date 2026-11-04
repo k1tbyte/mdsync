@@ -1,4 +1,9 @@
-<p align="center"><img src="docs/hero.webp" alt="MDSync: serverless, end-to-end encrypted vault sync for Obsidian, with a merge editor, file history, live editing and shared folders"></p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/hero/combo-light-2x1.webp">
+    <img src="docs/hero/combo-dark-2x1.webp" alt="MDSync: serverless, end-to-end encrypted vault sync for Obsidian, with push and pull, file history and live editing">
+  </picture>
+</p>
 
 <p align="center">
   <a href="https://community.obsidian.md/plugins/mdsync"><img src="https://img.shields.io/badge/Obsidian-community%20plugin-7C3AED?logo=obsidian&logoColor=white" alt="Obsidian community plugin"></a>

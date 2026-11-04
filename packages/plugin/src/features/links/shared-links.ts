@@ -10,7 +10,7 @@ import {
 import { tradeLinks } from "./remote";
 
 const MS_PER_S = 1000;
-/** setTimeout's ceiling; a later expiry just takes another lap. */
+/** setTimeout's ceiling; a later expiry takes another lap. */
 const MAX_DELAY_MS = 2 ** 31 - 1;
 
 export interface SharedLinksDeps {
@@ -123,9 +123,8 @@ export class SharedLinks {
 	}
 
 	/**
-	 * Every record `change` replaced becomes a revision by this device, also when replayed onto a trade's
-	 * outcome, so it lands above whatever the trade took in. Replayed even when it changed nothing here: it may
-	 * touch a link the trade brings in. False when nothing changed.
+	 * Every record `change` replaces gets this device's revision above the trade's outcome, including on replay.
+	 * Even locally unchanged edits replay: they may touch links the trade brings in. False when nothing changed.
 	 */
 	private async edit(change: Edit): Promise<boolean> {
 		const revised: Edit = (links) => {

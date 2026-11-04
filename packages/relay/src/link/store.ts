@@ -1,7 +1,6 @@
 /**
- * One share link's state in its Durable Object's SQLite: the sealed blob in chunks, the view counter, the
- * gate. Every method is synchronous, so a view is counted and a spent link erased in one turn, and two
- * opens never both take the last view.
+ * One share link's state in its Durable Object's SQLite: the sealed blob in chunks, the view counter, the gate.
+ * Every method is synchronous: one turn counts a view and erases a spent link, so two opens never share the last view.
  */
 
 import {
@@ -108,9 +107,8 @@ export class LinkStore {
 	}
 
 	/**
-	 * Counts a view and hands the blob out; the last permitted view erases the link as it leaves. Wrong
-	 * gates slow down the client that sent them, never the link: anyone holding only the id could lock the
-	 * readers out otherwise.
+	 * Counts a view and hands out the blob; the last permitted view erases the link as it leaves. A wrong gate slows
+	 * its sender, never the link: otherwise anyone holding only the id could lock readers out.
 	 */
 	open(gate: string | null, client: string): OpenResult {
 		const link = this.live();

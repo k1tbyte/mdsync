@@ -16,9 +16,9 @@ const NOT_TEXT = "Hunk-level actions are only supported for text files";
 
 /** Which two texts a hunk list was computed from. */
 export const EHunkPair = {
-	/** baseline vs local - mirrors `buildLocalChangeDiff`. */
+	/** baseline vs local: mirrors `buildLocalChangeDiff`. */
 	Local: "local",
-	/** local vs remote - mirrors `buildRemoteChangeDiff` and `buildConflictDiff`. */
+	/** local vs remote: mirrors `buildRemoteChangeDiff` and `buildConflictDiff`. */
 	Remote: "remote",
 } as const;
 export type EHunkPair = (typeof EHunkPair)[keyof typeof EHunkPair];
@@ -35,7 +35,7 @@ export interface HunkSidesHash {
 }
 
 /**
- * Single source of the texts a hunk index refers to: the diff projection and the applying operation MUST both
+ * Single source of the texts a hunk index refers to: the diff projection and the applying operation must both
  * read here, or index `i` differs between view and operation.
  */
 export async function loadHunkSides(
@@ -104,7 +104,7 @@ async function localSide(
 	deps: EngineDependencies,
 	path: string,
 ): Promise<string> {
-	// Preflight path/stat to avoid reading large binaries into memory just to reject them.
+	// Preflight path/stat to avoid reading large binaries into memory to reject them.
 	if (hasKnownBinaryExtension(path)) throw new Error(NOT_TEXT);
 	const stat = await deps.adapter.stat(path).catch(() => null);
 	if (stat?.type === "file" && stat.size > HUNK_TEXT_MAX_BYTES) {
@@ -126,7 +126,6 @@ async function remoteSide(
 	return decodeRemote(deps, path, entry.hash, entry.size);
 }
 
-/** Downloads one manifest entry as text, refusing anything that cannot be. */
 async function decodeRemote(
 	deps: EngineDependencies,
 	path: string,

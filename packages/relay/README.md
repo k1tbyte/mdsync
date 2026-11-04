@@ -1,68 +1,71 @@
 # Relay
 
-`mdsync-relay`: one Cloudflare Worker, deployed to the user's own account, that adds live editing, instant sync signals, shared folders, share links and the Google Drive sign-in to the plugin. It uses Cloudflare Durable Objects directly (no PartyServer) and fits the Workers free tier. One `RELAY_SECRET` is one trust domain: the owner of the relay is the owner of everything on it. Constraints: `.claude/rules/realtime.md` (hub), `.claude/rules/spaces.md` (broker), `.claude/rules/links.md` (links). Formats: `packages/protocol/README.md`. Shared folders: `packages/plugin/src/features/spaces/README.md`. Share links: `packages/plugin/src/features/links/README.md` and `packages/viewer/README.md`.
+`mdsync-relay`: a user-owned Cloudflare Worker for live editing, sync signals, shared folders, links and Google Drive sign-in. Direct Durable Objects, no PartyServer; fits Workers Free.
+
+Constraints: `.claude/rules/realtime.md`, `.claude/rules/spaces.md`, `.claude/rules/links.md`, `.claude/rules/security.md`, `.claude/rules/settings-setup.md`, `.claude/rules/live.md`, `.claude/rules/releasing.md`. Wire formats: `packages/protocol/README.md`.
 
 ## Service map
 
-`packages/relay/src/index.ts` routes by path and falls through each handler in turn; CORS preflight is answered for every path.
+`src/index.ts` tries handlers in turn; CORS preflight on every path.
 
-| Path | Handler | Auth | Holds |
-|---|---|---|---|
-| `/hub` (WebSocket), `/hub/signal` (POST) | `packages/relay/src/hub/access.ts` -> `Hub` Durable Object | channel grant or live share token, checked in the worker before the object wakes | document logs, presence fan-out, revoked grants |
-| `/share/*` | `packages/relay/src/share/broker.ts`, `packages/relay/src/share/admin.ts` | participant: share token; owner routes: `X-Mdsync-Admin` = `RELAY_SECRET` | KV `SHARE_TOKENS`: tokens, pointers, share storage |
-| `/link/*`, `/s/<id>` | `packages/relay/src/link/routes.ts`, `packages/relay/src/link/shell.ts` -> one `Link` Durable Object per link | owner routes: relay secret; `meta` and `open`: public, behind the link's gate | sealed note, view counter, gate hash |
-| `/auth`, `/refresh` | `packages/relay/src/google-oauth.ts` | public; `/auth` needs a nonce the plugin started | nothing stored |
-| `/status` | `packages/relay/src/index.ts` | relay secret | tells a wrong URL (no answer) from a wrong secret (401); reports `RELAY_VERSION` |
+| Route | Entry | Service |
+|---|---|---|
+| `/hub` (WebSocket), `/hub/signal` (POST) | `src/hub/access.ts` | `Hub`: document logs, presence fan-out, revoked grants |
+| `/share/*` | `src/share/broker.ts`, `src/share/admin.ts` | token broker and storage registration |
+| `/link/*`, `/s/<id>` | `src/link/routes.ts`, `src/link/shell.ts` | one `Link` object per link; viewer shell |
+| `/auth`, `/refresh` | `src/google-oauth.ts` | public OAuth proxy; no storage |
+| `/status` | `src/index.ts` | secret-authenticated version; wrong URL: no answer; wrong secret: 401 |
 
-- **Hub.** One `Hub` object per deployment (`hubStub`): fewer sockets, handshakes and wake-ups, and one secret already is one trust domain. Model below.
-- **Share broker.** A participant's share token buys a presigned S3 URL (120 s) for one key under `shares/<shareId>/` of the owner's bucket; bytes never pass through the relay. The owner registers where the share lives and issues tokens. `packages/relay/src/share/sigv4.ts` is a minimal WebCrypto presigner (the AWS SDK is too heavy for a worker) over the SigV4 pieces in `packages/protocol/src/sigv4.ts`; `packages/relay/src/share/key.ts` is the security boundary between an object name and a bucket key.
-- **Link storage.** One `Link` object per link so a view is counted in the link's own turn (`packages/relay/src/link/store.ts`, synchronous on purpose); `handleShellRequest` serves `packages/viewer` with the CSP. See the links README.
-- **Google OAuth proxy.** Keeps `GDRIVE_CLIENT_SECRET` off devices. `/auth` without a code takes the plugin's one-time nonce, issues a signed state (timestamp, nonce, HMAC under the client secret) plus a `HttpOnly` cookie, and redirects to Google's consent; the callback needs both state and cookie (a signature proves we minted it, the cookie proves the same browser returned: without it `/auth?code=...` would sync a victim's vault into the attacker's Drive), exchanges the code and redirects to `obsidian://mdsync-auth` with tokens and the nonce. `/refresh` (POST) swaps a refresh token for an access token, returns a rotated refresh token, and answers 401 `invalid_grant` for a revoked one so the plugin does not retry it as an outage. 503 `not_configured` without the Google secrets.
+Broker bytes go straight to S3. `src/share/sigv4.ts` uses shared WebCrypto SigV4; the AWS SDK is too heavy.
 
 ## Persistence layout
 
-- **KV `SHARE_TOKENS`** (`packages/relay/src/share/kv.ts`; the key layout stays in that file): `tok:<token>` -> token record (`shareId`, `participantId`, role `rw`/`ro`, label), `pt:<shareId>:<participantId>` -> the participant's current token, `storage:<shareId>` -> the owner's registered S3 location and credentials. A token is live only while its pointer names it, so two re-invites at once leave one live token, not an orphan no revoke finds. KV is eventually consistent (about a minute, negative answers cached) and the free tier allows 1k writes a day (`saveStorage` writes only a changed registration).
-- **Hub object SQLite** (`packages/relay/src/hub/store.ts`, `packages/relay/src/hub/revoked.ts`): `docs` (one row per `(channel, doc)`: snapshot, forwarding pointer, log name), `chunks` (consecutive deltas, each after its 4-byte length), `revoked` (grant fingerprint, until), `closed` (channels shut for good). Per-socket state (slot -> channel, grant fingerprint, `who`, `name`, subscriptions) lives in the 16 KB WebSocket attachment, not in tags (at most 10).
-- **Link object SQLite** (`packages/relay/src/link/store.ts`): `link` (views, limits, expiry, gate hash, salt, size), `chunks` of the sealed blob, `throttle` per client. An alarm erases an expired link and frees its storage.
-- **Assets**: the viewer build (`packages/viewer/dist`), served as plain files under `/viewer/`; only `/s/*` runs the worker first (`packages/relay/wrangler.toml`).
-- Everything the relay stores is ciphertext, hashes or what an owner registered: the owner's S3 credentials and invite labels (KV), a Drive refresh token in transit only.
+- KV `SHARE_TOKENS` (`src/share/kv.ts`): `tok:<token>` holds `shareId`, `participantId`, role `rw`/`ro`, label; `pt:<shareId>:<participantId>` names the current token; `storage:<shareId>` holds the registered S3 location and credentials. Negative answers are cached.
+- Hub SQLite (`src/hub/store.ts`, `src/hub/revoked.ts`): `docs` holds snapshot, pointer and log name per `(channel, doc)`; `chunks` holds consecutive deltas with 4-byte lengths; `revoked` holds fingerprint/expiry; `closed` holds ended channels. Socket attachments hold slot/channel, fingerprint, `who`, `name` and subscriptions; tags allow only 10 entries.
+- Link SQLite (`src/link/store.ts`): `link` holds views, limits, expiry, gate hash, salt and size; `chunks` holds the blob; `throttle` holds per-client state. An alarm erases expired links.
+- Viewer assets: `packages/viewer/dist`, served under `/viewer/`.
 
 ## Hub model
 
-- `/hub?c=<channel>&t=<grant>&...&d=<device>` opens up to 32 slots (`MAX_SLOTS`); the worker checks every grant before waking the object. The vault's channel is `sha256(storageIdentity)`, so the relay never sees the endpoint or bucket. An owner grant is `<expiry>.<HMAC(secret, "<expiry>:<channel>")>`, minted per connection for a day; the relay refuses one expired or minted over a day further ahead. A socket outlives its grant.
-- Rates per socket (`packages/relay/src/hub/limits.ts`): frames 32 a second, bursts of 256, excess dropped unanswered; a read-only socket's awareness 20 a second, bursts of 40, 4 KB. The burst takes an update and a cursor from all 64 documents a socket may follow; sustained bulk edits can pass the rate, and the client resends what was dropped (the echo is the ack).
-- A read-only share token follows documents but never writes (`Refused(ReadOnly)`) and never signals (the hub drops it, HTTP answers 403: it would only wake everyone into a sync).
-- `name` is the label the owner invited a participant by, from the broker token, cut to 64 UTF-16 units so its UTF-8 fits a frame's one-byte text length. `JOIN {from, who, name}` goes to the channel as a socket arrives; before it, the newcomer gets `HERE` for everyone already there, since presence is never stored.
-- Keepalive: `ping` is auto-answered without waking the object. While two or more sockets exist, an alarm every half window (37 s of 75) closes those silent past the window and announces `LEAVE` once. Each alarm is a request and a row, and a lone ghost misleads no one: the next arrival sweeps first. The client drops a link silent 90 s; a network change leaves a socket half-open, so `online`, turning visible and a send after 10 s of quiet ping first, and no answer in 5 s drops it sooner.
-- Revocation: broker -> `Hub.dropGrant` -> `REVOKED(slot)` (cut first, then the token and pointer go, so a failed cut is retried by repeating the revoke); other slots live on, a socket with none left closes with 4001. The hub keeps a revoked fingerprint 5 minutes (`REVOKED_MS`) and refuses it on connect, because KV may still let it in. The client retries a refused socket six times and then reads `unauthorized` until settings change or the device wakes; the share's own close waits longer (`.claude/rules/spaces.md`, "Close, leave, revoke").
-- Storage: an update joins the last chunk while it stays within 4 KB, else starts one: a row written either way, and a compaction deletes a row per chunk, so about 1.03 rows an update (a row per delta cost about 2). The head is the last chunk's last seq, or the snapshot's when compaction left none; a chunk the snapshot covers part of stays, reads skip what it covers. Ending a share deletes its rows (`purgeChannel`) and shuts the channel (`closed`). A frame is at most 1 MiB; live notes are markdown up to 256 KB, so a snapshot fits one frame and one row (a drawing may reach 1 MiB: past a frame the leader rebuilds the room, and past that the note goes back to the file sync).
-- A room row created again gets a new log name, sent in `STATE`: a client that sees another name, or a head behind what it knows, rotates the note on.
-- A frame past 1 MiB, a document past a socket's 64, or a write from a read-only grant is answered `Refused{reason}` to its sender only; that note stays with the file sync until it is closed, and its status says why.
-- Each document frame runs in one SQLite transaction (`DocStore.atomic`); a throw (past Free's 100k rows a day, the next write throws until 00:00 UTC) rolls it back and answers `Refused(Unstored)`. Unanswered, the writer would resend forever and its notes stay out of every push; half a seed would leave a row with no delta that answers each seed with `State(head 0)` again.
+One `Hub` (`hubStub`) saves sockets, handshakes and wake-ups.
+
+- `src/hub/limits.ts`: 32 frames/s, burst 256; read-only awareness 20/s, burst 40, at most 4 KB. The burst accommodates an update and cursor for all 64 followed documents; sustained bulk edits can exceed it.
+- Newcomers receive existing sockets' `HERE` before channel `JOIN`. Labels are cut to 64 UTF-16 units.
+- Stale window 75 s, swept by an alarm every 37 s; each alarm costs a request and a row, and a lone ghost misleads nobody (the next arrival sweeps first). The client drops a link silent 90 s; a network change leaves a socket half-open, so `online`, turning visible and a send after 10 s of quiet ping first and drop it after 5 s without an answer.
+- Append to the last chunk up to 4 KB, then start another: about 1.03 rows/update including compaction, versus about 2 per-delta. Head = last chunk's last seq, else snapshot seq; reads skip covered deltas in retained partial chunks.
+- Recreated room rows get a fresh log name in `STATE`. Markdown up to 256 KB fits a snapshot in one frame and row; drawings may reach 1 MiB. Beyond a frame the leader rebuilds the room; beyond that the note returns to file sync. A refused note stays cold until closed.
+
+## Google OAuth
+
+`GDRIVE_CLIENT_SECRET` stays off devices. `/auth` signs timestamp/plugin nonce with it and sets an `HttpOnly` cookie before Google consent. The callback needs signed state and cookie: origin plus same-browser proof prevents sign-in to an attacker's Drive. It exchanges the code and redirects tokens/nonce to `obsidian://mdsync-auth`.
+
+POST `/refresh` returns access/rotated refresh tokens; revoked tokens: 401 `invalid_grant`, not an outage. Missing Google secrets: 503 (`not_configured` on refresh).
 
 ## Deploy
 
-Both paths deploy the same `packages/relay/wrangler.toml`: KV binding `SHARE_TOKENS`, Durable Objects `Hub` and `Link`, assets from `../viewer/dist`, migrations. Secrets: `RELAY_SECRET` (admin auth; hub grants derive from it), optional `GDRIVE_CLIENT_ID` and `GDRIVE_CLIENT_SECRET`.
+`wrangler.toml` carries KV, `Hub`/`Link`, viewer assets and migrations. Secrets: `RELAY_SECRET`; optional `GDRIVE_CLIENT_ID` / `GDRIVE_CLIENT_SECRET`.
 
-- **In the plugin** (`features/relay/deploy/`, paths relative to `packages/plugin/src/`). `packages/relay/bundle.mjs` runs `wrangler deploy --dry-run`, reads the config (KV, Durable Objects, migrations, assets) and emits `packages/relay/dist/relay-bundle.json` (gitignored; text assets only); `packages/plugin/esbuild.relay-bundle.mjs` serves it as `mdsync:relay-bundle`, stamping `<plugin release>+<hash>` as the version, so a release deploys the relay of its own commit. `deployRelay` (`features/relay/deploy/relay-deploy.ts`) goes by steps: workers.dev subdomain, KV namespace, assets upload, worker upload (multipart: bindings, `RELAY_VERSION` plain text, `RELAY_SECRET` secret text, migrations), then `onUploaded`, then the subdomain route. `keep_bindings: ["secret_text"]` keeps secrets set outside MDSync (the Google client). An existing relay keeps its KV namespace (a new one orphans every share token); a first deploy finds one by wrangler's title, so a relay first deployed by the workflow is found. `pendingMigrations` sends every migration after the deployed tag and refuses an unknown deployed tag rather than replay from the start (it could recreate or delete a Durable Object class holding live data). A new kind of binding in `packages/relay/wrangler.toml` also needs `packages/relay/bundle.mjs`, `RelayBundle` (`features/relay/deploy/bundle.ts`) and `uploadForm` to carry it. Flow, update offers and consent: `.claude/rules/settings-setup.md`.
-- **GitHub Actions** (`.github/workflows/deploy-relay.yml`, manual dispatch on a fork): relay tests, viewer build, then `wrangler deploy --secrets-file` with `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `RELAY_SECRET` (the run fails without it) and the optional Google secrets. Wrangler creates the KV namespace and Durable Objects on the first deploy. Such a relay has no `RELAY_VERSION`: `/status` reports `null` and the plugin treats it as deployed outside MDSync (`relayBehind` is false, no update offer).
-- `HUB_STALE_MS` overrides the stale-socket window and is set only by tests (`pnpm e2e:hub`).
+- Plugin: `bundle.mjs` runs `wrangler deploy --dry-run`, emitting `dist/relay-bundle.json` (gitignored, text assets). `packages/plugin/esbuild.relay-bundle.mjs` exposes it. In `packages/plugin/src/features/relay/deploy/`, `relay-deploy.ts` provisions subdomain, KV and assets; uploads worker bindings/version/secret/migrations; calls `onUploaded`; enables the route. `keep_bindings: ["secret_text"]` preserves external Google secrets. First deploy finds KV by wrangler title, including workflow namespaces. `pendingMigrations` sends subsequent tags, refusing unknown tags to avoid destructive replays. New binding kinds must pass through `bundle.mjs`, `bundle.ts` (`RelayBundle`) and `uploadForm`.
+- `.github/workflows/deploy-relay.yml`: tests, viewer build, `wrangler deploy --secrets-file`; missing `RELAY_SECRET` fails the run. Wrangler creates KV and objects on first deploy. No `RELAY_VERSION` means `/status` returns `null`, `relayBehind` is false and no update is offered.
+- `HUB_STALE_MS` is a test-only stale-window override.
 
 ## Migrations and compatibility
 
-- `[[migrations]]` in `packages/relay/wrangler.toml` are append-only: `v1` created `SyncRelay`, `v2` replaced it with `Hub`, `v3` added `Link`. A new Durable Object class needs a new tag; never edit an old one.
-- Plugin and relay deploy apart, so each tolerates the other's older build: a 1.3.0 client, which does not know `Refused(Unstored)`, goes cold under a generic status; an older relay answers `not_found` to link creation and one refused batch per transfer to batch signing (the plugin says to redeploy the relay).
-- A 1.3 relay kept a row per delta (`deltas`). `SqlDocStore` packs each log into chunks in one transaction, a row per chunk; while the day's writes cannot cover it, document frames get `Refused(Unstored)` and retry, the rest of the hub runs. `deltas` beside `chunks` means a rollback appended under seqs the chunks hold: the logs start over as if lost, pointers kept. The plugin never deploys an older relay; only a manual rollback does this, and every live log restarts (devices rotate from their text).
+`wrangler.toml`: `v1` created `SyncRelay`, `v2` replaced it with `Hub`, `v3` added `Link`.
 
-## Accepted limitations
+## Accepted limits
 
-- Grants ride in the hub URL: a browser WebSocket cannot send `Authorization`, and `Sec-WebSocket-Protocol` would be logged unredacted, while Cloudflare's logs redact hex and base64 ids in URLs by heuristics. A leaked owner grant admits for up to a day.
-- An unauthenticated upgrade can cost up to 2 KV reads per slot before the hub is reached; a Cloudflare rate-limiting rule on `/hub` is the remedy.
-- A writable token can fill one document's log up to the tail cap (2,000 deltas or 8 MiB since its snapshot), and open as many documents as it likes; the hub caps frames and tails, not a channel's document count.
-- The relay can withhold, replay or reorder a document's frames: additional data binds a frame to where it belongs, not to when.
-- With the day's Durable Object writes used up (Free: 100k rows), a revocation throws in `Hub.dropGrant` / `purgeChannel` before it cuts a socket; the owner sees the error, and the participant keeps access until a retry succeeds after 00:00 UTC. Cutting first would not help: KV still admits the token.
-- A revoked writer keeps file storage for up to about three minutes (KV grant cached about 60 s, presigned URL 120 s): the broker never asks the hub's revoked table per signature.
-- The hub keeps every room (snapshot, tail, pointer) until its share ends, in one Durable Object capped at 10 GB. Deleting idle rooms is not enough: a deleted id is seedable again, so a device returning with a stale disk takes the regrown log for a lost one and rotates over newer edits, and an expired pointer splits a note from its live successor. Retiring needs a tombstone the hub answers with a new signal, clients moving to the next generation (join it, else seed it), and a backfill batched within the Workers Free write budget.
-- A session that seeded a room learns the log's name from its next `STATE`: a log lost before that shows only once the head falls behind.
-- The broker presigns DELETE too: a writer can remove a share's objects; history, not revocation, repairs that.
-- The relay's operator is the owner and serves the viewer script, so a hostile operator could read link notes (`.claude/rules/security.md`).
+- Grants ride in the hub URL (a browser WebSocket cannot send `Authorization`, `Sec-WebSocket-Protocol` is logged unredacted) and rely on Cloudflare's heuristic redaction of ids; a leaked owner grant admits for up to a day.
+- Unauthenticated upgrades can cost 2 KV reads/slot; a Cloudflare rate-limiting rule on `/hub` is the remedy.
+- Writable tokens can fill tails (2,000 deltas or 8 MiB since snapshot) and open unlimited documents; no channel-wide document cap.
+- A relay can withhold, replay or reorder frames; additional data binds place, not time.
+- Exhausting Free's 100k daily writes makes `Hub.dropGrant` / `purgeChannel` throw before cutting sockets. The owner sees an error; access lasts until retry succeeds after 00:00 UTC. Cutting first would leave KV admitting the token.
+- Revoked writers retain file access for about 3 min (60 s KV cache + 120 s presign); signing never consults the hub's revoked table.
+- Rooms persist until their share ends, in one 10 GB object. Deleting idle rooms is not enough: a deleted id is seedable again, so a stale disk takes the regrown log for a lost one and rotates over newer edits, and an expired pointer splits a note from its successor. Retiring needs a tombstone answered with a new signal, clients moving to the next generation (join, else seed) and a backfill within the Free write budget.
+- Seeders learn the log name only at the next `STATE`; earlier log loss shows only when head falls behind.
+- Writers can DELETE share objects; history, not revocation, repairs them.
+- A hostile owner/operator serves the viewer and could read link notes.
+- Compatibility: 1.3.0 clients show unknown `Refused(Unstored)` as generic cold status; older relays answer `not_found` on link creation and refuse one signing batch per transfer (redeploy notice).
+- `SqlDocStore` converts 1.3 `deltas` to chunks transactionally; insufficient daily writes refuse document frames until retry, leaving the rest of the hub running. A manual rollback leaving both tables restarts every live log, preserving pointers; devices rotate from their text.
+
+Tests: `tests/hub/`, `tests/share/`, `tests/link/`; real hub: `pnpm e2e:hub`.

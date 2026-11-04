@@ -15,9 +15,8 @@ import { sha256Hex } from "@/core/crypto";
 import type { S3StorageConfig } from "../config";
 
 /**
- * SigV4 signing for S3-compatible storage, so requests go through Obsidian's `requestUrl` instead of
- * `fetch`: at origin `app://obsidian.md` fetch is subject to CORS, which most backends reject until the
- * user hand-writes a bucket CORS policy.
+ * SigV4 lets S3-compatible requests use Obsidian's `requestUrl`, not `fetch`: at `app://obsidian.md`,
+ * fetch faces CORS, which most backends reject without a hand-written bucket CORS policy.
  */
 
 /** SHA-256 of the empty string: the payload hash of a request with no body. */
@@ -130,9 +129,8 @@ interface ResolvedEndpoint {
 }
 
 /**
- * The default region "auto" is accepted by R2 but not AWS: with no endpoint it would name the host
- * `s3.auto.amazonaws.com`, which resolves nowhere. us-east-1 instead fails with a 400 naming the bucket's
- * real region, which the user can act on.
+ * R2 accepts the default region "auto", but AWS does not: without an endpoint, `s3.auto.amazonaws.com` resolves nowhere.
+ * us-east-1 instead fails with a 400 naming the bucket's real region, which the user can act on.
  */
 export function signingRegion(config: S3StorageConfig): string {
 	const region = config.region.trim();
@@ -163,9 +161,8 @@ function resolveEndpoint(config: S3StorageConfig): ResolvedEndpoint {
 }
 
 /**
- * Hashing an upload is a second full pass over every blob on the UI thread. Over HTTPS TLS protects the
- * body and AWS documents UNSIGNED-PAYLOAD; a plain-HTTP endpoint (a LAN MinIO) has no transport integrity,
- * so there the body is hashed.
+ * Hashing uploads costs a second full UI-thread pass per blob. HTTPS uses TLS integrity and AWS's documented
+ * UNSIGNED-PAYLOAD; plain HTTP (a LAN MinIO) has no transport integrity, so the body is hashed.
  */
 async function payloadDigest(
 	body: Uint8Array | undefined,

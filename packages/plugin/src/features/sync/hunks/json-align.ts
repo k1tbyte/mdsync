@@ -1,9 +1,8 @@
 export type Json = unknown;
 
 /**
- * Base and remote rewritten in local's key order and indent, so a merge shows only real changes. Only for JSON
- * exactly as `JSON.stringify` writes it on every side (Obsidian's config, plugin `data.json`): rewriting such a
- * text loses nothing. Null otherwise.
+ * Base and remote take local's key order and indent, so merges show only real changes. Lossless only for exact
+ * `JSON.stringify` output on every side (Obsidian config, plugin `data.json`); null otherwise.
  */
 export function alignJsonSides(
 	base: string,

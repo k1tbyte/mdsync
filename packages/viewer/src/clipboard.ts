@@ -23,7 +23,7 @@ export async function copyWithFeedback(
 	try {
 		copied = await copyText(text());
 	} catch {
-		// A note that cannot be converted just fails to copy.
+		// A note that cannot be converted fails to copy.
 	}
 	const shown = button.querySelector(".label") ?? button;
 	shown.textContent = copied ? "Copied" : "Copy failed";

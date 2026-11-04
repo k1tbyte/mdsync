@@ -166,7 +166,7 @@ export function isRelayConfigured(relay: RelayConfig): boolean {
 	);
 }
 
-/** Dropped settings. Several held secrets - share keys among them - so they are deleted, not kept. */
+/** Dropped settings. Several held secrets (share keys among them), so they are deleted, not kept. */
 const RETIRED_KEYS = [
 	"realtimeServerUrl",
 	"realtimeToken",

@@ -1,7 +1,6 @@
 /**
- * Excalidraw's `compressed-json` scene is one LZString stream: any edit rewrites all of it, so neither gzip nor
- * chunking can share bytes between versions. The stored form carries the scene as plain JSON instead; the wrap
- * the plugin applied to the base64 is kept so the original bytes come back.
+ * Excalidraw's `compressed-json` scene is one LZString stream that every edit rewrites, so versions share no bytes
+ * for gzip or chunking. It is stored as plain JSON, with the plugin's base64 wrap kept to rebuild the original bytes.
  */
 
 import { compressToBase64, decompressFromBase64 } from "lz-string";

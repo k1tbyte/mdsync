@@ -5,7 +5,7 @@ import type { SpaceHub } from "@/core/hub";
 import type { Author } from "../authors";
 import type { LiveKind, LiveModel } from "../model";
 
-/** "busy": not now - edits still staged or unacked, offline, or the answer was lost. */
+/** "busy": not now (edits still staged or unacked, offline, or the answer was lost). */
 export type Rotation = "moved" | "refused" | "busy";
 
 /** Why a reader's note stays cold: nobody edits it live yet, or this copy and the room differ. */

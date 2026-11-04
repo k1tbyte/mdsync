@@ -10,9 +10,8 @@ interface Vouched {
 }
 
 /**
- * Who else holds one channel, per hub socket. Sealed announcements wait for the key (sent once per join). A
- * client can seal any name, but not the `who` the hub vouches for its socket. `unlock` and `apply` resolve
- * true when what is shown changed.
+ * Who else holds one channel, per hub socket; sealed announcements wait for the key (sent once per join). A client
+ * can seal any name, not the `who` the hub vouches for. `unlock` and `apply` resolve true when what is shown changed.
  */
 export class ChannelPresence {
 	private readonly sealed = new Map<number, Uint8Array>();

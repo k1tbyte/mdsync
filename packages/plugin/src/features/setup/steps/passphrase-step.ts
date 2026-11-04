@@ -29,7 +29,7 @@ export function createPassphraseStep(wizard: Wizard): StepView {
 	/** Entered by Back after it was done: it stays to be looked at. */
 	const wasUnlocked = passphrase.isUnlocked();
 
-	/** A passphrase entered or saved earlier is tried first, so a set-up device just moves on. */
+	/** A passphrase entered or saved earlier is tried first, so a set-up device moves on. */
 	const check = async (): Promise<void> => {
 		phase = "checking";
 		state.error = "";

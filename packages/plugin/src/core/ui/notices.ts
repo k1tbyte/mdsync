@@ -42,7 +42,6 @@ export function tapTooltip(): (el: Element) => void {
 	};
 }
 
-/** Shows a caught error as a notice and logs the original to the console. */
 export function reportError(err: unknown): void {
 	notifyError(errorMessage(err));
 	console.error("[mdsync]", err);

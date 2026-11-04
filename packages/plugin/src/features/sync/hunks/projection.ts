@@ -211,7 +211,6 @@ async function assemble(
 		...base,
 		leftText: left.text,
 		rightText: right.text,
-		// Skips hunk computation for binary diffs.
 		hunks: isBinary
 			? computeHunks("", "")
 			: computeHunks(left.text, right.text),
@@ -282,7 +281,6 @@ export interface HistoryVersionRef {
 	size?: number;
 }
 
-/** Either a stored version, the file as it stands in the vault, or explicitly absent. */
 export type HistoryDiffSide =
 	| { version: HistoryVersionRef }
 	| { current: true; label?: string }

@@ -19,7 +19,7 @@ export class InvalidShareKeyError extends Error {
 	}
 }
 
-/** `<prefix>shares/<shareId>/` - the only region a participant may touch. */
+/** `<prefix>shares/<shareId>/`: the only region a participant may touch. */
 export function shareBasePrefix(prefix: string, shareId: string): string {
 	if (!isShareId(shareId)) {
 		throw new InvalidShareKeyError("Invalid share id");

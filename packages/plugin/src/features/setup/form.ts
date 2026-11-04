@@ -11,7 +11,6 @@ export function actionRow(parent: HTMLElement): Setting {
 	return row;
 }
 
-/** The error of a `runAction` step and its accent button, disabled with `busyLabel` while it runs. */
 export function busyButton(
 	parent: HTMLElement,
 	state: ActionState,
@@ -29,7 +28,6 @@ export function busyButton(
 	);
 }
 
-/** A line for work that is still going. */
 export function busyLine(parent: HTMLElement, text: string): void {
 	const line = parent.createDiv({ cls: "mdsync-setup-busy" });
 	line.createSpan({ cls: "mdsync-status-spinner" });

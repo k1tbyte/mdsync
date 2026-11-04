@@ -1,7 +1,6 @@
 /**
- * Reads the two S3 responses that carry XML without a parser: a dependency would undo what dropping the SDK
- * bought, `DOMParser` is missing in the test runner, and a value never contains a raw `<`, so a non-greedy
- * match is exact for well-formed documents.
+ * Reads the two S3 XML responses without a parser: a dependency would undo dropping the SDK, tests lack `DOMParser`,
+ * and values never contain a raw `<`, so a non-greedy match is exact for well-formed documents.
  */
 
 import type { ListedObject } from "../types";

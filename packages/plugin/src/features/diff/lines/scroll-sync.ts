@@ -18,7 +18,6 @@ export interface ScrollAnchors {
 /** Both tops only, for panes that are not mounted yet. */
 export const NO_ANCHORS: readonly ScrollPair[] = [[0, 0]];
 
-/** One correspondence between two panes. */
 export interface ScrollLink {
 	a: EditorView;
 	b: EditorView;

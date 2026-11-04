@@ -127,7 +127,7 @@ function localOpener(
 					? localVaultStorage(deps, getStorage)
 					: localShareStorage(deps, space, getStorage);
 		} catch {
-			// An adapter its config cannot build: the session opener throws, this look just has nothing to show.
+			// An adapter its config cannot build: the session opener throws, this look has nothing to show.
 			return null;
 		}
 		if (!storage) return null;

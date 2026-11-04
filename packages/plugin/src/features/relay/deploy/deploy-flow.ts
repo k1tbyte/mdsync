@@ -128,9 +128,8 @@ export async function waitForRelay(
 let activating: Promise<boolean> | null = null;
 
 /**
- * One wait however many wizards ask: the relay is switched on once, when it answers. Survives a closed wizard, stops on unload.
- * `realtime` is asked when the relay answers, not before: the choice may change while it is awaited.
- * Without it real-time sync stays as it is, as an update needs.
+ * One wait for all wizards: switches the relay on once it answers, survives a closed wizard, stops on unload. It asks
+ * `realtime` only then, as the choice may change meanwhile; without it, as for an update, real-time sync stays as is.
  */
 export function activateRelay(
 	plugin: RelayHost,

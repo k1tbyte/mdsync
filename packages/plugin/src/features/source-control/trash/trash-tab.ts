@@ -441,7 +441,7 @@ export class TrashTab implements SelectionSource {
 		const items = rows
 			.filter((row) => !folders.has(row.path))
 			.map(({ path, hash }) => ({ path, hash }));
-		// A rejection is the closing refresh and loses which paths failed, so all stay selected, as a refresh per file did.
+		// A rejection is the closing refresh and loses which paths failed, so all stay selected.
 		const failed = new Set([
 			...folders,
 			...(await this.plugin.controller.history

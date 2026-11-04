@@ -8,7 +8,6 @@ const PAUSED: Record<PauseKind, string> = {
 	off: ", shared folders are off on this device",
 };
 
-/** Whose a share is, where, and whether this device syncs it. */
 export function shareSummary(
 	spaces: Pick<SpaceRecords, "partition" | "pauseOf">,
 	record: SpaceRecord,

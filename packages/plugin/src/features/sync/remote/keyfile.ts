@@ -68,7 +68,7 @@ export async function readKeyfile(
 		}
 		return parsed;
 	} catch (err) {
-		// Present but unparseable. Returning null would orphan encrypted objects - fail loudly.
+		// Present but unparseable. Returning null would orphan encrypted objects; fail loudly.
 		throw new Error(
 			`Keyfile present but unreadable; refusing to treat it as absent: ${errorMessage(err)}`,
 		);

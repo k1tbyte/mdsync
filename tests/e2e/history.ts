@@ -1,7 +1,6 @@
 /**
- * The reworked file history in a real Obsidian: pushes from one device on an in-memory S3, one pinned,
- * then the Timeline tab (activity calendar, age groups, session cards, filter, day chip) and the setting
- * that hides the calendar.
+ * File history in a real Obsidian: pushes from one device on in-memory S3, one pinned; then the Timeline tab
+ * (activity calendar, age groups, session cards, filter, day chip) and the setting that hides the calendar.
  */
 
 import { mkdirSync } from "node:fs";

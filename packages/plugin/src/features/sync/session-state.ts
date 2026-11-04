@@ -95,7 +95,6 @@ export function mergeSessionIntoLocal(
 			...kept,
 		};
 	} else if (slot && session.baseline !== null) {
-		// Preserve vaultId if engine returned baseline without vaultId (defensive).
 		storages[identity] = {
 			vaultId: slot.vaultId,
 			baseline: session.baseline,

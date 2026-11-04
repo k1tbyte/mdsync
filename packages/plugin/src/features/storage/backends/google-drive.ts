@@ -42,9 +42,8 @@ function escapeDriveQueryValue(value: string): string {
 }
 
 /**
- * Best-effort backend for a content-addressed store: no conditional write or atomic create-by-name, so two
- * devices writing the same new key at once can produce duplicate files. Everything else follows the shared
- * contract: an error is never reported as absence.
+ * Best-effort content-addressed storage: no conditional write or atomic create-by-name, so concurrent writes of a new key
+ * by two devices can duplicate files. All other shared-contract rules hold: errors are never reported as absence.
  */
 export function createGoogleDriveAdapter(
 	config: GoogleDriveStorageConfig,
@@ -404,7 +403,7 @@ export function createGoogleDriveAdapter(
 
 		async putIfAbsent(key, body, contentType) {
 			// Drive has no conditional create. Probing closes ordinary race; genuine tie leaves duplicate
-			// resolved arbitrarily - documented, not solved.
+			// resolved arbitrarily (documented, not solved).
 			if (await findFileId(key)) return false;
 			await upload(key, body, contentType, null);
 			return true;

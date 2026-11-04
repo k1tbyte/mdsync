@@ -56,7 +56,7 @@ export async function writeBinary(
 	} catch (err) {
 		if (parent === null || !trustedCache) throw err;
 		dirs.delete(parent);
-		// Only a missing folder is the cache's fault; a second attempt at any other failure would just wait twice.
+		// Only a missing folder is the cache's fault; a second attempt at any other failure would wait twice.
 		if (!(await ensureDir(adapter, parent))) throw err;
 		dirs.add(parent);
 		await adapter.writeBinary(path, buffer);

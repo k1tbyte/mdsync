@@ -16,7 +16,7 @@ export function appendIconButton(
 	return button;
 }
 
-/** Icon plus text: a bare icon button left dead space in a full-width toolbar. */
+/** A bare icon button leaves dead space in a full-width toolbar. */
 export function appendLabeledButton(
 	parent: HTMLElement,
 	icon: string,

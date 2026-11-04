@@ -19,7 +19,7 @@ type Body<T extends ServerBody["type"]> = Omit<
 	Extract<ServerBody, { type: T }>,
 	"type"
 >;
-/** What a State frame carries. */
+
 export type DocState = Body<typeof EFrame.State>;
 /** Where a moved document continued, and the sealed note its mover left there. */
 export type Pointer = Body<typeof EFrame.Moved>;

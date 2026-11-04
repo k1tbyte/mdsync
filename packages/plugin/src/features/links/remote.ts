@@ -22,9 +22,8 @@ const LINKS: RecordKind<LinkRecord> = {
 };
 
 /**
- * Trades this device's links with the vault storage. No tombstones: a link removed on any device is deleted
- * from the storage, and a copy already traded there that the storage no longer lists was removed elsewhere.
- * A listing that lags only drops a copy the storage still holds; the next trade brings it back.
+ * Trades this device's links with the vault storage, without tombstones: a removed link is deleted from the storage,
+ * so a traded copy it no longer lists was removed elsewhere. A lagging listing only drops a copy until the next trade.
  */
 export async function tradeLinks(
 	storage: StorageAdapter,

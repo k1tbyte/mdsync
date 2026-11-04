@@ -5,7 +5,6 @@ import type { PassphraseManager } from "./remote/passphrase-manager";
 import type { Space } from "./remote/space";
 import type { IgnoreStateHandle } from "./scope/ignore-state";
 
-/** What sync's commands, menus and sections need from the plugin. */
 export interface SyncHost extends SettingsHost {
 	readonly app: App;
 	readonly controller: SyncController;

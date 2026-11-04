@@ -13,9 +13,8 @@ interface SavedRefreshDeps {
 }
 
 /**
- * Saved files patched into the last compare, so markers and counts follow an edit without a refresh. Local
- * only and display only: nothing is persisted, no operation reads the patched result without comparing
- * again, and the next full refresh reconciles whatever this skips.
+ * Saved files patched into the last compare, so markers and counts follow an edit without a refresh. Local and
+ * display only: nothing persists, operations compare again before reading it, the next full refresh reconciles the rest.
  */
 export class SavedRefresh {
 	private readonly paths = new Set<string>();

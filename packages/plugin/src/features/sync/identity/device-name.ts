@@ -1,7 +1,7 @@
 import type { StatePersister } from "../recovery/state-persister";
 import { defaultDeviceName } from "./device";
 
-/** The device name lives in local state only - it is never synced. */
+/** The device name lives in local state only; it is never synced. */
 export class DeviceName {
 	constructor(
 		private readonly state: StatePersister,

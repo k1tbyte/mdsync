@@ -25,7 +25,7 @@ interface Entry {
 
 /**
  * IndexedDB, because a `CryptoKey` survives it: the derived key is non-extractable and the passphrase is never
- * written. Storage the browser blocks just remembers nothing.
+ * written. Blocked browser storage remembers nothing.
  */
 export function browserKeys(): RememberedKeys {
 	let store: UseStore | undefined;

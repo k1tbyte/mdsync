@@ -153,7 +153,7 @@ export async function scanVault(
 				.map(({ path }) => path),
 		);
 		const lower = new Map<string, string>();
-		// Sort to ensure the surviving spelling of a case collision is deterministic.
+		// Sort so the surviving spelling of a case collision is deterministic.
 		for (const path of Object.keys(files).sort()) {
 			const lc = path.toLowerCase();
 			const existing = lower.get(lc);

@@ -23,9 +23,8 @@ export interface RelayUpdate {
 }
 
 /**
- * Finds an outdated relay this device's Cloudflare token can deploy once its socket connects, and offers the
- * update once per relay per launch; "not now" holds until a newer build ships. A deploy reconnects the
- * socket, so a relay found outdated is checked again on every connect.
+ * On connect, offers to update an outdated relay this device's Cloudflare token can deploy, once per relay per launch;
+ * "not now" holds until a newer build ships. A deploy reconnects the socket, so every connect checks again.
  */
 export function registerRelayUpdate(plugin: Plugin & RelayHost): RelayUpdate {
 	const checked = new Set<string>();

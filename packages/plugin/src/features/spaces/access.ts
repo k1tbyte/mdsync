@@ -24,9 +24,8 @@ export interface ShareStorage {
 }
 
 /**
- * The owner reaches a share with the device's own S3 credentials, a participant through the owner's relay;
- * null when this device cannot. `root` is where the folder is on this device, which a pending move keeps
- * apart from the record's.
+ * Owners use the device's S3 credentials, participants the owner's relay; null when this device cannot reach the share.
+ * `root` is the folder on this device; a pending move keeps it apart from the record's root.
  */
 export function shareStorage(
 	record: SpaceRecord,

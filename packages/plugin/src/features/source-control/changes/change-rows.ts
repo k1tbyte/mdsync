@@ -282,7 +282,7 @@ function showFileMenu(event: MouseEvent, row: FileRow, ctx: RowContext): void {
 	menu.showAtMouseEvent(event);
 }
 
-/** Indentation the flattened tree no longer gets from nested containers. */
+/** Indentation the flattened tree cannot get from nested containers. */
 function setDepth(el: HTMLElement, depth: number): void {
 	if (depth > 0) el.style.setProperty("--mdsync-depth", String(depth));
 }

@@ -58,9 +58,8 @@ interface PeerState {
 }
 
 /**
- * y-codemirror.next's remote selections, except that a selection costs only the lines on screen (the
- * library emits a decoration per selected line, offscreen included, on every update), and nothing is
- * rebuilt unless awareness, the document or the viewport changed.
+ * y-codemirror.next's remote selections, drawn only on screen (the library decorates every selected line on every
+ * update, offscreen too) and rebuilt only when awareness, the document or the viewport changed.
  */
 export function remoteSelections(ytext: Y.Text, awareness: Awareness) {
 	return ViewPlugin.fromClass(

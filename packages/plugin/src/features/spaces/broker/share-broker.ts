@@ -1,7 +1,6 @@
 /**
- * The relay's share broker. A participant never holds storage credentials: the broker presigns each request
- * under their share token and bytes go straight to the owner's bucket. The owner registers where the share
- * lives and issues the tokens.
+ * The relay's share broker presigns each participant request under their share token, so they hold no storage
+ * credentials and bytes go straight to the owner's bucket. The owner registers where the share lives and issues tokens.
  */
 
 import { ADMIN_HEADER } from "@mdsync/protocol";

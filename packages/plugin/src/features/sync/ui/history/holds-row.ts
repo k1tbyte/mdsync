@@ -22,7 +22,7 @@ export interface HoldsOptions {
 	onPick: (day: CalendarDay) => void;
 }
 
-/** **What history holds**: a year of pushes over how each stretch is kept, then the ladder for `horizon`. */
+/** What history holds: a year of pushes over how each stretch is kept, then the ladder for `horizon`. */
 export function renderHistoryHolds(
 	setting: Setting,
 	{ load, horizon, onPick }: HoldsOptions,

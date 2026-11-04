@@ -21,9 +21,8 @@ import { remoteSelections } from "./remote-selections";
 import { scrollMarks } from "./scroll-marks";
 
 /**
- * Attaches a session to one leaf through a Compartment (`registerEditorExtension` reaches every editor); a
- * file switch replaces the EditorState, so the binding never carries another file's text into this room.
- * Reaches CodeMirror via Obsidian's undocumented `editor.cm`.
+ * Attaches a session to one leaf through a Compartment (`registerEditorExtension` reaches every editor), using
+ * Obsidian's undocumented `editor.cm`. A file switch replaces the EditorState, so no other file's text reaches this room.
  */
 export function bindEditor(
 	view: MarkdownView,

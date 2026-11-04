@@ -4,9 +4,8 @@ import { isUnder, type Space, VAULT_SPACE } from "@/features/sync";
 import type { SpaceRecord } from "./record";
 
 /**
- * The vault, then every open record whose root is free. Roots never overlap: two devices that shared one
- * folder offline both keep the smaller id's space, the other stays out until its owner closes it. A paused
- * share stays in, so its folder stays out of the vault.
+ * The vault, then every open record whose root is free; a paused share stays in, so its folder stays out of the vault.
+ * Roots never overlap: if two devices shared one folder offline, the smaller id wins; the other stays out until closed.
  */
 export function spacesOf(
 	records: readonly SpaceRecord[],
