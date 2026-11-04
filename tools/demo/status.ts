@@ -53,7 +53,7 @@ await runScenario("status demo", async () => {
 				const plugin = app.plugins.plugins.mdsync;
 				const { hub } = plugin.realtime;
 				const names: Record<string, string> = {
-					s1: "Framepod",
+					s1: "Travel plans",
 					s2: "Design notes",
 					s3: "Reading club",
 					s4: "Team wiki",
@@ -124,7 +124,7 @@ await runScenario("status demo", async () => {
 			await sleep(1800);
 			await glide(page, ".menu-item:has-text('Reading club')", 900);
 			await sleep(1800);
-			await glide(page, ".menu-item:has-text('Framepod')", 800);
+			await glide(page, ".menu-item:has-text('Travel plans')", 800);
 			await sleep(1800);
 		} finally {
 			console.log(`wrote ${encode("status", await recording.stop())}`);

@@ -23,16 +23,15 @@ DEMO_HOLD=1 pnpm exec jiti tools/demo/readonly.ts   # stage the scene and keep O
 
 ## Promo video
 
-`promo/` cuts the full-size takes into a captioned 1920x1080 video (30 fps, muted: the captions carry it).
+`promo/` cuts the full-size takes into a captioned 1920x1080 video (30 fps, muted: the captions carry it), in the look of the README cover (`docs/hero/`).
 
 ```bash
 tools/demo/take.sh wizard changes merge timeline live share links status   # artifacts/demos/<name>.mp4
-python3 tools/demo/promo/extract.py                                         # artifacts/promo/frames/<name>/NNNN.jpg
 node tools/demo/promo/render.mjs artifacts/promo.mp4                        # needs ffmpeg; CHROME=<path> for another browser
 node tools/demo/promo/render.mjs - 30 4,16,23.5                             # stills at those seconds, in artifacts/promo/stills
 ```
 
-- `promo/scenes.js` is the plan: per scene a kicker and headline, the take it shows, which seconds of it (`segs`, `[out0, out1, src0, src1]`) and where the camera crops (`zoom`, `[t, x, y, w]` in the take's pixels). `promo/index.html` is the look (graphite grid, Inter, cross-fades) and exposes `window.setTime(t)`, which `promo/render.mjs` screenshots frame by frame.
-- `promo/extract.py` keeps only the source seconds `scenes.js` reads (its `RANGES`): widen a range there when a seg reaches past it, and re-run it after a take changes.
+- `promo/scenes.js` is the plan: per scene a kicker and headline, the take it shows, the stretches of it played back to back (`clips`, `[from, to, speed]` in take seconds; a gap between two dissolves) and the camera (`zoom`, `[take second, x, y, w]` in the take's pixels). `aspect` crops a take whose lower part stays empty. Two scenes of one take in a row keep the window in place. Every take plays at `PACE` (`timeline.js`), and a still stretch inside a scene (ffmpeg `freezedetect`, found by `render.mjs`) is squeezed to `HOLD` seconds.
+- `promo/index.html` is the look (cover palette and cards, Hanken Grotesk), `promo/timeline.js` poses it for `window.setTime(t)`, which `promo/render.mjs` screenshots frame by frame after extracting the take seconds the plan reads into `artifacts/promo/frames`.
 - `take.sh` runs the takes in the video mode below and runs a failed one again: Obsidian's trust dialog now and then swallows the first click. On headless Linux start `Xvfb :99 -screen 0 2560x1440x24 -nolisten tcp` first; `obsidian-xvfb.sh` is the `OBSIDIAN_EXE` it uses (`OBSIDIAN_BIN` for another install path).
-- `promo/fonts/` holds Inter 500-800 (SIL OFL 1.1).
+- `promo/fonts/` holds Hanken Grotesk, variable 400-800 (SIL OFL 1.1).

@@ -4,256 +4,152 @@
 <meta charset="utf-8">
 <title>MDSync promo</title>
 <style>
-	@font-face { font-family: "InterV"; font-weight: 500; src: url("fonts/inter-500.woff2") format("woff2"); }
-	@font-face { font-family: "InterV"; font-weight: 600; src: url("fonts/inter-600.woff2") format("woff2"); }
-	@font-face { font-family: "InterV"; font-weight: 700; src: url("fonts/inter-700.woff2") format("woff2"); }
-	@font-face { font-family: "InterV"; font-weight: 800; src: url("fonts/inter-800.woff2") format("woff2"); }
+	@font-face { font-family: "Hanken Grotesk"; font-weight: 400 800; src: url("fonts/hanken-grotesk.woff2") format("woff2"); }
+
+	/* The README cover's dark palette (docs/hero). */
+	:root {
+		--fg: #fff; --mu: #d4cbf8; --a2: #c4b5fd; --btn: #7c3aed; --g1: #ece6ff; --g2: #a78bfa;
+		--pn: rgba(32, 24, 64, 0.88); --pb: rgba(196, 181, 253, 0.24); --sh: 0 36px 90px rgba(6, 2, 28, 0.6);
+		--cb: rgba(255, 255, 255, 0.07); --cbr: rgba(196, 181, 253, 0.3); --ip: #f1edff; --mp: #a9a0d6;
+		--ln: rgba(255, 255, 255, 0.12); --row: rgba(255, 255, 255, 0.08);
+		--ok: #4ade80; --okb: rgba(74, 222, 128, 0.16); --wn: #fbbf24; --wnb: rgba(251, 191, 36, 0.16);
+		--er: #f87171; --erb: rgba(248, 113, 113, 0.16);
+	}
 
 	* { box-sizing: border-box; margin: 0; }
 
-	html, body {
-		width: 1920px;
-		height: 1080px;
-		overflow: hidden;
-		background: #0b0b0e;
-		font-family: "InterV", Inter, system-ui, sans-serif;
-		color: #f4f3fa;
+	html, body { width: 1920px; height: 1080px; overflow: hidden; background: #150f2b; }
+
+	#stage {
+		position: relative; width: 1920px; height: 1080px; overflow: hidden; color: var(--fg);
+		font-family: "Hanken Grotesk", system-ui, sans-serif;
+		background:
+			radial-gradient(1500px 960px at 88% -5%, rgba(110, 70, 240, 0.55), transparent 62%),
+			radial-gradient(1200px 780px at -5% 105%, rgba(60, 40, 160, 0.6), transparent 62%),
+			#150f2b;
 	}
 
-	#stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #0b0b0e; }
-
-	/* The graphite grid, strongest behind the footage and gone at the edges. */
-	#grid {
-		position: absolute;
-		inset: 0;
-		background-image:
-			linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-			linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-		background-size: 60px 60px;
-		background-position: 30px 22px;
-		-webkit-mask-image: radial-gradient(ellipse 72% 68% at 50% 60%, #000 25%, transparent 100%);
-		mask-image: radial-gradient(ellipse 72% 68% at 50% 60%, #000 25%, transparent 100%);
+	.blob { position: absolute; border-radius: 50%; }
+	#blob-a { top: -360px; right: -225px; width: 960px; height: 960px; background: rgba(124, 58, 237, 0.3); }
+	#blob-b { bottom: -450px; right: 390px; width: 840px; height: 840px; background: rgba(99, 102, 241, 0.2); }
+	#dots {
+		position: absolute; left: 108px; bottom: 57px; width: 162px; height: 108px;
+		background-image: radial-gradient(rgba(196, 181, 253, 0.3) 3.3px, transparent 4.2px);
+		background-size: 27px 27px;
 	}
 
-	.brand {
-		position: absolute;
-		right: 90px;
-		top: 62px;
-		font-size: 32px;
-		font-weight: 700;
-		letter-spacing: -0.03em;
-		line-height: 1;
+	.grad { background: linear-gradient(90deg, var(--g1), var(--g2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+	.brand { position: absolute; right: 96px; top: 70px; font-size: 40px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; }
+
+	.chip {
+		align-self: flex-start; display: inline-flex; align-items: center; gap: 10px; padding: 8px 18px; border-radius: 999px;
+		border: 1px solid var(--cbr); background: var(--cb); font-size: 18px; font-weight: 700; letter-spacing: 0.2em; color: var(--a2);
 	}
 
-	.win { position: absolute; will-change: transform, opacity, filter; }
+	.caption { position: absolute; left: 96px; top: 56px; display: flex; flex-direction: column; gap: 18px; }
+	.headline { font-size: 58px; font-weight: 700; line-height: 1.05; letter-spacing: -0.025em; white-space: nowrap; }
+	.headline b { font-weight: 700; background: linear-gradient(90deg, var(--g1), var(--g2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
-	.clip {
-		position: relative;
-		width: 100%;
-		height: 100%;
-		overflow: hidden;
-		border-radius: 14px;
-		background: #1e1e1e;
-		box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16), 0 40px 100px rgba(0, 0, 0, 0.7);
+	/* A take in a glass panel, as the cover's cards. */
+	.win {
+		position: absolute; padding: 12px; border-radius: 28px;
+		background: rgba(32, 24, 64, 0.7); border: 1px solid var(--pb); box-shadow: var(--sh);
 	}
-
+	.clip { position: relative; overflow: hidden; border-radius: 16px; background: #1e1e1e; }
 	.clip img { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 
-	.tag {
-		position: absolute;
-		left: 0;
-		top: -50px;
-		padding: 7px 16px;
-		border-radius: 999px;
-		background: #a78bfa;
-		color: #0b0b0e;
-		font-size: 22px;
-		font-weight: 700;
-		letter-spacing: 0.01em;
-		white-space: nowrap;
-	}
+	/* The cover at 1280x720, scaled up to the frame. */
+	#cover { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; transform: scale(1.5); transform-origin: 0 0; }
+	#cover .board { position: absolute; left: 0; right: 0; top: 40px; height: 640px; }
+	.text { position: absolute; left: 72px; top: 0; bottom: 0; width: 470px; display: flex; flex-direction: column; justify-content: center; gap: 26px; }
+	.text .chip { font-size: 15px; padding: 8px 16px; }
+	.mark { font-size: 122px; font-weight: 800; letter-spacing: -0.05em; line-height: 0.95; margin-left: -6px; padding-bottom: 6px; }
+	.tagline { font-size: 32px; font-weight: 600; line-height: 1.22; letter-spacing: -0.015em; color: var(--mu); text-wrap: balance; }
+	.pills { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+	.pill { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-radius: 999px; border: 1px solid var(--cbr); background: var(--cb); font-size: 20px; font-weight: 600; }
+	.pill::before, .dot { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--btn); flex: none; }
+	.pill.url { font-size: 22px; color: var(--a2); }
 
-	.caption { position: absolute; left: 90px; top: 54px; width: 1500px; }
-
-	.kicker {
-		display: flex;
-		align-items: center;
-		gap: 14px;
-		font-size: 22px;
-		font-weight: 700;
-		letter-spacing: 0.16em;
-		text-transform: uppercase;
-		color: #a78bfa;
-	}
-
-	.kicker::before { content: ""; width: 34px; height: 3px; border-radius: 2px; background: #a78bfa; }
-
-	.headline {
-		margin-top: 12px;
-		font-size: 58px;
-		font-weight: 700;
-		line-height: 1.08;
-		letter-spacing: -0.02em;
-		white-space: nowrap;
-	}
-
-	.headline b { font-weight: 700; color: #b9a3fb; }
-
-	/* The end card's lockup. */
-	.lockup { position: absolute; left: 90px; top: 360px; display: flex; flex-direction: column; gap: 26px; }
-	.lockup .mark { font-size: 210px; font-weight: 800; letter-spacing: -0.045em; line-height: 0.95; }
-	.lockup .what { font-size: 44px; font-weight: 500; color: #a3a0b5; }
-	.lockup .url { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 36px; color: #b9a3fb; }
+	.card { position: absolute; border-radius: 20px; background: var(--pn); border: 1px solid var(--pb); box-shadow: var(--sh); color: var(--ip); display: flex; flex-direction: column; }
+	.row { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; font-size: 19px; font-weight: 500; border-radius: 10px; }
+	.row.dir { font-weight: 600; }
+	.row.file { padding-left: 54px; }
+	.row.on { background: var(--row); }
+	.head { display: flex; align-items: center; justify-content: space-between; padding: 0 10px; font-size: 15px; font-weight: 700; color: var(--mp); }
+	.count { font-size: 14px; min-width: 24px; height: 22px; border-radius: 11px; background: var(--row); display: flex; align-items: center; justify-content: center; color: var(--ip); }
+	.sign { margin-left: auto; width: 25px; height: 25px; border-radius: 7px; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+	.sign.a { background: var(--okb); color: var(--ok); }
+	.sign.m { background: var(--wnb); color: var(--wn); }
+	.sign.d { background: var(--erb); color: var(--er); }
+	.chev { width: 6px; height: 6px; border-right: 2px solid var(--mp); border-bottom: 2px solid var(--mp); transform: rotate(45deg); margin: -3px 4px 0 2px; }
+	.folder { position: relative; width: 20px; height: 14px; border: 2px solid var(--a2); border-radius: 3px; margin-top: 3px; }
+	.folder::before { content: ""; position: absolute; left: -2px; top: -6px; width: 8px; height: 4px; border: 2px solid var(--a2); border-bottom: none; border-radius: 3px 3px 0 0; }
+	.btn { display: flex; align-items: center; gap: 9px; padding: 8px 16px; border-radius: 12px; background: var(--btn); color: #fff; font-size: 18px; font-weight: 700; }
+	.btn span { min-width: 24px; height: 24px; border-radius: 8px; background: rgba(255, 255, 255, 0.24); display: flex; align-items: center; justify-content: center; font-size: 14px; }
+	.live { display: flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; background: var(--okb); color: var(--ok); font-size: 13px; font-weight: 700; }
+	.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+	.av { width: 26px; height: 26px; border-radius: 50%; color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid #201840; }
+	.line { display: flex; align-items: center; gap: 10px; height: 26px; padding-left: 12px; }
+	.caret { position: relative; width: 2px; height: 20px; margin-left: -8px; }
+	.caret i { position: absolute; bottom: 100%; left: 0; white-space: nowrap; padding: 1px 8px; border-radius: 5px 5px 5px 0; color: #fff; font-size: 11px; font-weight: 700; font-style: normal; }
+	.push { position: absolute; padding: 12px 24px; border-radius: 15px; background: linear-gradient(135deg, #9b6dff, #6d28d9); color: #fff; font-size: 21px; font-weight: 700; box-shadow: 0 16px 36px rgba(76, 29, 149, 0.45); border: 1px solid rgba(255, 255, 255, 0.3); }
 </style>
 </head>
 <body>
 <div id="stage">
-	<div id="grid"></div>
-	<div class="brand" id="brand">MDSync</div>
+	<div class="blob" id="blob-a"></div>
+	<div class="blob" id="blob-b"></div>
+	<div id="dots"></div>
+	<div class="brand" id="brand">MD<span class="grad">Sync</span></div>
+
+	<!-- The combo cover, its cards rising in one by one (data-in: seconds into the card). -->
+	<div id="cover"><div class="board">
+		<div class="text" id="intro-text">
+			<div class="chip" data-in="0.05">OBSIDIAN PLUGIN</div>
+			<div class="mark" data-in="0.15">MD<span class="grad">Sync</span></div>
+			<div class="tagline" data-in="0.25">Serverless, end-to-end encrypted vault sync</div>
+			<div class="pills" data-in="0.35"><div class="pill">S3</div><div class="pill">File history</div><div class="pill">Live editing</div><div class="pill">End-to-end encrypted</div></div>
+		</div>
+		<div class="text" id="outro-text">
+			<div class="chip" data-in="0.05">FREE COMMUNITY PLUGIN</div>
+			<div class="mark" data-in="0.15">MD<span class="grad">Sync</span></div>
+			<div class="tagline" data-in="0.25">Search MDSync in Obsidian's community plugins</div>
+			<div class="pills" data-in="0.35"><div class="pill url">community.obsidian.md/plugins/mdsync</div></div>
+		</div>
+
+		<div class="card" data-in="0.3" style="right:56px;top:96px;width:480px;padding:20px;gap:12px;border-radius:24px">
+			<div style="display:flex;gap:10px"><div class="btn">Push<span>3</span></div><div class="btn">Pull<span>1</span></div></div>
+			<div style="height:1px;background:var(--ln)"></div>
+			<div class="head">Local changes<span class="count">3</span></div>
+			<div style="display:flex;flex-direction:column;gap:2px">
+				<div class="row dir"><div class="chev"></div><div class="folder"></div>Projects</div>
+				<div class="row file">Garden plan.md<span class="sign a">A</span></div>
+				<div class="row file on">Ideas.md<span style="margin-left:auto;font-size:14px;font-weight:700;color:var(--ok)">+31 B</span><span class="sign m" style="margin-left:0">M</span></div>
+				<div class="row dir"><div class="chev"></div><div class="folder"></div>Daily</div>
+				<div class="row file"><span style="text-decoration:line-through;color:var(--mp)">2026-10-01.md</span><span class="sign d">D</span></div>
+			</div>
+			<div class="head">Remote changes<span class="count">1</span></div>
+			<div class="row" style="padding-left:160px;font-weight:600">Team / Plan.md<span class="sign m">M</span></div>
+		</div>
+		<div data-in="0.45" style="position:absolute;right:20px;top:26px;width:300px"><div class="card" style="position:relative;padding:14px 16px 16px;gap:12px;border-radius:18px;transform:rotate(2.5deg)">
+			<div style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600">Plan.md<span class="live">Live</span>
+				<span style="margin-left:auto;display:flex"><span class="av" style="background:#7c3aed">A</span><span class="av" style="background:#168a32;margin-left:-8px">B</span></span></div>
+			<div style="display:flex;flex-direction:column;gap:14px;font-size:16px;font-weight:500;padding-top:6px">
+				<div class="line" style="border-left:3px solid #8b5cf6"><span>Draft the launch post</span><span class="caret" style="background:#7c3aed"><i style="background:#7c3aed">Ana</i></span></div>
+				<div class="line" style="border-left:3px solid #22a043"><span>Confirm the speakers</span><span class="caret" style="background:#168a32"><i style="background:#168a32">Bob</i></span></div>
+			</div>
+		</div></div>
+		<div data-in="0.55" style="position:absolute;right:400px;bottom:30px;width:270px"><div class="card" style="position:relative;padding:14px 16px;gap:4px;transform:rotate(-3deg)">
+			<div style="font-size:13px;font-weight:700;letter-spacing:.06em;color:var(--mp);padding:0 4px 4px">FILE HISTORY · Ideas.md</div>
+			<div class="row" style="height:auto;padding:6px 9px;background:var(--row);font-size:16px;font-weight:600;gap:9px"><span class="dot"></span>Today, 14:02<span style="margin-left:auto;font-size:13px;font-weight:700;color:var(--a2)">Restore</span></div>
+			<div class="row" style="height:auto;padding:6px 9px;font-size:16px;gap:9px"><span class="dot" style="background:var(--mp)"></span>Yesterday, 18:40</div>
+			<div class="row" style="height:auto;padding:6px 9px;font-size:16px;gap:9px"><span class="dot" style="background:var(--mp)"></span>12 Oct<span style="margin-left:auto;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--wnb);color:var(--wn)">Pinned</span></div>
+		</div></div>
+		<div data-in="0.65" style="position:absolute;right:30px;bottom:44px"><div class="push" style="position:relative;transform:rotate(-3deg)">↑ Push 3 files</div></div>
+	</div></div>
 </div>
 
 <script src="scenes.js"></script>
-<script>
-	const FPS_SRC = 30;
-		// extract.py writes the frames there, out of git.
-		const FRAMES = "../../../artifacts/promo/frames";
-	const AREA = { x: 160, y: 190, w: 1600, h: 850 };
-	const TR = 0.6;
-
-	const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
-	const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
-
-	function pick(points, t) {
-		if (t <= points[0][0]) return points[0].slice(1);
-		for (let i = 1; i < points.length; i++) {
-			if (t <= points[i][0]) {
-				const [t0, ...a] = points[i - 1];
-				const [t1, ...b] = points[i];
-				const k = ease((t - t0) / (t1 - t0));
-				return a.map((v, j) => v + (b[j] - v) * k);
-			}
-		}
-		return points.at(-1).slice(1);
-	}
-
-	/** Source seconds for output time `t`: each segment plays [src0, src1] over [out0, out1]; outside them the nearest edge holds. */
-	function srcAt(segs, t) {
-		if (t <= segs[0][0]) return segs[0][2];
-		for (const [o0, o1, s0, s1] of segs) {
-			if (t <= o1) return s0 + (s1 - s0) * clamp((t - o0) / (o1 - o0));
-		}
-		return segs.at(-1)[3];
-	}
-
-	const stage = document.getElementById("stage");
-	const brand = document.getElementById("brand");
-
-	for (const scene of SCENES) {
-		scene.caption = document.createElement("div");
-		scene.caption.className = "caption";
-		scene.caption.innerHTML = '<div class="kicker"></div><div class="headline"></div>';
-		scene.caption.querySelector(".kicker").textContent = scene.kicker;
-		scene.caption.querySelector(".headline").innerHTML = scene.headline;
-		stage.append(scene.caption);
-
-		scene.wins = [];
-		for (const layer of scene.layers ?? []) {
-			const [sw, sh] = layer.size;
-			const [aw, ah] = layer.aspect ?? layer.size;
-			const area = layer.area ?? AREA;
-			const width = Math.min(area.w, area.h * (aw / ah));
-			const height = width / (aw / ah);
-			layer.box = { width, height };
-			layer.win = document.createElement("div");
-			layer.win.className = "win";
-			layer.win.style.cssText = `width:${width}px;height:${height}px;left:${area.x + (area.w - width) / 2}px;top:${area.y + (area.h - height) / 2}px`;
-			layer.win.innerHTML = '<div class="clip"><img alt=""></div><div class="tag"></div>';
-			layer.win.querySelector(".tag").textContent = layer.label ?? "";
-			layer.win.querySelector(".tag").style.display = layer.label ? "" : "none";
-			layer.img = layer.win.querySelector("img");
-			layer.img.style.width = `${sw}px`;
-			layer.img.style.height = `${sh}px`;
-			layer.shown = -1;
-			stage.append(layer.win);
-		}
-
-		if (scene.lockup) {
-			scene.lockupEl = document.createElement("div");
-			scene.lockupEl.className = "lockup";
-			scene.lockupEl.innerHTML = `<div class="mark">MDSync</div><div class="what"></div><div class="url"></div>`;
-			scene.lockupEl.querySelector(".what").textContent = scene.lockup.what;
-			scene.lockupEl.querySelector(".url").textContent = scene.lockup.url;
-			stage.append(scene.lockupEl);
-		}
-	}
-
-	/** Loads a frame; a take's last frame of a range can be missing, so it falls back a few frames. */
-	async function show(layer, index) {
-		for (let i = 0; i < 4; i++) {
-			layer.img.src = `${FRAMES}/${layer.name}/${String(index - i).padStart(4, "0")}.jpg`;
-			try {
-				await layer.img.decode();
-				return;
-			} catch {}
-		}
-	}
-
-	/** Positions everything for output time `t` and resolves once the frame images are decoded. */
-	window.setTime = async (t) => {
-		const decoded = [];
-		let brandOn = 1;
-		for (const scene of SCENES) {
-			const live = t >= scene.start - 0.001 && t <= scene.end + 0.001;
-			scene.caption.style.display = live ? "" : "none";
-			for (const layer of scene.layers ?? []) layer.win.style.display = live ? "" : "none";
-			if (scene.lockupEl) scene.lockupEl.style.display = live ? "" : "none";
-			if (!live) continue;
-
-			const local = t - scene.start;
-			const length = scene.end - scene.start;
-			const first = scene === SCENES[0];
-			const last = scene === SCENES.at(-1);
-			const into = first ? 1 : ease(clamp((local / TR - 0.3) / 0.7));
-			const away = last ? 0 : ease(clamp((local - (length - TR)) / TR / 0.7));
-			const shift = `translateX(${(1 - into) * 140 - away * 140}px) scale(${1 - (1 - into) * 0.04 - away * 0.04})`;
-			const alpha = into * (1 - away);
-			const blur = away > 0 ? `blur(${away * 8}px)` : "none";
-
-			for (const layer of scene.layers ?? []) {
-				// A layer can come later in its scene: an inset that pops in over the main footage.
-				const lt = layer.from ? ease(clamp((local - layer.from) / 0.5)) : 1;
-				layer.win.style.opacity = alpha * lt;
-				layer.win.style.transform = `${shift} translateY(${(1 - lt) * 30}px)`;
-				layer.win.style.filter = blur;
-				const index = Math.round(srcAt(layer.segs, t) * FPS_SRC);
-				if (index !== layer.shown) {
-					layer.shown = index;
-					decoded.push(show(layer, index));
-				}
-				const [zx, zy, zw] = pick(layer.zoom, t);
-				const zs = layer.box.width / zw;
-				layer.img.style.transform = `translate(${-zx * zs}px, ${-zy * zs}px) scale(${zs})`;
-			}
-			if (scene.lockupEl) {
-				const lin = ease(clamp((local - 0.3) / 0.8));
-				scene.lockupEl.style.opacity = lin * (1 - away);
-				scene.lockupEl.style.transform = `translateY(${(1 - lin) * 40}px)`;
-			}
-			if (scene.noBrand) brandOn = Math.min(brandOn, 1 - into);
-
-			const cin = ease(clamp((local - (first ? 0.15 : 0.4)) / 0.55));
-			const cout = last ? 0 : ease(clamp((local - (length - TR)) / 0.35));
-			scene.caption.style.opacity = cin * (1 - cout);
-			scene.caption.style.transform = `translateY(${(1 - cin) * 26 - cout * 18}px)`;
-			scene.caption.style.filter = cout > 0 ? `blur(${cout * 4}px)` : "none";
-		}
-		brand.style.opacity = brandOn;
-		await Promise.all(decoded);
-		await document.fonts.ready;
-	};
-
-	window.TOTAL = Math.max(...SCENES.map((s) => s.end));
-	window.setTime(0);
-</script>
+<script src="timeline.js"></script>
 </body>
 </html>
